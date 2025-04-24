@@ -1,0 +1,13 @@
+export * as authService from './authService';
+export * as courseService from './courseService';
+export * as testService from './testService';
+export * as studyService from './studyService';
+export * as duelService from './duelService';
+export * as analyticsService from './analyticsService';
+export * as coachingService from './coachingService';
+export * as studyPlanService from './studyPlanService';
+export * as friendService from './friendService';
+export * as subscriptionService from './subscriptionService';
+export * as achievementService from './achievementService';
+export * as answerService from './answerService';
+export * as duelResultService from './duelResultService';
