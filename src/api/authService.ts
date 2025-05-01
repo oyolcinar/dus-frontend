@@ -6,7 +6,7 @@ export const login = async (
   email: string,
   password: string,
 ): Promise<AuthResponse> => {
-  const response = await apiRequest<AuthResponse>('/users/login', 'POST', {
+  const response = await apiRequest<AuthResponse>('/auth/login', 'POST', {
     email,
     password,
   });
@@ -24,7 +24,7 @@ export const register = async (
   email: string,
   password: string,
 ): Promise<AuthResponse> => {
-  const response = await apiRequest<AuthResponse>('/users/register', 'POST', {
+  const response = await apiRequest<AuthResponse>('/auth/register', 'POST', {
     username,
     email,
     password,
@@ -39,12 +39,20 @@ export const register = async (
 };
 
 export const logout = async (): Promise<void> => {
-  await AsyncStorage.removeItem('userToken');
-  await AsyncStorage.removeItem('userData');
+  try {
+    // Call the signout endpoint
+    await apiRequest('/auth/signout', 'POST');
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    // Clear local storage regardless of API response
+    await AsyncStorage.removeItem('userToken');
+    await AsyncStorage.removeItem('userData');
+  }
 };
 
 export const getProfile = async (): Promise<User> => {
-  return await apiRequest<User>('/users/profile');
+  return await apiRequest<User>('/auth/me');
 };
 
 export const updateProfile = async (
@@ -71,4 +79,29 @@ export const updateStudyTime = async (
   totalStudyTime: number;
 }> => {
   return await apiRequest('/users/study-time', 'POST', { duration });
+};
+
+export const requestPasswordReset = async (
+  email: string,
+): Promise<{ message: string }> => {
+  return await apiRequest('/auth/reset-password', 'POST', { email });
+};
+
+export const updatePassword = async (
+  password: string,
+): Promise<{ message: string }> => {
+  return await apiRequest('/auth/update-password', 'POST', { password });
+};
+
+export const refreshToken = async (
+  refreshToken: string,
+): Promise<{ token: string; refreshToken: string }> => {
+  return await apiRequest('/auth/refresh-token', 'POST', { refreshToken });
+};
+
+export const getUserPermissions = async (): Promise<{
+  role: string;
+  permissions: string[];
+}> => {
+  return await apiRequest('/auth/permissions');
 };
