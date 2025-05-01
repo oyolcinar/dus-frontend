@@ -1,34 +1,67 @@
 import apiRequest from './apiClient';
-import { DashboardData } from '../types/models';
 
-export const getUserDashboard = async (): Promise<DashboardData> => {
-  return await apiRequest<DashboardData>('/analytics/dashboard');
-};
-
-export interface WeeklyProgressData {
-  dailyProgress: Array<{
-    date: string;
-    totalDuration: number;
-    totalDurationHours: number;
-  }>;
-}
-
-export const getWeeklyProgress = async (): Promise<WeeklyProgressData> => {
-  return await apiRequest<WeeklyProgressData>('/analytics/weekly-progress');
-};
-
-export interface TopicAnalyticsData {
-  topicAnalytics: Array<{
-    topicId: number;
-    topicTitle: string;
-    totalDuration: number;
-    totalDurationHours: number;
-    accuracyRate: number;
+export const getUserPerformanceAnalytics = async (): Promise<{
+  branchPerformance: { 
+    branchId: number; 
+    branchName: string; 
+    averageScore: number; 
+    totalQuestions: number;
     correctAnswers: number;
-    totalAttempts: number;
-  }>;
-}
+  }[];
+  totalQuestionsAnswered: number;
+  overallAccuracy: number;
+  studyTime: number;
+  studySessions: number;
+  averageSessionDuration: number;
+}> => {
+  return await apiRequest('/analytics/performance');
+};
 
-export const getTopicAnalytics = async (): Promise<TopicAnalyticsData> => {
-  return await apiRequest<TopicAnalyticsData>('/analytics/topics');
+export const getActivityTimeline = async (
+  days: number = 7,
+): Promise<{
+  date: string;
+  studyTime: number;
+  questionsAnswered: number;
+}[]> => {
+  return await apiRequest(`/analytics/activity?days=${days}`);
+};
+
+export const getWeakestTopics = async (
+  limit: number = 5,
+): Promise<{
+  topicId: number;
+  topicName: string;
+  branchId: number;
+  branchName: string;
+  averageScore: number;
+  totalQuestions: number;
+  correctAnswers: number;
+}[]> => {
+  return await apiRequest(`/analytics/weakest-topics?limit=${limit}`);
+};
+
+export const getImprovementMetrics = async (): Promise<{
+  previousAverage: number;
+  currentAverage: number;
+  percentageChange: number;
+  topicImprovements: {
+    topicId: number;
+    topicName: string;
+    previousAccuracy: number;
+    currentAccuracy: number;
+    percentageChange: number;
+  }[];
+}> => {
+  return await apiRequest('/analytics/improvement');
+};
+
+export const getStudyTimeDistribution = async (): Promise<{
+  morning: number;
+  afternoon: number;
+  evening: number;
+  night: number;
+  totalHours: number;
+}> => {
+  return await apiRequest('/analytics/study-time-distribution');
 };
