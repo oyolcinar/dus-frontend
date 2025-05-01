@@ -100,3 +100,41 @@ export interface DuelUserStats {
 export const getDuelUserStats = async (): Promise<DuelUserStats> => {
   return await apiRequest<DuelUserStats>('/duels/stats/user');
 };
+
+// New endpoint for getting global duel stats/leaderboard
+export const getDuelLeaderboard = async (
+  limit: number = 10,
+  offset: number = 0
+): Promise<{
+  leaderboard: Array<{
+    userId: number;
+    username: string;
+    wins: number;
+    losses: number;
+    winRate: number;
+    totalDuels: number;
+  }>;
+  total: number;
+}> => {
+  return await apiRequest<{
+    leaderboard: Array<{
+      userId: number;
+      username: string;
+      wins: number;
+      losses: number;
+      winRate: number;
+      totalDuels: number;
+    }>;
+    total: number;
+  }>(`/duels/leaderboard?limit=${limit}&offset=${offset}`);
+};
+
+// New endpoint for canceling a duel
+export const cancelDuel = async (
+  duelId: number
+): Promise<{ message: string }> => {
+  return await apiRequest<{ message: string }>(
+    `/duels/${duelId}/cancel`,
+    'POST'
+  );
+};
