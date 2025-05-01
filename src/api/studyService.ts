@@ -1,94 +1,132 @@
 import apiRequest from './apiClient';
-import {
-  StudyProgress,
-  StudySession,
-  SessionDetail,
-  ErrorAnalytic,
-} from '../types/models';
+import { StudySession, Question, StudyProgress } from '../types/models';
 
-export const updateProgress = async (
-  subtopicId: number,
-  repetitionCount: number,
-  masteryLevel: number,
-): Promise<{
-  message: string;
-  progress: StudyProgress;
-}> => {
-  return await apiRequest('/study/progress', 'POST', {
+export const startStudySession = async (
+  topicId?: number,
+  subtopicId?: number,
+  questionCount: number = 10,
+  difficulty?: 'easy' | 'medium' | 'hard',
+  previouslyIncorrect: boolean = false,
+): Promise<StudySession> => {
+  return await apiRequest<StudySession>('/study/start-session', 'POST', {
+    topicId,
     subtopicId,
-    repetitionCount,
-    masteryLevel,
+    questionCount,
+    difficulty,
+    previouslyIncorrect,
   });
 };
 
-export const getUserProgress = async (): Promise<StudyProgress[]> => {
-  return await apiRequest<StudyProgress[]>('/study/progress');
+export const getNextQuestion = async (
+  sessionId: string,
+): Promise<Question> => {
+  return await apiRequest<Question>(`/study/sessions/${sessionId}/next-question`);
 };
 
-export const startSession = async (): Promise<{
-  message: string;
-  session: StudySession;
-}> => {
-  return await apiRequest('/study/sessions/start', 'POST');
-};
-
-export const endSession = async (
-  sessionId: number,
+export const submitAnswer = async (
+  sessionId: string,
+  questionId: number,
+  answerId: number,
+  timeSpent: number,
 ): Promise<{
-  message: string;
-  session: StudySession;
+  isCorrect: boolean;
+  explanation: string;
+  correctAnswerId: number;
+}> => {
+  return await apiRequest(
+    `/study/sessions/${sessionId}/submit-answer`,
+    'POST',
+    {
+      questionId,
+      answerId,
+      timeSpent,
+    },
+  );
+};
+
+export const endStudySession = async (
+  sessionId: string,
+): Promise<{
+  sessionId: string;
+  totalQuestions: number;
+  correctAnswers: number;
+  score: number;
+  timeSpent: number;
+  completedAt: string;
 }> => {
   return await apiRequest(`/study/sessions/${sessionId}/end`, 'POST');
 };
 
-export const addSessionDetail = async (
-  sessionId: number,
-  subtopicId: number,
-  duration: number,
-): Promise<{
-  message: string;
-  detail: SessionDetail;
-}> => {
-  return await apiRequest(`/study/sessions/${sessionId}/details`, 'POST', {
-    subtopicId,
-    duration,
-  });
+export const getStudyProgress = async (): Promise<StudyProgress> => {
+  return await apiRequest<StudyProgress>('/study/progress');
 };
 
-export const getUserSessions = async (): Promise<StudySession[]> => {
-  return await apiRequest<StudySession[]>('/study/sessions');
+export const getRecentSessions = async (
+  limit: number = 5,
+): Promise<StudySession[]> => {
+  return await apiRequest<StudySession[]>(`/study/recent-sessions?limit=${limit}`);
 };
 
 export const getSessionDetails = async (
-  sessionId: number,
-): Promise<SessionDetail[]> => {
-  return await apiRequest<SessionDetail[]>(`/study/sessions/${sessionId}`);
-};
-
-export interface StudyStats {
-  total_sessions: number;
-  total_duration: number;
-  longest_session: number;
-  average_session: number;
-}
-
-export const getStudyStats = async (): Promise<StudyStats> => {
-  return await apiRequest<StudyStats>('/study/stats');
-};
-
-export const updateErrorAnalytics = async (
-  subtopicId: number,
-  isError: boolean,
+  sessionId: string,
 ): Promise<{
-  message: string;
-  analytics: ErrorAnalytic;
+  session: StudySession;
+  questions: Array<{
+    id: number;
+    text: string;
+    userAnswerId: number;
+    correctAnswerId: number;
+    isCorrect: boolean;
+    timeSpent: number;
+    explanation: string;
+    answers: Array<{
+      id: number;
+      text: string;
+    }>;
+  }>;
 }> => {
-  return await apiRequest('/study/analytics/errors', 'POST', {
-    subtopicId,
-    isError,
+  return await apiRequest(`/study/sessions/${sessionId}`);
+};
+
+export const getRecommendedTopics = async (
+  limit: number = 3,
+): Promise<Array<{
+  topicId: number;
+  topicName: string;
+  branchId: number;
+  branchName: string;
+  accuracy: number;
+  priority: number;
+  lastStudied: string | null;
+}>> => {
+  return await apiRequest(`/study/recommended-topics?limit=${limit}`);
+};
+
+// New method for flagging a question during study
+export const flagQuestion = async (
+  questionId: number,
+  reason?: string
+): Promise<{ message: string }> => {
+  return await apiRequest('/study/flag-question', 'POST', {
+    questionId,
+    reason
   });
 };
 
-export const getUserErrorAnalytics = async (): Promise<ErrorAnalytic[]> => {
-  return await apiRequest<ErrorAnalytic[]>('/study/analytics/errors');
+// New method for bookmarking a question for later review
+export const bookmarkQuestion = async (
+  questionId: number
+): Promise<{ message: string }> => {
+  return await apiRequest('/study/bookmark-question', 'POST', { questionId });
+};
+
+// Get bookmarked questions
+export const getBookmarkedQuestions = async (
+  page: number = 1,
+  limit: number = 20
+): Promise<{
+  questions: Question[],
+  total: number
+}> => {
+  return await apiRequest(`/study/bookmarked-questions?page=${page}&limit=${limit}`);
 };
