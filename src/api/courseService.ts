@@ -34,3 +34,30 @@ export const getSubtopicById = async (
 ): Promise<Subtopic> => {
   return await apiRequest<Subtopic>(`/subtopics/${subtopicId}`);
 };
+
+export const markSubtopicCompleted = async (
+  subtopicId: number,
+): Promise<{ message: string }> => {
+  return await apiRequest('/courses/subtopic/complete', 'POST', { subtopicId });
+};
+
+export const getCourseProgress = async (
+  courseId: number
+): Promise<{
+  courseId: number;
+  courseName: string;
+  completedTopics: number;
+  totalTopics: number;
+  completedSubtopics: number;
+  totalSubtopics: number;
+  progress: number;
+  topicsProgress: Array<{
+    topicId: number;
+    topicName: string;
+    completedSubtopics: number;
+    totalSubtopics: number;
+    progress: number;
+  }>;
+}> => {
+  return await apiRequest(`/courses/${courseId}/progress`);
+};
