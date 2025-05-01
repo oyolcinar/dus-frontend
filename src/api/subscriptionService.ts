@@ -42,3 +42,41 @@ export const cancelSubscription = async (
 }> => {
   return await apiRequest(`/subscriptions/${subscriptionId}/cancel`, 'POST');
 };
+
+export const getSubscriptionPlans = async (): Promise<Array<{
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  durationDays: number;
+  features: string[];
+  isPopular: boolean;
+}>> => {
+  return await apiRequest('/subscriptions/plans');
+};
+
+export const initiatePayment = async (
+  planId: number,
+  paymentMethod: string,
+): Promise<{
+  paymentUrl: string;
+  paymentId: string;
+  expiresAt: string;
+}> => {
+  return await apiRequest('/subscriptions/initiate-payment', 'POST', {
+    planId,
+    paymentMethod,
+  });
+};
+
+export const verifyPayment = async (
+  paymentId: string,
+): Promise<{
+  success: boolean;
+  message: string;
+  subscription?: Subscription;
+}> => {
+  return await apiRequest('/subscriptions/verify-payment', 'POST', {
+    paymentId,
+  });
+};
