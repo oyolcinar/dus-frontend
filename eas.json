@@ -11,7 +11,17 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "preview",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false,
+        "distribution": "internal"
+      },
+      "env": {
+        "APP_ENV": "preview"
+      }
     },
     "production": {
       "autoIncrement": true,
@@ -27,6 +37,19 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "dusapptr@gmail.com",
+        "ascAppId": "6745184385",
+        "appleTeamId": "4TGJT8PH3Y"
+      }
+    },
+    "preview": {
+      "ios": {
+        "appleId": "dusapptr@gmail.com",
+        "ascAppId": "6745184385",
+        "appleTeamId": "4TGJT8PH3Y"
+      }
+    }
   }
 }
