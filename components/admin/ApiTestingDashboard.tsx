@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
+import {
   ChevronDown,
   ChevronUp,
   X,
@@ -11,53 +23,145 @@ import {
   Plus,
   ArrowRight,
   ArrowLeft,
-} from 'lucide-react';
-import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
+} from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Type definitions
+type Endpoint = {
+  name: string;
+  method: string;
+  path: string;
+};
+
+type EndpointCategory = {
+  [key: string]: Endpoint[];
+};
+
+type ExpandedState = {
+  [key: string]: boolean;
+};
+
+type ResponseData = {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: any;
+};
+
+type HistoryItem = {
+  id: number;
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body: string | null;
+  response: ResponseData;
+  timestamp: string;
+};
+
+type TabRoute = {
+  key: string;
+  title: string;
+};
 
 // Main component
 export default function ApiTestingDashboard() {
-  const [token, setToken] = useState(localStorage.getItem('authToken') || '');
-  const [endpoints, setEndpoints] = useState(API_ENDPOINTS);
-  const [expanded, setExpanded] = useState({});
-  const [selectedEndpoint, setSelectedEndpoint] = useState(null);
-  const [requestMethod, setRequestMethod] = useState('GET');
-  const [requestUrl, setRequestUrl] = useState('');
-  const [requestBody, setRequestBody] = useState('{\n  \n}');
-  const [requestHeaders, setRequestHeaders] = useState(
+  const [token, setToken] = useState<string>('');
+  const [endpoints, setEndpoints] = useState<EndpointCategory>(API_ENDPOINTS);
+  const [expanded, setExpanded] = useState<ExpandedState>({});
+  const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint | null>(
+    null,
+  );
+  const [requestMethod, setRequestMethod] = useState<string>('GET');
+  const [requestUrl, setRequestUrl] = useState<string>('');
+  const [requestBody, setRequestBody] = useState<string>('{\n  \n}');
+  const [requestHeaders, setRequestHeaders] = useState<string>(
     '{\n  "Content-Type": "application/json"\n}',
   );
-  const [responseData, setResponseData] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [history, setHistory] = useState(
-    JSON.parse(localStorage.getItem('requestHistory') || '[]'),
-  );
-  const [activeTab, setActiveTab] = useState(0);
-  const [isAuthenticated, setIsAuthenticated] = useState(!!token);
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [registerUsername, setRegisterUsername] = useState('');
-  const [registerEmail, setRegisterEmail] = useState('');
-  const [registerPassword, setRegisterPassword] = useState('');
-  const [baseUrl, setBaseUrl] = useState(
-    localStorage.getItem('baseUrl') || 'http://localhost:5000',
-  );
+  const [responseData, setResponseData] = useState<ResponseData | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [loginEmail, setLoginEmail] = useState<string>('');
+  const [loginPassword, setLoginPassword] = useState<string>('');
+  const [registerUsername, setRegisterUsername] = useState<string>('');
+  const [registerEmail, setRegisterEmail] = useState<string>('');
+  const [registerPassword, setRegisterPassword] = useState<string>('');
+  const [baseUrl, setBaseUrl] = useState<string>('http://localhost:5000');
 
+  // Tab view state
+  const [authTabIndex, setAuthTabIndex] = useState(0);
+  const [authTabRoutes] = useState<TabRoute[]>([
+    { key: 'login', title: 'Login' },
+    { key: 'register', title: 'Register' },
+  ]);
+
+  const [mainTabIndex, setMainTabIndex] = useState(0);
+  const [mainTabRoutes] = useState<TabRoute[]>([
+    { key: 'builder', title: 'Request Builder' },
+    { key: 'history', title: 'Request History' },
+  ]);
+
+  const handleError = (error: unknown): string => {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return 'An unknown error occurred';
+  };
+
+  // Load initial data
   useEffect(() => {
-    localStorage.setItem('authToken', token);
-    localStorage.setItem('baseUrl', baseUrl);
-    setIsAuthenticated(!!token);
+    const loadInitialData = async () => {
+      try {
+        const [storedToken, storedBaseUrl, storedHistory] = await Promise.all([
+          AsyncStorage.getItem('authToken'),
+          AsyncStorage.getItem('baseUrl'),
+          AsyncStorage.getItem('requestHistory'),
+        ]);
+
+        if (storedToken) setToken(storedToken);
+        if (storedBaseUrl) setBaseUrl(storedBaseUrl);
+        if (storedHistory) setHistory(JSON.parse(storedHistory));
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+      }
+    };
+
+    loadInitialData();
+  }, []);
+
+  // Update storage when state changes
+  useEffect(() => {
+    const updateStorage = async () => {
+      try {
+        await AsyncStorage.setItem('authToken', token);
+        await AsyncStorage.setItem('baseUrl', baseUrl);
+        setIsAuthenticated(!!token);
+      } catch (error) {
+        console.error('Error updating storage:', error);
+      }
+    };
+
+    updateStorage();
   }, [token, baseUrl]);
 
   useEffect(() => {
-    localStorage.setItem('requestHistory', JSON.stringify(history));
+    const updateHistory = async () => {
+      try {
+        await AsyncStorage.setItem('requestHistory', JSON.stringify(history));
+      } catch (error) {
+        console.error('Error updating history:', error);
+      }
+    };
+
+    updateHistory();
   }, [history]);
 
-  const toggleCategory = (category) => {
+  const toggleCategory = (category: string) => {
     setExpanded({ ...expanded, [category]: !expanded[category] });
   };
 
-  const selectEndpoint = (endpoint) => {
+  const selectEndpoint = (endpoint: Endpoint) => {
     setSelectedEndpoint(endpoint);
     setRequestMethod(endpoint.method);
     setRequestUrl(endpoint.path);
@@ -83,10 +187,8 @@ export default function ApiTestingDashboard() {
 
       setToken(data.session.access_token);
       setResponseData(data);
-      console.log('Login successful:', data);
     } catch (err) {
-      setError(err.message);
-      console.error('Login error:', err);
+      setError(handleError(err));
     } finally {
       setIsLoading(false);
     }
@@ -114,15 +216,12 @@ export default function ApiTestingDashboard() {
       }
 
       setResponseData(data);
-      console.log('Registration successful:', data);
 
-      // Auto-login after successful registration
-      if (data.session && data.session.access_token) {
+      if (data.session?.access_token) {
         setToken(data.session.access_token);
       }
     } catch (err) {
-      setError(err.message);
-      console.error('Registration error:', err);
+      setError(handleError(err));
     } finally {
       setIsLoading(false);
     }
@@ -151,30 +250,24 @@ export default function ApiTestingDashboard() {
     setResponseData(null);
 
     try {
-      let headers = {};
+      let headers: Record<string, string> = {};
       try {
         headers = JSON.parse(requestHeaders);
       } catch (e) {
         throw new Error('Invalid headers JSON format');
       }
 
-      // Add authorization header if token exists
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const fetchOptions = {
+      const fetchOptions: RequestInit = {
         method: requestMethod,
         headers: headers,
       };
 
-      // Add body for non-GET requests
       if (requestMethod !== 'GET' && requestBody.trim()) {
-        try {
-          fetchOptions.body = requestBody;
-        } catch (e) {
-          throw new Error('Invalid body JSON format');
-        }
+        fetchOptions.body = requestBody;
       }
 
       const fullUrl = `${baseUrl}${
@@ -184,13 +277,13 @@ export default function ApiTestingDashboard() {
 
       let responseBody;
       const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
+      if (contentType?.includes('application/json')) {
         responseBody = await response.json();
       } else {
         responseBody = await response.text();
       }
 
-      const responseInfo = {
+      const responseInfo: ResponseData = {
         status: response.status,
         statusText: response.statusText,
         headers: Object.fromEntries([...response.headers.entries()]),
@@ -199,8 +292,7 @@ export default function ApiTestingDashboard() {
 
       setResponseData(responseInfo);
 
-      // Add to history
-      const historyItem = {
+      const historyItem: HistoryItem = {
         id: Date.now(),
         method: requestMethod,
         url: fullUrl,
@@ -212,14 +304,13 @@ export default function ApiTestingDashboard() {
 
       setHistory([historyItem, ...history.slice(0, 19)]);
     } catch (err) {
-      setError(err.message);
-      console.error('Request error:', err);
+      setError(handleError(err));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadFromHistory = (item) => {
+  const loadFromHistory = (item: HistoryItem) => {
     setRequestMethod(item.method);
     setRequestUrl(item.url.replace(baseUrl, ''));
     setRequestHeaders(JSON.stringify(item.headers, null, 2));
@@ -230,182 +321,360 @@ export default function ApiTestingDashboard() {
   };
 
   const clearHistory = () => {
-    if (confirm('Are you sure you want to clear the request history?')) {
-      setHistory([]);
-      localStorage.removeItem('requestHistory');
-    }
+    Alert.alert(
+      'Clear History',
+      'Are you sure you want to clear the request history?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: () => {
+            setHistory([]);
+            AsyncStorage.removeItem('requestHistory');
+          },
+        },
+      ],
+    );
   };
 
-  const formatJson = (jsonStr) => {
+  const formatJson = (jsonStr: any) => {
     try {
       if (typeof jsonStr === 'string') {
         return JSON.stringify(JSON.parse(jsonStr), null, 2);
-      } else {
-        return JSON.stringify(jsonStr, null, 2);
       }
+      return JSON.stringify(jsonStr, null, 2);
     } catch (e) {
       return jsonStr;
     }
   };
 
+  // Auth Tab Views
+  const renderAuthLogin = () => (
+    <View className='p-4 space-y-3'>
+      <TextInput
+        className='w-full p-2 rounded bg-white text-black'
+        value={loginEmail}
+        onChangeText={setLoginEmail}
+        placeholder='Email'
+        keyboardType='email-address'
+        autoCapitalize='none'
+      />
+      <TextInput
+        className='w-full p-2 rounded bg-white text-black'
+        value={loginPassword}
+        onChangeText={setLoginPassword}
+        placeholder='Password'
+        secureTextEntry
+      />
+      <TouchableOpacity
+        className={`w-full bg-blue-500 p-2 rounded flex items-center justify-center ${
+          isLoading ? 'opacity-70' : ''
+        }`}
+        onPress={handleLogin}
+        disabled={isLoading}
+      >
+        <Text className='text-white'>
+          {isLoading ? 'Logging in...' : 'Login'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderAuthRegister = () => (
+    <View className='p-4 space-y-3'>
+      <TextInput
+        className='w-full p-2 rounded bg-white text-black'
+        value={registerUsername}
+        onChangeText={setRegisterUsername}
+        placeholder='Username'
+        autoCapitalize='none'
+      />
+      <TextInput
+        className='w-full p-2 rounded bg-white text-black'
+        value={registerEmail}
+        onChangeText={setRegisterEmail}
+        placeholder='Email'
+        keyboardType='email-address'
+        autoCapitalize='none'
+      />
+      <TextInput
+        className='w-full p-2 rounded bg-white text-black'
+        value={registerPassword}
+        onChangeText={setRegisterPassword}
+        placeholder='Password'
+        secureTextEntry
+      />
+      <TouchableOpacity
+        className={`w-full bg-green-500 p-2 rounded flex items-center justify-center ${
+          isLoading ? 'opacity-70' : ''
+        }`}
+        onPress={handleRegister}
+        disabled={isLoading}
+      >
+        <Text className='text-white'>
+          {isLoading ? 'Registering...' : 'Register'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Main Tab Views
+  const renderRequestBuilder = () => (
+    <ScrollView className='flex-1 p-4'>
+      <View className='flex-row items-center space-x-2 mb-4'>
+        <View className='bg-gray-200 px-3 py-2 rounded'>
+          <Text className='font-mono text-black'>{requestMethod}</Text>
+        </View>
+
+        <View className='flex-1 flex-row items-center bg-gray-200 rounded'>
+          <Text className='px-3 text-gray-500'>{baseUrl}/</Text>
+          <TextInput
+            className='flex-1 p-2 text-black'
+            value={requestUrl}
+            onChangeText={setRequestUrl}
+            placeholder='api/endpoint'
+          />
+        </View>
+
+        <TouchableOpacity
+          className={`bg-blue-600 px-4 py-2 rounded flex-row items-center ${
+            isLoading ? 'opacity-70' : ''
+          }`}
+          onPress={handleSendRequest}
+          disabled={isLoading}
+        >
+          <Text className='text-white mr-1'>
+            {isLoading ? 'Sending...' : 'Send'}
+          </Text>
+          <Play size={16} color='#fff' />
+        </TouchableOpacity>
+      </View>
+
+      <View className='mb-4'>
+        <Text className='font-medium mb-2 text-black'>Headers</Text>
+        <TextInput
+          className='w-full h-32 p-3 bg-gray-50 border rounded font-mono text-black'
+          value={requestHeaders}
+          onChangeText={setRequestHeaders}
+          multiline
+        />
+      </View>
+
+      {requestMethod !== 'GET' && (
+        <View className='mb-4'>
+          <Text className='font-medium mb-2 text-black'>Request Body</Text>
+          <TextInput
+            className='w-full h-48 p-3 bg-gray-50 border rounded font-mono text-black'
+            value={requestBody}
+            onChangeText={setRequestBody}
+            multiline
+          />
+        </View>
+      )}
+    </ScrollView>
+  );
+
+  const renderRequestHistory = () => (
+    <View className='flex-1'>
+      <View className='flex-row justify-between items-center p-4'>
+        <Text className='text-lg font-medium text-black'>Request History</Text>
+        {history.length > 0 && (
+          <TouchableOpacity
+            className='flex-row items-center'
+            onPress={clearHistory}
+          >
+            <Trash2 size={16} color='#dc2626' />
+            <Text className='text-red-600 ml-1'>Clear History</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {history.length === 0 ? (
+        <View className='flex-1 justify-center items-center'>
+          <Text className='text-gray-500'>No requests in history</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={history}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              className='p-3 border rounded bg-white mb-2 mx-4'
+              onPress={() => loadFromHistory(item)}
+            >
+              <View className='flex-row justify-between items-center'>
+                <View className='flex-row items-center'>
+                  <View
+                    className={`px-2 py-1 rounded ${
+                      item.method === 'GET'
+                        ? 'bg-green-100'
+                        : item.method === 'POST'
+                        ? 'bg-blue-100'
+                        : item.method === 'PUT'
+                        ? 'bg-yellow-100'
+                        : item.method === 'DELETE'
+                        ? 'bg-red-100'
+                        : 'bg-gray-100'
+                    }`}
+                  >
+                    <Text
+                      className={`text-xs ${
+                        item.method === 'GET'
+                          ? 'text-green-800'
+                          : item.method === 'POST'
+                          ? 'text-blue-800'
+                          : item.method === 'PUT'
+                          ? 'text-yellow-800'
+                          : item.method === 'DELETE'
+                          ? 'text-red-800'
+                          : 'text-gray-800'
+                      }`}
+                    >
+                      {item.method}
+                    </Text>
+                  </View>
+                  <Text className='ml-2 font-medium text-black truncate max-w-[200px]'>
+                    {item.url}
+                  </Text>
+                </View>
+                <View className='flex-row items-center'>
+                  <View
+                    className={`px-2 py-1 rounded ${
+                      item.response.status >= 200 && item.response.status < 300
+                        ? 'bg-green-100'
+                        : 'bg-red-100'
+                    }`}
+                  >
+                    <Text
+                      className={`text-xs ${
+                        item.response.status >= 200 &&
+                        item.response.status < 300
+                          ? 'text-green-800'
+                          : 'text-red-800'
+                      }`}
+                    >
+                      {item.response.status}
+                    </Text>
+                  </View>
+                  <View className='ml-2 flex-row items-center'>
+                    <Clock size={12} color='#6b7280' />
+                    <Text className='text-gray-500 text-xs ml-1'>
+                      {new Date(item.timestamp).toLocaleTimeString()}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      )}
+    </View>
+  );
+
+  // Scene maps
+  const renderAuthScene = SceneMap({
+    login: renderAuthLogin,
+    register: renderAuthRegister,
+  });
+
+  const renderScene = SceneMap({
+    builder: renderRequestBuilder,
+    history: renderRequestHistory,
+  });
+
   return (
-    <div className='flex flex-col h-screen bg-gray-100'>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className='flex-1 bg-gray-100'
+    >
       {/* Header */}
-      <div className='bg-indigo-600 text-white p-4'>
-        <div className='flex justify-between items-center'>
-          <h1 className='text-2xl font-bold'>DUS API Testing Dashboard</h1>
-          <div className='flex items-center space-x-4'>
-            <input
-              type='text'
+      <View className='bg-indigo-600 p-4'>
+        <View className='flex-row justify-between items-center'>
+          <Text className='text-2xl font-bold text-white'>
+            DUS API Testing Dashboard
+          </Text>
+          <View className='flex-row items-center space-x-4'>
+            <TextInput
+              className='px-2 py-1 rounded bg-white text-black text-sm w-64'
               value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
+              onChangeText={setBaseUrl}
               placeholder='Base URL'
-              className='px-2 py-1 rounded text-black text-sm w-64'
             />
             {isAuthenticated ? (
-              <button
-                onClick={handleLogout}
-                className='bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded'
+              <TouchableOpacity
+                className='bg-red-500 px-4 py-2 rounded'
+                onPress={handleLogout}
               >
-                Logout
-              </button>
+                <Text className='text-white'>Logout</Text>
+              </TouchableOpacity>
             ) : (
-              <span className='text-yellow-200'>Not authenticated</span>
+              <Text className='text-yellow-200'>Not authenticated</Text>
             )}
-          </div>
-        </div>
-      </div>
+          </View>
+        </View>
+      </View>
 
       {/* Main Content */}
-      <div className='flex flex-1 overflow-hidden'>
+      <View className='flex-1 flex-row'>
         {/* Sidebar */}
-        <div className='w-72 bg-gray-800 text-white flex flex-col'>
+        <View className='w-72 bg-gray-800'>
           {/* Auth Section */}
           {!isAuthenticated && (
-            <div className='p-4 border-b border-gray-700'>
-              <Tabs
-                selectedIndex={activeTab}
-                onSelect={(index) => setActiveTab(index)}
-                className='auth-tabs'
-              >
-                <TabList className='flex mb-4 border-b border-gray-700'>
-                  <Tab
-                    className={`px-4 py-2 cursor-pointer ${
-                      activeTab === 0 ? 'border-b-2 border-blue-400' : ''
-                    }`}
-                    selectedClassName='text-blue-400 font-medium'
-                  >
-                    Login
-                  </Tab>
-                  <Tab
-                    className={`px-4 py-2 cursor-pointer ${
-                      activeTab === 1 ? 'border-b-2 border-blue-400' : ''
-                    }`}
-                    selectedClassName='text-blue-400 font-medium'
-                  >
-                    Register
-                  </Tab>
-                </TabList>
-
-                <TabPanel>
-                  <div className='space-y-3'>
-                    <input
-                      type='email'
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder='Email'
-                      className='w-full p-2 rounded text-black'
-                    />
-                    <input
-                      type='password'
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      placeholder='Password'
-                      className='w-full p-2 rounded text-black'
-                    />
-                    <button
-                      onClick={handleLogin}
-                      disabled={isLoading}
-                      className='w-full bg-blue-500 hover:bg-blue-600 text-white p-2 rounded'
-                    >
-                      {isLoading ? 'Logging in...' : 'Login'}
-                    </button>
-                  </div>
-                </TabPanel>
-
-                <TabPanel>
-                  <div className='space-y-3'>
-                    <input
-                      type='text'
-                      value={registerUsername}
-                      onChange={(e) => setRegisterUsername(e.target.value)}
-                      placeholder='Username'
-                      className='w-full p-2 rounded text-black'
-                    />
-                    <input
-                      type='email'
-                      value={registerEmail}
-                      onChange={(e) => setRegisterEmail(e.target.value)}
-                      placeholder='Email'
-                      className='w-full p-2 rounded text-black'
-                    />
-                    <input
-                      type='password'
-                      value={registerPassword}
-                      onChange={(e) => setRegisterPassword(e.target.value)}
-                      placeholder='Password'
-                      className='w-full p-2 rounded text-black'
-                    />
-                    <button
-                      onClick={handleRegister}
-                      disabled={isLoading}
-                      className='w-full bg-green-500 hover:bg-green-600 text-white p-2 rounded'
-                    >
-                      {isLoading ? 'Registering...' : 'Register'}
-                    </button>
-                  </div>
-                </TabPanel>
-              </Tabs>
-
+            <View className='p-4 border-b border-gray-700'>
+              <TabView
+                navigationState={{ index: authTabIndex, routes: authTabRoutes }}
+                renderScene={renderAuthScene}
+                onIndexChange={setAuthTabIndex}
+                renderTabBar={(props) => (
+                  <TabBar
+                    {...props}
+                    indicatorStyle={{ backgroundColor: '#60a5fa' }}
+                    style={{ backgroundColor: '#1f2937' }}
+                    // label={{ color: 'white' }}
+                  />
+                )}
+                initialLayout={{ width: 288 }}
+              />
               {error && (
-                <div className='mt-4 p-2 bg-red-600 text-white rounded'>
-                  {error}
-                </div>
+                <View className='mt-4 p-2 bg-red-600 rounded'>
+                  <Text className='text-white'>{error}</Text>
+                </View>
               )}
-            </div>
+            </View>
           )}
 
           {/* Endpoints List */}
-          <div className='flex-1 overflow-y-auto'>
+          <ScrollView className='flex-1'>
             {Object.entries(endpoints).map(([category, items]) => (
-              <div key={category}>
-                <div
-                  className='flex items-center justify-between p-3 bg-gray-700 cursor-pointer hover:bg-gray-600'
-                  onClick={() => toggleCategory(category)}
+              <View key={category}>
+                <TouchableOpacity
+                  className='flex-row items-center justify-between p-3 bg-gray-700'
+                  onPress={() => toggleCategory(category)}
                 >
-                  <span className='font-medium'>{category}</span>
+                  <Text className='font-medium text-white'>{category}</Text>
                   {expanded[category] ? (
-                    <ChevronUp size={18} />
+                    <ChevronUp size={18} color='white' />
                   ) : (
-                    <ChevronDown size={18} />
+                    <ChevronDown size={18} color='white' />
                   )}
-                </div>
+                </TouchableOpacity>
 
                 {expanded[category] && (
-                  <div className='bg-gray-900'>
+                  <View className='bg-gray-900'>
                     {items.map((endpoint, index) => (
-                      <div
+                      <TouchableOpacity
                         key={index}
-                        className={`p-2 pl-4 border-l-4 cursor-pointer hover:bg-gray-800 ${
+                        className={`p-2 pl-4 border-l-4 ${
                           selectedEndpoint === endpoint
                             ? 'border-blue-500 bg-gray-800'
                             : 'border-transparent'
                         }`}
-                        onClick={() => selectEndpoint(endpoint)}
+                        onPress={() => selectEndpoint(endpoint)}
                       >
-                        <div className='flex items-center'>
-                          <span
-                            className={`w-16 font-mono text-xs px-2 py-1 rounded ${
+                        <View className='flex-row items-center'>
+                          <View
+                            className={`w-16 px-2 py-1 rounded ${
                               endpoint.method === 'GET'
                                 ? 'bg-green-600'
                                 : endpoint.method === 'POST'
@@ -417,238 +686,97 @@ export default function ApiTestingDashboard() {
                                 : 'bg-gray-600'
                             }`}
                           >
-                            {endpoint.method}
-                          </span>
-                          <span className='ml-2 text-sm truncate'>
+                            <Text className='text-xs text-white text-center'>
+                              {endpoint.method}
+                            </Text>
+                          </View>
+                          <Text className='ml-2 text-sm text-white truncate'>
                             {endpoint.name}
-                          </span>
-                        </div>
-                      </div>
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
                     ))}
-                  </div>
+                  </View>
                 )}
-              </div>
+              </View>
             ))}
-          </div>
-        </div>
+          </ScrollView>
+        </View>
 
         {/* Main Panel */}
-        <div className='flex-1 flex flex-col overflow-hidden'>
-          {/* Request Panel */}
-          <div className='flex-1 p-4 overflow-y-auto'>
-            <Tabs selectedIndex={0} className='h-full flex flex-col'>
-              <TabList className='flex mb-4 border-b border-gray-300'>
-                <Tab
-                  className='px-4 py-2 mr-2 cursor-pointer hover:text-blue-600'
-                  selectedClassName='border-b-2 border-blue-500 text-blue-600'
-                >
-                  Request Builder
-                </Tab>
-                <Tab
-                  className='px-4 py-2 mr-2 cursor-pointer hover:text-blue-600'
-                  selectedClassName='border-b-2 border-blue-500 text-blue-600'
-                >
-                  Request History
-                </Tab>
-              </TabList>
-
-              <TabPanel className='flex-1 overflow-y-auto'>
-                <div className='space-y-4'>
-                  {/* Method & URL */}
-                  <div className='flex items-center space-x-2'>
-                    <select
-                      value={requestMethod}
-                      onChange={(e) => setRequestMethod(e.target.value)}
-                      className='bg-gray-200 px-3 py-2 rounded'
-                    >
-                      <option>GET</option>
-                      <option>POST</option>
-                      <option>PUT</option>
-                      <option>DELETE</option>
-                      <option>PATCH</option>
-                    </select>
-
-                    <div className='flex-1 flex items-center bg-gray-200 rounded'>
-                      <span className='px-3 text-gray-500 border-r'>
-                        {baseUrl}/
-                      </span>
-                      <input
-                        type='text'
-                        value={requestUrl}
-                        onChange={(e) => setRequestUrl(e.target.value)}
-                        placeholder='api/endpoint'
-                        className='flex-1 p-2 bg-transparent'
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleSendRequest}
-                      disabled={isLoading}
-                      className='bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center'
-                    >
-                      {isLoading ? (
-                        'Sending...'
-                      ) : (
-                        <>
-                          Send <Play size={16} className='ml-1' />
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Headers */}
-                  <div>
-                    <h3 className='font-medium mb-2'>Headers</h3>
-                    <textarea
-                      value={requestHeaders}
-                      onChange={(e) => setRequestHeaders(e.target.value)}
-                      className='w-full h-32 p-3 font-mono bg-gray-50 border rounded'
-                    />
-                  </div>
-
-                  {/* Request Body (for non-GET requests) */}
-                  {requestMethod !== 'GET' && (
-                    <div>
-                      <h3 className='font-medium mb-2'>Request Body</h3>
-                      <textarea
-                        value={requestBody}
-                        onChange={(e) => setRequestBody(e.target.value)}
-                        className='w-full h-48 p-3 font-mono bg-gray-50 border rounded'
-                      />
-                    </div>
-                  )}
-                </div>
-              </TabPanel>
-
-              <TabPanel className='flex-1 overflow-y-auto'>
-                <div className='mb-4 flex justify-between items-center'>
-                  <h2 className='text-lg font-medium'>Request History</h2>
-                  {history.length > 0 && (
-                    <button
-                      onClick={clearHistory}
-                      className='text-red-600 hover:text-red-800 flex items-center'
-                    >
-                      <Trash2 size={16} className='mr-1' /> Clear History
-                    </button>
-                  )}
-                </div>
-
-                {history.length === 0 ? (
-                  <div className='text-center py-8 text-gray-500'>
-                    No requests in history
-                  </div>
-                ) : (
-                  <div className='space-y-3'>
-                    {history.map((item) => (
-                      <div
-                        key={item.id}
-                        className='p-3 border rounded bg-white hover:shadow cursor-pointer'
-                        onClick={() => loadFromHistory(item)}
-                      >
-                        <div className='flex items-center justify-between'>
-                          <div className='flex items-center'>
-                            <span
-                              className={`font-mono text-xs px-2 py-1 rounded ${
-                                item.method === 'GET'
-                                  ? 'bg-green-100 text-green-800'
-                                  : item.method === 'POST'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : item.method === 'PUT'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : item.method === 'DELETE'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-gray-100'
-                              }`}
-                            >
-                              {item.method}
-                            </span>
-                            <span className='ml-2 font-medium truncate max-w-md'>
-                              {item.url}
-                            </span>
-                          </div>
-                          <div className='flex items-center'>
-                            <span
-                              className={`px-2 py-1 rounded text-xs ${
-                                item.response.status >= 200 &&
-                                item.response.status < 300
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-red-100 text-red-800'
-                              }`}
-                            >
-                              {item.response.status}
-                            </span>
-                            <span className='ml-2 text-gray-500 text-xs flex items-center'>
-                              <Clock size={12} className='mr-1' />
-                              {new Date(item.timestamp).toLocaleTimeString()}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </TabPanel>
-            </Tabs>
-          </div>
+        <View className='flex-1'>
+          <TabView
+            navigationState={{ index: mainTabIndex, routes: mainTabRoutes }}
+            renderScene={renderScene}
+            onIndexChange={setMainTabIndex}
+            renderTabBar={(props) => (
+              <TabBar
+                {...props}
+                indicatorStyle={{ backgroundColor: '#3b82f6' }}
+                style={{ backgroundColor: '#f3f4f6' }}
+                // labelStyle={{ color: '#1f2937' }}
+              />
+            )}
+            initialLayout={{ width: 100 }}
+          />
 
           {/* Response Panel */}
-          <div className='h-1/2 bg-gray-50 border-t flex flex-col'>
-            <div className='bg-gray-200 p-2 flex justify-between items-center'>
-              <h3 className='font-medium'>Response</h3>
+          <View className='h-1/2 border-t bg-gray-50'>
+            <View className='flex-row justify-between items-center p-2 bg-gray-200'>
+              <Text className='font-medium text-black'>Response</Text>
               {responseData && (
-                <div className='flex items-center space-x-2'>
-                  <span
-                    className={`px-2 py-1 text-xs rounded ${
+                <View className='flex-row items-center space-x-2'>
+                  <View
+                    className={`px-2 py-1 rounded ${
                       responseData.status >= 200 && responseData.status < 300
-                        ? 'bg-green-500 text-white'
-                        : 'bg-red-500 text-white'
+                        ? 'bg-green-500'
+                        : 'bg-red-500'
                     }`}
                   >
-                    {responseData.status} {responseData.statusText}
-                  </span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(
+                    <Text className='text-xs text-white'>
+                      {responseData.status} {responseData.statusText}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const text =
                         typeof responseData.body === 'string'
                           ? responseData.body
-                          : JSON.stringify(responseData.body, null, 2),
-                      );
+                          : JSON.stringify(responseData.body, null, 2);
+                      // You'll need to add a clipboard library for React Native
+                      // Clipboard.setString(text);
                     }}
-                    className='text-gray-600 hover:text-gray-800'
-                    title='Copy response'
                   >
-                    <Copy size={16} />
-                  </button>
-                </div>
+                    <Copy size={16} color='#4b5563' />
+                  </TouchableOpacity>
+                </View>
               )}
-            </div>
+            </View>
 
-            <div className='flex-1 overflow-auto p-4'>
+            <ScrollView className='flex-1 p-4'>
               {error ? (
-                <div className='bg-red-100 border border-red-300 text-red-800 p-3 rounded'>
-                  {error}
-                </div>
+                <View className='bg-red-100 border border-red-300 p-3 rounded'>
+                  <Text className='text-red-800'>{error}</Text>
+                </View>
               ) : responseData ? (
-                <pre className='font-mono text-sm whitespace-pre-wrap'>
-                  {typeof responseData.body === 'string'
-                    ? responseData.body
-                    : formatJson(responseData.body)}
-                </pre>
+                <Text className='font-mono text-sm text-black'>
+                  {formatJson(responseData.body)}
+                </Text>
               ) : (
-                <div className='text-gray-500 italic'>
+                <Text className='text-gray-500 italic'>
                   No response yet. Send a request to see the response here.
-                </div>
+                </Text>
               )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+            </ScrollView>
+          </View>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 // API Endpoints definition
-const API_ENDPOINTS = {
+const API_ENDPOINTS: EndpointCategory = {
   Authentication: [
     { name: 'Register', method: 'POST', path: 'api/auth/register' },
     { name: 'Login', method: 'POST', path: 'api/auth/login' },
