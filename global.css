@@ -1,3 +1,142 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  /* Main brand colors */
+  --color-primary: #722ea5;
+  --color-primary-dark: #5e2587;
+  --color-primary-light: #d9c5e9;
+
+  /* Secondary colors */
+  --color-secondary: #f8a100;
+  --color-secondary-dark: #cc8400;
+  --color-secondary-light: #ffd580;
+
+  /* Success, error, info, warning colors */
+  --color-success: #21b958;
+  --color-error: #ec1c24;
+  --color-info: #00b7ef;
+  --color-warning: #fbd000;
+
+  /* Background and text colors */
+  --color-bg-light: #ffffff;
+  --color-bg-dark: #1f2937;
+  --color-text-light: #1f2937;
+  --color-text-dark: #ffffff;
+  --color-text-muted-light: #6b7280;
+  --color-text-muted-dark: #9ca3af;
+}
+
+/* Custom utilities */
+@layer utilities {
+  .bg-primary {
+    background-color: var(--color-primary);
+  }
+  .bg-primary-dark {
+    background-color: var(--color-primary-dark);
+  }
+  .bg-primary-light {
+    background-color: var(--color-primary-light);
+  }
+  .bg-secondary {
+    background-color: var(--color-secondary);
+  }
+  .bg-secondary-dark {
+    background-color: var(--color-secondary-dark);
+  }
+  .bg-secondary-light {
+    background-color: var(--color-secondary-light);
+  }
+  .bg-success {
+    background-color: var(--color-success);
+  }
+  .bg-error {
+    background-color: var(--color-error);
+  }
+  .bg-info {
+    background-color: var(--color-info);
+  }
+  .bg-warning {
+    background-color: var(--color-warning);
+  }
+
+  .text-primary {
+    color: var(--color-primary);
+  }
+  .text-primary-dark {
+    color: var(--color-primary-dark);
+  }
+  .text-primary-light {
+    color: var(--color-primary-light);
+  }
+  .text-secondary {
+    color: var(--color-secondary);
+  }
+  .text-success {
+    color: var(--color-success);
+  }
+  .text-error {
+    color: var(--color-error);
+  }
+  .text-info {
+    color: var(--color-info);
+  }
+  .text-warning {
+    color: var(--color-warning);
+  }
+
+  .border-primary {
+    border-color: var(--color-primary);
+  }
+  .border-secondary {
+    border-color: var(--color-secondary);
+  }
+  .border-success {
+    border-color: var(--color-success);
+  }
+  .border-error {
+    border-color: var(--color-error);
+  }
+
+  /* Common component styles */
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium;
+  }
+  .btn-primary {
+    @apply bg-primary text-white;
+  }
+  .btn-secondary {
+    @apply bg-secondary text-white;
+  }
+  .btn-success {
+    @apply bg-success text-white;
+  }
+  .btn-error {
+    @apply bg-error text-white;
+  }
+
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-xl shadow-sm;
+  }
+}
+
+/* Global styles */
+body {
+  @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white;
+}
+
+/* Form styles */
+input,
+textarea,
+select {
+  @apply bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2 w-full;
+}
+
+/* Make sure focus states are visible */
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  @apply outline-none ring-2 ring-primary ring-opacity-50;
+}
