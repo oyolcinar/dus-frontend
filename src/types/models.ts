@@ -57,6 +57,8 @@ export interface Test {
   description?: string;
   difficulty_level: number;
   created_at: string;
+  question_count: number; // Added field
+  time_limit: number; // Added field
 }
 
 export interface Question {

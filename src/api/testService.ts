@@ -9,10 +9,62 @@ export const getTestById = async (testId: number): Promise<Test> => {
   return await apiRequest<Test>(`/tests/${testId}`);
 };
 
+// New function to get a test with all its questions
+export interface TestWithQuestions extends Test {
+  questions: Question[];
+}
+
+export const getTestWithQuestions = async (
+  testId: number,
+): Promise<TestWithQuestions> => {
+  return await apiRequest<TestWithQuestions>(`/tests/${testId}/with-questions`);
+};
+
 export const getQuestionsByTest = async (
   testId: number,
 ): Promise<Question[]> => {
   return await apiRequest<Question[]>(`/questions/test/${testId}`);
+};
+
+export interface CreateTestRequest {
+  title: string;
+  description?: string;
+  difficultyLevel: number;
+  timeLimit?: number;
+}
+
+export interface CreateTestResponse {
+  message: string;
+  test: Test;
+}
+
+export const createTest = async (
+  testData: CreateTestRequest,
+): Promise<CreateTestResponse> => {
+  return await apiRequest<CreateTestResponse>('/tests', 'POST', testData);
+};
+
+export interface UpdateTestRequest {
+  title?: string;
+  description?: string;
+  difficultyLevel?: number;
+  timeLimit?: number;
+}
+
+export interface UpdateTestResponse {
+  message: string;
+  test: Test;
+}
+
+export const updateTest = async (
+  testId: number,
+  testData: UpdateTestRequest,
+): Promise<UpdateTestResponse> => {
+  return await apiRequest<UpdateTestResponse>(
+    `/tests/${testId}`,
+    'PUT',
+    testData,
+  );
 };
 
 export interface SubmitTestRequest {
@@ -71,4 +123,10 @@ export interface TestStats {
 
 export const getTestStats = async (testId: number): Promise<TestStats> => {
   return await apiRequest<TestStats>(`/results/stats/${testId}`);
+};
+
+export const deleteTest = async (
+  testId: number,
+): Promise<{ message: string }> => {
+  return await apiRequest<{ message: string }>(`/tests/${testId}`, 'DELETE');
 };

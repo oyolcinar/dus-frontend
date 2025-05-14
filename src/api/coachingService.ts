@@ -1,9 +1,10 @@
+// Option 1: Remove the functions from coachingService.ts that don't exist in backend
+
 import apiRequest from './apiClient';
 import {
   CoachingNote,
   MotivationalMessage,
   StrategyVideo,
-  CoachingSession,
 } from '../types/models';
 
 export const getCoachingNotes = async (): Promise<CoachingNote[]> => {
@@ -15,28 +16,39 @@ export const getLatestNote = async (): Promise<CoachingNote> => {
 };
 
 export const createCoachingNote = async (
+  title: string,
   content: string,
-  topicId?: number
+  publishDate: string,
+  weekNumber: number,
+  year: number,
 ): Promise<CoachingNote> => {
   return await apiRequest<CoachingNote>('/coaching/notes', 'POST', {
+    title,
     content,
-    topicId
+    publishDate,
+    weekNumber,
+    year,
   });
 };
 
 export const updateCoachingNote = async (
   noteId: number,
-  content: string
+  updates: Partial<CoachingNote>,
 ): Promise<CoachingNote> => {
-  return await apiRequest<CoachingNote>(`/coaching/notes/${noteId}`, 'PUT', {
-    content
-  });
+  return await apiRequest<CoachingNote>(
+    `/coaching/notes/${noteId}`,
+    'PUT',
+    updates,
+  );
 };
 
 export const deleteCoachingNote = async (
-  noteId: number
+  noteId: number,
 ): Promise<{ message: string }> => {
-  return await apiRequest<{ message: string }>(`/coaching/notes/${noteId}`, 'DELETE');
+  return await apiRequest<{ message: string }>(
+    `/coaching/notes/${noteId}`,
+    'DELETE',
+  );
 };
 
 export const getMotivationalMessages = async (): Promise<
@@ -51,56 +63,4 @@ export const getStrategyVideos = async (
   return await apiRequest<StrategyVideo[]>(
     `/coaching/videos?premium=${isPremium}`,
   );
-};
-
-export const requestCoachingSession = async (
-  date: string,
-  time: string,
-  topicId: number,
-  notes?: string
-): Promise<CoachingSession> => {
-  return await apiRequest<CoachingSession>('/coaching/sessions', 'POST', {
-    date,
-    time,
-    topicId,
-    notes
-  });
-};
-
-export const getCoachingSessions = async (
-  status?: 'pending' | 'approved' | 'completed' | 'cancelled'
-): Promise<CoachingSession[]> => {
-  const queryParams = status ? `?status=${status}` : '';
-  return await apiRequest<CoachingSession[]>(`/coaching/sessions${queryParams}`);
-};
-
-export const cancelCoachingSession = async (
-  sessionId: number
-): Promise<{ message: string }> => {
-  return await apiRequest<{ message: string }>(
-    `/coaching/sessions/${sessionId}/cancel`,
-    'POST'
-  );
-};
-
-export const getCoachingFeedback = async (
-  type: 'performance' | 'strategy' | 'general' = 'general'
-): Promise<{
-  feedback: string;
-  createdAt: string;
-  coachId: number;
-  coachName: string;
-}[]> => {
-  return await apiRequest(`/coaching/feedback?type=${type}`);
-};
-
-export const provideSessionFeedback = async (
-  sessionId: number,
-  rating: number,
-  feedback: string
-): Promise<{ message: string }> => {
-  return await apiRequest(`/coaching/sessions/${sessionId}/feedback`, 'POST', {
-    rating,
-    feedback
-  });
 };
