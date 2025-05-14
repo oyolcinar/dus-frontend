@@ -1,3 +1,4 @@
+// babel.config.js
 module.exports = function (api) {
   api.cache(true);
   return {
@@ -6,8 +7,8 @@ module.exports = function (api) {
       'nativewind/babel',
     ],
     plugins: [
-      // Remove expo-router/babel since it's deprecated in SDK 50
-      // 'expo-router/babel',
+      // For Expo SDK 50+, the expo-router/babel plugin is replaced by this configuration
+      'expo-router/babel',
       'react-native-reanimated/plugin',
     ],
   };

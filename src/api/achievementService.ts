@@ -1,4 +1,6 @@
+// src/api/achievementService.ts
 import apiRequest from './apiClient';
+import { ApiResponse } from '../types/api';
 
 export interface Achievement {
   achievement_id: number;
@@ -16,18 +18,75 @@ export interface UserAchievement extends Achievement {
   progress?: number;
 }
 
+// Response type for getting all achievements
+interface GetAllAchievementsResponse extends ApiResponse<Achievement[]> {}
+
+// Response type for getting a single achievement
+interface GetAchievementResponse extends ApiResponse<Achievement> {}
+
+// Response type for getting user achievements
+interface GetUserAchievementsResponse extends ApiResponse<UserAchievement[]> {}
+
+// Response type for getting user achievement progress
+interface GetUserAchievementProgressResponse
+  extends ApiResponse<{
+    earnedAchievements: UserAchievement[];
+    inProgressAchievements: (UserAchievement & { progress: number })[];
+    totalPoints: number;
+    rank?: string;
+  }> {}
+
+// Response type for creating or updating an achievement
+interface AchievementMutationResponse
+  extends ApiResponse<{
+    message: string;
+    achievement: Achievement;
+  }> {}
+
+// Response type for simple message responses
+interface MessageResponse extends ApiResponse<{ message: string }> {}
+
+// Response type for checking achievements
+interface CheckAchievementsResponse
+  extends ApiResponse<{
+    newAchievements: UserAchievement[];
+    message: string;
+  }> {}
+
+// Response type for achievement leaderboard
+interface LeaderboardResponse
+  extends ApiResponse<{
+    leaderboard: Array<{
+      userId: number;
+      username: string;
+      totalAchievements: number;
+      totalPoints: number;
+      rank?: string;
+    }>;
+    total: number;
+  }> {}
+
 export const getAllAchievements = async (): Promise<Achievement[]> => {
-  return await apiRequest<Achievement[]>('/achievements');
+  const response = await apiRequest<GetAllAchievementsResponse>(
+    '/achievements',
+  );
+  return response.data || [];
 };
 
 export const getAchievementById = async (
   achievementId: number,
 ): Promise<Achievement> => {
-  return await apiRequest<Achievement>(`/achievements/${achievementId}`);
+  const response = await apiRequest<GetAchievementResponse>(
+    `/achievements/${achievementId}`,
+  );
+  return response.data as Achievement;
 };
 
 export const getUserAchievements = async (): Promise<UserAchievement[]> => {
-  return await apiRequest<UserAchievement[]>('/achievements/user');
+  const response = await apiRequest<GetUserAchievementsResponse>(
+    '/achievements/user',
+  );
+  return response.data || [];
 };
 
 export const getUserAchievementProgress = async (): Promise<{
@@ -36,7 +95,15 @@ export const getUserAchievementProgress = async (): Promise<{
   totalPoints: number;
   rank?: string;
 }> => {
-  return await apiRequest('/achievements/user/progress');
+  const response = await apiRequest<GetUserAchievementProgressResponse>(
+    '/achievements/user/progress',
+  );
+  return response.data as {
+    earnedAchievements: UserAchievement[];
+    inProgressAchievements: (UserAchievement & { progress: number })[];
+    totalPoints: number;
+    rank?: string;
+  };
 };
 
 export interface CreateAchievementInput {
@@ -54,7 +121,15 @@ export const createAchievement = async (
   message: string;
   achievement: Achievement;
 }> => {
-  return await apiRequest('/achievements', 'POST', data);
+  const response = await apiRequest<AchievementMutationResponse>(
+    '/achievements',
+    'POST',
+    data,
+  );
+  return response.data as {
+    message: string;
+    achievement: Achievement;
+  };
 };
 
 export const updateAchievement = async (
@@ -64,38 +139,59 @@ export const updateAchievement = async (
   message: string;
   achievement: Achievement;
 }> => {
-  return await apiRequest(`/achievements/${achievementId}`, 'PUT', data);
+  const response = await apiRequest<AchievementMutationResponse>(
+    `/achievements/${achievementId}`,
+    'PUT',
+    data,
+  );
+  return response.data as {
+    message: string;
+    achievement: Achievement;
+  };
 };
 
 export const deleteAchievement = async (
   achievementId: number,
 ): Promise<{ message: string }> => {
-  return await apiRequest<{ message: string }>(
+  const response = await apiRequest<MessageResponse>(
     `/achievements/${achievementId}`,
     'DELETE',
   );
+  return response.data as { message: string };
 };
 
 export const awardAchievement = async (
   userId: number,
   achievementId: number,
 ): Promise<{ message: string }> => {
-  return await apiRequest<{ message: string }>('/achievements/award', 'POST', {
-    userId,
-    achievementId,
-  });
+  const response = await apiRequest<MessageResponse>(
+    '/achievements/award',
+    'POST',
+    {
+      userId,
+      achievementId,
+    },
+  );
+  return response.data as { message: string };
 };
 
 export const checkAchievements = async (): Promise<{
   newAchievements: UserAchievement[];
   message: string;
 }> => {
-  return await apiRequest('/achievements/check', 'POST');
+  const response = await apiRequest<CheckAchievementsResponse>(
+    '/achievements/check',
+    'POST',
+  );
+  return response.data as {
+    newAchievements: UserAchievement[];
+    message: string;
+  };
 };
 
 export const getAchievementLeaderboard = async (
   limit: number = 10,
-  offset: number = 0
+  offset: number = 0,
 ): Promise<{
   leaderboard: Array<{
     userId: number;
@@ -106,11 +202,26 @@ export const getAchievementLeaderboard = async (
   }>;
   total: number;
 }> => {
-  return await apiRequest(`/achievements/leaderboard?limit=${limit}&offset=${offset}`);
+  const response = await apiRequest<LeaderboardResponse>(
+    `/achievements/leaderboard?limit=${limit}&offset=${offset}`,
+  );
+  return response.data as {
+    leaderboard: Array<{
+      userId: number;
+      username: string;
+      totalAchievements: number;
+      totalPoints: number;
+      rank?: string;
+    }>;
+    total: number;
+  };
 };
 
 export const getAchievementsByCategory = async (
-  category: string
+  category: string,
 ): Promise<Achievement[]> => {
-  return await apiRequest(`/achievements/category/${category}`);
+  const response = await apiRequest<GetAllAchievementsResponse>(
+    `/achievements/category/${category}`,
+  );
+  return response.data || [];
 };
