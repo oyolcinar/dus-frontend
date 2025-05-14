@@ -1,87 +1,87 @@
-import { Tabs } from 'expo-router';
+import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
-import { FontAwesome } from '@expo/vector-icons';
+import { Stack } from 'expo-router';
+import { useFonts } from 'expo-font';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from '@react-navigation/native';
+import '../../global.css';
 
-/**
- * You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
- */
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-}) {
-  return <FontAwesome size={24} style={{ marginBottom: -3 }} {...props} />;
+// Auth Context Provider
+import { AuthProvider } from '../../context/AuthContext';
+
+export {
+  // Catch any errors thrown by the Layout component.
+  ErrorBoundary,
+} from 'expo-router';
+
+export const unstable_settings = {
+  // Ensure that reloading on /modal works
+  initialRouteName: '(auth)',
+};
+
+export default function RootLayout() {
+  const [loaded, error] = useFonts({
+    // Load any custom fonts here
+    ...FontAwesome.font,
+  });
+
+  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
+  useEffect(() => {
+    if (error) throw error;
+  }, [error]);
+
+  return (
+    <>
+      {/* Keep the splash screen visible until the assets have loaded */}
+      {!loaded && <LoadingScreen />}
+      {loaded && <RootLayoutNav />}
+    </>
+  );
 }
 
-export default function TabLayout() {
+function LoadingScreen() {
+  return null;
+}
+
+function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: 'var(--color-primary)', // Using the CSS variable
-        tabBarInactiveTintColor: 'var(--color-text-muted-light)',
-        tabBarStyle: {
-          backgroundColor:
-            colorScheme === 'dark'
-              ? 'var(--color-bg-dark)'
-              : 'var(--color-bg-light)',
-          borderTopColor: colorScheme === 'dark' ? '#374151' : '#E2E8F0',
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '500',
-        },
-        headerStyle: {
-          backgroundColor: 'var(--color-primary)',
-        },
-        headerTintColor: '#FFFFFF',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
-      }}
-    >
-      <Tabs.Screen
-        name='index'
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <TabBarIcon name='home' color={color} />,
-          headerTitle: 'DUS Exam App',
-        }}
-      />
-
-      <Tabs.Screen
-        name='courses'
-        options={{
-          title: 'Courses',
-          tabBarIcon: ({ color }) => <TabBarIcon name='book' color={color} />,
-        }}
-      />
-
-      <Tabs.Screen
-        name='tests'
-        options={{
-          title: 'Tests',
-          tabBarIcon: ({ color }) => (
-            <TabBarIcon name='question-circle' color={color} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name='duels'
-        options={{
-          title: 'Duels',
-          tabBarIcon: ({ color }) => <TabBarIcon name='trophy' color={color} />,
-        }}
-      />
-
-      <Tabs.Screen
-        name='profile'
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color }) => <TabBarIcon name='user' color={color} />,
-        }}
-      />
-    </Tabs>
+    <AuthProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name='(auth)' options={{ headerShown: false }} />
+          <Stack.Screen name='(tabs)' options={{ headerShown: false }} />
+          <Stack.Screen
+            name='study/[id]'
+            options={{ headerShown: true, title: 'Study' }}
+          />
+          <Stack.Screen
+            name='topic/[id]'
+            options={{ headerShown: true, title: 'Topic' }}
+          />
+          <Stack.Screen
+            name='subtopic/[id]'
+            options={{ headerShown: true, title: 'Lesson' }}
+          />
+          <Stack.Screen
+            name='test/[id]'
+            options={{ headerShown: true, title: 'Quiz' }}
+          />
+          <Stack.Screen
+            name='duel/[id]'
+            options={{ headerShown: true, title: 'Duel' }}
+          />
+          <Stack.Screen
+            name='profile/[id]'
+            options={{ headerShown: true, title: 'Profile' }}
+          />
+        </Stack>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
