@@ -8,7 +8,7 @@ module.exports = function (api) {
     ],
     plugins: [
       // For Expo SDK 50+, the expo-router/babel plugin is replaced by this configuration
-      'expo-router/babel',
+      // 'expo-router/babel',
       'react-native-reanimated/plugin',
     ],
   };
