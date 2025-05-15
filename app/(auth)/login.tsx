@@ -127,11 +127,7 @@ export default function LoginScreen() {
               Don't have an account?{' '}
             </Text>
             {/* Using TextLink for register link */}
-            <TextLink
-              href='/(auth)/register'
-              label='Sign Up'
-              style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}
-            />
+            <TextLink href='/(auth)/register' label='Sign Up' />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

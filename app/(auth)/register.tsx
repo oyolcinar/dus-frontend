@@ -143,11 +143,7 @@ export default function RegisterScreen() {
             <Text className='text-gray-600 dark:text-gray-400'>
               Already have an account?{' '}
             </Text>
-            <TextLink
-              href='/(auth)/login'
-              label='Sign In'
-              style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}
-            />
+            <TextLink href='/(auth)/login' label='Sign In' />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

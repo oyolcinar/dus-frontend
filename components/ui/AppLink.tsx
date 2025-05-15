@@ -1,28 +1,29 @@
 import React from 'react';
-import { Link, LinkProps } from 'expo-router';
+import { Link } from 'expo-router'; // Removed unused LinkProps
 import {
   TouchableOpacity,
   Text,
   TouchableOpacityProps,
   TextStyle,
+  TextProps as ReactNativeTextProps, // Renamed to avoid conflict if needed
 } from 'react-native';
+import { styled } from 'nativewind'; // Import styled HOC for NativeWind v2
+
+// For NativeWind v2, if you want to pass className to custom components
+// and have them apply styles, you often need to wrap them with `styled`.
+const StyledText = styled(Text);
+const StyledTouchableOpacity = styled(TouchableOpacity);
 
 /**
  * Props for the AppLink component
  */
 interface AppLinkProps {
-  // The path to navigate to
   href: string;
-  // Optional label text to display in the link
   label?: string;
-  // Optional styling for the label text
   labelStyle?: TextStyle;
-  // Optional children elements
   children?: React.ReactNode;
-  // Optional props to pass to the TouchableOpacity component
   touchableProps?: TouchableOpacityProps;
-  // Optional props to pass to Text component (when using label)
-  textProps?: React.ComponentProps<typeof Text>;
+  textProps?: ReactNativeTextProps; // Using the renamed import
 }
 
 /**
@@ -37,13 +38,15 @@ export const AppLink: React.FC<AppLinkProps> = ({
   touchableProps,
   textProps,
 }) => {
-  // TypeScript fix: Use the object pattern with type assertion
   const linkHref = { pathname: href as any };
 
-  // If children are provided, use them, otherwise use the TouchableOpacity with label
   const linkContent = children ? (
     children
   ) : (
+    // If using AppLink with label directly, ensure this TouchableOpacity/Text
+    // can be styled if needed, possibly by also making them `StyledTouchableOpacity`
+    // and `StyledText` if they were to accept `className`.
+    // For now, it uses traditional `style` props.
     <TouchableOpacity {...touchableProps}>
       <Text style={labelStyle} {...textProps}>
         {label}
@@ -59,39 +62,44 @@ export const AppLink: React.FC<AppLinkProps> = ({
 };
 
 /**
- * A simpler version of AppLink specifically for text links
+ * A simpler version of AppLink specifically for text links, styled with NativeWind
  */
 interface TextLinkProps {
   href: string;
   label: string;
-  style?: TextStyle;
-  textProps?: React.ComponentProps<typeof Text>;
+  className?: string; // To pass additional Tailwind classes for the Text
+  // style?: TextStyle; // Removed as we're prioritizing className for NativeWind
+  textProps?: ReactNativeTextProps;
   touchableProps?: TouchableOpacityProps;
 }
 
 export const TextLink: React.FC<TextLinkProps> = ({
   href,
   label,
-  style,
+  className, // Use this for Tailwind styling
+  // style, // Removed
   textProps,
   touchableProps,
 }) => {
+  // Default classes for the link text + any additional classes passed via props
+  // Ensure `text-primary` is defined in your tailwind.config.js (e.g., theme.extend.colors.primary)
+  // `font-medium` is Tailwind's class for fontWeight: '500'
+  const combinedTextClasses = `text-primary font-medium ${
+    className || ''
+  }`.trim();
+
   return (
     <AppLink href={href} touchableProps={touchableProps}>
-      <TouchableOpacity {...touchableProps}>
-        <Text
-          style={[
-            {
-              color: 'var(--color-primary)',
-              fontWeight: '500',
-            },
-            style,
-          ]}
-          {...textProps}
-        >
+      {/*
+        The TouchableOpacity here is mostly for the press effect.
+        If it needed background styling from NativeWind, it would also become <StyledTouchableOpacity>.
+        For a simple text link, often the Text styling is primary.
+      */}
+      <StyledTouchableOpacity {...touchableProps}>
+        <StyledText className={combinedTextClasses} {...textProps}>
           {label}
-        </Text>
-      </TouchableOpacity>
+        </StyledText>
+      </StyledTouchableOpacity>
     </AppLink>
   );
 };
