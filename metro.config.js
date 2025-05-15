@@ -1,26 +1,17 @@
+// Learn more https://docs.expo.dev/guides/customizing-metro
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
 
-const config = getDefaultConfig(__dirname, { isCSSEnabled: true });
+/** @type {import('expo/metro-config').MetroConfig} */
+let config = getDefaultConfig(__dirname, {
+  // [Web-only]: Enables CSS support in Metro.
+  isCSSEnabled: true, // Often recommended for web support, good to have
+});
 
-config.resolver.sourceExts = [
-  ...config.resolver.sourceExts,
-  'mjs',
-  'cjs',
-  'jsx',
-  'ts',
-  'tsx',
-];
+config = withNativeWind(config, {
+  input: './global.css', // Make sure this path is correct
+  // Can try adding outputDir if issues persist, though often not needed
+  // outputDir: "./node_modules/.cache/nativewind",
+});
 
-config.resolver.resolveRequest = (context, moduleName, platform) => {
-  try {
-    const defaultResult = null;
-
-    return defaultResult;
-  } catch (error) {
-    console.warn('Metro resolver error:', error);
-    return null;
-  }
-};
-
-module.exports = withNativeWind(config, { input: './global.css' });
+module.exports = config;

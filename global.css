@@ -1,142 +1,66 @@
+/* Import Tailwind's base styles, components, and utilities */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Main brand colors */
-  --color-primary: #722ea5;
-  --color-primary-dark: #5e2587;
-  --color-primary-light: #d9c5e9;
-
-  /* Secondary colors */
-  --color-secondary: #f8a100;
-  --color-secondary-dark: #cc8400;
-  --color-secondary-light: #ffd580;
-
-  /* Success, error, info, warning colors */
-  --color-success: #21b958;
-  --color-error: #ec1c24;
-  --color-info: #00b7ef;
-  --color-warning: #fbd000;
-
-  /* Background and text colors */
-  --color-bg-light: #ffffff;
-  --color-bg-dark: #1f2937;
-  --color-text-light: #1f2937;
-  --color-text-dark: #ffffff;
-  --color-text-muted-light: #6b7280;
-  --color-text-muted-dark: #9ca3af;
-}
-
-/* Custom utilities */
-@layer utilities {
-  .bg-primary {
-    background-color: var(--color-primary);
-  }
-  .bg-primary-dark {
-    background-color: var(--color-primary-dark);
-  }
-  .bg-primary-light {
-    background-color: var(--color-primary-light);
-  }
-  .bg-secondary {
-    background-color: var(--color-secondary);
-  }
-  .bg-secondary-dark {
-    background-color: var(--color-secondary-dark);
-  }
-  .bg-secondary-light {
-    background-color: var(--color-secondary-light);
-  }
-  .bg-success {
-    background-color: var(--color-success);
-  }
-  .bg-error {
-    background-color: var(--color-error);
-  }
-  .bg-info {
-    background-color: var(--color-info);
-  }
-  .bg-warning {
-    background-color: var(--color-warning);
-  }
-
-  .text-primary {
-    color: var(--color-primary);
-  }
-  .text-primary-dark {
-    color: var(--color-primary-dark);
-  }
-  .text-primary-light {
-    color: var(--color-primary-light);
-  }
-  .text-secondary {
-    color: var(--color-secondary);
-  }
-  .text-success {
-    color: var(--color-success);
-  }
-  .text-error {
-    color: var(--color-error);
-  }
-  .text-info {
-    color: var(--color-info);
-  }
-  .text-warning {
-    color: var(--color-warning);
-  }
-
-  .border-primary {
-    border-color: var(--color-primary);
-  }
-  .border-secondary {
-    border-color: var(--color-secondary);
-  }
-  .border-success {
-    border-color: var(--color-success);
-  }
-  .border-error {
-    border-color: var(--color-error);
-  }
-
-  /* Common component styles */
+/*
+  You can still use @layer components to define reusable component styles
+  using @apply with Tailwind classes (which now include your custom colors).
+*/
+@layer components {
   .btn {
-    @apply px-4 py-2 rounded-lg font-medium;
+    @apply px-4 py-2 rounded-lg font-medium; /* Base button styling */
   }
   .btn-primary {
-    @apply bg-primary text-white;
+    @apply bg-primary text-white; /* Uses 'primary' color from tailwind.config.js */
+    /* Add hover/focus/active states if needed, e.g., @apply hover:bg-primary-dark; */
   }
   .btn-secondary {
-    @apply bg-secondary text-white;
+    @apply bg-secondary text-white; /* Uses 'secondary' color from tailwind.config.js */
   }
   .btn-success {
-    @apply bg-success text-white;
+    @apply bg-success text-white; /* Uses 'success' color from tailwind.config.js */
   }
   .btn-error {
-    @apply bg-error text-white;
+    @apply bg-error text-white; /* Uses 'error' color from tailwind.config.js */
   }
 
   .card {
+    /* Using Tailwind's default grays or your theme's gray overrides for dark mode */
     @apply bg-white dark:bg-gray-800 rounded-xl shadow-sm;
   }
 }
 
-/* Global styles */
+/*
+  Global element styling (can often be handled by Tailwind base or by styling App.js/Layout directly).
+  If you need broad defaults, this is the place.
+*/
 body {
+  /* On web, this applies. In React Native, it's more conceptual for NativeWind. */
   @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white;
+  /* If you defined a default font in tailwind.config.js, you might @apply it here: */
+  /* @apply font-sans; */
 }
 
-/* Form styles */
+/* Default styling for form elements */
 input,
 textarea,
 select {
+  /* Using Tailwind's default grays or your theme's gray overrides for dark mode */
   @apply bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-2 w-full;
+  /* Consider adding text color for inputs, e.g., text-gray-900 dark:text-white */
+  @apply text-gray-900 dark:text-white;
 }
 
-/* Make sure focus states are visible */
-button:focus,
+/* Visible focus states for form elements and buttons */
+button:focus, /* For web */
 input:focus,
 select:focus,
 textarea:focus {
-  @apply outline-none ring-2 ring-primary ring-opacity-50;
+  @apply outline-none ring-2 ring-primary ring-opacity-50; /* Uses 'primary' from tailwind.config.js */
 }
+
+/*
+  Any other truly global base styles or very specific overrides can go here,
+  but try to use Tailwind utilities directly in your components as much as possible.
+*/
