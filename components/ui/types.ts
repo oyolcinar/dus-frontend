@@ -241,10 +241,21 @@ export interface ParagraphProps {
   testID?: string;
 }
 
-// Spacer props
-export interface SpacerProps {
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-  direction?: 'horizontal' | 'vertical';
+// Divider props
+export interface DividerProps {
+  orientation?: 'horizontal' | 'vertical';
+  style?: StyleProp<ViewStyle>;
+  color?: string;
+  thickness?: number;
+  marginVertical?: number;
+  marginHorizontal?: number;
+  testID?: string;
+}
+
+// Spinner props
+export interface SpinnerProps {
+  size?: 'small' | 'large' | number;
+  color?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -257,7 +268,7 @@ export interface AlertProps {
   dismissible?: boolean;
   onDismiss?: () => void;
   icon?: React.ComponentProps<typeof FontAwesome>['name'];
-  style?: StyleProp<ViewStyle>;
+  style?: any;
   testID?: string;
 }
 
@@ -284,7 +295,7 @@ export interface ModalProps {
   testID?: string;
 }
 
-// List component props
+// List props
 export interface ListProps {
   data: any[];
   renderItem: (item: any, index: number) => React.ReactNode;
@@ -310,7 +321,7 @@ export interface ListItemProps {
   testID?: string;
 }
 
-// Tab component props
+// Tab props
 export interface TabBarProps {
   tabs: Array<{
     key: string;
@@ -333,21 +344,7 @@ export interface TabItemProps {
   testID?: string;
 }
 
-// Special purpose component props
-export interface QuizCardProps {
-  title: string;
-  description?: string;
-  questionCount: number;
-  estimatedTime?: number;
-  progress?: number;
-  category?: string;
-  difficulty?: 'easy' | 'medium' | 'hard';
-  onPress?: () => void;
-  style?: StyleProp<ViewStyle>;
-  titleStyle?: StyleProp<TextStyle>;
-  testID?: string;
-}
-
+// Special purpose props
 export interface CourseCardProps {
   title: string;
   description?: string;
@@ -359,6 +356,20 @@ export interface CourseCardProps {
   instructor?: string;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  testID?: string;
+}
+
+export interface QuizCardProps {
+  title: string;
+  description?: string;
+  questionCount: number;
+  estimatedTime?: number;
+  progress?: number;
+  category?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
+  titleStyle?: StyleProp<TextStyle>;
   testID?: string;
 }
 

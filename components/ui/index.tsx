@@ -1,4 +1,4 @@
-// components/ui/index.ts
+// components/ui/index.tsx
 //
 // This file serves as the main export point for all UI components
 // Centralizing exports here allows for easier imports in other files
@@ -61,7 +61,7 @@ export { default as NotificationBadge } from './NotificationBadge';
 export { ThemeProvider, useTheme, ThemeContext } from './ThemeContext';
 
 // Export theme utilities
-export { getSpacing } from '../../constants/theme';
+export { Spacing } from '../../constants/theme';
 
 // Type definitions for component props
 export type {
