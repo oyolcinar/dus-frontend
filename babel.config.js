@@ -1,4 +1,3 @@
-// babel.config.js for NativeWind v2
 module.exports = function (api) {
   api.cache(true);
   return {

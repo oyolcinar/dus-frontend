@@ -1,10 +1,10 @@
 module.exports = {
   plugins: {
-    'nativewind/postcss': {
-      // Enable async processing
-      async: true,
-    },
     tailwindcss: {},
     autoprefixer: {},
+    'nativewind/postcss': {
+      // Explicitly set async to false
+      async: false,
+    },
   },
 };
