@@ -5,9 +5,9 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  useColorScheme,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   Card,
@@ -17,6 +17,13 @@ import {
   Avatar,
   Badge,
   AppLink,
+  Container,
+  Title,
+  Paragraph,
+  Alert,
+  ProgressBar,
+  Row,
+  Column,
 } from '../../components/ui';
 import {
   courseService,
@@ -27,6 +34,7 @@ import {
 } from '../../src/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Course, Test, Duel } from '../../src/types/models';
+import { Colors, Spacing } from '../../constants/theme';
 
 // Define interface to extend Course with additional fields we need
 interface CourseWithProgress extends Course {
@@ -74,6 +82,7 @@ interface Achievement {
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<{ username?: string } | null>(null);
@@ -159,18 +168,20 @@ export default function HomeScreen() {
         setCourses(coursesWithProgress.slice(0, 3));
 
         // Sort tests by difficulty
-        const testsWithDetails: TestWithDetails[] = testsResponse.map((test) => {
-          return {
-            ...test,
-            difficulty: getDifficultyLabel(test.difficulty_level || 2),
-            // Map question_count to questionCount for the UI
-            questionCount: test.question_count || 0,
-            // Map time_limit to timeLimit for the UI
-            timeLimit: test.time_limit || 30,
-          };
-        });
+        const testsWithDetails: TestWithDetails[] = testsResponse.map(
+          (test) => {
+            return {
+              ...test,
+              difficulty: getDifficultyLabel(test.difficulty_level || 2),
+              // Map question_count to questionCount for the UI
+              questionCount: test.question_count || 0,
+              // Map time_limit to timeLimit for the UI
+              timeLimit: test.time_limit || 30,
+            };
+          },
+        );
         setTests(testsWithDetails.slice(0, 2)); // Take just 2 tests for the homepage
-        
+
         setActiveDuels(duelsResponse.slice(0, 3)); // Just take top 3 for the homepage
         setUserAchievements(achievementsResponse.slice(0, 3)); // Just take the most recent 3
         setAnalyticsData(analyticsResponse);
@@ -227,18 +238,6 @@ export default function HomeScreen() {
     return Math.round((completed / total) * 100);
   };
 
-  // Format course progress bar
-  const renderProgressBar = (progress: number) => {
-    return (
-      <View className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-1'>
-        <View
-          className='bg-primary rounded-full h-2'
-          style={{ width: `${progress}%` }}
-        />
-      </View>
-    );
-  };
-
   // Render badge for duel status
   const renderDuelStatusBadge = (status?: string) => {
     // Use string comparison instead of enum comparison
@@ -279,14 +278,24 @@ export default function HomeScreen() {
 
   if (error) {
     return (
-      <View className='flex-1 justify-center items-center p-4'>
-        <Text className='text-red-500 text-center mb-4'>{error}</Text>
+      <Container
+        style={{
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: Spacing[4],
+        }}
+      >
+        <Alert
+          type='error'
+          message={error}
+          style={{ marginBottom: Spacing[4] }}
+        />
         <Button
           title='Yenile'
           onPress={() => window.location.reload()}
           variant='primary'
         />
-      </View>
+      </Container>
     );
   }
 
@@ -308,31 +317,75 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView className='flex-1 px-4 py-4'>
+    <ScrollView
+      style={{
+        flex: 1,
+        paddingHorizontal: Spacing[4],
+        paddingVertical: Spacing[4],
+      }}
+    >
       {/* Welcome message and streak */}
-      <View className='flex-row justify-between items-center mb-6'>
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: Spacing[6],
+        }}
+      >
         <View>
-          <Text className='text-2xl font-bold text-gray-900 dark:text-white'>
+          <Title level={2} style={{ marginBottom: Spacing[1] }}>
             Merhaba {userData?.username || 'Öğrenci'}!
-          </Text>
-          <Text className='text-gray-600 dark:text-gray-400'>
+          </Title>
+          <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
             DUS sınavına hazırlanmaya devam edelim
-          </Text>
+          </Paragraph>
         </View>
-        <View className='flex-row items-center bg-primary-light dark:bg-primary-dark rounded-full px-3 py-1'>
-          <FontAwesome name='fire' size={16} color='var(--color-secondary)' />
-          <Text className='ml-2 font-medium'>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: isDark
+              ? Colors.primary.dark
+              : Colors.primary.light,
+            borderRadius: 999,
+            paddingHorizontal: Spacing[3],
+            paddingVertical: Spacing[1],
+          }}
+        >
+          <FontAwesome name='fire' size={16} color={Colors.secondary.DEFAULT} />
+          <Text
+            style={{
+              marginLeft: Spacing[2],
+              fontWeight: '500',
+              color: isDark ? Colors.white : Colors.gray[800],
+            }}
+          >
             {analyticsData?.studySessions || 0} gün
           </Text>
         </View>
       </View>
 
       {loading ? (
-        <ActivityIndicator size='large' color='var(--color-primary)' />
+        <View
+          style={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: Spacing[4],
+          }}
+        >
+          <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
+        </View>
       ) : (
         <>
           {/* User statistics */}
-          <View className='flex-row justify-between flex-wrap mb-6'>
+          <Row
+            style={{
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              marginBottom: Spacing[6],
+            }}
+          >
             <StatCard
               icon='book'
               title='Tamamlanan Dersler'
@@ -343,53 +396,97 @@ export default function HomeScreen() {
                     }`
                   : '0/0'
               }
-              color='var(--color-primary)'
+              color={Colors.primary.DEFAULT}
             />
             <StatCard
               icon='check-circle'
               title='Çözülen Sorular'
               value={(analyticsData?.totalQuestionsAnswered || 0).toString()}
-              color='var(--color-info)'
+              color={Colors.info}
             />
             <StatCard
               icon='trophy'
               title='Düello Skoru'
               value={calculateDuelScore()}
-              color='var(--color-secondary)'
+              color={Colors.secondary.DEFAULT}
             />
-          </View>
+          </Row>
 
           {/* Continue studying */}
-          <Card title='Çalışmaya Devam Et' className='mb-6'>
+          <Card title='Çalışmaya Devam Et' style={{ marginBottom: Spacing[6] }}>
             {courses.length > 0 ? (
               courses.map((course) => (
                 <AppLink
                   key={course.course_id}
                   href={`/courses/${course.course_id}`}
                 >
-                  <TouchableOpacity className='flex-row items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg mb-3'>
-                    <View className='w-10 h-10 rounded-full bg-primary flex items-center justify-center mr-3'>
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: Spacing[3],
+                      backgroundColor: isDark
+                        ? Colors.gray[700]
+                        : Colors.gray[50],
+                      borderRadius: 8,
+                      marginBottom: Spacing[3],
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: Colors.primary.DEFAULT,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: Spacing[3],
+                      }}
+                    >
                       <FontAwesome
                         name={course.iconName as any}
                         size={20}
-                        color='white'
+                        color={Colors.white}
                       />
                     </View>
-                    <View className='flex-1'>
-                      <Text className='font-semibold text-gray-800 dark:text-white'>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontWeight: '600',
+                          color: isDark ? Colors.white : Colors.gray[800],
+                          marginBottom: Spacing[1],
+                        }}
+                      >
                         {course.title}
                       </Text>
-                      <View className='flex-row items-center'>
-                        <Text className='text-xs text-gray-500 dark:text-gray-400'>
+                      <View
+                        style={{ flexDirection: 'row', alignItems: 'center' }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: isDark ? Colors.gray[400] : Colors.gray[500],
+                            marginBottom: Spacing[1],
+                          }}
+                        >
                           {course.progress}% tamamlandı
                         </Text>
                       </View>
-                      {renderProgressBar(course.progress)}
+                      <ProgressBar
+                        progress={course.progress}
+                        height={8}
+                        width='100%'
+                        trackColor={
+                          isDark ? Colors.gray[700] : Colors.gray[200]
+                        }
+                        progressColor={Colors.primary.DEFAULT}
+                        style={{ borderRadius: 4 }}
+                      />
                     </View>
                     <FontAwesome
                       name='chevron-right'
                       size={16}
-                      color='var(--color-text-muted-light)'
+                      color={isDark ? Colors.gray[400] : Colors.gray[500]}
                     />
                   </TouchableOpacity>
                 </AppLink>
@@ -410,42 +507,77 @@ export default function HomeScreen() {
                 title='Tüm Kursları Gör'
                 onPress={() => {}} // No-op function since AppLink handles navigation
                 variant='outline'
-                className='mt-2'
+                style={{ marginTop: Spacing[2] }}
               />
             </AppLink>
           </Card>
 
           {/* Recent Tests */}
-          <Card title='Popüler Testler' className='mb-6'>
+          <Card title='Popüler Testler' style={{ marginBottom: Spacing[6] }}>
             {tests.length > 0 ? (
               tests.map((test) => (
                 <AppLink key={test.test_id} href={`/tests/${test.test_id}`}>
-                  <TouchableOpacity className='flex-row items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg mb-3'>
-                    <View className='w-10 h-10 rounded-full bg-info flex items-center justify-center mr-3'>
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: Spacing[3],
+                      backgroundColor: isDark
+                        ? Colors.gray[700]
+                        : Colors.gray[50],
+                      borderRadius: 8,
+                      marginBottom: Spacing[3],
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: Colors.info,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: Spacing[3],
+                      }}
+                    >
                       <FontAwesome
                         name='question-circle'
                         size={20}
-                        color='white'
+                        color={Colors.white}
                       />
                     </View>
-                    <View className='flex-1'>
-                      <Text className='font-semibold text-gray-800 dark:text-white'>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontWeight: '600',
+                          color: isDark ? Colors.white : Colors.gray[800],
+                          marginBottom: Spacing[1],
+                        }}
+                      >
                         {test.title}
                       </Text>
-                      <View className='flex-row items-center'>
-                        <Text className='text-xs text-gray-500 dark:text-gray-400'>
+                      <View
+                        style={{ flexDirection: 'row', alignItems: 'center' }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: isDark ? Colors.gray[400] : Colors.gray[500],
+                          }}
+                        >
                           {test.questionCount || 0} soru • {test.timeLimit || 0}{' '}
                           dakika •
                         </Text>
                         <Text
-                          className='text-xs ml-1'
                           style={{
+                            fontSize: 12,
+                            marginLeft: Spacing[1],
                             color:
                               test.difficulty === 'Kolay'
-                                ? 'var(--color-success)'
+                                ? Colors.success
                                 : test.difficulty === 'Orta'
-                                ? 'var(--color-warning)'
-                                : 'var(--color-error)',
+                                ? Colors.warning
+                                : Colors.error,
                           }}
                         >
                           {test.difficulty}
@@ -456,7 +588,10 @@ export default function HomeScreen() {
                       title='Başla'
                       variant='primary'
                       onPress={() => {}} // No-op function since AppLink handles navigation
-                      className='px-3 py-1'
+                      style={{
+                        paddingHorizontal: Spacing[3],
+                        paddingVertical: Spacing[1],
+                      }}
                     />
                   </TouchableOpacity>
                 </AppLink>
@@ -473,27 +608,50 @@ export default function HomeScreen() {
                 title='Tüm Testleri Gör'
                 onPress={() => {}} // No-op function since AppLink handles navigation
                 variant='outline'
-                className='mt-2'
+                style={{ marginTop: Spacing[2] }}
               />
             </AppLink>
           </Card>
 
           {/* Active Duels */}
-          <Card title='Aktif Düellolar' className='mb-6'>
+          <Card title='Aktif Düellolar' style={{ marginBottom: Spacing[6] }}>
             {activeDuels.length > 0 ? (
               activeDuels.map((duel) => (
                 <AppLink key={duel.duel_id} href={`/duels/${duel.duel_id}`}>
-                  <TouchableOpacity className='flex-row items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg mb-3'>
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: Spacing[3],
+                      backgroundColor: isDark
+                        ? Colors.gray[700]
+                        : Colors.gray[50],
+                      borderRadius: 8,
+                      marginBottom: Spacing[3],
+                    }}
+                  >
                     <Avatar
                       name={duel.opponent_username?.[0] || 'U'}
                       size='md'
-                      bgColor='var(--color-secondary)'
+                      bgColor={Colors.secondary.DEFAULT}
                     />
-                    <View className='flex-1 ml-3'>
-                      <Text className='font-semibold text-gray-800 dark:text-white'>
+                    <View style={{ flex: 1, marginLeft: Spacing[3] }}>
+                      <Text
+                        style={{
+                          fontWeight: '600',
+                          color: isDark ? Colors.white : Colors.gray[800],
+                          marginBottom: Spacing[1],
+                        }}
+                      >
                         {duel.opponent_username || 'Rakip'}
                       </Text>
-                      <View className='flex-row items-center mt-1'>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          marginTop: Spacing[1],
+                        }}
+                      >
                         {renderDuelStatusBadge(duel.status)}
                       </View>
                     </View>
@@ -501,7 +659,10 @@ export default function HomeScreen() {
                       title={duel.status === 'active' ? 'Oyna' : 'Görüntüle'}
                       variant={duel.status === 'active' ? 'primary' : 'outline'}
                       onPress={() => {}} // No-op function since AppLink handles navigation
-                      className='px-3 py-1'
+                      style={{
+                        paddingHorizontal: Spacing[3],
+                        paddingVertical: Spacing[1],
+                      }}
                     />
                   </TouchableOpacity>
                 </AppLink>
@@ -522,28 +683,50 @@ export default function HomeScreen() {
                 title='Tüm Düelloları Gör'
                 onPress={() => {}} // No-op function since AppLink handles navigation
                 variant='outline'
-                className='mt-2'
+                style={{ marginTop: Spacing[2] }}
               />
             </AppLink>
           </Card>
 
           {/* Recent Achievements */}
           <Card title='Son Başarılar'>
-            <View className='flex-row flex-wrap'>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               {userAchievements.length > 0 ? (
                 userAchievements.map((achievement) => (
                   <View
                     key={achievement.achievement_id}
-                    className='w-1/3 items-center p-2'
+                    style={{
+                      width: '33.33%',
+                      alignItems: 'center',
+                      padding: Spacing[2],
+                    }}
                   >
-                    <View className='w-12 h-12 rounded-full bg-primary-light dark:bg-primary-dark items-center justify-center mb-2'>
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        backgroundColor: isDark
+                          ? Colors.primary.dark
+                          : Colors.primary.light,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: Spacing[2],
+                      }}
+                    >
                       <FontAwesome
                         name={getAchievementIcon(achievement)}
                         size={24}
-                        color='var(--color-primary)'
+                        color={Colors.primary.DEFAULT}
                       />
                     </View>
-                    <Text className='text-xs text-center text-gray-700 dark:text-gray-300'>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        textAlign: 'center',
+                        color: isDark ? Colors.gray[300] : Colors.gray[700],
+                      }}
+                    >
                       {achievement.name}
                     </Text>
                   </View>
@@ -562,7 +745,7 @@ export default function HomeScreen() {
                   title='Tüm Başarılar'
                   onPress={() => {}} // No-op function since AppLink handles navigation
                   variant='outline'
-                  className='mt-4'
+                  style={{ marginTop: Spacing[4] }}
                 />
               </AppLink>
             )}

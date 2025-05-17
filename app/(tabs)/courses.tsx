@@ -6,11 +6,24 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  useColorScheme,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { courseService } from '../../src/api';
 import { Course } from '../../src/types/models';
-import { Card, EmptyState } from '../../components/ui';
+import {
+  Card,
+  EmptyState,
+  Container,
+  Title,
+  Paragraph,
+  ProgressBar,
+  Button,
+  Alert,
+  Row,
+  Column,
+} from '../../components/ui';
+import { Colors, Spacing } from '../../constants/theme';
 
 // Define interface to extend Course with additional fields we need
 interface CourseWithProgress extends Course {
@@ -22,6 +35,8 @@ export default function CoursesScreen() {
   const [courses, setCourses] = useState<CourseWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   useEffect(() => {
     async function fetchCourses() {
@@ -92,92 +107,139 @@ export default function CoursesScreen() {
     return 'book-medical';
   };
 
-  // Format course progress bar
-  const renderProgressBar = (progress: number) => {
-    return (
-      <View className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-1'>
-        <View
-          className='bg-primary rounded-full h-2'
-          style={{ width: `${progress}%` }}
-        />
-      </View>
-    );
-  };
-
   if (error) {
     return (
-      <View className='flex-1 justify-center items-center p-4'>
-        <Text className='text-red-500 text-center mb-4'>{error}</Text>
-        <TouchableOpacity
-          className='bg-primary px-4 py-2 rounded-lg'
+      <Container
+        style={{
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: Spacing[4],
+        }}
+      >
+        <Alert
+          type='error'
+          message={error}
+          style={{ marginBottom: Spacing[4] }}
+        />
+        <Button
+          title='Yenile'
+          variant='primary'
           onPress={() => window.location.reload()}
-        >
-          <Text className='text-white'>Yenile</Text>
-        </TouchableOpacity>
-      </View>
+        />
+      </Container>
     );
   }
 
   return (
-    <ScrollView className='flex-1 p-4'>
-      <View className='mb-6'>
-        <Text className='text-2xl font-bold text-gray-900 dark:text-white'>
-          Kurslar
-        </Text>
-        <Text className='text-gray-600 dark:text-gray-400'>
-          Tüm kursları görüntüleyin ve çalışmaya devam edin
-        </Text>
-      </View>
+    <Container>
+      <ScrollView style={{ flex: 1, padding: Spacing[4] }}>
+        <View style={{ marginBottom: Spacing[6] }}>
+          <Title level={2}>Kurslar</Title>
+          <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
+            Tüm kursları görüntüleyin ve çalışmaya devam edin
+          </Paragraph>
+        </View>
 
-      {loading ? (
-        <ActivityIndicator size='large' color='var(--color-primary)' />
-      ) : (
-        <>
-          {courses.length > 0 ? (
-            <View>
-              {courses.map((course) => (
-                <TouchableOpacity
-                  key={course.course_id}
-                  className='flex-row items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg mb-3'
-                  onPress={() => {
-                    // Navigation would go here
-                  }}
-                >
-                  <View className='w-10 h-10 rounded-full bg-primary flex items-center justify-center mr-3'>
-                    <FontAwesome
-                      name={course.iconName as any}
-                      size={20}
-                      color='white'
-                    />
-                  </View>
-                  <View className='flex-1'>
-                    <Text className='font-semibold text-gray-800 dark:text-white'>
-                      {course.title}
-                    </Text>
-                    <View className='flex-row items-center'>
-                      <Text className='text-xs text-gray-500 dark:text-gray-400'>
-                        {course.progress}% tamamlandı
-                      </Text>
+        {loading ? (
+          <View
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: Spacing[4],
+            }}
+          >
+            <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
+          </View>
+        ) : (
+          <>
+            {courses.length > 0 ? (
+              <View>
+                {courses.map((course) => (
+                  <TouchableOpacity
+                    key={course.course_id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: Spacing[3],
+                      backgroundColor: isDark
+                        ? Colors.gray[700]
+                        : Colors.gray[50],
+                      borderRadius: 8,
+                      marginBottom: Spacing[3],
+                    }}
+                    onPress={() => {
+                      // Navigation would go here
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: Colors.primary.DEFAULT,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: Spacing[3],
+                      }}
+                    >
+                      <FontAwesome
+                        name={course.iconName as any}
+                        size={20}
+                        color={Colors.white}
+                      />
                     </View>
-                    {renderProgressBar(course.progress)}
-                  </View>
-                  <FontAwesome
-                    name='chevron-right'
-                    size={16}
-                    color='var(--color-text-muted-light)'
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : (
-            <EmptyState
-              icon='book'
-              title='Henüz kurs yok'
-              message='Yeni kurslar yakında eklenecektir.'
-            />
-          )}
-        </>
-      )}
-    </ScrollView>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontWeight: '600',
+                          color: isDark ? Colors.white : Colors.gray[800],
+                          marginBottom: Spacing[1],
+                        }}
+                      >
+                        {course.title}
+                      </Text>
+                      <View
+                        style={{ flexDirection: 'row', alignItems: 'center' }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: isDark ? Colors.gray[400] : Colors.gray[500],
+                            marginBottom: Spacing[1],
+                          }}
+                        >
+                          {course.progress}% tamamlandı
+                        </Text>
+                      </View>
+                      <ProgressBar
+                        progress={course.progress}
+                        height={8}
+                        width='100%'
+                        trackColor={
+                          isDark ? Colors.gray[700] : Colors.gray[200]
+                        }
+                        progressColor={Colors.primary.DEFAULT}
+                        style={{ borderRadius: 4 }}
+                      />
+                    </View>
+                    <FontAwesome
+                      name='chevron-right'
+                      size={16}
+                      color={isDark ? Colors.gray[400] : Colors.gray[500]}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <EmptyState
+                icon='book'
+                title='Henüz kurs yok'
+                message='Yeni kurslar yakında eklenecektir.'
+              />
+            )}
+          </>
+        )}
+      </ScrollView>
+    </Container>
   );
 }

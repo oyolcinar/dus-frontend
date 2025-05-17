@@ -6,11 +6,23 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  useColorScheme,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { testService } from '../../src/api';
 import { Test } from '../../src/types/models';
-import { Card, Button, EmptyState, Badge } from '../../components/ui';
+import {
+  Card,
+  Button,
+  EmptyState,
+  Badge,
+  Container,
+  Title,
+  Paragraph,
+  Alert,
+  Row,
+} from '../../components/ui';
+import { Colors, Spacing } from '../../constants/theme';
 
 // Extend Test interface with display properties
 interface TestWithDetails extends Test {
@@ -24,6 +36,8 @@ export default function TestsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   useEffect(() => {
     async function fetchTests() {
@@ -80,15 +94,15 @@ export default function TestsScreen() {
   const getDifficultyColor = (difficulty: string): string => {
     switch (difficulty) {
       case 'Kolay':
-        return 'var(--color-success)';
+        return Colors.success;
       case 'Orta':
-        return 'var(--color-warning)';
+        return Colors.warning;
       case 'Zor':
       case 'Çok Zor':
       case 'Uzman':
-        return 'var(--color-error)';
+        return Colors.error;
       default:
-        return 'var(--color-info)';
+        return Colors.info;
     }
   };
 
@@ -99,134 +113,211 @@ export default function TestsScreen() {
 
   if (error) {
     return (
-      <View className='flex-1 justify-center items-center p-4'>
-        <Text className='text-red-500 text-center mb-4'>{error}</Text>
-        <TouchableOpacity
-          className='bg-primary px-4 py-2 rounded-lg'
+      <Container
+        style={{
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: Spacing[4],
+        }}
+      >
+        <Alert
+          type='error'
+          message={error}
+          style={{ marginBottom: Spacing[4] }}
+        />
+        <Button
+          title='Yenile'
+          variant='primary'
           onPress={() => window.location.reload()}
-        >
-          <Text className='text-white'>Yenile</Text>
-        </TouchableOpacity>
-      </View>
+        />
+      </Container>
     );
   }
 
   return (
-    <ScrollView className='flex-1 p-4'>
-      <View className='mb-6'>
-        <Text className='text-2xl font-bold text-gray-900 dark:text-white'>
-          Testler
-        </Text>
-        <Text className='text-gray-600 dark:text-gray-400'>
-          Sınavlara hazırlanmak için testleri çözün
-        </Text>
-      </View>
+    <Container>
+      <ScrollView style={{ flex: 1, padding: Spacing[4] }}>
+        <View style={{ marginBottom: Spacing[6] }}>
+          <Title level={2}>Testler</Title>
+          <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
+            Sınavlara hazırlanmak için testleri çözün
+          </Paragraph>
+        </View>
 
-      {/* Filter buttons */}
-      <View className='flex-row mb-4 flex-wrap'>
-        <TouchableOpacity
-          className={`mr-2 mb-2 px-3 py-1 rounded-full ${
-            filter === null ? 'bg-primary' : 'bg-gray-200 dark:bg-gray-700'
-          }`}
-          onPress={() => setFilter(null)}
-        >
-          <Text
-            className={
-              filter === null
-                ? 'text-white'
-                : 'text-gray-700 dark:text-gray-300'
-            }
-          >
-            Tümü
-          </Text>
-        </TouchableOpacity>
-        {['Kolay', 'Orta', 'Zor', 'Çok Zor', 'Uzman'].map((difficulty) => (
+        {/* Filter buttons */}
+        <Row style={{ marginBottom: Spacing[4], flexWrap: 'wrap' }}>
           <TouchableOpacity
-            key={difficulty}
-            className={`mr-2 mb-2 px-3 py-1 rounded-full ${
-              filter === difficulty
-                ? 'bg-primary'
-                : 'bg-gray-200 dark:bg-gray-700'
-            }`}
-            onPress={() => setFilter(difficulty)}
+            style={{
+              marginRight: Spacing[2],
+              marginBottom: Spacing[2],
+              paddingHorizontal: Spacing[3],
+              paddingVertical: Spacing[1],
+              borderRadius: 9999,
+              backgroundColor:
+                filter === null
+                  ? Colors.primary.DEFAULT
+                  : isDark
+                  ? Colors.gray[700]
+                  : Colors.gray[200],
+            }}
+            onPress={() => setFilter(null)}
           >
             <Text
-              className={
-                filter === difficulty
-                  ? 'text-white'
-                  : 'text-gray-700 dark:text-gray-300'
-              }
+              style={{
+                color:
+                  filter === null
+                    ? Colors.white
+                    : isDark
+                    ? Colors.gray[300]
+                    : Colors.gray[700],
+              }}
             >
-              {difficulty}
+              Tümü
             </Text>
           </TouchableOpacity>
-        ))}
-      </View>
+          {['Kolay', 'Orta', 'Zor', 'Çok Zor', 'Uzman'].map((difficulty) => (
+            <TouchableOpacity
+              key={difficulty}
+              style={{
+                marginRight: Spacing[2],
+                marginBottom: Spacing[2],
+                paddingHorizontal: Spacing[3],
+                paddingVertical: Spacing[1],
+                borderRadius: 9999,
+                backgroundColor:
+                  filter === difficulty
+                    ? Colors.primary.DEFAULT
+                    : isDark
+                    ? Colors.gray[700]
+                    : Colors.gray[200],
+              }}
+              onPress={() => setFilter(difficulty)}
+            >
+              <Text
+                style={{
+                  color:
+                    filter === difficulty
+                      ? Colors.white
+                      : isDark
+                      ? Colors.gray[300]
+                      : Colors.gray[700],
+                }}
+              >
+                {difficulty}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </Row>
 
-      {loading ? (
-        <ActivityIndicator size='large' color='var(--color-primary)' />
-      ) : (
-        <>
-          {filteredTests.length > 0 ? (
-            <View>
-              {filteredTests.map((test) => (
-                <TouchableOpacity
-                  key={test.test_id}
-                  className='flex-row items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg mb-3'
-                  onPress={() => {
-                    // Navigation would go here
-                  }}
-                >
-                  <View className='w-10 h-10 rounded-full bg-info flex items-center justify-center mr-3'>
-                    <FontAwesome
-                      name='question-circle'
-                      size={20}
-                      color='white'
-                    />
-                  </View>
-                  <View className='flex-1'>
-                    <Text className='font-semibold text-gray-800 dark:text-white'>
-                      {test.title}
-                    </Text>
-                    <View className='flex-row items-center'>
-                      <Text className='text-xs text-gray-500 dark:text-gray-400'>
-                        {test.questionCount || 0} soru • {test.timeLimit || 0}{' '}
-                        dakika •
-                      </Text>
-                      <Text
-                        className='text-xs ml-1'
-                        style={{
-                          color: getDifficultyColor(test.difficulty),
-                        }}
-                      >
-                        {test.difficulty}
-                      </Text>
-                    </View>
-                  </View>
-                  <Button
-                    title='Başla'
-                    variant='primary'
+        {loading ? (
+          <View
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: Spacing[4],
+            }}
+          >
+            <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
+          </View>
+        ) : (
+          <>
+            {filteredTests.length > 0 ? (
+              <View>
+                {filteredTests.map((test) => (
+                  <TouchableOpacity
+                    key={test.test_id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: Spacing[3],
+                      backgroundColor: isDark
+                        ? Colors.gray[700]
+                        : Colors.gray[50],
+                      borderRadius: 8,
+                      marginBottom: Spacing[3],
+                    }}
                     onPress={() => {
                       // Navigation would go here
                     }}
-                    className='px-3 py-1'
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : (
-            <EmptyState
-              icon='file'
-              title='Test bulunamadı'
-              message={
-                filter
-                  ? `"${filter}" zorluğunda test bulunamadı.`
-                  : 'Henüz test eklenmemiş.'
-              }
-            />
-          )}
-        </>
-      )}
-    </ScrollView>
+                  >
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: Colors.info,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: Spacing[3],
+                      }}
+                    >
+                      <FontAwesome
+                        name='question-circle'
+                        size={20}
+                        color={Colors.white}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontWeight: '600',
+                          color: isDark ? Colors.white : Colors.gray[800],
+                          marginBottom: Spacing[1],
+                        }}
+                      >
+                        {test.title}
+                      </Text>
+                      <View
+                        style={{ flexDirection: 'row', alignItems: 'center' }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: isDark ? Colors.gray[400] : Colors.gray[500],
+                          }}
+                        >
+                          {test.questionCount || 0} soru • {test.timeLimit || 0}{' '}
+                          dakika •
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            marginLeft: Spacing[1],
+                            color: getDifficultyColor(test.difficulty),
+                          }}
+                        >
+                          {test.difficulty}
+                        </Text>
+                      </View>
+                    </View>
+                    <Button
+                      title='Başla'
+                      variant='primary'
+                      onPress={() => {
+                        // Navigation would go here
+                      }}
+                      style={{
+                        paddingHorizontal: Spacing[3],
+                        paddingVertical: Spacing[1],
+                      }}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <EmptyState
+                icon='file'
+                title='Test bulunamadı'
+                message={
+                  filter
+                    ? `"${filter}" zorluğunda test bulunamadı.`
+                    : 'Henüz test eklenmemiş.'
+                }
+              />
+            )}
+          </>
+        )}
+      </ScrollView>
+    </Container>
   );
 }

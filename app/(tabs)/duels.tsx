@@ -6,18 +6,33 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  useColorScheme,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { duelService } from '../../src/api';
 import { Duel } from '../../src/types/models';
-import { Card, Button, EmptyState, Avatar, Badge } from '../../components/ui';
+import {
+  Card,
+  Button,
+  EmptyState,
+  Avatar,
+  Badge,
+  Container,
+  Title,
+  Paragraph,
+  Alert,
+  Row,
+} from '../../components/ui';
+import { Colors, Spacing } from '../../constants/theme';
 
 export default function DuelsScreen() {
   const router = useRouter();
   const [activeDuels, setActiveDuels] = useState<Duel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   useEffect(() => {
     async function fetchDuels() {
@@ -56,84 +71,127 @@ export default function DuelsScreen() {
 
   if (error) {
     return (
-      <View className='flex-1 justify-center items-center p-4'>
-        <Text className='text-red-500 text-center mb-4'>{error}</Text>
-        <TouchableOpacity
-          className='bg-primary px-4 py-2 rounded-lg'
+      <Container
+        style={{
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: Spacing[4],
+        }}
+      >
+        <Alert
+          type='error'
+          message={error}
+          style={{ marginBottom: Spacing[4] }}
+        />
+        <Button
+          title='Yenile'
+          variant='primary'
           onPress={() => window.location.reload()}
-        >
-          <Text className='text-white'>Yenile</Text>
-        </TouchableOpacity>
-      </View>
+        />
+      </Container>
     );
   }
 
   return (
-    <ScrollView className='flex-1 p-4'>
-      <View className='mb-6'>
-        <Text className='text-2xl font-bold text-gray-900 dark:text-white'>
-          Düellolar
-        </Text>
-        <Text className='text-gray-600 dark:text-gray-400'>
-          Arkadaşlarınla yarışarak öğren
-        </Text>
-      </View>
+    <Container>
+      <ScrollView style={{ flex: 1, padding: Spacing[4] }}>
+        <View style={{ marginBottom: Spacing[6] }}>
+          <Title level={2}>Düellolar</Title>
+          <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
+            Arkadaşlarınla yarışarak öğren
+          </Paragraph>
+        </View>
 
-      {/* Button to create new duel */}
-      <Button
-        title='Yeni Düello Başlat'
-        onPress={() => router.push('/duels/new' as any)}
-        variant='primary'
-        className='mb-4'
-      />
+        {/* Button to create new duel */}
+        <Button
+          title='Yeni Düello Başlat'
+          onPress={() => router.push('/duels/new' as any)}
+          variant='primary'
+          style={{ marginBottom: Spacing[4] }}
+        />
 
-      {loading ? (
-        <ActivityIndicator size='large' color='var(--color-primary)' />
-      ) : (
-        <>
-          {activeDuels.length > 0 ? (
-            <View>
-              {activeDuels.map((duel) => (
-                <TouchableOpacity
-                  key={duel.duel_id}
-                  className='flex-row items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg mb-3'
-                  onPress={() => router.push(`/duel/${duel.duel_id}` as any)}
-                >
-                  <Avatar
-                    name={duel.opponent_username?.[0] || 'U'}
-                    size='md'
-                    bgColor='var(--color-secondary)'
-                  />
-                  <View className='flex-1 ml-3'>
-                    <Text className='font-semibold text-gray-800 dark:text-white'>
-                      {duel.opponent_username || 'Rakip'}
-                    </Text>
-                    <View className='flex-row items-center mt-1'>
-                      {renderDuelStatusBadge(duel.status)}
-                    </View>
-                  </View>
-                  <Button
-                    title={duel.status === 'active' ? 'Oyna' : 'Görüntüle'}
-                    variant={duel.status === 'active' ? 'primary' : 'outline'}
+        {loading ? (
+          <View
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: Spacing[4],
+            }}
+          >
+            <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
+          </View>
+        ) : (
+          <>
+            {activeDuels.length > 0 ? (
+              <View>
+                {activeDuels.map((duel) => (
+                  <TouchableOpacity
+                    key={duel.duel_id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: Spacing[3],
+                      backgroundColor: isDark
+                        ? Colors.gray[700]
+                        : Colors.gray[50],
+                      borderRadius: 8,
+                      marginBottom: Spacing[3],
+                    }}
                     onPress={() => router.push(`/duel/${duel.duel_id}` as any)}
-                    className='px-3 py-1'
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : (
-            <EmptyState
-              icon='users'
-              title='Aktif düello yok'
-              message='Arkadaşlarını düelloya davet et ve rekabeti başlat.'
-              actionButton={{
-                title: 'Düello Başlat',
-                onPress: () => router.push('/duels/new' as any),
-              }}
-            />
-          )}
-        </>
-      )}
-    </ScrollView>
+                  >
+                    <Avatar
+                      name={duel.opponent_username?.[0] || 'U'}
+                      size='md'
+                      bgColor={Colors.secondary.DEFAULT}
+                    />
+                    <View style={{ flex: 1, marginLeft: Spacing[3] }}>
+                      <Text
+                        style={{
+                          fontWeight: '600',
+                          color: isDark ? Colors.white : Colors.gray[800],
+                          marginBottom: Spacing[1],
+                        }}
+                      >
+                        {duel.opponent_username || 'Rakip'}
+                      </Text>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          marginTop: Spacing[1],
+                        }}
+                      >
+                        {renderDuelStatusBadge(duel.status)}
+                      </View>
+                    </View>
+                    <Button
+                      title={duel.status === 'active' ? 'Oyna' : 'Görüntüle'}
+                      variant={duel.status === 'active' ? 'primary' : 'outline'}
+                      onPress={() =>
+                        router.push(`/duel/${duel.duel_id}` as any)
+                      }
+                      style={{
+                        paddingHorizontal: Spacing[3],
+                        paddingVertical: Spacing[1],
+                      }}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <EmptyState
+                icon='users'
+                title='Aktif düello yok'
+                message='Arkadaşlarını düelloya davet et ve rekabeti başlat.'
+                actionButton={{
+                  title: 'Düello Başlat',
+                  onPress: () => router.push('/duels/new' as any),
+                }}
+              />
+            )}
+          </>
+        )}
+      </ScrollView>
+    </Container>
   );
 }
