@@ -10,7 +10,6 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from '@react-navigation/native';
-import '../global.css';
 import { StatusBar } from 'expo-status-bar';
 
 // Auth Context Provider

@@ -1,0 +1,171 @@
+// components/ui/Badge.tsx
+
+import React from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  StyleProp,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
+import {
+  Colors,
+  BorderRadius,
+  Spacing,
+  FontSizes,
+} from '../../constants/theme';
+
+export interface BadgeProps {
+  /**
+   * Text content of the badge
+   */
+  text: string;
+
+  /**
+   * Color variant of the badge
+   */
+  variant?:
+    | 'primary'
+    | 'secondary'
+    | 'success'
+    | 'error'
+    | 'warning'
+    | 'info'
+    | 'neutral';
+
+  /**
+   * Size of the badge
+   */
+  size?: 'sm' | 'md';
+
+  /**
+   * Custom style for the badge container
+   */
+  style?: StyleProp<ViewStyle>;
+
+  /**
+   * Custom style for the badge text
+   */
+  textStyle?: StyleProp<TextStyle>;
+
+  /**
+   * Whether the badge should be pill-shaped (fully rounded)
+   */
+  pill?: boolean;
+
+  /**
+   * Optional testID for testing
+   */
+  testID?: string;
+}
+
+/**
+ * Badge component for displaying status indicators, counts, or tags
+ */
+const Badge: React.FC<BadgeProps> = ({
+  text,
+  variant = 'primary',
+  size = 'md',
+  style,
+  textStyle,
+  pill = true,
+  testID,
+}) => {
+  // Determine background color and text color based on variant
+  let bgColor: string;
+  let textColor: string = Colors.white;
+
+  switch (variant) {
+    case 'primary':
+      bgColor = Colors.primary.DEFAULT;
+      break;
+    case 'secondary':
+      bgColor = Colors.secondary.DEFAULT;
+      break;
+    case 'success':
+      bgColor = Colors.success;
+      break;
+    case 'error':
+      bgColor = Colors.error;
+      break;
+    case 'warning':
+      bgColor = Colors.warning;
+      textColor = Colors.gray[800]; // Dark text for light background
+      break;
+    case 'info':
+      bgColor = Colors.info;
+      break;
+    case 'neutral':
+      bgColor = Colors.gray[500];
+      break;
+    default:
+      bgColor = Colors.primary.DEFAULT;
+  }
+
+  // Determine size-based styling
+  const sizeClass = size === 'sm' ? styles.badgeSmall : styles.badgeMedium;
+  const textSizeClass = size === 'sm' ? styles.textSmall : styles.textMedium;
+
+  // Determine border radius based on pill option
+  const borderRadiusStyle = pill ? styles.pillRadius : styles.standardRadius;
+
+  return (
+    <View
+      style={[
+        styles.badge,
+        { backgroundColor: bgColor },
+        sizeClass,
+        borderRadiusStyle,
+        style,
+      ]}
+      testID={testID}
+      accessibilityRole='text'
+    >
+      <Text
+        style={[styles.text, { color: textColor }, textSizeClass, textStyle]}
+        numberOfLines={1}
+      >
+        {text}
+      </Text>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  badge: {
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeSmall: {
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[0.5],
+    minWidth: 16,
+    height: 18,
+  },
+  badgeMedium: {
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[1],
+    minWidth: 20,
+    height: 24,
+  },
+  text: {
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  textSmall: {
+    fontSize: FontSizes.xs,
+  },
+  textMedium: {
+    fontSize: FontSizes.sm,
+  },
+  pillRadius: {
+    borderRadius: BorderRadius.full,
+  },
+  standardRadius: {
+    borderRadius: BorderRadius.DEFAULT,
+  },
+});
+
+export default Badge;
