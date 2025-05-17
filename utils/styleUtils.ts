@@ -1,9 +1,17 @@
 // utils/styleUtils.ts
-import { StyleSheet, Platform } from 'react-native';
+import {
+  StyleSheet,
+  Platform,
+  StyleProp,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../constants/theme';
 
-// Helper function to merge styles together
-export const mergeStyles = (...styles) => {
+// Helper function to merge styles together with proper typing
+export const mergeStyles = (
+  ...styles: Array<StyleProp<ViewStyle | TextStyle>>
+) => {
   return Object.assign({}, ...styles);
 };
 
@@ -282,10 +290,10 @@ export const globalStyles = StyleSheet.create({
 });
 
 // Apply dark mode styles
-export function applyDarkMode(
+export function applyDarkMode<T extends object>(
   isDark: boolean,
-  lightStyle: object,
-  darkStyle: object,
-) {
+  lightStyle: T,
+  darkStyle: T,
+): T {
   return isDark ? darkStyle : lightStyle;
 }
