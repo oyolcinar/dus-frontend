@@ -87,7 +87,7 @@ export const getUserPerformanceAnalytics = async (): Promise<{
   averageSessionDuration: number;
 }> => {
   const response = await apiRequest<PerformanceAnalyticsResponse>(
-    '/analytics/performance',
+    '/analytics/user-performance',
   );
 
   // Provide default values if data is missing
