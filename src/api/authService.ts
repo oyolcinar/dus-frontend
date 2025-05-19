@@ -1,394 +1,330 @@
-// src/api/authService.ts
-import apiRequest, { ApiError } from './apiClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AuthResponse, User } from '../types/models';
-import { ApiResponse } from '../types/api';
+import apiRequest, { ApiError } from './apiClient';
+import { ApiResponse } from '../types/api'; // Ensure this path is correct
+import { User, AuthResponse } from '../types/models'; // Ensure this path and interfaces are correct
 
-// Response type for login and registration
-interface AuthApiResponse extends ApiResponse<AuthResponse> {}
+// Define the expected payload structure from backend for auth operations,
+// which will be nested under 'data' by apiRequest's wrapper.
+interface AuthApiPayload {
+  message?: string; // Message might be optional
+  user?: any; // Raw user object from backend, could be optional in some responses
+  session?: {
+    // Session object, could be optional
+    access_token: string; // access_token is mandatory if session exists
+    refresh_token?: string;
+    expires_at?: number;
+    expires_in?: number;
+    token_type?: string;
+    // other session fields from backend if any
+  };
+}
 
-// Response type for user profile
-interface UserProfileResponse extends ApiResponse<User> {}
+// Helper function to normalize user data
+function normalizeUser(apiUser: any): User {
+  if (!apiUser) return {} as User; // Handle null/undefined input gracefully
+  return {
+    id: apiUser.userId || apiUser.id || apiUser.user_id || 0,
+    userId: apiUser.userId || apiUser.id || apiUser.user_id || 0,
+    username: apiUser.username || '',
+    email: apiUser.email || '',
+    dateRegistered:
+      apiUser.date_registered ||
+      apiUser.dateRegistered ||
+      new Date().toISOString(),
+    role: apiUser.role || 'student',
+    subscriptionType:
+      apiUser.subscriptionType || apiUser.subscription_type || 'free',
+    totalDuels: apiUser.totalDuels || apiUser.total_duels || 0,
+    duelsWon: apiUser.duelsWon || apiUser.duels_won || 0,
+    duelsLost: apiUser.duelsLost || apiUser.duels_lost || 0,
+    longestLosingStreak:
+      apiUser.longestLosingStreak || apiUser.longest_losing_streak || 0,
+    currentLosingStreak:
+      apiUser.currentLosingStreak || apiUser.current_losing_streak || 0,
+    totalStudyTime: apiUser.totalStudyTime || apiUser.total_study_time || 0,
+    // Ensure User interface has 'permissions' defined (e.g., permissions?: string[])
+    permissions: apiUser.permissions || [],
+  };
+}
 
-// Response type for duel stats
-interface DuelStatsResponse
-  extends ApiResponse<{
-    totalDuels: number;
-    wins: number;
-    losses: number;
-    longestLosingStreak: number;
-    currentLosingStreak: number;
-    winRate: number;
-  }> {}
-
-// Response type for study time update
-interface StudyTimeResponse
-  extends ApiResponse<{
-    message: string;
-    totalStudyTime: number;
-  }> {}
-
-// Response type for simple message responses
-interface MessageResponse extends ApiResponse<{ message: string }> {}
-
-// Response type for token refresh
-interface TokenRefreshResponse
-  extends ApiResponse<{
-    token: string;
-    refreshToken: string;
-  }> {}
-
-// Response type for user permissions
-interface PermissionsResponse
-  extends ApiResponse<{
-    role: string;
-    permissions: string[];
-  }> {}
-
-/**
- * Log in a user with email and password
- * @param email User's email
- * @param password User's password
- * @returns Authentication response with user data and token
- * @throws ApiError if authentication fails
- */
-export const login = async (
+export async function login(
   email: string,
   password: string,
-): Promise<AuthResponse> => {
+): Promise<AuthResponse> {
   try {
-    const response = await apiRequest<AuthApiResponse>('/auth/login', 'POST', {
+    const response = await apiRequest<AuthApiPayload>('/auth/login', 'POST', {
       email,
       password,
     });
+    console.log('Login - apiRequest response:', response);
 
-    if (!response.data || !response.data.token) {
-      throw new ApiError('Invalid login response from server', 500);
+    const apiData = response.data;
+
+    if (
+      !apiData ||
+      typeof apiData !== 'object' || // Ensure apiData is an object
+      !apiData.user || // Ensure user object exists
+      !apiData.session || // Ensure session object exists
+      !apiData.session.access_token // Ensure access_token exists within session
+    ) {
+      console.error(
+        'Invalid login response structure from server data:',
+        apiData,
+      );
+      throw new Error(
+        'Invalid login response from server (missing or malformed user/session data)',
+      );
     }
 
-    // Store the authentication data
-    await AsyncStorage.setItem('userToken', response.data.token);
-    await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+    const user: User = normalizeUser(apiData.user);
 
-    return response.data;
+    await AsyncStorage.setItem('userToken', apiData.session.access_token);
+    if (apiData.session.refresh_token) {
+      await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
+      console.log(
+        'Refresh token stored from login:',
+        apiData.session.refresh_token.substring(0, 10) + '...',
+      );
+    } else {
+      console.warn('No refresh token received in login response.');
+    }
+    await AsyncStorage.setItem('userData', JSON.stringify(user));
+
+    return {
+      user,
+      token: apiData.session.access_token,
+      refreshToken: apiData.session.refresh_token || null,
+    };
   } catch (error) {
-    console.error('Login error:', error);
-
-    // Ensure we're throwing an ApiError
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    throw new ApiError(
-      error instanceof Error ? error.message : 'Authentication failed',
-      401,
-    );
+    console.error('Login service error:', error);
+    if (error instanceof ApiError) throw error;
+    throw new Error(error instanceof Error ? error.message : 'Login failed.');
   }
-};
+}
 
-/**
- * Register a new user
- * @param username User's username
- * @param email User's email
- * @param password User's password
- * @returns Authentication response with new user data and token
- * @throws ApiError if registration fails
- */
-export const register = async (
+export async function register(
   username: string,
   email: string,
   password: string,
-): Promise<AuthResponse> => {
+): Promise<AuthResponse> {
   try {
-    const response = await apiRequest<AuthApiResponse>(
+    const response = await apiRequest<AuthApiPayload>(
       '/auth/register',
       'POST',
-      {
-        username,
-        email,
-        password,
-      },
+      { username, email, password },
     );
+    console.log('Register - apiRequest response:', response);
 
-    if (!response.data || !response.data.token) {
-      throw new ApiError('Invalid registration response from server', 500);
+    const apiData = response.data;
+
+    if (
+      !apiData ||
+      typeof apiData !== 'object' || // Ensure apiData is an object
+      !apiData.user || // Ensure user object exists
+      !apiData.session || // Ensure session object exists
+      !apiData.session.access_token // Ensure access_token exists within session
+    ) {
+      console.log(
+        'Registration response did not contain full user/session data. This might be expected (e.g., email verification pending) or an issue.',
+        apiData,
+      );
+      // If your backend always returns full session on successful register, this is an error.
+      // If it might not (e.g. email verification needed), you might handle it differently,
+      // or attempt login as a fallback if appropriate for your flow.
+      // For now, treating as an error if full session not returned:
+      // return await login(email, password); // Or:
+      throw new Error(
+        'Invalid registration response from server (missing or malformed user/session data)',
+      );
     }
 
-    // Store the authentication data
-    await AsyncStorage.setItem('userToken', response.data.token);
-    await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+    const user: User = normalizeUser(apiData.user);
 
-    return response.data;
-  } catch (error) {
-    console.error('Registration error:', error);
-
-    // Ensure we're throwing an ApiError
-    if (error instanceof ApiError) {
-      throw error;
+    await AsyncStorage.setItem('userToken', apiData.session.access_token);
+    if (apiData.session.refresh_token) {
+      await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
+      console.log(
+        'Refresh token stored from registration:',
+        apiData.session.refresh_token.substring(0, 10) + '...',
+      );
+    } else {
+      console.warn('No refresh token received in registration response.');
     }
-    throw new ApiError(
-      error instanceof Error ? error.message : 'Registration failed',
-      400,
-    );
-  }
-};
+    await AsyncStorage.setItem('userData', JSON.stringify(user));
 
-/**
- * Log out the current user
- * @returns Promise that resolves when logout is complete
- */
-export const logout = async (): Promise<void> => {
-  try {
-    // Call the signout endpoint
-    await apiRequest<MessageResponse>('/auth/signout', 'POST');
-  } catch (error) {
-    console.error('Logout error:', error);
-  } finally {
-    // Clear local storage regardless of API response
-    await AsyncStorage.removeItem('userToken');
-    await AsyncStorage.removeItem('userData');
-  }
-};
-
-/**
- * Get the current user's profile
- * @returns User profile data
- * @throws ApiError if retrieval fails
- */
-export const getProfile = async (): Promise<User> => {
-  try {
-    const response = await apiRequest<UserProfileResponse>('/auth/me');
-
-    if (!response.data) {
-      throw new ApiError('Invalid user profile response from server', 500);
-    }
-
-    return response.data;
-  } catch (error) {
-    console.error('Get profile error:', error);
-    throw error;
-  }
-};
-
-/**
- * Update the current user's profile
- * @param profileData Partial user data to update
- * @returns Updated user profile
- * @throws ApiError if update fails
- */
-export const updateProfile = async (
-  profileData: Partial<User>,
-): Promise<User> => {
-  try {
-    const response = await apiRequest<UserProfileResponse>(
-      '/users/profile',
-      'PUT',
-      profileData,
-    );
-
-    if (!response.data) {
-      throw new ApiError('Invalid profile update response from server', 500);
-    }
-
-    // Update stored user data
-    const currentUserData = await AsyncStorage.getItem('userData');
-    if (currentUserData) {
-      const updatedUserData = {
-        ...JSON.parse(currentUserData),
-        ...response.data,
-      };
-      await AsyncStorage.setItem('userData', JSON.stringify(updatedUserData));
-    }
-
-    return response.data;
-  } catch (error) {
-    console.error('Update profile error:', error);
-    throw error;
-  }
-};
-
-/**
- * Get duel statistics for the current user
- * @returns Duel statistics including wins, losses, and streaks
- * @throws ApiError if retrieval fails
- */
-export const getDuelStats = async (): Promise<{
-  totalDuels: number;
-  wins: number;
-  losses: number;
-  longestLosingStreak: number;
-  currentLosingStreak: number;
-  winRate: number;
-}> => {
-  try {
-    const response = await apiRequest<DuelStatsResponse>('/users/duel-stats');
-
-    if (!response.data) {
-      return {
-        totalDuels: 0,
-        wins: 0,
-        losses: 0,
-        longestLosingStreak: 0,
-        currentLosingStreak: 0,
-        winRate: 0,
-      };
-    }
-
-    return response.data;
-  } catch (error) {
-    console.error('Get duel stats error:', error);
-
-    // Return default stats on error
     return {
-      totalDuels: 0,
-      wins: 0,
-      losses: 0,
-      longestLosingStreak: 0,
-      currentLosingStreak: 0,
-      winRate: 0,
+      user,
+      token: apiData.session.access_token,
+      refreshToken: apiData.session.refresh_token || null,
     };
-  }
-};
-
-/**
- * Update the user's study time
- * @param duration Duration to add in seconds
- * @returns Message and updated total study time
- * @throws ApiError if update fails
- */
-export const updateStudyTime = async (
-  duration: number,
-): Promise<{
-  message: string;
-  totalStudyTime: number;
-}> => {
-  try {
-    const response = await apiRequest<StudyTimeResponse>(
-      '/users/study-time',
-      'POST',
-      { duration },
-    );
-
-    if (!response.data) {
-      throw new ApiError('Invalid study time update response from server', 500);
-    }
-
-    return response.data;
   } catch (error) {
-    console.error('Update study time error:', error);
-    throw error;
+    console.error('Registration service error:', error);
+    if (error instanceof ApiError) throw error;
+    throw new Error(
+      error instanceof Error ? error.message : 'Registration failed.',
+    );
   }
-};
+}
 
-/**
- * Request a password reset for a user
- * @param email User's email address
- * @returns Success message
- * @throws ApiError if request fails
- */
-export const requestPasswordReset = async (
+export async function logout(): Promise<void> {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+    if (token) {
+      try {
+        await apiRequest('/auth/signout', 'POST');
+        console.log('Successfully called /auth/signout endpoint.');
+      } catch (apiError) {
+        console.warn(
+          'Logout API call failed, proceeding with local logout:',
+          apiError,
+        );
+      }
+    }
+  } catch (storageError) {
+    console.error(
+      'Error accessing token from AsyncStorage during logout pre-API call:',
+      storageError,
+    );
+  } finally {
+    try {
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('refreshToken');
+      await AsyncStorage.removeItem('userData');
+      console.log('User tokens and data cleared from AsyncStorage.');
+    } catch (clearError) {
+      console.error(
+        'Failed to clear tokens from AsyncStorage during logout:',
+        clearError,
+      );
+    }
+  }
+}
+
+export async function requestPasswordReset(
   email: string,
-): Promise<{ message: string }> => {
+): Promise<ApiResponse<any>> {
   try {
-    const response = await apiRequest<MessageResponse>(
-      '/auth/reset-password',
-      'POST',
-      { email },
+    return await apiRequest<any>('/auth/reset-password', 'POST', { email });
+  } catch (error) {
+    console.error('Password reset request service error:', error);
+    if (error instanceof ApiError) throw error;
+    throw new Error(
+      error instanceof Error ? error.message : 'Password reset request failed.',
     );
+  }
+}
 
-    if (!response.data) {
-      return { message: 'Password reset request sent if the email exists' };
+export async function refreshAuthToken(): Promise<{
+  token: string;
+  refreshToken: string | null;
+}> {
+  try {
+    const currentRefreshToken = await AsyncStorage.getItem('refreshToken');
+    if (!currentRefreshToken) {
+      console.error(
+        'authService.refreshAuthToken: No refresh token available.',
+      );
+      await logout();
+      throw new Error('No refresh token available');
     }
 
-    return response.data;
-  } catch (error) {
-    console.error('Request password reset error:', error);
-    // Return a generic message for security reasons
-    return { message: 'Password reset request sent if the email exists' };
-  }
-};
-
-/**
- * Update user's password
- * @param password New password
- * @returns Success message
- * @throws ApiError if update fails
- */
-export const updatePassword = async (
-  password: string,
-): Promise<{ message: string }> => {
-  try {
-    const response = await apiRequest<MessageResponse>(
-      '/auth/update-password',
-      'POST',
-      { password },
-    );
-
-    if (!response.data) {
-      throw new ApiError('Invalid password update response from server', 500);
-    }
-
-    return response.data;
-  } catch (error) {
-    console.error('Update password error:', error);
-    throw error;
-  }
-};
-
-/**
- * Refresh the authentication token
- * @param refreshToken Current refresh token
- * @returns New auth token and refresh token
- * @throws ApiError if refresh fails
- */
-export const refreshToken = async (
-  refreshToken: string,
-): Promise<{ token: string; refreshToken: string }> => {
-  try {
-    const response = await apiRequest<TokenRefreshResponse>(
+    const response = await apiRequest<AuthApiPayload>(
       '/auth/refresh-token',
       'POST',
-      { refreshToken },
+      {
+        refreshToken: currentRefreshToken,
+      },
+    );
+    console.log(
+      'authService.refreshAuthToken - apiRequest response:',
+      response,
     );
 
-    if (!response.data || !response.data.token) {
-      throw new ApiError('Invalid token refresh response from server', 500);
+    const apiData = response.data;
+
+    if (
+      !apiData ||
+      typeof apiData !== 'object' || // Ensure apiData is an object
+      !apiData.session || // Ensure session object exists
+      !apiData.session.access_token // Ensure access_token exists within session
+    ) {
+      console.error(
+        'Invalid refresh token response structure from server data (authService):',
+        apiData,
+      );
+      await logout();
+      throw new Error(
+        'Invalid refresh token response: structure is not as expected.',
+      );
     }
 
-    // Update stored token
-    await AsyncStorage.setItem('userToken', response.data.token);
+    await AsyncStorage.setItem('userToken', apiData.session.access_token);
+    if (apiData.session.refresh_token) {
+      await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
+    }
 
-    return response.data;
+    return {
+      token: apiData.session.access_token,
+      refreshToken: apiData.session.refresh_token || null,
+    };
   } catch (error) {
-    console.error('Refresh token error:', error);
-
-    // Clear tokens on refresh failure
-    await AsyncStorage.removeItem('userToken');
-    await AsyncStorage.removeItem('userData');
-
-    throw error;
+    console.error('authService.refreshAuthToken error:', error);
+    await logout();
+    if (error instanceof ApiError) throw error;
+    throw new Error(
+      error instanceof Error ? error.message : 'Token refresh failed.',
+    );
   }
-};
+}
 
-/**
- * Get user permissions and role
- * @returns User role and permissions array
- * @throws ApiError if retrieval fails
- */
-export const getUserPermissions = async (): Promise<{
-  role: string;
-  permissions: string[];
-}> => {
+export async function getAuthStatus(): Promise<{
+  user: User | null;
+  token: string | null;
+}> {
   try {
-    const response = await apiRequest<PermissionsResponse>('/auth/permissions');
+    const token = await AsyncStorage.getItem('userToken');
+    const userDataString = await AsyncStorage.getItem('userData');
+    let user: User | null = null;
 
-    if (!response.data) {
-      return { role: 'user', permissions: [] };
+    if (userDataString) {
+      try {
+        const parsedUser = JSON.parse(userDataString);
+        user = normalizeUser(parsedUser);
+      } catch (e) {
+        console.error('Error parsing user data from AsyncStorage:', e);
+        await AsyncStorage.removeItem('userData');
+      }
+    }
+    return { user, token };
+  } catch (error) {
+    console.error('Error in getAuthStatus:', error);
+    return { user: null, token: null };
+  }
+}
+
+export async function updateUserData(
+  newUserData: Partial<User>,
+): Promise<User> {
+  try {
+    const currentUserJson = await AsyncStorage.getItem('userData');
+    let currentUser: Partial<User> = {};
+    if (currentUserJson) {
+      try {
+        currentUser = JSON.parse(currentUserJson);
+      } catch (e) {
+        console.error('Error parsing current user data for update:', e);
+      }
     }
 
-    return response.data;
+    const mergedUser = { ...currentUser, ...newUserData };
+    const normalizedUser = normalizeUser(mergedUser);
+
+    await AsyncStorage.setItem('userData', JSON.stringify(normalizedUser));
+    return normalizedUser;
   } catch (error) {
-    console.error('Get user permissions error:', error);
-    // Return default permissions on error
-    return { role: 'user', permissions: [] };
+    console.error('Update user data in AsyncStorage error:', error);
+    throw new Error(
+      error instanceof Error ? error.message : 'Failed to update user data.',
+    );
   }
-};
+}

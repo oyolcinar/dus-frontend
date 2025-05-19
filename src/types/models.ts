@@ -1,11 +1,10 @@
-// src/types/models.ts
-
 // User related interfaces
 export interface User {
+  id: number | string;
   userId: number;
   username: string;
   email: string;
-  dateRegistered: string;
+  dateRegistered?: string;
   totalDuels?: number;
   duelsWon?: number;
   duelsLost?: number;
@@ -13,12 +12,14 @@ export interface User {
   currentLosingStreak?: number;
   totalStudyTime?: number;
   subscriptionType?: string;
+  role?: string;
+  permissions?: string[];
 }
 
 export interface AuthResponse {
-  message: string;
   user: User;
   token: string;
+  refreshToken: string | null;
 }
 
 // Course related interfaces

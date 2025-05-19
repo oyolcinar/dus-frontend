@@ -1,78 +1,12 @@
-// src/api/analyticsService.ts
 import apiRequest from './apiClient';
-import { ApiResponse } from '../types/api';
+// ApiResponse is implicitly handled by apiRequest's return type
 
-// Response interface for user performance analytics
-interface PerformanceAnalyticsResponse
-  extends ApiResponse<{
-    branchPerformance: {
-      branchId: number;
-      branchName: string;
-      averageScore: number;
-      totalQuestions: number;
-      correctAnswers: number;
-    }[];
-    totalQuestionsAnswered: number;
-    overallAccuracy: number;
-    studyTime: number;
-    studySessions: number;
-    averageSessionDuration: number;
-  }> {}
+// --- Define interfaces for the *actual data payloads* your backend sends ---
+// --- These will be the TData in apiRequest<TData> ---
 
-// Response interface for activity timeline
-interface ActivityTimelineResponse
-  extends ApiResponse<
-    {
-      date: string;
-      studyTime: number;
-      questionsAnswered: number;
-    }[]
-  > {}
-
-// Response interface for weakest topics
-interface WeakestTopicsResponse
-  extends ApiResponse<
-    {
-      topicId: number;
-      topicName: string;
-      branchId: number;
-      branchName: string;
-      averageScore: number;
-      totalQuestions: number;
-      correctAnswers: number;
-    }[]
-  > {}
-
-// Response interface for improvement metrics
-interface ImprovementMetricsResponse
-  extends ApiResponse<{
-    previousAverage: number;
-    currentAverage: number;
-    percentageChange: number;
-    topicImprovements: {
-      topicId: number;
-      topicName: string;
-      previousAccuracy: number;
-      currentAccuracy: number;
-      percentageChange: number;
-    }[];
-  }> {}
-
-// Response interface for study time distribution
-interface StudyTimeDistributionResponse
-  extends ApiResponse<{
-    morning: number;
-    afternoon: number;
-    evening: number;
-    night: number;
-    totalHours: number;
-  }> {}
-
-/**
- * Get user performance analytics data
- * @returns Performance analytics data including branch performance and overall metrics
- */
-export const getUserPerformanceAnalytics = async (): Promise<{
+// For GET /analytics/user-performance
+export interface UserPerformanceAnalyticsPayload {
+  // Exporting if used elsewhere, e.g. HomeScreen
   branchPerformance: {
     branchId: number;
     branchName: string;
@@ -82,78 +16,42 @@ export const getUserPerformanceAnalytics = async (): Promise<{
   }[];
   totalQuestionsAnswered: number;
   overallAccuracy: number;
-  studyTime: number;
+  studyTime: number; // Assuming this is in a consistent unit, e.g., seconds or minutes
   studySessions: number;
-  averageSessionDuration: number;
-}> => {
-  const response = await apiRequest<PerformanceAnalyticsResponse>(
-    '/analytics/user-performance',
-  );
+  averageSessionDuration: number; // Assuming same unit as studyTime for consistency
+  // Add duel stats here if this endpoint is supposed to return them
+  // totalDuels?: number;
+  // wins?: number;
+  // losses?: number;
+  // winRate?: number;
+  // longestLosingStreak?: number;
+  // currentLosingStreak?: number;
+}
 
-  // Provide default values if data is missing
-  if (!response.data) {
-    return {
-      branchPerformance: [],
-      totalQuestionsAnswered: 0,
-      overallAccuracy: 0,
-      studyTime: 0,
-      studySessions: 0,
-      averageSessionDuration: 0,
-    };
-  }
+// For GET /analytics/activity
+export interface ActivityTimelineEntryPayload {
+  // Renamed for clarity, represents one entry
+  date: string;
+  studyTime: number;
+  questionsAnswered: number;
+}
+type ActivityTimelinePayload = ActivityTimelineEntryPayload[]; // The endpoint returns an array
 
-  return response.data;
-};
+// For GET /analytics/weakest-topics
+export interface WeakestTopicPayload {
+  // Renamed for clarity
+  topicId: number;
+  topicName: string;
+  branchId: number;
+  branchName: string;
+  averageScore: number;
+  totalQuestions: number;
+  correctAnswers: number;
+}
+type WeakestTopicsListPayload = WeakestTopicPayload[]; // The endpoint returns an array
 
-/**
- * Get activity timeline data for a specified number of days
- * @param days Number of days to retrieve data for (default: 7)
- * @returns Array of daily activity data
- */
-export const getActivityTimeline = async (
-  days: number = 7,
-): Promise<
-  {
-    date: string;
-    studyTime: number;
-    questionsAnswered: number;
-  }[]
-> => {
-  const response = await apiRequest<ActivityTimelineResponse>(
-    `/analytics/activity?days=${days}`,
-  );
-  return response.data || [];
-};
-
-/**
- * Get the user's weakest topics based on performance
- * @param limit Maximum number of topics to return (default: 5)
- * @returns Array of weakest topics with performance metrics
- */
-export const getWeakestTopics = async (
-  limit: number = 5,
-): Promise<
-  {
-    topicId: number;
-    topicName: string;
-    branchId: number;
-    branchName: string;
-    averageScore: number;
-    totalQuestions: number;
-    correctAnswers: number;
-  }[]
-> => {
-  const response = await apiRequest<WeakestTopicsResponse>(
-    `/analytics/weakest-topics?limit=${limit}`,
-  );
-  return response.data || [];
-};
-
-/**
- * Get metrics showing improvement over time
- * @returns Improvement metrics including overall and topic-specific changes
- */
-export const getImprovementMetrics = async (): Promise<{
+// For GET /analytics/improvement
+export interface ImprovementMetricsPayload {
   previousAverage: number;
   currentAverage: number;
   percentageChange: number;
@@ -164,49 +62,106 @@ export const getImprovementMetrics = async (): Promise<{
     currentAccuracy: number;
     percentageChange: number;
   }[];
-}> => {
-  const response = await apiRequest<ImprovementMetricsResponse>(
-    '/analytics/improvement',
-  );
+}
 
-  // Provide default values if data is missing
-  if (!response.data) {
-    return {
-      previousAverage: 0,
-      currentAverage: 0,
-      percentageChange: 0,
-      topicImprovements: [],
-    };
-  }
-
-  return response.data;
-};
-
-/**
- * Get the distribution of study time across different parts of the day
- * @returns Study time distribution data
- */
-export const getStudyTimeDistribution = async (): Promise<{
-  morning: number;
+// For GET /analytics/study-time-distribution
+export interface StudyTimeDistributionPayload {
+  morning: number; // Assuming these are counts or durations
   afternoon: number;
   evening: number;
   night: number;
-  totalHours: number;
-}> => {
-  const response = await apiRequest<StudyTimeDistributionResponse>(
-    '/analytics/study-time-distribution',
-  );
+  totalHours: number; // Or totalDuration in consistent unit
+}
 
-  // Provide default values if data is missing
-  if (!response.data) {
+// --- Service Functions ---
+
+export const getUserPerformanceAnalytics =
+  async (): Promise<UserPerformanceAnalyticsPayload> => {
+    const response = await apiRequest<UserPerformanceAnalyticsPayload>(
+      '/analytics/user-performance',
+    );
+
+    // Provide default values if data (or parts of it) might be missing from backend
+    // or if apiRequest.data could be undefined on a successful (e.g. 204) response
+    if (!response.data || typeof response.data !== 'object') {
+      console.warn(
+        'No user performance analytics data received, returning defaults.',
+      );
+      return {
+        branchPerformance: [],
+        totalQuestionsAnswered: 0,
+        overallAccuracy: 0,
+        studyTime: 0,
+        studySessions: 0,
+        averageSessionDuration: 0,
+      };
+    }
+
+    // You could also add more granular defaults here if some fields within response.data are optional
     return {
-      morning: 0,
-      afternoon: 0,
-      evening: 0,
-      night: 0,
-      totalHours: 0,
+      branchPerformance: response.data.branchPerformance || [],
+      totalQuestionsAnswered: response.data.totalQuestionsAnswered || 0,
+      overallAccuracy: response.data.overallAccuracy || 0,
+      studyTime: response.data.studyTime || 0,
+      studySessions: response.data.studySessions || 0,
+      averageSessionDuration: response.data.averageSessionDuration || 0,
+      // Add defaults for duel stats if they were part of this payload
     };
-  }
+  };
 
-  return response.data;
+export const getActivityTimeline = async (
+  days: number = 7,
+): Promise<ActivityTimelinePayload> => {
+  const response = await apiRequest<ActivityTimelinePayload>(
+    `/analytics/activity?days=${days}`,
+  );
+  return response.data || []; // Default to empty array if no data
 };
+
+export const getWeakestTopics = async (
+  limit: number = 5,
+): Promise<WeakestTopicsListPayload> => {
+  const response = await apiRequest<WeakestTopicsListPayload>(
+    `/analytics/weakest-topics?limit=${limit}`,
+  );
+  return response.data || []; // Default to empty array
+};
+
+export const getImprovementMetrics =
+  async (): Promise<ImprovementMetricsPayload> => {
+    const response = await apiRequest<ImprovementMetricsPayload>(
+      '/analytics/improvement',
+    );
+
+    if (!response.data || typeof response.data !== 'object') {
+      console.warn('No improvement metrics data received, returning defaults.');
+      return {
+        previousAverage: 0,
+        currentAverage: 0,
+        percentageChange: 0,
+        topicImprovements: [],
+      };
+    }
+    return response.data;
+  };
+
+export const getStudyTimeDistribution =
+  async (): Promise<StudyTimeDistributionPayload> => {
+    const response = await apiRequest<StudyTimeDistributionPayload>(
+      '/analytics/study-time-distribution',
+    );
+
+    if (!response.data || typeof response.data !== 'object') {
+      console.warn(
+        'No study time distribution data received, returning defaults.',
+      );
+      return {
+        morning: 0,
+        afternoon: 0,
+        evening: 0,
+        night: 0,
+        totalHours: 0,
+      };
+    }
+    return response.data;
+  };

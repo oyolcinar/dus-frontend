@@ -1,107 +1,130 @@
-// src/api/studyPlanService.ts
 import apiRequest from './apiClient';
-import { StudyPlan, StudySession, Topic } from '../types/models';
-import { ApiResponse } from '../types/api';
+import { StudyPlan, StudySession, Topic } from '../types/models'; // Make sure these models are well-defined
+// ApiResponse is implicitly handled by apiRequest
 
-// Response interfaces for study plan endpoints
-interface StudyPlanResponse extends ApiResponse<StudyPlan> {}
-interface StudyPlansResponse extends ApiResponse<StudyPlan[]> {}
-interface MessageResponse extends ApiResponse<{ message: string }> {}
+// --- Define interfaces for the *actual data payloads* your backend sends ---
+// --- These will be the TData in apiRequest<TData> ---
 
-interface StudyPlanProgressResponse
-  extends ApiResponse<{
-    planId: number;
-    planName: string;
-    startDate: string;
-    endDate: string;
-    daysTotal: number;
-    daysElapsed: number;
-    daysRemaining: number;
-    completion: number;
-    topicsProgress: Array<{
-      topicId: number;
-      topicName: string;
-      priority: number;
-      totalQuestions: number;
-      questionsAnswered: number;
-      correctAnswers: number;
-      accuracy: number;
-      completion: number;
-    }>;
-    sessionsCompleted: number;
+// For GET /studyPlans (array) or GET /studyPlans/:id (single)
+// or POST /studyPlans, PUT /studyPlans/:id, POST /studyPlans/:id/activate, POST /studyPlans/from-template
+// The payload is a StudyPlan object (or array of them).
+// The StudyPlan model should include: plan_id, user_id, title, description, start_date, end_date, is_custom, created_at, activities.
+// And potentially dailyGoalMinutes, dailyGoalQuestions, isActive if these are part of the main StudyPlan model from backend.
+
+// For DELETE /studyPlans/:id or POST /studyPlans/:id/deactivate
+interface MessagePayload {
+  // Reusable
+  message: string;
+}
+
+// For GET /studyPlans/:id/progress
+export interface StudyPlanProgressPayload {
+  // Exporting as it's a complex return type
+  planId: number;
+  planName?: string;
+  startDate: string;
+  endDate: string;
+  daysTotal: number;
+  daysElapsed: number;
+  daysRemaining: number;
+  completion: number; // Overall plan completion percentage
+  topicsProgress: Array<{
+    topicId: number;
+    topicName?: string;
+    priority?: number; // Optional if not always present
     totalQuestions: number;
     questionsAnswered: number;
     correctAnswers: number;
-    overallAccuracy: number;
-    goalCompletion: number;
-    studyTimeTotal: number;
-    studyTimeWeek: number;
-  }> {}
+    accuracy: number;
+    completion: number; // Topic completion percentage
+  }>;
+  sessionsCompleted: number;
+  totalQuestions: number; // Overall questions in plan
+  questionsAnswered: number; // Overall questions answered
+  correctAnswers: number; // Overall correct answers
+  overallAccuracy: number;
+  goalCompletion?: number; // Percentage of daily/weekly goals met
+  studyTimeTotal: number; // Total study time for the plan
+  studyTimeWeek?: number; // Study time this week for the plan
+}
 
-interface DailyRecommendationsResponse
-  extends ApiResponse<
-    Array<{
-      topicId: number;
-      topicName: string;
-      branchId: number;
-      branchName: string;
-      recommendedQuestions: number;
-      recommendedMinutes: number;
-      priority: number;
-      lastStudied: string | null;
-      accuracy: number;
-    }>
-  > {}
+// For GET /studyPlans/daily-recommendations
+interface DailyRecommendationPayload {
+  topicId: number;
+  topicName?: string;
+  branchId?: number;
+  branchName?: string;
+  recommendedQuestions: number;
+  recommendedMinutes: number;
+  priority?: number;
+  lastStudied?: string | null;
+  accuracy?: number; // Can be null or 0 if not studied yet
+}
+type DailyRecommendationsListPayload = DailyRecommendationPayload[];
 
-interface TopicsResponse extends ApiResponse<Topic[]> {}
+// For GET /topics (used for plan creation)
+type AvailableTopicsPayload = Topic[]; // Array of Topic objects
 
-interface StudySessionsResponse
-  extends ApiResponse<{
-    sessions: StudySession[];
-    total: number;
-  }> {}
+// For GET /studyPlans/:id/sessions
+interface StudyPlanSessionsPayload {
+  sessions: StudySession[]; // StudySession model should be defined
+  total: number; // Total number of sessions for pagination
+}
 
-interface StudyPlanTemplatesResponse
-  extends ApiResponse<
-    Array<{
-      id: number;
-      name: string;
-      description: string;
-      durationDays: number;
-      topics: Array<{
-        topicId: number;
-        topicName: string;
-        priority: number;
-      }>;
-      dailyGoalMinutes: number;
-      dailyGoalQuestions: number;
-    }>
-  > {}
+// For GET /studyPlans/templates
+interface StudyPlanTemplatePayload {
+  id: number; // Template ID
+  name: string;
+  description: string;
+  durationDays: number;
+  topics: Array<{
+    topicId: number;
+    topicName?: string; // Make optional if not always present
+    priority?: number;
+  }>;
+  dailyGoalMinutes: number;
+  dailyGoalQuestions: number;
+}
+type StudyPlanTemplatesListPayload = StudyPlanTemplatePayload[];
 
-/**
- * Create a new study plan
- * @param name Name of the study plan
- * @param description Description of the study plan
- * @param topics Array of topics with priorities
- * @param startDate Start date of the plan (ISO string)
- * @param endDate End date of the plan (ISO string)
- * @param dailyGoalMinutes Daily study time goal in minutes
- * @param dailyGoalQuestions Daily questions goal
- * @returns Created study plan
- */
+// For GET /studyPlans/:id/analytics
+interface StudyPlanAnalyticsPayload {
+  dailyStudyTime: Array<{ date: string; minutes: number }>;
+  topicDistribution: Array<{
+    topicId: number;
+    topicName?: string;
+    percentage: number;
+  }>;
+  accuracyTrend: Array<{ date: string; accuracy: number }>;
+  weakestTopics: Array<{
+    topicId: number;
+    topicName?: string;
+    accuracy: number;
+  }>;
+  strongestTopics: Array<{
+    topicId: number;
+    topicName?: string;
+    accuracy: number;
+  }>;
+}
+
+// --- Service Input DTOs ---
+// (Input for createStudyPlan is defined inline, which is fine)
+// (Input for updateStudyPlan is defined inline, which is fine)
+
+// --- Service Functions ---
+
 export const createStudyPlan = async (
   name: string,
   description: string,
-  topics: Array<{
-    topicId: number;
-    priority: number;
-  }>,
+  topics: Array<{ topicId: number; priority: number }>,
   startDate: string,
   endDate: string,
   dailyGoalMinutes: number,
   dailyGoalQuestions: number,
 ): Promise<StudyPlan> => {
-  const response = await apiRequest<StudyPlanResponse>('/studyPlans', 'POST', {
+  // Assuming backend returns the full StudyPlan object
+  const response = await apiRequest<StudyPlan>('/studyPlans', 'POST', { // Expecting a StudyPlan object
     name,
     description,
     topics,
@@ -110,53 +133,41 @@ export const createStudyPlan = async (
     dailyGoalMinutes,
     dailyGoalQuestions,
   });
-
-  if (!response.data) {
-    throw new Error('Failed to create study plan');
-  }
-
+  if (!response.data)
+    throw new Error(
+      'Failed to create study plan: No data returned from server.',
+    );
   return response.data;
 };
 
-/**
- * Get all study plans for the current user
- * @returns Array of study plans
- */
 export const getStudyPlans = async (): Promise<StudyPlan[]> => {
-  const response = await apiRequest<StudyPlansResponse>('/studyPlans');
+  const response = await apiRequest<StudyPlan[]>('/studyPlans'); // Expecting an array of StudyPlan
   return response.data || [];
 };
 
-/**
- * Get a specific study plan by ID
- * @param planId ID of the study plan to retrieve
- * @returns Study plan object
- */
-export const getStudyPlanById = async (planId: number): Promise<StudyPlan> => {
-  const response = await apiRequest<StudyPlanResponse>(`/studyPlans/${planId}`);
-
-  if (!response.data) {
-    throw new Error(`Study plan with ID ${planId} not found`);
+export const getStudyPlanById = async (
+  planId: number,
+): Promise<StudyPlan | null> => {
+  try {
+    const response = await apiRequest<StudyPlan>(`/studyPlans/${planId}`); // Expecting a StudyPlan object
+    return response.data === undefined ? null : response.data;
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(`Study plan with ID ${planId} not found (404).`);
+      return null;
+    }
+    console.error(`Error fetching study plan ID ${planId}:`, error);
+    throw error;
   }
-
-  return response.data;
 };
 
-/**
- * Update an existing study plan
- * @param planId ID of the study plan to update
- * @param updates Partial study plan data to update
- * @returns Updated study plan
- */
 export const updateStudyPlan = async (
   planId: number,
   updates: Partial<{
+    /* inline definition is fine, but ensure it matches backend expectations */
     name: string;
     description: string;
-    topics: Array<{
-      topicId: number;
-      priority: number;
-    }>;
+    topics: Array<{ topicId: number; priority: number }>;
     startDate: string;
     endDate: string;
     dailyGoalMinutes: number;
@@ -164,300 +175,224 @@ export const updateStudyPlan = async (
     isActive: boolean;
   }>,
 ): Promise<StudyPlan> => {
-  const response = await apiRequest<StudyPlanResponse>(
+  // Assuming backend returns the updated StudyPlan
+  const response = await apiRequest<StudyPlan>(
     `/studyPlans/${planId}`,
     'PUT',
     updates,
   );
-
-  if (!response.data) {
-    throw new Error(`Failed to update study plan with ID ${planId}`);
-  }
-
+  if (!response.data)
+    throw new Error(
+      `Failed to update study plan with ID ${planId}: No data returned.`,
+    );
   return response.data;
 };
 
-/**
- * Delete a study plan
- * @param planId ID of the study plan to delete
- * @returns Success message
- */
 export const deleteStudyPlan = async (
   planId: number,
-): Promise<{ message: string }> => {
-  const response = await apiRequest<MessageResponse>(
+): Promise<MessagePayload> => {
+  const response = await apiRequest<MessagePayload>(
     `/studyPlans/${planId}`,
     'DELETE',
   );
-
-  if (!response.data) {
-    return { message: 'Study plan deleted successfully' };
+  if (!response.data || !response.data.message) {
+    return { message: 'Study plan deleted successfully.' };
   }
-
   return response.data;
 };
 
-/**
- * Get the currently active study plan
- * @returns Active study plan or null if none is active
- */
 export const getActiveStudyPlan = async (): Promise<StudyPlan | null> => {
-  const response = await apiRequest<StudyPlanResponse>('/studyPlans/active');
-  return response.data || null;
+  try {
+    // Backend might return 200 with plan data, or 200/204 with no data if none active, or 404.
+    const response = await apiRequest<StudyPlan | null>('/studyPlans/active'); // TData can be StudyPlan or null
+    // If apiRequest returns { data: null } for an empty successful response
+    if (response.data === undefined || response.data === null) {
+      return null;
+    }
+    return response.data;
+  } catch (error: any) {
+    // If 404 means "no active plan", treat it as a valid scenario returning null
+    if (error.status === 404) {
+      console.info('No active study plan found.');
+      return null;
+    }
+    console.error('Error fetching active study plan:', error);
+    throw error; // Re-throw other unexpected errors
+  }
 };
 
-/**
- * Activate a study plan
- * @param planId ID of the study plan to activate
- * @returns The activated study plan
- */
 export const activateStudyPlan = async (planId: number): Promise<StudyPlan> => {
-  const response = await apiRequest<StudyPlanResponse>(
+  const response = await apiRequest<StudyPlan>(
     `/studyPlans/${planId}/activate`,
     'POST',
   );
-
-  if (!response.data) {
-    throw new Error(`Failed to activate study plan with ID ${planId}`);
-  }
-
+  if (!response.data)
+    throw new Error(
+      `Failed to activate study plan with ID ${planId}: No data.`,
+    );
   return response.data;
 };
 
-/**
- * Deactivate a study plan
- * @param planId ID of the study plan to deactivate
- * @returns Success message
- */
 export const deactivateStudyPlan = async (
   planId: number,
-): Promise<{ message: string }> => {
-  const response = await apiRequest<MessageResponse>(
+): Promise<MessagePayload> => {
+  const response = await apiRequest<MessagePayload>(
     `/studyPlans/${planId}/deactivate`,
     'POST',
   );
-
-  if (!response.data) {
-    return { message: 'Study plan deactivated successfully' };
+  if (!response.data || !response.data.message) {
+    return { message: 'Study plan deactivated successfully.' };
   }
-
   return response.data;
 };
 
-/**
- * Get progress information for a study plan
- * @param planId ID of the study plan
- * @returns Detailed progress information
- */
 export const getStudyPlanProgress = async (
   planId: number,
-): Promise<{
-  planId: number;
-  planName: string;
-  startDate: string;
-  endDate: string;
-  daysTotal: number;
-  daysElapsed: number;
-  daysRemaining: number;
-  completion: number;
-  topicsProgress: Array<{
-    topicId: number;
-    topicName: string;
-    priority: number;
-    totalQuestions: number;
-    questionsAnswered: number;
-    correctAnswers: number;
-    accuracy: number;
-    completion: number;
-  }>;
-  sessionsCompleted: number;
-  totalQuestions: number;
-  questionsAnswered: number;
-  correctAnswers: number;
-  overallAccuracy: number;
-  goalCompletion: number;
-  studyTimeTotal: number;
-  studyTimeWeek: number;
-}> => {
-  const response = await apiRequest<StudyPlanProgressResponse>(
-    `/studyPlans/${planId}/progress`,
-  );
-
-  if (!response.data) {
-    throw new Error(`Failed to get progress for study plan with ID ${planId}`);
+): Promise<StudyPlanProgressPayload> => {
+  const defaultProgress: StudyPlanProgressPayload = {
+    // Define default for DRY
+    planId,
+    planName: '',
+    startDate: '',
+    endDate: '',
+    daysTotal: 0,
+    daysElapsed: 0,
+    daysRemaining: 0,
+    completion: 0,
+    topicsProgress: [],
+    sessionsCompleted: 0,
+    totalQuestions: 0,
+    questionsAnswered: 0,
+    correctAnswers: 0,
+    overallAccuracy: 0,
+    goalCompletion: 0,
+    studyTimeTotal: 0,
+    studyTimeWeek: 0,
+  };
+  try {
+    const response = await apiRequest<StudyPlanProgressPayload>(
+      `/studyPlans/${planId}/progress`,
+    );
+    if (!response.data || typeof response.data !== 'object') {
+      console.warn(
+        `No progress data for study plan ${planId}, returning defaults.`,
+      );
+      return defaultProgress;
+    }
+    return {
+      // Merge with defaults to ensure all fields are present
+      ...defaultProgress,
+      ...response.data,
+      topicsProgress: response.data.topicsProgress || [], // Ensure topicsProgress is an array
+    };
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(
+        `Progress for study plan ${planId} not found (404), returning defaults.`,
+      );
+    } else {
+      console.error(`Error fetching progress for study plan ${planId}:`, error);
+    }
+    return defaultProgress;
   }
-
-  return response.data;
 };
 
-/**
- * Get recommended topics to study today
- * @returns Array of recommended topics with study details
- */
-export const getRecommendedDailyTopics = async (): Promise<
-  Array<{
-    topicId: number;
-    topicName: string;
-    branchId: number;
-    branchName: string;
-    recommendedQuestions: number;
-    recommendedMinutes: number;
-    priority: number;
-    lastStudied: string | null;
-    accuracy: number;
-  }>
-> => {
-  const response = await apiRequest<DailyRecommendationsResponse>(
-    '/studyPlans/daily-recommendations',
-  );
+export const getRecommendedDailyTopics =
+  async (): Promise<DailyRecommendationsListPayload> => {
+    const response = await apiRequest<DailyRecommendationsListPayload>(
+      '/studyPlans/daily-recommendations',
+    );
+    return response.data || [];
+  };
+
+export const getAvailableTopics = async (): Promise<AvailableTopicsPayload> => {
+  // Assuming this endpoint returns a list of all Topic models
+  const response = await apiRequest<AvailableTopicsPayload>('/topics');
   return response.data || [];
 };
 
-/**
- * Get all available topics for creating study plans
- * @returns Array of topics
- */
-export const getAvailableTopics = async (): Promise<Topic[]> => {
-  const response = await apiRequest<TopicsResponse>('/topics');
-  return response.data || [];
-};
-
-/**
- * Get study sessions for a specific plan
- * @param planId ID of the study plan
- * @param page Page number for pagination (default: 1)
- * @param limit Number of items per page (default: 10)
- * @returns Paginated study sessions with total count
- */
 export const getStudyPlanSessions = async (
   planId: number,
   page: number = 1,
   limit: number = 10,
-): Promise<{
-  sessions: StudySession[];
-  total: number;
-}> => {
-  const response = await apiRequest<StudySessionsResponse>(
+): Promise<StudyPlanSessionsPayload> => {
+  const response = await apiRequest<StudyPlanSessionsPayload>(
     `/studyPlans/${planId}/sessions?page=${page}&limit=${limit}`,
   );
-
-  if (!response.data) {
+  if (!response.data || typeof response.data !== 'object') {
+    console.warn(
+      `No session data for study plan ${planId}, returning defaults.`,
+    );
     return { sessions: [], total: 0 };
   }
-
-  return response.data;
+  return {
+    // Ensure sessions is an array
+    sessions: response.data.sessions || [],
+    total: response.data.total || 0,
+  };
 };
 
-/**
- * Get available study plan templates
- * @returns Array of study plan templates
- */
-export const getStudyPlanTemplates = async (): Promise<
-  Array<{
-    id: number;
-    name: string;
-    description: string;
-    durationDays: number;
-    topics: Array<{
-      topicId: number;
-      topicName: string;
-      priority: number;
-    }>;
-    dailyGoalMinutes: number;
-    dailyGoalQuestions: number;
-  }>
-> => {
-  const response = await apiRequest<StudyPlanTemplatesResponse>(
-    '/studyPlans/templates',
-  );
-  return response.data || [];
-};
+export const getStudyPlanTemplates =
+  async (): Promise<StudyPlanTemplatesListPayload> => {
+    const response = await apiRequest<StudyPlanTemplatesListPayload>(
+      '/studyPlans/templates',
+    );
+    return response.data || [];
+  };
 
-/**
- * Create a study plan from a template
- * @param templateId ID of the template to use
- * @param startDate Start date for the new plan
- * @returns Created study plan
- */
 export const createPlanFromTemplate = async (
   templateId: number,
   startDate: string,
 ): Promise<StudyPlan> => {
-  const response = await apiRequest<StudyPlanResponse>(
+  const response = await apiRequest<StudyPlan>(
     '/studyPlans/from-template',
     'POST',
-    {
-      templateId,
-      startDate,
-    },
+    { templateId, startDate },
   );
-
-  if (!response.data) {
+  if (!response.data)
     throw new Error(
-      `Failed to create study plan from template with ID ${templateId}`,
+      `Failed to create plan from template ${templateId}: No data.`,
     );
-  }
-
   return response.data;
 };
 
-/**
- * Get study plan analytics
- * @param planId ID of the study plan
- * @returns Analytics data for the study plan
- */
 export const getStudyPlanAnalytics = async (
   planId: number,
-): Promise<{
-  dailyStudyTime: Array<{ date: string; minutes: number }>;
-  topicDistribution: Array<{
-    topicId: number;
-    topicName: string;
-    percentage: number;
-  }>;
-  accuracyTrend: Array<{ date: string; accuracy: number }>;
-  weakestTopics: Array<{
-    topicId: number;
-    topicName: string;
-    accuracy: number;
-  }>;
-  strongestTopics: Array<{
-    topicId: number;
-    topicName: string;
-    accuracy: number;
-  }>;
-}> => {
-  const response = await apiRequest<
-    ApiResponse<{
-      dailyStudyTime: Array<{ date: string; minutes: number }>;
-      topicDistribution: Array<{
-        topicId: number;
-        topicName: string;
-        percentage: number;
-      }>;
-      accuracyTrend: Array<{ date: string; accuracy: number }>;
-      weakestTopics: Array<{
-        topicId: number;
-        topicName: string;
-        accuracy: number;
-      }>;
-      strongestTopics: Array<{
-        topicId: number;
-        topicName: string;
-        accuracy: number;
-      }>;
-    }>
-  >(`/studyPlans/${planId}/analytics`);
-
-  if (!response.data) {
+): Promise<StudyPlanAnalyticsPayload> => {
+  const defaultAnalytics: StudyPlanAnalyticsPayload = {
+    // Define default for DRY
+    dailyStudyTime: [],
+    topicDistribution: [],
+    accuracyTrend: [],
+    weakestTopics: [],
+    strongestTopics: [],
+  };
+  try {
+    const response = await apiRequest<StudyPlanAnalyticsPayload>(
+      `/studyPlans/${planId}/analytics`,
+    );
+    if (!response.data || typeof response.data !== 'object') {
+      console.warn(
+        `No analytics data for study plan ${planId}, returning defaults.`,
+      );
+      return defaultAnalytics;
+    }
     return {
-      dailyStudyTime: [],
-      topicDistribution: [],
-      accuracyTrend: [],
-      weakestTopics: [],
-      strongestTopics: [],
+      // Merge with defaults to ensure all array fields are initialized
+      ...defaultAnalytics,
+      ...response.data,
     };
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(
+        `Analytics for study plan ${planId} not found (404), returning defaults.`,
+      );
+    } else {
+      console.error(
+        `Error fetching analytics for study plan ${planId}:`,
+        error,
+      );
+    }
+    return defaultAnalytics;
   }
-
-  return response.data;
 };

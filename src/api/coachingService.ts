@@ -1,60 +1,58 @@
-// src/api/coachingService.ts
 import apiRequest from './apiClient';
 import {
   CoachingNote,
   MotivationalMessage,
   StrategyVideo,
 } from '../types/models';
-import { ApiResponse } from '../types/api';
+// ApiResponse is implicitly handled by apiRequest
 
-// Response interfaces for coaching endpoints
-interface GetCoachingNotesResponse extends ApiResponse<CoachingNote[]> {}
-interface GetCoachingNoteResponse extends ApiResponse<CoachingNote> {}
-interface CoachingNoteActionResponse
-  extends ApiResponse<{
-    message: string;
-    note?: CoachingNote;
-  }> {}
-interface GetMotivationalMessagesResponse
-  extends ApiResponse<MotivationalMessage[]> {}
-interface GetStrategyVideosResponse extends ApiResponse<StrategyVideo[]> {}
+// --- Define interfaces for the *actual data payloads* your backend sends ---
+// --- These will be the TData in apiRequest<TData> ---
 
-/**
- * Get all coaching notes
- * @returns Array of coaching notes
- */
-export const getCoachingNotes = async (): Promise<CoachingNote[]> => {
-  const response = await apiRequest<GetCoachingNotesResponse>(
-    '/coaching/notes',
-  );
-  return response.data || [];
+// For GET /coaching/notes
+type CoachingNotesPayload = CoachingNote[];
+
+// For GET /coaching/notes/latest OR POST /coaching/notes OR PUT /coaching/notes/:id
+// The payload is a single CoachingNote object
+// type SingleCoachingNotePayload = CoachingNote; // Can use CoachingNote directly
+
+// For DELETE /coaching/notes/:id
+interface CoachingNoteActionPayload {
+  message: string;
+  note?: CoachingNote; // Note might be optional or not present on delete
+}
+
+// For GET /coaching/messages
+type MotivationalMessagesPayload = MotivationalMessage[];
+
+// For GET /coaching/videos
+type StrategyVideosPayload = StrategyVideo[];
+
+// --- Service Functions ---
+
+export const getCoachingNotes = async (): Promise<CoachingNotesPayload> => {
+  const response = await apiRequest<CoachingNotesPayload>('/coaching/notes');
+  return response.data || []; // Default to empty array
 };
 
-/**
- * Get the latest coaching note
- * @returns The most recent coaching note
- */
-export const getLatestNote = async (): Promise<CoachingNote> => {
-  const response = await apiRequest<GetCoachingNoteResponse>(
-    '/coaching/notes/latest',
-  );
-
-  if (!response.data) {
-    throw new Error('No coaching notes available');
+export const getLatestNote = async (): Promise<CoachingNote | null> => {
+  try {
+    const response = await apiRequest<CoachingNote>('/coaching/notes/latest');
+    // If apiRequest might return undefined data on success (e.g. 204 or empty JSON)
+    return response.data === undefined ? null : response.data;
+  } catch (error: any) {
+    if (error.status === 404) {
+      // If backend correctly returns 404 when no latest note
+      console.warn('No latest coaching note found.');
+      return null;
+    }
+    console.error('Error fetching latest coaching note:', error);
+    // Depending on requirements, you might throw, or return null/default
+    // For now, re-throwing other errors:
+    throw error;
   }
-
-  return response.data;
 };
 
-/**
- * Create a new coaching note
- * @param title Note title
- * @param content Note content
- * @param publishDate Date to publish note
- * @param weekNumber Week number
- * @param year Year
- * @returns The created coaching note
- */
 export const createCoachingNote = async (
   title: string,
   content: string,
@@ -62,91 +60,69 @@ export const createCoachingNote = async (
   weekNumber: number,
   year: number,
 ): Promise<CoachingNote> => {
-  const response = await apiRequest<GetCoachingNoteResponse>(
-    '/coaching/notes',
-    'POST',
-    {
-      title,
-      content,
-      publishDate,
-      weekNumber,
-      year,
-    },
-  );
-
+  // Assuming backend returns the created note
+  const response = await apiRequest<CoachingNote>('/coaching/notes', 'POST', { // Expecting a CoachingNote object directly
+    title,
+    content,
+    publishDate,
+    weekNumber,
+    year,
+  });
   if (!response.data) {
-    throw new Error('Failed to create coaching note');
+    // Or if response.data is an empty object when a CoachingNote is expected
+    throw new Error(
+      'Failed to create coaching note: No data returned from server.',
+    );
   }
-
   return response.data;
 };
 
-/**
- * Update an existing coaching note
- * @param noteId ID of the note to update
- * @param updates Partial note data to update
- * @returns The updated coaching note
- */
 export const updateCoachingNote = async (
   noteId: number,
   updates: Partial<CoachingNote>,
 ): Promise<CoachingNote> => {
-  const response = await apiRequest<GetCoachingNoteResponse>(
+  // Assuming backend returns the updated note
+  const response = await apiRequest<CoachingNote>( // Expecting a CoachingNote object
     `/coaching/notes/${noteId}`,
     'PUT',
     updates,
   );
-
   if (!response.data) {
-    throw new Error('Failed to update coaching note');
+    throw new Error(
+      'Failed to update coaching note: No data returned from server.',
+    );
   }
-
   return response.data;
 };
 
-/**
- * Delete a coaching note
- * @param noteId ID of the note to delete
- * @returns Success message
- */
 export const deleteCoachingNote = async (
   noteId: number,
 ): Promise<{ message: string }> => {
-  const response = await apiRequest<CoachingNoteActionResponse>(
+  // Assuming backend returns a payload like { message: "..." }
+  const response = await apiRequest<CoachingNoteActionPayload>(
     `/coaching/notes/${noteId}`,
     'DELETE',
   );
-
-  if (!response.data) {
-    return { message: 'Note deleted successfully' };
+  if (!response.data || !response.data.message) {
+    // If backend sends empty 200/204, or message is missing
+    return { message: 'Coaching note deleted successfully.' };
   }
-
-  return { message: response.data.message || 'Note deleted successfully' };
+  return { message: response.data.message }; // Only return message as per original signature
 };
 
-/**
- * Get all motivational messages
- * @returns Array of motivational messages
- */
-export const getMotivationalMessages = async (): Promise<
-  MotivationalMessage[]
-> => {
-  const response = await apiRequest<GetMotivationalMessagesResponse>(
-    '/coaching/messages',
-  );
-  return response.data || [];
-};
+export const getMotivationalMessages =
+  async (): Promise<MotivationalMessagesPayload> => {
+    const response = await apiRequest<MotivationalMessagesPayload>(
+      '/coaching/messages',
+    );
+    return response.data || []; // Default to empty array
+  };
 
-/**
- * Get strategy videos, optionally filtered by premium status
- * @param isPremium Whether to return only premium videos
- * @returns Array of strategy videos
- */
 export const getStrategyVideos = async (
   isPremium: boolean = false,
-): Promise<StrategyVideo[]> => {
-  const response = await apiRequest<GetStrategyVideosResponse>(
+): Promise<StrategyVideosPayload> => {
+  const response = await apiRequest<StrategyVideosPayload>(
     `/coaching/videos?premium=${isPremium}`,
   );
-  return response.data || [];
+  return response.data || []; // Default to empty array
 };

@@ -1,183 +1,208 @@
-// src/api/courseService.ts
 import apiRequest from './apiClient';
 import { Course, Topic, Subtopic } from '../types/models';
-import { ApiResponse } from '../types/api';
+// ApiResponse is implicitly handled by apiRequest
 
-// Response interfaces for course endpoints
-interface GetCoursesResponse extends ApiResponse<Course[]> {}
-interface GetCourseResponse extends ApiResponse<Course & { topics: Topic[] }> {}
-interface GetTopicsResponse extends ApiResponse<Topic[]> {}
-interface GetTopicResponse
-  extends ApiResponse<Topic & { subtopics: Subtopic[] }> {}
-interface GetSubtopicsResponse extends ApiResponse<Subtopic[]> {}
-interface GetSubtopicResponse extends ApiResponse<Subtopic> {}
-interface MessageResponse extends ApiResponse<{ message: string }> {}
+// --- Define interfaces for the *actual data payloads* your backend sends ---
+// --- These will be the TData in apiRequest<TData> ---
 
-// Progress interface
-interface CourseProgressResponse
-  extends ApiResponse<{
-    courseId: number;
-    courseName: string;
-    completedTopics: number;
-    totalTopics: number;
+// For GET /courses
+type CoursesPayload = Course[];
+
+// For GET /courses/:courseId
+// Backend is expected to return a Course object, potentially with a 'topics' array embedded
+interface CourseWithTopicsPayload extends Course {
+  topics?: Topic[]; // topics array might be optional or always present
+}
+
+// For GET /topics/course/:courseId
+type TopicsPayload = Topic[];
+
+// For GET /topics/:topicId
+// Backend is expected to return a Topic object, potentially with a 'subtopics' array embedded
+interface TopicWithSubtopicsPayload extends Topic {
+  subtopics?: Subtopic[]; // subtopics array might be optional or always present
+}
+
+// For GET /subtopics/topic/:topicId
+type SubtopicsPayload = Subtopic[];
+
+// For GET /subtopics/:subtopicId
+// The payload is a single Subtopic object
+// type SingleSubtopicPayload = Subtopic; // Can use Subtopic directly
+
+// For POST /courses/subtopic/complete
+interface MessagePayload {
+  // Reusable for simple message responses
+  message: string;
+}
+
+// For GET /courses/:courseId/progress
+// This is the payload for course progress
+export interface CourseProgressPayload {
+  // Exporting as it's used in HomeScreen.tsx's types
+  courseId: number;
+  courseName?: string; // Make optional if backend might not send it
+  completedTopics: number;
+  totalTopics: number;
+  completedSubtopics: number;
+  totalSubtopics: number;
+  progress: number; // Overall course progress percentage
+  topicsProgress: Array<{
+    topicId: number;
+    topicName?: string; // Make optional
     completedSubtopics: number;
     totalSubtopics: number;
-    progress: number;
-    topicsProgress: Array<{
-      topicId: number;
-      topicName: string;
-      completedSubtopics: number;
-      totalSubtopics: number;
-      progress: number;
-    }>;
-  }> {}
+    progress: number; // Progress for this specific topic
+  }>;
+  // lastAccessed?: string | null; // Added from your HomeScreen example
+}
 
-/**
- * Get all available courses
- * @returns Array of courses
- */
-export const getAllCourses = async (): Promise<Course[]> => {
-  const response = await apiRequest<GetCoursesResponse>('/courses');
+// --- Service Functions ---
+
+export const getAllCourses = async (): Promise<CoursesPayload> => {
+  const response = await apiRequest<CoursesPayload>('/courses');
   return response.data || [];
 };
 
-/**
- * Get a course by its ID, including topics
- * @param courseId ID of the course to retrieve
- * @returns Course with topics array
- */
 export const getCourseById = async (
   courseId: number,
-): Promise<Course & { topics: Topic[] }> => {
-  const response = await apiRequest<GetCourseResponse>(`/courses/${courseId}`);
-
-  if (!response.data) {
-    throw new Error(`Course with ID ${courseId} not found`);
+): Promise<CourseWithTopicsPayload | null> => {
+  try {
+    const response = await apiRequest<CourseWithTopicsPayload>(
+      `/courses/${courseId}`,
+    );
+    if (!response.data) {
+      // If apiRequest returns undefined data on success (e.g. 204 or empty object)
+      console.warn(`Course with ID ${courseId} not found or no data returned.`);
+      return null;
+    }
+    // Ensure topics is at least an empty array if missing from backend response
+    return {
+      ...response.data,
+      topics: response.data.topics || [],
+    };
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(`Course with ID ${courseId} not found (404).`);
+      return null;
+    }
+    console.error(`Error fetching course ${courseId}:`, error);
+    throw error;
   }
-
-  // Ensure topics is at least an empty array if missing
-  return {
-    ...response.data,
-    topics: response.data.topics || [],
-  };
 };
 
-/**
- * Get all topics for a specific course
- * @param courseId Course ID to get topics for
- * @returns Array of topics
- */
-export const getTopicsByCourse = async (courseId: number): Promise<Topic[]> => {
-  const response = await apiRequest<GetTopicsResponse>(
+export const getTopicsByCourse = async (
+  courseId: number,
+): Promise<TopicsPayload> => {
+  const response = await apiRequest<TopicsPayload>(
     `/topics/course/${courseId}`,
   );
   return response.data || [];
 };
 
-/**
- * Get a topic by its ID, including subtopics
- * @param topicId ID of the topic to retrieve
- * @returns Topic with subtopics array
- */
 export const getTopicById = async (
   topicId: number,
-): Promise<Topic & { subtopics: Subtopic[] }> => {
-  const response = await apiRequest<GetTopicResponse>(`/topics/${topicId}`);
-
-  if (!response.data) {
-    throw new Error(`Topic with ID ${topicId} not found`);
+): Promise<TopicWithSubtopicsPayload | null> => {
+  try {
+    const response = await apiRequest<TopicWithSubtopicsPayload>(
+      `/topics/${topicId}`,
+    );
+    if (!response.data) {
+      console.warn(`Topic with ID ${topicId} not found or no data returned.`);
+      return null;
+    }
+    // Ensure subtopics is at least an empty array
+    return {
+      ...response.data,
+      subtopics: response.data.subtopics || [],
+    };
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(`Topic with ID ${topicId} not found (404).`);
+      return null;
+    }
+    console.error(`Error fetching topic ${topicId}:`, error);
+    throw error;
   }
-
-  // Ensure subtopics is at least an empty array if missing
-  return {
-    ...response.data,
-    subtopics: response.data.subtopics || [],
-  };
 };
 
-/**
- * Get all subtopics for a specific topic
- * @param topicId Topic ID to get subtopics for
- * @returns Array of subtopics
- */
 export const getSubtopicsByTopic = async (
   topicId: number,
-): Promise<Subtopic[]> => {
-  const response = await apiRequest<GetSubtopicsResponse>(
+): Promise<SubtopicsPayload> => {
+  const response = await apiRequest<SubtopicsPayload>(
     `/subtopics/topic/${topicId}`,
   );
   return response.data || [];
 };
 
-/**
- * Get a subtopic by its ID
- * @param subtopicId ID of the subtopic to retrieve
- * @returns Subtopic object
- */
 export const getSubtopicById = async (
   subtopicId: number,
-): Promise<Subtopic> => {
-  const response = await apiRequest<GetSubtopicResponse>(
-    `/subtopics/${subtopicId}`,
-  );
-
-  if (!response.data) {
-    throw new Error(`Subtopic with ID ${subtopicId} not found`);
+): Promise<Subtopic | null> => {
+  try {
+    const response = await apiRequest<Subtopic>(`/subtopics/${subtopicId}`);
+    return response.data === undefined ? null : response.data;
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(`Subtopic with ID ${subtopicId} not found (404).`);
+      return null;
+    }
+    console.error(`Error fetching subtopic ${subtopicId}:`, error);
+    throw error;
   }
-
-  return response.data;
 };
 
-/**
- * Mark a subtopic as completed
- * @param subtopicId ID of the subtopic to mark as completed
- * @returns Success message
- */
 export const markSubtopicCompleted = async (
   subtopicId: number,
-): Promise<{ message: string }> => {
-  const response = await apiRequest<MessageResponse>(
-    '/courses/subtopic/complete',
+): Promise<MessagePayload> => {
+  const response = await apiRequest<MessagePayload>(
+    '/courses/subtopic/complete', // Your original path. Confirm if this should be /subtopics/:id/complete or similar
     'POST',
     { subtopicId },
   );
-
-  if (!response.data) {
-    return { message: 'Subtopic marked as completed' };
+  if (!response.data || !response.data.message) {
+    return { message: 'Subtopic marked as completed successfully.' };
   }
-
-  return { message: response.data.message || 'Subtopic marked as completed' };
+  return response.data;
 };
 
-/**
- * Get progress information for a course
- * @param courseId ID of the course to get progress for
- * @returns Course progress details including topic progress
- */
 export const getCourseProgress = async (
   courseId: number,
-): Promise<{
-  courseId: number;
-  courseName: string;
-  completedTopics: number;
-  totalTopics: number;
-  completedSubtopics: number;
-  totalSubtopics: number;
-  progress: number;
-  topicsProgress: Array<{
-    topicId: number;
-    topicName: string;
-    completedSubtopics: number;
-    totalSubtopics: number;
-    progress: number;
-  }>;
-}> => {
-  const response = await apiRequest<CourseProgressResponse>(
-    `/courses/${courseId}/progress`,
-  );
-
-  if (!response.data) {
-    // Return default progress object with zero values
+): Promise<CourseProgressPayload> => {
+  try {
+    const response = await apiRequest<CourseProgressPayload>(
+      `/courses/${courseId}/progress`,
+    );
+    if (!response.data || typeof response.data !== 'object') {
+      console.warn(
+        `No progress data for course ${courseId}, returning defaults.`,
+      );
+      // Return default progress object with zero values
+      return {
+        courseId,
+        courseName: '', // Default if not provided
+        completedTopics: 0,
+        totalTopics: 0,
+        completedSubtopics: 0,
+        totalSubtopics: 0,
+        progress: 0,
+        topicsProgress: [],
+        // lastAccessed: null,
+      };
+    }
+    // Ensure topicsProgress is an array
+    return {
+      ...response.data,
+      topicsProgress: response.data.topicsProgress || [],
+    };
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(
+        `Progress data for course ${courseId} not found (404), returning defaults.`,
+      );
+    } else {
+      console.error(`Error fetching progress for course ${courseId}:`, error);
+    }
+    // Return default structure on any error for this specific function, or re-throw
     return {
       courseId,
       courseName: '',
@@ -187,8 +212,7 @@ export const getCourseProgress = async (
       totalSubtopics: 0,
       progress: 0,
       topicsProgress: [],
+      // lastAccessed: null,
     };
   }
-
-  return response.data;
 };

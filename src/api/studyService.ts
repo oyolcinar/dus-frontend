@@ -1,85 +1,122 @@
-// src/api/studyService.ts
 import apiRequest from './apiClient';
-import { StudySession, Question, StudyProgress } from '../types/models';
-import { ApiResponse } from '../types/api';
+import { StudySession, Question, StudyProgress, Topic } from '../types/models'; // Assuming Topic might be needed for consistency
+// ApiResponse is implicitly handled by apiRequest
 
-// Define difficulty levels as a type
+// --- Define types and interfaces for *actual data payloads* ---
+
 type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
-// Response interfaces for study endpoints
-interface StudySessionResponse extends ApiResponse<StudySession> {}
+// For POST /study/start-session
+// The payload is a StudySession object.
+// Ensure your StudySession model from '../types/models' matches what the backend returns here.
+// (e.g., session_id, user_id, start_time, topic_id, subtopic_id, status, etc.)
 
-interface QuestionResponse extends ApiResponse<Question> {}
+// For GET /study/sessions/:sessionId/next-question
+// The payload is a Question object.
+// Ensure your Question model from '../types/models' matches.
+// (e.g., question_id, test_id (or null for study), question_text, options, correct_answer, etc.)
 
-interface SubmitAnswerResponse
-  extends ApiResponse<{
+// For POST /study/sessions/:sessionId/submit-answer
+interface SubmitAnswerPayload {
+  isCorrect: boolean;
+  explanation?: string; // Explanation might be optional
+  correctAnswerId?: number; // Or correct_answer (string/object), ensure consistency with Question model
+}
+
+// For POST /study/sessions/:sessionId/end
+interface EndSessionPayload {
+  sessionId: string; // Or number if your session_id is numeric
+  totalQuestions: number;
+  correctAnswers: number;
+  score: number; // Percentage or raw score
+  timeSpent: number; // In seconds or minutes
+  completedAt: string; // ISO date string
+}
+
+// For GET /study/progress
+// The payload is a StudyProgress object.
+// Ensure your StudyProgress model from '../types/models' matches.
+// (e.g., progress_id, user_id, subtopic_id, repetition_count, mastery_level, last_studied_at, etc.)
+
+// For GET /study/recent-sessions
+type RecentSessionsPayload = StudySession[]; // Array of StudySession objects
+
+// For GET /study/sessions/:sessionId
+interface SessionDetailsPayload {
+  session: StudySession;
+  questions: Array<{
+    id: number; // Question ID
+    text: string;
+    userAnswerId?: number; // ID of the answer option selected by user
+    userAnswerText?: string; // Text of the user's answer (if free-form or to store option text)
+    correctAnswerId?: number; // ID of the correct answer option
+    correctAnswerText?: string; // Text of the correct answer
     isCorrect: boolean;
-    explanation: string;
-    correctAnswerId: number;
-  }> {}
-
-interface EndSessionResponse
-  extends ApiResponse<{
-    sessionId: string;
-    totalQuestions: number;
-    correctAnswers: number;
-    score: number;
-    timeSpent: number;
-    completedAt: string;
-  }> {}
-
-interface StudyProgressResponse extends ApiResponse<StudyProgress> {}
-
-interface StudySessionsResponse extends ApiResponse<StudySession[]> {}
-
-interface SessionDetailsResponse
-  extends ApiResponse<{
-    session: StudySession;
-    questions: Array<{
-      id: number;
+    timeSpent?: number; // Time spent on this specific question
+    explanation?: string;
+    answers?: Array<{
+      // Possible answer options shown to the user for this question
+      id: number; // Option ID
       text: string;
-      userAnswerId: number;
-      correctAnswerId: number;
-      isCorrect: boolean;
-      timeSpent: number;
-      explanation: string;
-      answers: Array<{
-        id: number;
-        text: string;
-      }>;
     }>;
-  }> {}
+  }>;
+}
 
-interface RecommendedTopicsResponse
-  extends ApiResponse<
-    Array<{
-      topicId: number;
-      topicName: string;
-      branchId: number;
-      branchName: string;
-      accuracy: number;
-      priority: number;
-      lastStudied: string | null;
-    }>
-  > {}
+// For GET /study/recommended-topics
+interface RecommendedTopicPayload {
+  topicId: number;
+  topicName?: string;
+  branchId?: number;
+  branchName?: string;
+  accuracy?: number | null; // Can be null if not studied
+  priority?: number;
+  lastStudied?: string | null;
+}
+type RecommendedTopicsListPayload = RecommendedTopicPayload[];
 
-interface MessageResponse extends ApiResponse<{ message: string }> {}
+// For POST /study/flag-question or POST /study/bookmark-question
+interface MessagePayload {
+  // Reusable
+  message: string;
+}
 
-interface BookmarkedQuestionsResponse
-  extends ApiResponse<{
-    questions: Question[];
-    total: number;
-  }> {}
+// For GET /study/bookmarked-questions
+interface BookmarkedQuestionsPayload {
+  questions: Question[]; // Array of Question objects
+  total: number; // Total count for pagination
+}
 
-/**
- * Start a new study session
- * @param topicId Optional topic ID to focus on
- * @param subtopicId Optional subtopic ID to focus on
- * @param questionCount Number of questions to include (default: 10)
- * @param difficulty Optional difficulty level filter
- * @param previouslyIncorrect Whether to include only previously incorrect questions
- * @returns Created study session
- */
+// For GET /study/stats
+interface StudyStatsPayload {
+  totalSessions: number;
+  totalQuestions: number;
+  totalCorrect: number;
+  totalIncorrect: number;
+  averageAccuracy: number;
+  totalStudyTime: number; // In seconds or minutes
+  averageSessionDuration: number; // In seconds or minutes
+  mostStudiedTopics: Array<{
+    topicId: number;
+    topicName?: string;
+    questionsAnswered: number;
+    accuracy: number;
+  }>;
+  weakestTopics: Array<{
+    topicId: number;
+    topicName?: string;
+    accuracy: number;
+    questionsAnswered: number;
+  }>;
+  studyTrend: Array<{
+    date: string; // ISO date string (e.g., 'YYYY-MM-DD')
+    questionsAnswered: number;
+    accuracy: number;
+    timeSpent: number; // In seconds or minutes
+  }>;
+}
+
+// --- Service Functions ---
+
 export const startStudySession = async (
   topicId?: number,
   subtopicId?: number,
@@ -87,336 +124,207 @@ export const startStudySession = async (
   difficulty?: DifficultyLevel,
   previouslyIncorrect: boolean = false,
 ): Promise<StudySession> => {
-  const response = await apiRequest<StudySessionResponse>(
+  // Assuming backend returns the created StudySession
+  const response = await apiRequest<StudySession>(
     '/study/start-session',
     'POST',
-    {
-      topicId,
-      subtopicId,
-      questionCount,
-      difficulty,
-      previouslyIncorrect,
-    },
+    { topicId, subtopicId, questionCount, difficulty, previouslyIncorrect },
   );
-
-  if (!response.data) {
-    throw new Error('Failed to start study session');
-  }
-
+  if (!response.data)
+    throw new Error('Failed to start study session: No data returned.');
   return response.data;
 };
 
-/**
- * Get the next question in a study session
- * @param sessionId ID of the current study session
- * @returns Next question object
- */
-export const getNextQuestion = async (sessionId: string): Promise<Question> => {
-  const response = await apiRequest<QuestionResponse>(
-    `/study/sessions/${sessionId}/next-question`,
-  );
-
-  if (!response.data) {
-    throw new Error(`No more questions available for session ${sessionId}`);
+export const getNextQuestion = async (
+  sessionId: string,
+): Promise<Question | null> => {
+  try {
+    const response = await apiRequest<Question>(
+      `/study/sessions/${sessionId}/next-question`,
+    );
+    // Backend might return 200 OK with no question if session ends or no more available
+    return response.data === undefined ? null : response.data;
+  } catch (error: any) {
+    if (error.status === 404) {
+      // Or if backend sends 404 when no more questions
+      console.warn(
+        `No more questions for session ${sessionId} or session not found.`,
+      );
+      return null;
+    }
+    console.error(
+      `Error fetching next question for session ${sessionId}:`,
+      error,
+    );
+    throw error;
   }
-
-  return response.data;
 };
 
-/**
- * Submit an answer for the current question
- * @param sessionId ID of the current study session
- * @param questionId ID of the question being answered
- * @param answerId ID of the selected answer
- * @param timeSpent Time spent on the question in seconds
- * @returns Answer result with correct answer and explanation
- */
 export const submitAnswer = async (
   sessionId: string,
   questionId: number,
-  answerId: number,
+  answerId: number, // Assuming this is the ID of the chosen option
   timeSpent: number,
-): Promise<{
-  isCorrect: boolean;
-  explanation: string;
-  correctAnswerId: number;
-}> => {
-  const response = await apiRequest<SubmitAnswerResponse>(
+): Promise<SubmitAnswerPayload> => {
+  const response = await apiRequest<SubmitAnswerPayload>(
     `/study/sessions/${sessionId}/submit-answer`,
     'POST',
-    {
-      questionId,
-      answerId,
-      timeSpent,
-    },
+    { questionId, answerId, timeSpent },
   );
-
-  if (!response.data) {
-    throw new Error('Failed to submit answer');
-  }
-
+  if (!response.data)
+    throw new Error('Failed to submit answer: No data returned.');
   return response.data;
 };
 
-/**
- * End the current study session
- * @param sessionId ID of the study session to end
- * @returns Session summary with score and stats
- */
 export const endStudySession = async (
   sessionId: string,
-): Promise<{
-  sessionId: string;
-  totalQuestions: number;
-  correctAnswers: number;
-  score: number;
-  timeSpent: number;
-  completedAt: string;
-}> => {
-  const response = await apiRequest<EndSessionResponse>(
+): Promise<EndSessionPayload> => {
+  const response = await apiRequest<EndSessionPayload>(
     `/study/sessions/${sessionId}/end`,
     'POST',
   );
-
-  if (!response.data) {
-    throw new Error(`Failed to end study session ${sessionId}`);
-  }
-
+  if (!response.data)
+    throw new Error(
+      `Failed to end study session ${sessionId}: No data returned.`,
+    );
   return response.data;
 };
 
-/**
- * Get overall study progress for the current user
- * @returns Study progress object
- */
-export const getStudyProgress = async (): Promise<StudyProgress> => {
-  const response = await apiRequest<StudyProgressResponse>('/study/progress');
-
-  if (!response.data) {
-    throw new Error('Failed to retrieve study progress');
+export const getStudyProgress = async (): Promise<StudyProgress | null> => {
+  try {
+    const response = await apiRequest<StudyProgress>('/study/progress');
+    return response.data === undefined ? null : response.data;
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn('Study progress not found for user.');
+      return null;
+    }
+    console.error('Error fetching study progress:', error);
+    throw error;
   }
-
-  return response.data;
 };
 
-/**
- * Get recent study sessions
- * @param limit Maximum number of sessions to return (default: 5)
- * @returns Array of recent study sessions
- */
 export const getRecentSessions = async (
   limit: number = 5,
-): Promise<StudySession[]> => {
-  const response = await apiRequest<StudySessionsResponse>(
+): Promise<RecentSessionsPayload> => {
+  const response = await apiRequest<RecentSessionsPayload>(
     `/study/recent-sessions?limit=${limit}`,
   );
   return response.data || [];
 };
 
-/**
- * Get detailed information about a specific study session
- * @param sessionId ID of the session to retrieve
- * @returns Session details with questions and answers
- */
 export const getSessionDetails = async (
   sessionId: string,
-): Promise<{
-  session: StudySession;
-  questions: Array<{
-    id: number;
-    text: string;
-    userAnswerId: number;
-    correctAnswerId: number;
-    isCorrect: boolean;
-    timeSpent: number;
-    explanation: string;
-    answers: Array<{
-      id: number;
-      text: string;
-    }>;
-  }>;
-}> => {
-  const response = await apiRequest<SessionDetailsResponse>(
-    `/study/sessions/${sessionId}`,
-  );
-
-  if (!response.data) {
-    throw new Error(`Session details not found for session ${sessionId}`);
+): Promise<SessionDetailsPayload | null> => {
+  try {
+    const response = await apiRequest<SessionDetailsPayload>(
+      `/study/sessions/${sessionId}`,
+    );
+    if (!response.data || typeof response.data !== 'object') {
+      console.warn(
+        `No session details for session ${sessionId}, or data malformed.`,
+      );
+      return null;
+    }
+    // Ensure nested questions array is present
+    return {
+      ...response.data,
+      questions: response.data.questions || [],
+    };
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(`Session details not found for session ${sessionId} (404).`);
+      return null;
+    }
+    console.error(`Error fetching session details for ${sessionId}:`, error);
+    throw error;
   }
-
-  return response.data;
 };
 
-/**
- * Get recommended topics to study
- * @param limit Maximum number of topics to recommend (default: 3)
- * @returns Array of recommended topics with metadata
- */
 export const getRecommendedTopics = async (
   limit: number = 3,
-): Promise<
-  Array<{
-    topicId: number;
-    topicName: string;
-    branchId: number;
-    branchName: string;
-    accuracy: number;
-    priority: number;
-    lastStudied: string | null;
-  }>
-> => {
-  const response = await apiRequest<RecommendedTopicsResponse>(
+): Promise<RecommendedTopicsListPayload> => {
+  const response = await apiRequest<RecommendedTopicsListPayload>(
     `/study/recommended-topics?limit=${limit}`,
   );
   return response.data || [];
 };
 
-/**
- * Flag a question for review
- * @param questionId ID of the question to flag
- * @param reason Optional reason for flagging
- * @returns Success message
- */
 export const flagQuestion = async (
   questionId: number,
   reason?: string,
-): Promise<{ message: string }> => {
-  const response = await apiRequest<MessageResponse>(
+): Promise<MessagePayload> => {
+  const response = await apiRequest<MessagePayload>(
     '/study/flag-question',
     'POST',
-    {
-      questionId,
-      reason,
-    },
+    { questionId, reason },
   );
-
-  if (!response.data) {
-    return { message: 'Question flagged successfully' };
+  if (!response.data || !response.data.message) {
+    return { message: 'Question flagged successfully.' };
   }
-
   return response.data;
 };
 
-/**
- * Bookmark a question for later review
- * @param questionId ID of the question to bookmark
- * @returns Success message
- */
 export const bookmarkQuestion = async (
   questionId: number,
-): Promise<{ message: string }> => {
-  const response = await apiRequest<MessageResponse>(
+): Promise<MessagePayload> => {
+  const response = await apiRequest<MessagePayload>(
     '/study/bookmark-question',
     'POST',
     { questionId },
   );
-
-  if (!response.data) {
-    return { message: 'Question bookmarked successfully' };
+  if (!response.data || !response.data.message) {
+    return { message: 'Question bookmarked successfully.' };
   }
-
   return response.data;
 };
 
-/**
- * Get bookmarked questions
- * @param page Page number for pagination (default: 1)
- * @param limit Number of items per page (default: 20)
- * @returns Paginated bookmarked questions with total count
- */
 export const getBookmarkedQuestions = async (
   page: number = 1,
   limit: number = 20,
-): Promise<{
-  questions: Question[];
-  total: number;
-}> => {
-  const response = await apiRequest<BookmarkedQuestionsResponse>(
+): Promise<BookmarkedQuestionsPayload> => {
+  const response = await apiRequest<BookmarkedQuestionsPayload>(
     `/study/bookmarked-questions?page=${page}&limit=${limit}`,
   );
-
-  if (!response.data) {
+  if (!response.data || typeof response.data !== 'object') {
+    console.warn('No bookmarked questions data, returning defaults.');
     return { questions: [], total: 0 };
   }
-
-  return response.data;
+  return {
+    // Ensure questions is an array
+    questions: response.data.questions || [],
+    total: response.data.total || 0,
+  };
 };
 
-/**
- * Get study statistics
- * @returns Detailed study statistics
- */
-export const getStudyStats = async (): Promise<{
-  totalSessions: number;
-  totalQuestions: number;
-  totalCorrect: number;
-  totalIncorrect: number;
-  averageAccuracy: number;
-  totalStudyTime: number;
-  averageSessionDuration: number;
-  mostStudiedTopics: Array<{
-    topicId: number;
-    topicName: string;
-    questionsAnswered: number;
-    accuracy: number;
-  }>;
-  weakestTopics: Array<{
-    topicId: number;
-    topicName: string;
-    accuracy: number;
-    questionsAnswered: number;
-  }>;
-  studyTrend: Array<{
-    date: string;
-    questionsAnswered: number;
-    accuracy: number;
-    timeSpent: number;
-  }>;
-}> => {
-  const response = await apiRequest<
-    ApiResponse<{
-      totalSessions: number;
-      totalQuestions: number;
-      totalCorrect: number;
-      totalIncorrect: number;
-      averageAccuracy: number;
-      totalStudyTime: number;
-      averageSessionDuration: number;
-      mostStudiedTopics: Array<{
-        topicId: number;
-        topicName: string;
-        questionsAnswered: number;
-        accuracy: number;
-      }>;
-      weakestTopics: Array<{
-        topicId: number;
-        topicName: string;
-        accuracy: number;
-        questionsAnswered: number;
-      }>;
-      studyTrend: Array<{
-        date: string;
-        questionsAnswered: number;
-        accuracy: number;
-        timeSpent: number;
-      }>;
-    }>
-  >('/study/stats');
-
-  if (!response.data) {
+export const getStudyStats = async (): Promise<StudyStatsPayload> => {
+  const defaultStats: StudyStatsPayload = {
+    // For DRY
+    totalSessions: 0,
+    totalQuestions: 0,
+    totalCorrect: 0,
+    totalIncorrect: 0,
+    averageAccuracy: 0,
+    totalStudyTime: 0,
+    averageSessionDuration: 0,
+    mostStudiedTopics: [],
+    weakestTopics: [],
+    studyTrend: [],
+  };
+  try {
+    const response = await apiRequest<StudyStatsPayload>('/study/stats');
+    if (!response.data || typeof response.data !== 'object') {
+      console.warn('No study stats data received, returning defaults.');
+      return defaultStats;
+    }
+    // Merge with defaults to ensure all array fields are initialized
     return {
-      totalSessions: 0,
-      totalQuestions: 0,
-      totalCorrect: 0,
-      totalIncorrect: 0,
-      averageAccuracy: 0,
-      totalStudyTime: 0,
-      averageSessionDuration: 0,
-      mostStudiedTopics: [],
-      weakestTopics: [],
-      studyTrend: [],
+      ...defaultStats,
+      ...response.data,
     };
+  } catch (error: any) {
+    console.error('Error fetching study stats:', error);
+    // Depending on needs, could re-throw or return defaults
+    return defaultStats;
   }
-
-  return response.data;
 };

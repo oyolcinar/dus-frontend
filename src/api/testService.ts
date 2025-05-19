@@ -1,122 +1,94 @@
-// src/api/testService.ts
 import apiRequest from './apiClient';
 import { Test, Question, TestResult, Answer } from '../types/models';
-import {
-  ApiResponse,
-  GetTestsResponse,
-  GetTestResponse,
-  SubmitTestResponse,
-  GetTestResultsResponse,
-} from '../types/api';
+// We will define payload types here instead of relying on potentially pre-wrapped types from '../types/api'
+// to ensure consistency with the new apiRequest pattern.
+// If GetTestsResponse, GetTestResponse etc. from '../types/api' are *just* the payload types (e.g., Test[]),
+// then you could use them directly as TData. For clarity, I'll define specific payload types here.
 
-// Response interfaces for test-related endpoints that aren't in api.ts
-interface GetQuestionsResponse extends ApiResponse<Question[]> {}
-interface CreateTestResponse
-  extends ApiResponse<{
-    message: string;
-    test: Test;
-  }> {}
-interface UpdateTestResponse
-  extends ApiResponse<{
-    message: string;
-    test: Test;
-  }> {}
-interface TestStatsResponse extends ApiResponse<TestStats> {}
-interface ResultDetailsResponse extends ApiResponse<ResultDetails> {}
-interface DeleteTestResponse extends ApiResponse<{ message: string }> {}
+// --- Define interfaces for the *actual data payloads* your backend sends ---
+// --- These will be the TData in apiRequest<TData> ---
 
-/**
- * Get all available tests
- * @returns Array of tests
- */
-export const getAllTests = async (): Promise<Test[]> => {
-  const response = await apiRequest<GetTestsResponse>('/tests');
-  return response.data || [];
-};
+// For GET /tests
+type AllTestsPayload = Test[];
 
-/**
- * Get a test by ID without questions
- * @param testId ID of the test to retrieve
- * @returns Test object
- */
-export const getTestById = async (testId: number): Promise<Test> => {
-  const response = await apiRequest<GetTestResponse>(`/tests/${testId}`);
+// For GET /tests/:testId
+// The payload is a single Test object.
+// The Test model should include: test_id, title, description, difficulty_level, created_at, question_count, time_limit
+// type SingleTestPayload = Test; // Can use Test directly
 
-  if (!response.data) {
-    throw new Error(`Test with ID ${testId} not found`);
-  }
-
-  return response.data;
-};
-
-// Interface for a test with its questions included
-export interface TestWithQuestions extends Test {
+// For GET /tests/:testId/with-questions
+// Your existing TestWithQuestions interface is good for this payload
+export interface TestWithQuestionsPayload extends Test {
+  // Exporting if used elsewhere
   questions: Question[];
 }
 
-/**
- * Get a test with all its questions
- * @param testId ID of the test to retrieve with questions
- * @returns Test with questions array
- */
-export const getTestWithQuestions = async (
-  testId: number,
-): Promise<TestWithQuestions> => {
-  const response = await apiRequest<GetTestResponse>(
-    `/tests/${testId}/with-questions`,
-  );
+// For GET /questions/test/:testId
+type QuestionsByTestPayload = Question[];
 
-  if (!response.data) {
-    throw new Error(`Test with ID ${testId} not found`);
-  }
+// For POST /tests
+interface CreateTestPayload {
+  message: string;
+  test: Test; // The created Test object
+}
 
-  return {
-    ...response.data,
-    questions: response.data.questions || [],
-  };
-};
+// For PUT /tests/:testId
+interface UpdateTestPayload {
+  message: string;
+  test: Test; // The updated Test object
+}
 
-/**
- * Get all questions for a specific test
- * @param testId ID of the test to get questions for
- * @returns Array of questions
- */
-export const getQuestionsByTest = async (
-  testId: number,
-): Promise<Question[]> => {
-  const response = await apiRequest<GetQuestionsResponse>(
-    `/questions/test/${testId}`,
-  );
-  return response.data || [];
-};
+// For POST /results/submit
+interface SubmitTestResultPayload {
+  // Assuming this is the payload shape
+  message: string;
+  // Your original code had response.data.testResult, so backend might send { message: "...", testResult: ... }
+  testResult: TestResult;
+}
 
+// For GET /results/user
+type UserTestResultsPayload = TestResult[];
+
+// For GET /results/:resultId
+// Your existing ResultDetails interface is good for this payload
+export interface ResultDetailsPayload {
+  // Exporting if used elsewhere
+  result: TestResult;
+  answers: Array<
+    Answer & {
+      // Answer extended with question details for context
+      question_text: string;
+      options: Record<string, string>; // e.g., { "A": "Option A", "B": "Option B" }
+      correct_answer: string; // e.g., "A" or the text of the correct option
+    }
+  >;
+}
+
+// For GET /results/stats/:testId
+// Your existing TestStats interface is good for this payload
+export interface TestStatsPayload {
+  // Exporting if used elsewhere
+  testId: number;
+  testTitle?: string; // Make optional if backend might not send it
+  averageScore: number;
+  attemptCount: number;
+  // Potentially other stats like passRate, averageTimeTaken, etc.
+}
+
+// For DELETE /tests/:testId
+interface MessagePayload {
+  // Reusable
+  message: string;
+}
+
+// --- Service Input DTOs (already well-defined) ---
 export interface CreateTestRequest {
   title: string;
   description?: string;
-  difficultyLevel: number;
-  timeLimit?: number;
+  difficultyLevel: number; // Or string like 'easy', 'medium', 'hard'
+  timeLimit?: number; // In seconds or minutes
+  // questions?: CreateQuestionInput[]; // If creating questions along with the test
 }
-
-/**
- * Create a new test
- * @param testData Test data for creation
- * @returns Created test with success message
- */
-export const createTest = async (
-  testData: CreateTestRequest,
-): Promise<{ message: string; test: Test }> => {
-  const response = await apiRequest<CreateTestResponse>(
-    '/tests',
-    'POST',
-    testData,
-  );
-
-  if (!response.data) {
-    throw new Error('Failed to create test');
-  }
-
-  return response.data;
-};
 
 export interface UpdateTestRequest {
   title?: string;
@@ -125,150 +97,201 @@ export interface UpdateTestRequest {
   timeLimit?: number;
 }
 
-/**
- * Update an existing test
- * @param testId ID of the test to update
- * @param testData Partial test data for updating
- * @returns Updated test with success message
- */
+export interface SubmitTestRequest {
+  // This is more of an input for the API, not a response type
+  testId: number;
+  score: number;
+  timeTaken?: number; // In seconds or minutes
+  answers: Answer[]; // Array of Answer objects { questionId, userAnswer, isCorrect }
+}
+
+// --- Service Functions ---
+
+export const getAllTests = async (): Promise<AllTestsPayload> => {
+  const response = await apiRequest<AllTestsPayload>('/tests');
+  return response.data || [];
+};
+
+export const getTestById = async (testId: number): Promise<Test | null> => {
+  try {
+    const response = await apiRequest<Test>(`/tests/${testId}`);
+    return response.data === undefined ? null : response.data;
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(`Test with ID ${testId} not found (404).`);
+      return null;
+    }
+    console.error(`Error fetching test ID ${testId}:`, error);
+    throw error;
+  }
+};
+
+export const getTestWithQuestions = async (
+  testId: number,
+): Promise<TestWithQuestionsPayload | null> => {
+  try {
+    // This endpoint likely returns a Test object with an embedded 'questions' array
+    const response = await apiRequest<TestWithQuestionsPayload>(
+      `/tests/${testId}/with-questions`,
+    );
+    if (!response.data || typeof response.data !== 'object') {
+      console.warn(
+        `Test with questions for ID ${testId} not found or data malformed.`,
+      );
+      return null;
+    }
+    return {
+      ...response.data,
+      questions: response.data.questions || [], // Ensure questions is an array
+    };
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(`Test with questions for ID ${testId} not found (404).`);
+      return null;
+    }
+    console.error(
+      `Error fetching test with questions for ID ${testId}:`,
+      error,
+    );
+    throw error;
+  }
+};
+
+export const getQuestionsByTest = async (
+  testId: number,
+): Promise<QuestionsByTestPayload> => {
+  const response = await apiRequest<QuestionsByTestPayload>(
+    `/questions/test/${testId}`,
+  );
+  return response.data || [];
+};
+
+export const createTest = async (
+  testData: CreateTestRequest,
+): Promise<CreateTestPayload> => {
+  const response = await apiRequest<CreateTestPayload>(
+    '/tests',
+    'POST',
+    testData,
+  );
+  if (!response.data)
+    throw new Error('Failed to create test: No data returned.');
+  return response.data;
+};
+
 export const updateTest = async (
   testId: number,
   testData: UpdateTestRequest,
-): Promise<{ message: string; test: Test }> => {
-  const response = await apiRequest<UpdateTestResponse>(
+): Promise<UpdateTestPayload> => {
+  const response = await apiRequest<UpdateTestPayload>(
     `/tests/${testId}`,
     'PUT',
     testData,
   );
-
-  if (!response.data) {
-    throw new Error(`Failed to update test with ID ${testId}`);
-  }
-
+  if (!response.data)
+    throw new Error(`Failed to update test ${testId}: No data returned.`);
   return response.data;
 };
 
-export interface SubmitTestRequest {
-  testId: number;
-  score: number;
-  timeTaken?: number;
-  answers: Answer[];
-}
-
-/**
- * Submit a completed test result
- * @param testId ID of the completed test
- * @param score Score achieved
- * @param timeTaken Time taken to complete the test (in seconds)
- * @param answers Array of answers submitted
- * @returns Test result with success message
- */
+// Note: The input for submitTestResult uses SubmitTestRequest,
+// but the return type from the backend is SubmitTestResultPayload.
 export const submitTestResult = async (
-  testId: number,
-  score: number,
-  timeTaken?: number,
-  answers: Answer[] = [],
-): Promise<{ message: string; result: TestResult }> => {
-  const response = await apiRequest<SubmitTestResponse>(
+  // Using SubmitTestRequest as the input structure for clarity
+  data: SubmitTestRequest,
+): Promise<SubmitTestResultPayload> => {
+  const response = await apiRequest<SubmitTestResultPayload>(
     '/results/submit',
     'POST',
-    {
-      testId,
-      score,
-      timeTaken,
-      answers,
-    },
+    data,
   );
-
-  if (!response.data) {
-    throw new Error('Failed to submit test results');
+  if (
+    !response.data ||
+    typeof response.data !== 'object' ||
+    !response.data.testResult
+  ) {
+    throw new Error(
+      'Failed to submit test results: Invalid data received from server.',
+    );
   }
-
+  // Ensure message is present, default if necessary
   return {
-    message: response.message || 'Test results submitted successfully',
-    result: response.data.testResult,
+    message: response.data.message || 'Test results submitted successfully.',
+    testResult: response.data.testResult,
   };
 };
 
-/**
- * Get all test results for the current user
- * @returns Array of test results
- */
-export const getUserResults = async (): Promise<TestResult[]> => {
-  const response = await apiRequest<GetTestResultsResponse>('/results/user');
+export const getUserResults = async (): Promise<UserTestResultsPayload> => {
+  const response = await apiRequest<UserTestResultsPayload>('/results/user');
   return response.data || [];
 };
 
-export interface ResultDetails {
-  result: TestResult;
-  answers: Array<
-    Answer & {
-      question_text: string;
-      options: Record<string, string>;
-      correct_answer: string;
-    }
-  >;
-}
-
-/**
- * Get detailed information about a test result
- * @param resultId ID of the result to retrieve details for
- * @returns Result details with answers
- */
 export const getResultDetails = async (
   resultId: number,
-): Promise<ResultDetails> => {
-  const response = await apiRequest<ResultDetailsResponse>(
-    `/results/${resultId}`,
-  );
-
-  if (!response.data) {
-    throw new Error(`Result with ID ${resultId} not found`);
+): Promise<ResultDetailsPayload | null> => {
+  try {
+    const response = await apiRequest<ResultDetailsPayload>(
+      `/results/${resultId}`,
+    );
+    if (!response.data || typeof response.data !== 'object') {
+      console.warn(`No result details for ID ${resultId}, or data malformed.`);
+      return null;
+    }
+    return {
+      // Ensure answers is an array
+      ...response.data,
+      answers: response.data.answers || [],
+    };
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(`Result details for ID ${resultId} not found (404).`);
+      return null;
+    }
+    console.error(`Error fetching result details for ID ${resultId}:`, error);
+    throw error;
   }
-
-  return response.data;
 };
 
-export interface TestStats {
-  testId: number;
-  testTitle: string;
-  averageScore: number;
-  attemptCount: number;
-}
-
-/**
- * Get statistics for a specific test
- * @param testId ID of the test to get statistics for
- * @returns Test statistics
- */
-export const getTestStats = async (testId: number): Promise<TestStats> => {
-  const response = await apiRequest<TestStatsResponse>(
-    `/results/stats/${testId}`,
-  );
-
-  if (!response.data) {
-    throw new Error(`Failed to get stats for test ID ${testId}`);
-  }
-
-  return response.data;
-};
-
-/**
- * Delete a test
- * @param testId ID of the test to delete
- * @returns Success message
- */
-export const deleteTest = async (
+export const getTestStats = async (
   testId: number,
-): Promise<{ message: string }> => {
-  const response = await apiRequest<DeleteTestResponse>(
+): Promise<TestStatsPayload | null> => {
+  const defaultStats: TestStatsPayload = {
+    testId,
+    testTitle: '',
+    averageScore: 0,
+    attemptCount: 0,
+  };
+  try {
+    const response = await apiRequest<TestStatsPayload>(
+      `/results/stats/${testId}`,
+    );
+    if (!response.data || typeof response.data !== 'object') {
+      console.warn(`No stats for test ID ${testId}, returning defaults.`);
+      return defaultStats;
+    }
+    return {
+      // Merge with defaults
+      ...defaultStats,
+      ...response.data,
+    };
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(
+        `Stats for test ID ${testId} not found (404), returning defaults.`,
+      );
+    } else {
+      console.error(`Error fetching stats for test ID ${testId}:`, error);
+    }
+    return defaultStats;
+  }
+};
+
+export const deleteTest = async (testId: number): Promise<MessagePayload> => {
+  const response = await apiRequest<MessagePayload>(
     `/tests/${testId}`,
     'DELETE',
   );
-
-  if (!response.data) {
-    return { message: 'Test deleted successfully' };
+  if (!response.data || !response.data.message) {
+    return { message: 'Test deleted successfully.' };
   }
-
-  return { message: response.data.message || 'Test deleted successfully' };
+  return response.data;
 };

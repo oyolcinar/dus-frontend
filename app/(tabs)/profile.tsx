@@ -11,7 +11,7 @@ import {
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { authService, achievementService } from '../../src/api';
+import { authService, achievementService, duelService } from '../../src/api';
 import {
   Card,
   Button,
@@ -70,7 +70,7 @@ export default function ProfileScreen() {
         // Fetch data in parallel
         const [userAchievements, duelStatsResponse] = await Promise.all([
           achievementService.getUserAchievements(),
-          authService.getDuelStats(),
+          duelService.getDuelUserStats(),
         ]);
 
         setAchievements(userAchievements);
