@@ -1,7 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import apiRequest, { ApiError } from './apiClient';
 import { ApiResponse } from '../types/api'; // Ensure this path is correct
 import { User, AuthResponse } from '../types/models'; // Ensure this path and interfaces are correct
+
+// WebBrowser result for OAuth
+WebBrowser.maybeCompleteAuthSession();
 
 // Define the expected payload structure from backend for auth operations,
 // which will be nested under 'data' by apiRequest's wrapper.
@@ -44,6 +49,9 @@ function normalizeUser(apiUser: any): User {
     totalStudyTime: apiUser.totalStudyTime || apiUser.total_study_time || 0,
     // Ensure User interface has 'permissions' defined (e.g., permissions?: string[])
     permissions: apiUser.permissions || [],
+    // OAuth fields
+    oauthProvider: apiUser.oauth_provider || apiUser.oauthProvider || null,
+    isOAuthUser: !!(apiUser.oauth_provider || apiUser.oauthProvider),
   };
 }
 
@@ -326,5 +334,170 @@ export async function updateUserData(
     throw new Error(
       error instanceof Error ? error.message : 'Failed to update user data.',
     );
+  }
+}
+
+/**
+ * Start OAuth flow with provider
+ */
+export async function startOAuth(
+  provider: 'google' | 'apple' | 'facebook',
+): Promise<AuthResponse> {
+  try {
+    console.log(`Starting ${provider} OAuth flow`);
+
+    // Get OAuth URL from backend
+    const response = await apiRequest<{ url: string; message: string }>(
+      `/auth/oauth/${provider}`,
+      'GET',
+    );
+
+    if (!response.data || !response.data.url) {
+      throw new Error(`Failed to get ${provider} OAuth URL`);
+    }
+
+    // Open OAuth URL in browser
+    const result = await WebBrowser.openBrowserAsync(response.data.url, {
+      dismissButtonStyle: 'cancel',
+      readerMode: false,
+      controlsColor: '#000000',
+    });
+
+    if (result.type === 'cancel') {
+      throw new Error('OAuth cancelled by user');
+    }
+
+    // The OAuth callback will be handled by deep linking
+    // This function returns when the deep link is received
+    return new Promise((resolve, reject) => {
+      const subscription = Linking.addEventListener('url', async (event) => {
+        subscription?.remove();
+
+        try {
+          const url = event.url;
+          console.log('OAuth deep link received:', url);
+
+          if (url.includes('/auth/success')) {
+            const token = url.split('token=')[1]?.split('&')[0];
+            if (token) {
+              const sessionData = JSON.parse(atob(token));
+
+              // Store tokens
+              await AsyncStorage.setItem('userToken', sessionData.access_token);
+              if (sessionData.refresh_token) {
+                await AsyncStorage.setItem(
+                  'refreshToken',
+                  sessionData.refresh_token,
+                );
+              }
+
+              // Store user data
+              const user = normalizeUser(sessionData.user);
+              await AsyncStorage.setItem('userData', JSON.stringify(user));
+
+              resolve({
+                user,
+                token: sessionData.access_token,
+                refreshToken: sessionData.refresh_token || null,
+              });
+            } else {
+              reject(new Error('No token received from OAuth'));
+            }
+          } else if (url.includes('/auth/error')) {
+            const errorParam = url.split('error=')[1]?.split('&')[0];
+            const error = errorParam
+              ? decodeURIComponent(errorParam)
+              : 'OAuth failed';
+            reject(new Error(error));
+          } else {
+            reject(new Error('Unknown OAuth response'));
+          }
+        } catch (error) {
+          console.error('OAuth deep link handling error:', error);
+          reject(error);
+        }
+      });
+
+      // Set up timeout
+      setTimeout(() => {
+        subscription?.remove();
+        reject(new Error('OAuth timeout'));
+      }, 300000); // 5 minutes timeout
+    });
+  } catch (error) {
+    console.error(`${provider} OAuth error:`, error);
+    if (error instanceof ApiError) throw error;
+    throw new Error(
+      error instanceof Error ? error.message : `${provider} OAuth failed`,
+    );
+  }
+}
+
+/**
+ * Google OAuth
+ */
+export async function signInWithGoogle(): Promise<AuthResponse> {
+  return startOAuth('google');
+}
+
+/**
+ * Apple OAuth (for web flow)
+ */
+export async function signInWithApple(): Promise<AuthResponse> {
+  return startOAuth('apple');
+}
+
+/**
+ * Facebook OAuth
+ */
+export async function signInWithFacebook(): Promise<AuthResponse> {
+  return startOAuth('facebook');
+}
+
+/**
+ * Handle OAuth deep link
+ */
+export async function handleOAuthDeepLink(url: string): Promise<AuthResponse> {
+  try {
+    console.log('Handling OAuth deep link:', url);
+
+    if (url.includes('/auth/success')) {
+      const token = url.split('token=')[1]?.split('&')[0];
+      if (token) {
+        const sessionData = JSON.parse(atob(token));
+
+        // Store tokens
+        await AsyncStorage.setItem('userToken', sessionData.access_token);
+        if (sessionData.refresh_token) {
+          await AsyncStorage.setItem('refreshToken', sessionData.refresh_token);
+        }
+
+        // Store user data
+        const user = normalizeUser(sessionData.user);
+        await AsyncStorage.setItem('userData', JSON.stringify(user));
+
+        return {
+          user,
+          token: sessionData.access_token,
+          refreshToken: sessionData.refresh_token || null,
+        };
+      } else {
+        throw new Error('No token received from OAuth');
+      }
+    } else if (url.includes('/auth/error')) {
+      const errorParam = url.split('error=')[1]?.split('&')[0];
+      const error = errorParam
+        ? decodeURIComponent(errorParam)
+        : 'OAuth failed';
+      throw new Error(error);
+    } else {
+      throw new Error('Unknown OAuth response');
+    }
+  } catch (error) {
+    console.error('OAuth deep link handling error:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to handle OAuth deep link');
   }
 }

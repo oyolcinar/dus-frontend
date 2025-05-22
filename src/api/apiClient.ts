@@ -1,6 +1,8 @@
 import API_URL from '../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiResponse } from '../types/api'; // Make sure this path and interface are correct
+import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -25,8 +27,38 @@ const AUTH_ENDPOINTS_NO_RETRY = [
   '/auth/login',
   '/auth/register',
   '/auth/refresh-token',
-  '/auth/signout', // Added signout as it's auth related
+  '/auth/signout',
+  '/auth/oauth/google',
+  '/auth/oauth/apple',
+  '/auth/oauth/facebook',
+  '/auth/apple',
 ];
+
+/**
+ * Detect build type for OAuth redirects
+ */
+const getBuildType = (): 'expo-go' | 'eas-build' => {
+  // In Expo Go, __DEV__ is true and we can detect Expo Go environment
+  if (__DEV__ && Platform.OS === 'ios') {
+    // Additional check for Expo Go vs EAS Development build
+    return 'expo-go';
+  }
+  return 'eas-build';
+};
+
+/**
+ * Get appropriate app scheme for current build
+ */
+const getAppScheme = (): string => {
+  const buildType = getBuildType();
+  if (buildType === 'expo-go') {
+    return 'exp://localhost:19000://';
+  }
+  // For EAS builds, use the custom scheme from app.json
+  return Platform.OS === 'ios'
+    ? 'com.dortac.dusfrontend://'
+    : 'com.dusapptr.dusapp://';
+};
 
 /**
  * Function to refresh the authentication token (internal to apiClient for retries)
@@ -53,8 +85,10 @@ const refreshAuthTokenInternal = async (): Promise<string | null> => {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        'X-Build-Type': getBuildType(),
+        'X-App-Scheme': getAppScheme(),
       },
-      body: JSON.stringify({ refreshToken: refreshToken }), // Or { "refresh_token": refreshToken } if backend expects that
+      body: JSON.stringify({ refreshToken: refreshToken }),
     });
 
     const responseData = await response.json();
@@ -68,20 +102,17 @@ const refreshAuthTokenInternal = async (): Promise<string | null> => {
       newRefreshTokenFromResponse = responseData.session.refresh_token;
     } else if (responseData.access_token) {
       newAccessToken = responseData.access_token;
-      newRefreshTokenFromResponse = responseData.refresh_token; // Or responseData.newRefreshToken etc.
+      newRefreshTokenFromResponse = responseData.refresh_token;
     } else if (responseData.data && responseData.data.token) {
-      // e.g. if wrapped in { data: { token: ..., refreshToken: ...} }
       newAccessToken = responseData.data.token;
       newRefreshTokenFromResponse = responseData.data.refreshToken;
     }
-    // Add more specific checks here if your backend uses a different structure
 
     if (!response.ok || !newAccessToken) {
       console.log(
         'apiClient.refreshAuthTokenInternal: Token refresh failed. Response:',
         { status: response.status, data: responseData },
       );
-      // If refresh fails (e.g. refresh token expired/invalid), clear all tokens to force re-login
       await AsyncStorage.removeItem('userToken');
       await AsyncStorage.removeItem('refreshToken');
       await AsyncStorage.removeItem('userData');
@@ -141,6 +172,8 @@ const apiRequest = async <TData>(
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      'X-Build-Type': getBuildType(),
+      'X-App-Scheme': getAppScheme(),
     };
 
     if (token) {
@@ -157,7 +190,7 @@ const apiRequest = async <TData>(
     }
 
     const url =
-      method === 'GET' && !endpoint.includes('_t=') // Avoid adding _t if already present (e.g. during retry)
+      method === 'GET' && !endpoint.includes('_t=')
         ? `${API_URL}${endpoint}${
             endpoint.includes('?') ? '&' : '?'
           }_t=${Date.now()}`
@@ -174,8 +207,6 @@ const apiRequest = async <TData>(
       try {
         responseData = JSON.parse(textResponse);
       } catch (e) {
-        // If not JSON or parsing failed, and response was ok, treat text as data
-        // If response was not ok, text will be used for error message
         if (response.ok) {
           responseData = textResponse;
         } else {
@@ -192,10 +223,8 @@ const apiRequest = async <TData>(
     });
 
     if (response.status === 401) {
-      const cleanEndpoint = endpoint.split('?')[0]; // Remove query params for matching
+      const cleanEndpoint = endpoint.split('?')[0];
 
-      // If the 401 is from an auth endpoint itself (login, refresh), don't try to refresh.
-      // This usually means credentials are bad or the refresh token is invalid.
       if (AUTH_ENDPOINTS_NO_RETRY.includes(cleanEndpoint)) {
         console.log(
           `Auth endpoint ${endpoint} returned 401. Not attempting token refresh.`,
@@ -207,7 +236,6 @@ const apiRequest = async <TData>(
         throw new ApiError(errorMessage, response.status);
       }
 
-      // For other endpoints, attempt to refresh the token
       console.log(
         `Unauthorized for ${endpoint} - attempting to refresh token (via apiClient.refreshAuthTokenInternal)`,
       );
@@ -215,14 +243,16 @@ const apiRequest = async <TData>(
 
       if (newToken) {
         console.log(`Token refreshed, retrying ${endpoint}`);
-        // Update headers with the new token
-        const newHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
+        const newHeaders = {
+          ...headers,
+          Authorization: `Bearer ${newToken}`,
+          'X-Build-Type': getBuildType(),
+          'X-App-Scheme': getAppScheme(),
+        };
         const retryConfig = { ...config, headers: newHeaders };
 
-        // Retry the request
-        response = await fetch(url, retryConfig); // Use original url (might include _t from first attempt)
+        response = await fetch(url, retryConfig);
 
-        // Re-process response data for the retry
         const retryContentType = response.headers.get('content-type');
         if (retryContentType && retryContentType.includes('application/json')) {
           responseData = await response.json();
@@ -249,7 +279,6 @@ const apiRequest = async <TData>(
           responseDataPreview: JSON.stringify(responseData).substring(0, 250),
         });
 
-        // If retry still fails with 401, or another error, it will be caught by the !response.ok check below
         if (response.status === 401) {
           console.log(
             `Retry for ${endpoint} also resulted in 401. Clearing session.`,
@@ -260,9 +289,7 @@ const apiRequest = async <TData>(
           throw new ApiError('Session expired. Please login again.', 401);
         }
       } else {
-        // Refresh token failed (newToken is null)
         console.log(`Token refresh failed for ${endpoint}. Clearing session.`);
-        // Tokens would have been cleared by refreshAuthTokenInternal already
         throw new ApiError('Session expired. Please login again.', 401);
       }
     }
@@ -276,20 +303,17 @@ const apiRequest = async <TData>(
     }
 
     // Standardize successful response to always be ApiResponse<TData>
-    // If backend already returns { status: 'success', data: ... }, use its data.
-    // Otherwise, wrap the raw responseData.
     if (
       typeof responseData === 'object' &&
       responseData !== null &&
       responseData.status === 'success' &&
       responseData.data !== undefined
     ) {
-      return responseData as ApiResponse<TData>; // Backend already provided the ApiResponse structure
+      return responseData as ApiResponse<TData>;
     } else {
-      // Backend provided raw data, wrap it.
       return {
         status: 'success',
-        data: responseData as TData, // Assume responseData is of type TData
+        data: responseData as TData,
       };
     }
   } catch (error) {
@@ -297,14 +321,105 @@ const apiRequest = async <TData>(
     if (error instanceof ApiError) {
       throw error;
     }
-    // For network errors or other unexpected issues
     throw new ApiError(
       error instanceof Error
         ? error.message
         : 'Network request failed or an unknown error occurred',
-      0, // 0 status for client-side/network errors
+      0,
     );
   }
+};
+
+/**
+ * OAuth related API functions
+ */
+export const oauthAPI = {
+  /**
+   * Start OAuth flow for a provider
+   */
+  async startOAuth(
+    provider: 'google' | 'apple' | 'facebook',
+  ): Promise<{ url: string }> {
+    try {
+      console.log(`Starting OAuth flow for ${provider}`);
+      const response = await apiRequest<{ message: string; url: string }>(
+        `/auth/oauth/${provider}`,
+        'GET',
+      );
+
+      // Fix: Check if response.data exists and has url property
+      if (!response.data || !response.data.url) {
+        throw new Error(`Failed to get OAuth URL for ${provider}`);
+      }
+
+      return { url: response.data.url };
+    } catch (error) {
+      console.error(`OAuth ${provider} start error:`, error);
+      if (error instanceof ApiError) throw error;
+      throw new Error(`Failed to start ${provider} OAuth`);
+    }
+  },
+
+  /**
+   * Handle Apple Sign In with ID token (for native Apple Sign In)
+   */
+  async appleSignIn(data: {
+    id_token: string;
+    nonce?: string;
+    user?: {
+      name?: {
+        firstName?: string;
+        lastName?: string;
+      };
+      email?: string;
+    };
+  }): Promise<any> {
+    try {
+      console.log('Apple Sign In with ID token');
+      const response = await apiRequest<any>('/auth/apple', 'POST', data);
+
+      // Fix: Check if response.data exists
+      if (!response.data) {
+        throw new Error('No data received from Apple Sign In');
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('Apple Sign In error:', error);
+      if (error instanceof ApiError) throw error;
+      throw new Error('Apple Sign In failed');
+    }
+  },
+
+  /**
+   * Handle OAuth callback (used when app receives deep link)
+   */
+  async handleOAuthCallback(token: string): Promise<any> {
+    try {
+      // Decode the session token from the callback
+      const sessionData = JSON.parse(atob(token));
+
+      if (sessionData.access_token) {
+        await AsyncStorage.setItem('userToken', sessionData.access_token);
+      }
+
+      if (sessionData.refresh_token) {
+        await AsyncStorage.setItem('refreshToken', sessionData.refresh_token);
+      }
+
+      if (sessionData.user) {
+        await AsyncStorage.setItem(
+          'userData',
+          JSON.stringify(sessionData.user),
+        );
+      }
+
+      return sessionData;
+    } catch (error) {
+      console.error('OAuth callback handling error:', error);
+      throw new Error('Failed to process OAuth callback');
+    }
+  },
 };
 
 export default apiRequest;
