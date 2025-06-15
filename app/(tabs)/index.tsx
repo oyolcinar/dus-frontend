@@ -695,7 +695,7 @@ export default function HomeScreen() {
                 message='Arkadaşlarınızı düelloya davet edin ve rekabeti başlatın.'
                 actionButton={{
                   title: 'Düello Başlat',
-                  onPress: () => router.push('/duels/new' as any),
+                  onPress: () => router.push('/duel/new' as any),
                 }}
               />
             )}

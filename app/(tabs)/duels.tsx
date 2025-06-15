@@ -126,7 +126,7 @@ export default function DuelsScreen() {
         {/* Button to create new duel */}
         <Button
           title='Yeni Düello Başlat'
-          onPress={() => router.push('/duels/new' as any)}
+          onPress={() => router.push('/duel/new' as any)}
           variant='primary'
           style={{ marginBottom: Spacing[4] }}
         />
@@ -206,7 +206,7 @@ export default function DuelsScreen() {
                 message='Arkadaşlarını düelloya davet et ve rekabeti başlat.'
                 actionButton={{
                   title: 'Düello Başlat',
-                  onPress: () => router.push('/duels/new' as any),
+                  onPress: () => router.push('/duel/new' as any),
                 }}
               />
             )}

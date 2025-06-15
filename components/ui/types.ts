@@ -404,3 +404,31 @@ export interface NotificationBadgeProps {
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
+
+export interface PickerProps {
+  items: Array<{ label: string; value: string | number }>;
+  selectedValue: string | number | null;
+  onValueChange: (itemValue: string | number, itemIndex: number) => void;
+  placeholder?: string;
+  enabled?: boolean;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}
+
+export interface Opponent {
+  id: number;
+  username: string;
+  avatar_url?: string;
+  // Optional stats for display
+  wins?: number;
+  losses?: number;
+  winRate?: number;
+}
+
+// OpponentListItem component props
+export interface OpponentListItemProps {
+  user: Opponent;
+  onChallenge: (user: Opponent) => void;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+}

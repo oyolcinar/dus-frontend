@@ -11,3 +11,4 @@ export * as subscriptionService from './subscriptionService';
 export * as achievementService from './achievementService';
 export * as answerService from './answerService';
 export * as duelResultService from './duelResultService';
+export * as userService from './userService';

@@ -25,6 +25,7 @@ export { default as EmptyState } from './EmptyState';
 // Form Components
 export { default as Input } from './Input';
 export { default as Checkbox } from './Checkbox';
+export { default as Picker } from './Picker';
 
 // Typography Components
 export { default as Title } from './Typography/Title';
@@ -45,6 +46,7 @@ export { default as Modal } from './Feedback/Modal';
 // List Components
 export { default as List } from './List/List';
 export { default as ListItem } from './List/ListItem';
+export { default as OpponentListItem } from './OpponentListItem';
 
 // Tab Components
 export { default as TabBar } from './Tabs/TabBar';
@@ -76,6 +78,7 @@ export type {
   InputProps,
   CheckboxProps,
   SpinnerProps,
+  PickerProps,
 
   // Typography props
   TitleProps,
@@ -99,10 +102,12 @@ export type {
   // List props
   ListProps,
   ListItemProps,
+  OpponentListItemProps,
 
   // Tab props
   TabBarProps,
   TabItemProps,
+  Opponent,
 
   // Special purpose props
   CourseCardProps,
