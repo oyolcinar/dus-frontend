@@ -196,6 +196,27 @@ export default function HomeScreen() {
     fetchData();
   }, []);
 
+  // Helper function to get opponent display name
+  const getOpponentDisplayName = (duel: Duel): string => {
+    // Try different possible properties
+    if ((duel as any).opponent_username) {
+      return (duel as any).opponent_username;
+    }
+    if ((duel as any).opponent_name) {
+      return (duel as any).opponent_name;
+    }
+    if (duel.opponent_id) {
+      return `Rakip ${duel.opponent_id}`;
+    }
+    return 'Rakip';
+  };
+
+  // Helper function to get opponent avatar initial
+  const getOpponentAvatarInitial = (duel: Duel): string => {
+    const displayName = getOpponentDisplayName(duel);
+    return displayName.charAt(0).toUpperCase();
+  };
+
   // Helper to map course titles to FontAwesome icons
   const getIconForCourse = (title?: string): string => {
     const titleLower = title?.toLowerCase() || '';
@@ -631,7 +652,7 @@ export default function HomeScreen() {
                     }}
                   >
                     <Avatar
-                      name={duel.opponent_username?.[0] || 'U'}
+                      name={getOpponentAvatarInitial(duel)}
                       size='md'
                       bgColor={Colors.secondary.DEFAULT}
                     />
@@ -643,7 +664,7 @@ export default function HomeScreen() {
                           marginBottom: Spacing[1],
                         }}
                       >
-                        {duel.opponent_username || 'Rakip'}
+                        {getOpponentDisplayName(duel)}
                       </Text>
                       <View
                         style={{
