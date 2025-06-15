@@ -1,17 +1,14 @@
 import API_URL from '../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ApiResponse } from '../types/api'; // Make sure this path and interface are correct
+import { ApiResponse } from '../types/api';
 import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
+import Constants from 'expo-constants';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-/**
- * Extended Error class that includes HTTP status code
- */
 export class ApiError extends Error {
   status: number;
-
   constructor(message: string, status: number) {
     super(message);
     this.name = 'ApiError';
@@ -19,10 +16,6 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * List of endpoints that should not trigger token refresh attempts if they themselves fail with 401.
- * These are typically authentication-related endpoints.
- */
 const AUTH_ENDPOINTS_NO_RETRY = [
   '/auth/login',
   '/auth/register',
@@ -34,40 +27,30 @@ const AUTH_ENDPOINTS_NO_RETRY = [
   '/auth/apple',
 ];
 
-/**
- * Detect build type for OAuth redirects
- */
 const getBuildType = (): 'expo-go' | 'eas-build' => {
-  // In Expo Go, __DEV__ is true and we can detect Expo Go environment
-  if (__DEV__ && Platform.OS === 'ios') {
-    // Additional check for Expo Go vs EAS Development build
+  if (Constants.appOwnership === 'expo') {
+    return 'expo-go';
+  }
+  if (__DEV__ && Constants.expoConfig?.hostUri?.includes('localhost')) {
+    return 'expo-go';
+  }
+  if (__DEV__ && Platform.OS === 'ios' && !Constants.executionEnvironment) {
     return 'expo-go';
   }
   return 'eas-build';
 };
 
-/**
- * Get appropriate app scheme for current build
- */
 const getAppScheme = (): string => {
   const buildType = getBuildType();
   if (buildType === 'expo-go') {
-    return 'exp://localhost:19000://';
+    return 'https://auth.expo.io/@dusapptr/dus-app';
   }
-  // For EAS builds, use the custom scheme from app.json
-  return Platform.OS === 'ios'
-    ? 'com.dortac.dusfrontend://'
-    : 'com.dusapptr.dusapp://';
+  return Platform.OS === 'ios' ? 'com.dortac.dusfrontend://' : 'dus-app://';
 };
 
-/**
- * Function to refresh the authentication token (internal to apiClient for retries)
- * @returns Promise with new access token or null if refresh fails
- */
 const refreshAuthTokenInternal = async (): Promise<string | null> => {
   try {
     const refreshToken = await AsyncStorage.getItem('refreshToken');
-
     if (!refreshToken) {
       console.log(
         'apiClient.refreshAuthTokenInternal: No refresh token available in AsyncStorage.',
@@ -79,14 +62,16 @@ const refreshAuthTokenInternal = async (): Promise<string | null> => {
       'apiClient.refreshAuthTokenInternal: Attempting to refresh token.',
     );
     const refreshUrl = `${API_URL}/auth/refresh-token`;
+    const buildType = getBuildType();
+    const appScheme = getAppScheme();
 
     const response = await fetch(refreshUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        'X-Build-Type': getBuildType(),
-        'X-App-Scheme': getAppScheme(),
+        'X-Build-Type': buildType,
+        'X-App-Scheme': appScheme,
       },
       body: JSON.stringify({ refreshToken: refreshToken }),
     });
@@ -96,7 +81,6 @@ const refreshAuthTokenInternal = async (): Promise<string | null> => {
     let newAccessToken: string | undefined;
     let newRefreshTokenFromResponse: string | undefined;
 
-    // Try common patterns for token response structures
     if (responseData.session && responseData.session.access_token) {
       newAccessToken = responseData.session.access_token;
       newRefreshTokenFromResponse = responseData.session.refresh_token;
@@ -113,53 +97,25 @@ const refreshAuthTokenInternal = async (): Promise<string | null> => {
         'apiClient.refreshAuthTokenInternal: Token refresh failed. Response:',
         { status: response.status, data: responseData },
       );
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('refreshToken');
-      await AsyncStorage.removeItem('userData');
-      console.log(
-        'apiClient.refreshAuthTokenInternal: Cleared tokens due to refresh failure.',
-      );
+      await AsyncStorage.multiRemove(['userToken', 'refreshToken', 'userData']);
       return null;
     }
 
     await AsyncStorage.setItem('userToken', newAccessToken);
     if (newRefreshTokenFromResponse) {
       await AsyncStorage.setItem('refreshToken', newRefreshTokenFromResponse);
-      console.log(
-        'apiClient.refreshAuthTokenInternal: New refresh token stored.',
-      );
     }
-
-    console.log(
-      'apiClient.refreshAuthTokenInternal: Token refreshed successfully.',
-    );
     return newAccessToken;
   } catch (error) {
     console.error(
       'apiClient.refreshAuthTokenInternal: Error during token refresh:',
       error,
     );
-    await AsyncStorage.removeItem('userToken');
-    await AsyncStorage.removeItem('refreshToken');
-    await AsyncStorage.removeItem('userData');
-    console.log(
-      'apiClient.refreshAuthTokenInternal: Cleared tokens due to error during refresh.',
-    );
+    await AsyncStorage.multiRemove(['userToken', 'refreshToken', 'userData']);
     return null;
   }
 };
 
-/**
- * Function to make typed API requests.
- * It wraps the actual backend response in an ApiResponse structure if the backend doesn't provide it.
- *
- * @template TData - The expected type of the 'data' field in the successful ApiResponse.
- * @param {string} endpoint - The API endpoint to call (without base URL)
- * @param {HttpMethod} method - The HTTP method to use
- * @param {any} body - The data to send in the request body (for POST, PUT, PATCH)
- * @returns {Promise<ApiResponse<TData>>} - A promise that resolves to the ApiResponse object.
- * @throws {ApiError} - If the API returns an error or the request fails.
- */
 const apiRequest = async <TData>(
   endpoint: string,
   method: HttpMethod = 'GET',
@@ -167,24 +123,33 @@ const apiRequest = async <TData>(
 ): Promise<ApiResponse<TData>> => {
   try {
     console.log(`Making ${method} request to ${endpoint}`);
-
     let token = await AsyncStorage.getItem('userToken');
+    const buildType = getBuildType();
+    const appScheme = getAppScheme();
+
+    if (endpoint.includes('/auth/oauth/')) {
+      console.log('OAuth Request Debug:', {
+        buildType,
+        appScheme,
+        endpoint,
+        'Constants.appOwnership': Constants.appOwnership,
+        'Constants.expoConfig?.hostUri': Constants.expoConfig?.hostUri,
+        __DEV__: __DEV__,
+        'Platform.OS': Platform.OS,
+      });
+    }
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      'X-Build-Type': getBuildType(),
-      'X-App-Scheme': getAppScheme(),
+      'X-Build-Type': buildType,
+      'X-App-Scheme': appScheme,
     };
-
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const config: RequestInit = {
-      method,
-      headers,
-    };
-
+    const config: RequestInit = { method, headers };
     if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
       config.body = JSON.stringify(body);
     }
@@ -200,18 +165,16 @@ const apiRequest = async <TData>(
     let responseData: any;
     const contentType = response.headers.get('content-type');
 
-    if (contentType && contentType.includes('application/json')) {
+    if (contentType?.includes('application/json')) {
       responseData = await response.json();
     } else {
       const textResponse = await response.text();
       try {
         responseData = JSON.parse(textResponse);
       } catch (e) {
-        if (response.ok) {
-          responseData = textResponse;
-        } else {
-          responseData = { message: textResponse || 'Non-JSON error response' };
-        }
+        responseData = response.ok
+          ? textResponse
+          : { message: textResponse || 'Non-JSON error response' };
       }
     }
 
@@ -224,72 +187,34 @@ const apiRequest = async <TData>(
 
     if (response.status === 401) {
       const cleanEndpoint = endpoint.split('?')[0];
-
       if (AUTH_ENDPOINTS_NO_RETRY.includes(cleanEndpoint)) {
-        console.log(
-          `Auth endpoint ${endpoint} returned 401. Not attempting token refresh.`,
+        throw new ApiError(
+          responseData?.message || 'Authentication failed',
+          response.status,
         );
-        const errorMessage =
-          responseData?.message ||
-          responseData?.error ||
-          'Authentication failed on auth endpoint.';
-        throw new ApiError(errorMessage, response.status);
       }
 
-      console.log(
-        `Unauthorized for ${endpoint} - attempting to refresh token (via apiClient.refreshAuthTokenInternal)`,
-      );
       const newToken = await refreshAuthTokenInternal();
-
       if (newToken) {
         console.log(`Token refreshed, retrying ${endpoint}`);
-        const newHeaders = {
-          ...headers,
-          Authorization: `Bearer ${newToken}`,
-          'X-Build-Type': getBuildType(),
-          'X-App-Scheme': getAppScheme(),
-        };
+        const newHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
         const retryConfig = { ...config, headers: newHeaders };
-
         response = await fetch(url, retryConfig);
 
         const retryContentType = response.headers.get('content-type');
-        if (retryContentType && retryContentType.includes('application/json')) {
-          responseData = await response.json();
-        } else {
-          const retryTextResponse = await response.text();
-          try {
-            responseData = JSON.parse(retryTextResponse);
-          } catch (e) {
-            if (response.ok) {
-              responseData = retryTextResponse;
-            } else {
-              responseData = {
-                message:
-                  retryTextResponse || 'Non-JSON error response on retry',
-              };
-            }
-          }
-        }
-
-        console.log(`Retry response for ${endpoint}:`, {
-          status: response.status,
-          ok: response.ok,
-          contentType: retryContentType,
-          responseDataPreview: JSON.stringify(responseData).substring(0, 250),
-        });
+        responseData = retryContentType?.includes('application/json')
+          ? await response.json()
+          : await response.text();
 
         if (response.status === 401) {
-          console.log(
-            `Retry for ${endpoint} also resulted in 401. Clearing session.`,
-          );
-          await AsyncStorage.removeItem('userToken');
-          await AsyncStorage.removeItem('refreshToken');
-          await AsyncStorage.removeItem('userData');
+          await AsyncStorage.multiRemove([
+            'userToken',
+            'refreshToken',
+            'userData',
+          ]);
           throw new ApiError('Session expired. Please login again.', 401);
         }
       } else {
-        console.log(`Token refresh failed for ${endpoint}. Clearing session.`);
         throw new ApiError('Session expired. Please login again.', 401);
       }
     }
@@ -302,7 +227,6 @@ const apiRequest = async <TData>(
       throw new ApiError(errorMessage, response.status);
     }
 
-    // Standardize successful response to always be ApiResponse<TData>
     if (
       typeof responseData === 'object' &&
       responseData !== null &&
@@ -311,10 +235,7 @@ const apiRequest = async <TData>(
     ) {
       return responseData as ApiResponse<TData>;
     } else {
-      return {
-        status: 'success',
-        data: responseData as TData,
-      };
+      return { status: 'success', data: responseData as TData };
     }
   } catch (error) {
     console.error(`API Request Error (${endpoint}):`, error);
@@ -322,21 +243,13 @@ const apiRequest = async <TData>(
       throw error;
     }
     throw new ApiError(
-      error instanceof Error
-        ? error.message
-        : 'Network request failed or an unknown error occurred',
+      error instanceof Error ? error.message : 'Network request failed',
       0,
     );
   }
 };
 
-/**
- * OAuth related API functions
- */
 export const oauthAPI = {
-  /**
-   * Start OAuth flow for a provider
-   */
   async startOAuth(
     provider: 'google' | 'apple' | 'facebook',
   ): Promise<{ url: string }> {
@@ -346,12 +259,9 @@ export const oauthAPI = {
         `/auth/oauth/${provider}`,
         'GET',
       );
-
-      // Fix: Check if response.data exists and has url property
       if (!response.data || !response.data.url) {
         throw new Error(`Failed to get OAuth URL for ${provider}`);
       }
-
       return { url: response.data.url };
     } catch (error) {
       console.error(`OAuth ${provider} start error:`, error);
@@ -360,29 +270,17 @@ export const oauthAPI = {
     }
   },
 
-  /**
-   * Handle Apple Sign In with ID token (for native Apple Sign In)
-   */
   async appleSignIn(data: {
     id_token: string;
     nonce?: string;
-    user?: {
-      name?: {
-        firstName?: string;
-        lastName?: string;
-      };
-      email?: string;
-    };
+    user?: { name?: { firstName?: string; lastName?: string }; email?: string };
   }): Promise<any> {
     try {
       console.log('Apple Sign In with ID token');
       const response = await apiRequest<any>('/auth/apple', 'POST', data);
-
-      // Fix: Check if response.data exists
       if (!response.data) {
         throw new Error('No data received from Apple Sign In');
       }
-
       return response.data;
     } catch (error) {
       console.error('Apple Sign In error:', error);
@@ -391,35 +289,8 @@ export const oauthAPI = {
     }
   },
 
-  /**
-   * Handle OAuth callback (used when app receives deep link)
-   */
-  async handleOAuthCallback(token: string): Promise<any> {
-    try {
-      // Decode the session token from the callback
-      const sessionData = JSON.parse(atob(token));
-
-      if (sessionData.access_token) {
-        await AsyncStorage.setItem('userToken', sessionData.access_token);
-      }
-
-      if (sessionData.refresh_token) {
-        await AsyncStorage.setItem('refreshToken', sessionData.refresh_token);
-      }
-
-      if (sessionData.user) {
-        await AsyncStorage.setItem(
-          'userData',
-          JSON.stringify(sessionData.user),
-        );
-      }
-
-      return sessionData;
-    } catch (error) {
-      console.error('OAuth callback handling error:', error);
-      throw new Error('Failed to process OAuth callback');
-    }
-  },
+  // REMOVED: The `handleOAuthCallback` function was here. It is now obsolete because
+  // the logic is correctly handled directly within the AuthContext's deep link listener.
 };
 
 export default apiRequest;

@@ -2,10 +2,45 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import * as Linking from 'expo-linking';
+import { Buffer } from 'buffer'; // Import Buffer for robust atob
 
 // Import authentication services
 import * as authService from '../src/api/authService';
 import { User, AuthResponse } from '../src/types/models';
+
+// --- NEW HELPER FUNCTION: To parse URL fragments from OAuth callbacks ---
+const getParamsFromUrl = (url: string): Record<string, string> | null => {
+  const fragment = url.split('#')[1];
+  if (!fragment) {
+    return null;
+  }
+
+  const params = new URLSearchParams(fragment);
+  const data: Record<string, string> = {};
+  params.forEach((value, key) => {
+    data[key] = value;
+  });
+
+  if (data.access_token && data.refresh_token) {
+    return data;
+  }
+
+  return null;
+};
+
+// --- NEW HELPER FUNCTION: To decode JWT payloads safely ---
+function jwt_decode(token: string): any {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    // Use Buffer for cross-platform base64 decoding
+    const jsonPayload = Buffer.from(base64, 'base64').toString('utf8');
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Failed to decode JWT:', e);
+    return null;
+  }
+}
 
 // Define AuthContext type
 type AuthContextType = {
@@ -13,7 +48,6 @@ type AuthContextType = {
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (username: string, email: string, password: string) => Promise<void>;
-  signInWithOAuth: (authResponse: AuthResponse) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signInWithFacebook: () => Promise<void>;
@@ -27,7 +61,6 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   signIn: async () => {},
   signUp: async () => {},
-  signInWithOAuth: async () => {},
   signInWithGoogle: async () => {},
   signInWithApple: async () => {},
   signInWithFacebook: async () => {},
@@ -42,93 +75,103 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const router = useRouter();
 
-  // Check for stored credentials on initial load
   useEffect(() => {
     checkUserSession();
-    setupDeepLinkHandler();
+    const deepLinkSubscription = setupDeepLinkHandler();
+    // Cleanup on unmount
+    return () => deepLinkSubscription.remove();
   }, []);
 
-  // Handle routing based on authentication state
   useEffect(() => {
     if (!isLoading) {
-      // Get the first segment to check if we're in the auth group
       const firstSegment = segments[0] as string;
       const inAuthGroup = firstSegment === '(auth)';
 
       if (!user && !inAuthGroup) {
-        // Redirect to the sign-in page if not authenticated
         (router as any).replace('/(auth)/login');
       } else if (user && inAuthGroup) {
-        // Redirect to the home page if authenticated
         (router as any).replace('/(tabs)');
       }
     }
   }, [user, segments, isLoading]);
 
-  // Set up deep link handler for OAuth callbacks
+  // --- REWRITTEN Deep Link Handler ---
   function setupDeepLinkHandler() {
-    const subscription = Linking.addEventListener('url', async (event) => {
-      const url = event.url;
-      console.log('Deep link received in AuthContext:', url);
-
-      // Check if it's an OAuth callback
-      if (url.includes('/auth/success') || url.includes('/auth/error')) {
-        try {
-          await handleOAuthDeepLink(url);
-        } catch (error) {
-          console.error('OAuth deep link error in AuthContext:', error);
-          // Could show a toast or alert here
-        }
+    // Also handle the initial URL for when the app is opened from a killed state
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleUrl(url);
       }
     });
 
-    return () => subscription?.remove();
+    // Listen for incoming links
+    const subscription = Linking.addEventListener('url', (event) => {
+      handleUrl(event.url);
+    });
+
+    const handleUrl = async (url: string) => {
+      console.log('Deep link received in AuthContext:', url);
+      const authParams = getParamsFromUrl(url);
+
+      if (authParams) {
+        console.log('Successfully parsed auth tokens from deep link.');
+        setIsLoading(true);
+        try {
+          const { access_token, refresh_token } = authParams;
+          await AsyncStorage.setItem('userToken', access_token);
+          await AsyncStorage.setItem('refreshToken', refresh_token);
+
+          const decodedToken = jwt_decode(access_token);
+          const userFromToken = decodedToken?.user_metadata;
+
+          if (userFromToken) {
+            await AsyncStorage.setItem(
+              'userData',
+              JSON.stringify(userFromToken),
+            );
+            setUser(userFromToken as User);
+            console.log('Session updated successfully from OAuth deep link.');
+          } else {
+            setUser({
+              id: decodedToken.sub,
+              email: decodedToken.email,
+            } as User);
+          }
+        } catch (error) {
+          console.error('Error handling OAuth deep link:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        console.log(
+          'Deep link received, but it was not a valid OAuth callback.',
+        );
+      }
+    };
+
+    return subscription;
   }
 
-  // Handle OAuth deep link
-  async function handleOAuthDeepLink(url: string) {
-    try {
-      setIsLoading(true);
-      const authResponse = await authService.handleOAuthDeepLink(url);
-      setUser(authResponse.user);
-      console.log(
-        'OAuth sign in successful via deep link:',
-        authResponse.user.email,
-      );
-    } catch (error) {
-      console.error('OAuth deep link handling error:', error);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  // DELETED: The old `handleOAuthDeepLink` function was here and has been removed.
 
-  // Check if the user has a valid session
   async function checkUserSession() {
     try {
       const authStatus = await authService.getAuthStatus();
-
       if (authStatus.user && authStatus.token) {
         setUser(authStatus.user);
       }
     } catch (error) {
       console.error('Error checking user session:', error);
-      // Clear potentially corrupted data
       await authService.logout();
     } finally {
       setIsLoading(false);
     }
   }
 
-  // Sign in function using authService
   async function signIn(email: string, password: string) {
     try {
       setIsLoading(true);
-
-      // Call the login API endpoint through authService
       const response = await authService.login(email, password);
-
-      // API call saves token and user data to AsyncStorage, so we just need to update state
       setUser(response.user);
     } catch (error) {
       console.error('Login error:', error);
@@ -138,15 +181,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Sign up function using authService
   async function signUp(username: string, email: string, password: string) {
     try {
       setIsLoading(true);
-
-      // Call the register API endpoint through authService
       const response = await authService.register(username, email, password);
-
-      // API call saves token and user data to AsyncStorage, so we just need to update state
       setUser(response.user);
     } catch (error) {
       console.error('Registration error:', error);
@@ -156,78 +194,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Sign in with OAuth response (used by OAuth methods)
-  async function signInWithOAuth(authResponse: AuthResponse) {
-    try {
-      setIsLoading(true);
-      setUser(authResponse.user);
-      console.log('OAuth sign in successful:', authResponse.user.email);
-    } catch (error) {
-      console.error('OAuth sign in error:', error);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  // --- SIMPLIFIED OAUTH FUNCTIONS ---
+  // They now only *start* the flow. The deep link handler does the rest.
 
-  // Google OAuth sign in
   async function signInWithGoogle() {
     try {
-      setIsLoading(true);
-      const authResponse = await authService.signInWithGoogle();
-      setUser(authResponse.user);
-      console.log('Google sign in successful:', authResponse.user.email);
+      await authService.signInWithGoogle();
     } catch (error) {
-      console.error('Google sign in error:', error);
+      console.error('google OAuth error:', error);
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   }
 
-  // Apple OAuth sign in
   async function signInWithApple() {
     try {
-      setIsLoading(true);
-      const authResponse = await authService.signInWithApple();
-      setUser(authResponse.user);
-      console.log('Apple sign in successful:', authResponse.user.email);
+      await authService.signInWithApple();
     } catch (error) {
-      console.error('Apple sign in error:', error);
+      console.error('apple OAuth error:', error);
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   }
 
-  // Facebook OAuth sign in
   async function signInWithFacebook() {
     try {
-      setIsLoading(true);
-      const authResponse = await authService.signInWithFacebook();
-      setUser(authResponse.user);
-      console.log('Facebook sign in successful:', authResponse.user.email);
+      await authService.signInWithFacebook();
     } catch (error) {
       console.error('Facebook sign in error:', error);
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   }
 
-  // Sign out function using authService
   async function signOut() {
     try {
       setIsLoading(true);
-
-      // Call the logout API endpoint through authService
       await authService.logout();
-
-      // authService.logout() already clears AsyncStorage
       setUser(null);
     } catch (error) {
       console.error('Sign out error:', error);
-      // Clear local state even if API call fails
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -241,7 +244,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         signIn,
         signUp,
-        signInWithOAuth,
         signInWithGoogle,
         signInWithApple,
         signInWithFacebook,
@@ -257,10 +259,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 // Custom hook to use the auth context
 export function useAuth() {
   const context = useContext(AuthContext);
-
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-
   return context;
 }
