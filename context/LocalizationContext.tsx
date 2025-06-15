@@ -1,161 +1,132 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+// context/LocalizationContext.tsx - DEFINITIVE CORRECTED VERSION
+
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+} from 'react';
 import * as Localization from 'expo-localization';
-import { I18n } from 'i18n-js';
+import { I18n, Scope, TranslateOptions } from 'i18n-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Import your translation files
 import en from '../localization/en';
 import tr from '../localization/tr';
 
-// Define supported languages
 export const SUPPORTED_LANGUAGES = {
   en: 'English',
   tr: 'Türkçe',
 };
 
-// Set up i18n instance
-const i18n = new I18n({
-  en,
-  tr,
-});
-
-// Default to device locale if available and supported
-i18n.locale = Object.keys(SUPPORTED_LANGUAGES).includes(
-  Localization.locale.split('-')[0],
-)
-  ? Localization.locale.split('-')[0]
-  : 'en';
-
-// Enable fallbacks to prevent missing translation errors
+const i18n = new I18n({ en, tr });
 i18n.enableFallback = true;
 i18n.defaultLocale = 'en';
 
-// Define Localization Context type
 type LocalizationContextType = {
-  t: (key: string, options?: Record<string, any>) => string;
+  t: (key: Scope, options?: TranslateOptions) => string;
   locale: string;
   setLocale: (locale: string) => Promise<void>;
   isRTL: boolean;
   locales: typeof SUPPORTED_LANGUAGES;
 };
 
-// Create context with default values
-export const LocalizationContext = createContext<LocalizationContextType>({
-  t: (key) => key,
-  locale: 'en',
-  setLocale: async () => {},
-  isRTL: false,
-  locales: SUPPORTED_LANGUAGES,
-});
+export const LocalizationContext = createContext<LocalizationContextType>(
+  {} as LocalizationContextType,
+);
 
-// Provider component
 export function LocalizationProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [locale, setLocaleState] = useState(i18n.locale);
+  const getInitialLocale = () => {
+    const deviceLocale = Localization.getLocales()[0]?.languageCode || 'en';
+    return Object.keys(SUPPORTED_LANGUAGES).includes(deviceLocale)
+      ? deviceLocale
+      : 'en';
+  };
 
-  // Check if the current locale is RTL
-  const isRTL = React.useMemo(() => {
-    return ['ar', 'he', 'fa', 'ur'].includes(locale);
+  const [locale, setLocaleState] = useState(getInitialLocale());
+
+  // This useEffect ensures the i18n instance is always in sync with our React state
+  useEffect(() => {
+    i18n.locale = locale;
   }, [locale]);
 
-  // Initialize localization
+  // Load saved locale only once on app start
   useEffect(() => {
     const loadSavedLocale = async () => {
       try {
         const savedLocale = await AsyncStorage.getItem('user_locale');
-
         if (
           savedLocale &&
           Object.keys(SUPPORTED_LANGUAGES).includes(savedLocale)
         ) {
-          i18n.locale = savedLocale;
           setLocaleState(savedLocale);
         }
       } catch (error) {
         console.error('Failed to load saved locale:', error);
       }
     };
-
     loadSavedLocale();
   }, []);
 
-  // Update locale and save to storage
-  const setLocale = async (newLocale: string) => {
+  const isRTL = useMemo(() => Localization.isRTL, [locale]);
+
+  const setLocale = useCallback(async (newLocale: string) => {
     try {
       if (Object.keys(SUPPORTED_LANGUAGES).includes(newLocale)) {
-        i18n.locale = newLocale;
-        setLocaleState(newLocale);
         await AsyncStorage.setItem('user_locale', newLocale);
+        setLocaleState(newLocale);
       }
     } catch (error) {
       console.error('Failed to set locale:', error);
     }
-  };
+  }, []);
 
-  // Translation function that handles nested paths like 'home.welcome'
-  const t = (key: string, options?: Record<string, any>): string => {
-    // Handle nested paths
-    const keyParts = key.split('.');
-
-    if (keyParts.length === 1) {
-      return i18n.t(key, options);
-    }
-
-    try {
-      let translation = i18n.translations[i18n.locale];
-
-      for (const part of keyParts) {
-        if (
-          translation &&
-          typeof translation === 'object' &&
-          part in translation
-        ) {
-          translation = translation[part];
-        } else {
-          // If the nested path doesn't exist, try falling back to the full key
-          return i18n.t(key, options) || key;
-        }
+  // --- THE FIX: A ROBUST AND SIMPLE 't' FUNCTION ---
+  // We remove all manual '.split()' logic and rely on the i18n-js library,
+  // which is designed to handle nested keys, fallbacks, and interpolation safely.
+  const t = useCallback(
+    (key: Scope, options?: TranslateOptions): string => {
+      // If the key is somehow invalid, return it as-is to prevent a crash.
+      if (!key) {
+        return String(key);
       }
+      // The i18n.t function already handles nested keys like 'home.welcome'.
+      // We provide the key as a defaultValue to avoid showing "missing translation" messages.
+      return i18n.t(key, { defaultValue: String(key), ...options });
+    },
+    [locale],
+  ); // This function only updates when the locale changes.
 
-      if (typeof translation === 'string') {
-        return translation;
-      }
-
-      // Fallback to the key itself if translation is not a string
-      return key;
-    } catch (error) {
-      console.error(`Translation error for key "${key}":`, error);
-      return key;
-    }
-  };
+  const contextValue = useMemo(
+    () => ({
+      t,
+      locale,
+      setLocale,
+      isRTL,
+      locales: SUPPORTED_LANGUAGES,
+    }),
+    [locale, isRTL, setLocale, t],
+  );
 
   return (
-    <LocalizationContext.Provider
-      value={{
-        t,
-        locale,
-        setLocale,
-        isRTL,
-        locales: SUPPORTED_LANGUAGES,
-      }}
-    >
+    <LocalizationContext.Provider value={contextValue}>
       {children}
     </LocalizationContext.Provider>
   );
 }
 
-// Custom hook to use the localization context
 export function useLocalization() {
   const context = useContext(LocalizationContext);
-
-  if (!context) {
+  if (context === undefined) {
     throw new Error(
       'useLocalization must be used within a LocalizationProvider',
     );
   }
-
   return context;
 }
