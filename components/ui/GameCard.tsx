@@ -7,8 +7,9 @@ import {
   Animated,
   Easing,
   TouchableOpacity,
+  ColorValue,
 } from 'react-native';
-import LinearGradient from 'expo-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome } from '@expo/vector-icons';
 import { CardProps } from './types';
 import {
@@ -19,6 +20,10 @@ import {
   BorderRadius,
 } from '../../constants/theme';
 import { createPlayfulShadow } from '../../utils/styleUtils';
+import { toAnimatedStyle } from '../../utils/styleTypes';
+
+// Helper type to ensure gradient colors are properly typed
+type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
 interface GameCardProps extends CardProps {
   score?: number;
@@ -62,13 +67,13 @@ const GameCard: React.FC<GameCardProps> = ({
           Animated.timing(floatAnimation, {
             toValue: 1,
             duration: 4000,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
           Animated.timing(floatAnimation, {
             toValue: 0,
             duration: 4000,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
         ]),
@@ -123,45 +128,62 @@ const GameCard: React.FC<GameCardProps> = ({
   }, [status]);
 
   const getStatusStyles = () => {
+    // Helper function to ensure gradient colors are properly typed
+    const createGradient = (colors: string[]): GradientColors => {
+      if (colors.length < 2) {
+        return [colors[0] || '#000000', colors[0] || '#000000'];
+      }
+      // Ensure we have at least 2 colors and properly type them
+      return [colors[0], colors[1], ...colors.slice(2)] as GradientColors;
+    };
+
     switch (status) {
       case 'active':
         return {
-          gradient: Colors.gradients?.success || [
-            Colors.success,
-            Colors.vibrant?.green || Colors.success,
-          ],
+          gradient: createGradient(
+            Colors.gradients?.success || [
+              Colors.success,
+              Colors.vibrant?.green || Colors.success,
+            ],
+          ),
           borderColor: Colors.vibrant?.green || Colors.success,
-          statusIcon: 'play-circle',
+          statusIcon: 'play-circle' as const,
           statusColor: Colors.vibrant?.green || Colors.success,
         };
       case 'completed':
         return {
-          gradient: Colors.gradients?.primary || [
-            Colors.primary.DEFAULT,
-            Colors.primary.light,
-          ],
+          gradient: createGradient(
+            Colors.gradients?.primary || [
+              Colors.primary.DEFAULT,
+              Colors.primary.light,
+            ],
+          ),
           borderColor: Colors.primary.DEFAULT,
-          statusIcon: 'check-circle',
+          statusIcon: 'check-circle' as const,
           statusColor: Colors.primary.DEFAULT,
         };
       case 'challenge':
         return {
-          gradient: Colors.gradients?.sunset || [
-            Colors.vibrant?.orange || Colors.secondary.DEFAULT,
-            Colors.vibrant?.pink || Colors.secondary.light,
-          ],
+          gradient: createGradient(
+            Colors.gradients?.sunset || [
+              Colors.vibrant?.orange || Colors.secondary.DEFAULT,
+              Colors.vibrant?.pink || Colors.secondary.light,
+            ],
+          ),
           borderColor: Colors.vibrant?.orange || Colors.secondary.DEFAULT,
-          statusIcon: 'sword',
+          statusIcon: 'star' as const, // Changed from 'sword' to 'star'
           statusColor: Colors.vibrant?.orange || Colors.secondary.DEFAULT,
         };
       default:
         return {
-          gradient: Colors.gradients?.ocean || [
-            Colors.vibrant?.blue || Colors.primary.DEFAULT,
-            Colors.vibrant?.blueLight || Colors.primary.light,
-          ],
+          gradient: createGradient(
+            Colors.gradients?.ocean || [
+              Colors.vibrant?.blue || Colors.primary.DEFAULT,
+              Colors.vibrant?.blueLight || Colors.primary.light,
+            ],
+          ),
           borderColor: Colors.gray[300],
-          statusIcon: 'gamepad',
+          statusIcon: 'gamepad' as const,
           statusColor: Colors.gray[600],
         };
     }
@@ -223,12 +245,21 @@ const GameCard: React.FC<GameCardProps> = ({
     outputRange: [0, 0.8],
   });
 
-  const animatedStyle = {
+  // Separate complex animated styles into variables
+  const animatedStyle = toAnimatedStyle({
     transform: [
       { translateY },
       { scale: Animated.multiply(pulseAnimation, hoverScale) },
     ],
-  };
+  });
+
+  const challengeGlowStyle = toAnimatedStyle([
+    styles.challengeGlow,
+    {
+      opacity: glowOpacity,
+      backgroundColor: statusStyles.borderColor,
+    },
+  ]);
 
   const isInteractive = onPlay || onChallenge;
 
@@ -283,7 +314,7 @@ const GameCard: React.FC<GameCardProps> = ({
               style={[styles.actionButton, styles.challengeButton]}
               onPress={onChallenge}
             >
-              <FontAwesome name='sword' size={16} color={Colors.white} />
+              <FontAwesome name='star' size={16} color={Colors.white} />
               <Text style={styles.actionButtonText}>Accept Challenge</Text>
             </TouchableOpacity>
           )}
@@ -304,12 +335,13 @@ const GameCard: React.FC<GameCardProps> = ({
     </View>
   );
 
-  const baseCardStyle = [
+  // Wrap complex style arrays with toAnimatedStyle
+  const baseCardStyle = toAnimatedStyle([
     styles.card,
-    createPlayfulShadow(statusStyles.gradient[0], 'heavy'),
+    createPlayfulShadow?.(statusStyles.gradient[0] as string, 'heavy') || {},
     animatedStyle,
     style,
-  ];
+  ]);
 
   const CardComponent = isInteractive ? TouchableOpacity : Animated.View;
 
@@ -327,17 +359,7 @@ const GameCard: React.FC<GameCardProps> = ({
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        {status === 'challenge' && (
-          <Animated.View
-            style={[
-              styles.challengeGlow,
-              {
-                opacity: glowOpacity,
-                backgroundColor: statusStyles.borderColor,
-              },
-            ]}
-          />
-        )}
+        {status === 'challenge' && <Animated.View style={challengeGlowStyle} />}
         {cardContent}
       </LinearGradient>
     </CardComponent>
@@ -372,7 +394,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSizes.lg,
-    fontWeight: FontWeights.bold,
+    fontWeight: FontWeights.bold as any,
     color: Colors.white,
   },
   gameType: {
@@ -395,12 +417,12 @@ const styles = StyleSheet.create({
   },
   playerName: {
     fontSize: FontSizes.base,
-    fontWeight: FontWeights.medium,
+    fontWeight: FontWeights.medium as any,
     color: Colors.white,
   },
   score: {
     fontSize: FontSizes.lg,
-    fontWeight: FontWeights.bold,
+    fontWeight: FontWeights.bold as any,
     color: Colors.white,
   },
   footer: {
@@ -427,7 +449,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     color: Colors.white,
     fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semibold,
+    fontWeight: FontWeights.semibold as any,
     marginLeft: Spacing[2],
   },
   challengeGlow: {

@@ -1,7 +1,14 @@
 // components/ui/PlayfulCard.tsx
 import React, { useRef, useEffect } from 'react';
-import { View, StyleSheet, Text, Animated, Easing } from 'react-native';
-import LinearGradient from 'expo-linear-gradient';
+import {
+  View,
+  StyleSheet,
+  Text,
+  Animated,
+  Easing,
+  ColorValue,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { CardProps } from './types';
 import {
   Colors,
@@ -11,6 +18,10 @@ import {
   BorderRadius,
 } from '../../constants/theme';
 import { createPlayfulShadow } from '../../utils/styleUtils';
+import { toAnimatedStyle } from '../../utils/styleTypes';
+
+// Helper type to ensure gradient colors are properly typed
+type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
 const PlayfulCard: React.FC<CardProps> = ({
   title,
@@ -38,13 +49,13 @@ const PlayfulCard: React.FC<CardProps> = ({
           Animated.timing(floatAnimation, {
             toValue: 1,
             duration: 3000,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
           Animated.timing(floatAnimation, {
             toValue: 0,
             duration: 3000,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
         ]),
@@ -84,13 +95,13 @@ const PlayfulCard: React.FC<CardProps> = ({
           Animated.timing(glowAnimation, {
             toValue: 1,
             duration: 2000,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: false,
           }),
           Animated.timing(glowAnimation, {
             toValue: 0,
             duration: 2000,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: false,
           }),
         ]),
@@ -101,6 +112,40 @@ const PlayfulCard: React.FC<CardProps> = ({
   }, [borderGlow]);
 
   const getVariantStyles = () => {
+    // Helper function to ensure gradient colors are properly typed
+    const createGradient = (colors: string[]): GradientColors => {
+      if (colors.length < 2) {
+        return [colors[0] || '#000000', colors[0] || '#000000'];
+      }
+      // Ensure we have at least 2 colors and properly type them
+      return [colors[0], colors[1], ...colors.slice(2)] as GradientColors;
+    };
+
+    // Helper to resolve gradient from different sources
+    const resolveGradient = (fallbackColors: string[]): GradientColors => {
+      // If gradient prop is provided and is an array
+      if (gradient && Array.isArray(gradient)) {
+        return createGradient(gradient);
+      }
+
+      // If gradient prop is a GradientStyle object
+      if (gradient && typeof gradient === 'object' && 'colors' in gradient) {
+        return createGradient(gradient.colors);
+      }
+
+      // If gradient prop is a string key, try to resolve it
+      if (
+        gradient &&
+        typeof gradient === 'string' &&
+        Colors.gradients?.[gradient]
+      ) {
+        return createGradient(Colors.gradients[gradient]);
+      }
+
+      // Use fallback colors
+      return createGradient(fallbackColors);
+    };
+
     switch (variant) {
       case 'default':
         return {
@@ -119,19 +164,21 @@ const PlayfulCard: React.FC<CardProps> = ({
         return {
           backgroundColor: Colors.white,
           gradient: null,
-          shadow: createPlayfulShadow(
-            Colors.shadows?.medium || Colors.gray[400],
-            'heavy',
-          ),
+          shadow:
+            createPlayfulShadow?.(
+              Colors.shadows?.medium || Colors.gray[400],
+              'heavy',
+            ) || {},
         };
       case 'playful':
         return {
           backgroundColor: Colors.white,
           gradient: null,
-          shadow: createPlayfulShadow(
-            Colors.vibrant?.purple || Colors.primary.DEFAULT,
-            'medium',
-          ),
+          shadow:
+            createPlayfulShadow?.(
+              Colors.vibrant?.purple || Colors.primary.DEFAULT,
+              'medium',
+            ) || {},
         };
       case 'glass':
         return {
@@ -144,28 +191,31 @@ const PlayfulCard: React.FC<CardProps> = ({
         return {
           backgroundColor: Colors.white,
           gradient: null,
-          shadow: createPlayfulShadow(
-            Colors.vibrant?.orange || Colors.secondary.DEFAULT,
-            'heavy',
-          ),
+          shadow:
+            createPlayfulShadow?.(
+              Colors.vibrant?.orange || Colors.secondary.DEFAULT,
+              'heavy',
+            ) || {},
         };
       case 'floating':
         return {
           backgroundColor: Colors.white,
           gradient: null,
-          shadow: createPlayfulShadow(
-            Colors.vibrant?.blue || Colors.primary.DEFAULT,
-            'heavy',
-          ),
+          shadow:
+            createPlayfulShadow?.(
+              Colors.vibrant?.blue || Colors.primary.DEFAULT,
+              'heavy',
+            ) || {},
         };
       case 'gradient':
         return {
           backgroundColor: 'transparent',
-          gradient: gradient ||
+          gradient: resolveGradient(
             Colors.gradients?.primary || [
               Colors.primary.DEFAULT,
               Colors.primary.light,
             ],
+          ),
         };
       default:
         return {
@@ -206,9 +256,29 @@ const PlayfulCard: React.FC<CardProps> = ({
     outputRange: [0, 0.6],
   });
 
-  const animatedStyle = {
+  // Separate complex animated styles into variables
+  const animatedStyle = toAnimatedStyle({
     transform: [{ translateY: translateY }, { scale: pulseAnimation }],
-  };
+  });
+
+  const glowBorderGradientStyle = toAnimatedStyle([
+    styles.glowBorder,
+    {
+      opacity: glowOpacity,
+      borderColor:
+        variantStyles.gradient?.[1] ||
+        variantStyles.gradient?.[0] ||
+        Colors.primary.DEFAULT,
+    },
+  ]);
+
+  const glowBorderStyle = toAnimatedStyle([
+    styles.glowBorder,
+    {
+      opacity: glowOpacity,
+      borderColor: Colors.vibrant?.purple || Colors.primary.DEFAULT,
+    },
+  ]);
 
   const cardContent = (
     <View style={[paddingStyles]}>
@@ -221,7 +291,8 @@ const PlayfulCard: React.FC<CardProps> = ({
     </View>
   );
 
-  const baseCardStyle = [
+  // Wrap complex style arrays with toAnimatedStyle
+  const baseCardStyle = toAnimatedStyle([
     styles.card,
     {
       backgroundColor: variantStyles.backgroundColor,
@@ -231,35 +302,18 @@ const PlayfulCard: React.FC<CardProps> = ({
     variantStyles.shadow,
     animatedStyle,
     style,
-  ];
+  ]);
 
   if (variantStyles.gradient) {
     return (
       <Animated.View style={baseCardStyle} testID={testID} {...props}>
         <LinearGradient
-          colors={
-            typeof variantStyles.gradient === 'string'
-              ? Colors.gradients?.[
-                  variantStyles.gradient as keyof typeof Colors.gradients
-                ] || Colors.gradients?.primary
-              : variantStyles.gradient
-          }
+          colors={variantStyles.gradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.gradientContainer}
         >
-          {borderGlow && (
-            <Animated.View
-              style={[
-                styles.glowBorder,
-                {
-                  opacity: glowOpacity,
-                  borderColor:
-                    variantStyles.gradient[1] || variantStyles.gradient[0],
-                },
-              ]}
-            />
-          )}
+          {borderGlow && <Animated.View style={glowBorderGradientStyle} />}
           {cardContent}
         </LinearGradient>
       </Animated.View>
@@ -268,17 +322,7 @@ const PlayfulCard: React.FC<CardProps> = ({
 
   return (
     <Animated.View style={baseCardStyle} testID={testID} {...props}>
-      {borderGlow && (
-        <Animated.View
-          style={[
-            styles.glowBorder,
-            {
-              opacity: glowOpacity,
-              borderColor: Colors.vibrant?.purple || Colors.primary.DEFAULT,
-            },
-          ]}
-        />
-      )}
+      {borderGlow && <Animated.View style={glowBorderStyle} />}
       {cardContent}
     </Animated.View>
   );
@@ -300,7 +344,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSizes.lg,
-    fontWeight: FontWeights.bold,
+    fontWeight: FontWeights.bold as any,
     color: Colors.gray[800],
   },
   content: {

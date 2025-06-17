@@ -1,6 +1,13 @@
 // components/ui/Timer.tsx
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  Easing,
+  ColorValue,
+} from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { TimerProps } from './types';
 import {
@@ -11,6 +18,10 @@ import {
   BorderRadius,
 } from '../../constants/theme';
 import { createPlayfulShadow } from '../../utils/styleUtils';
+import { toAnimatedStyle } from '../../utils/styleTypes';
+
+// Helper type to ensure gradient colors are properly typed
+type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
 const Timer: React.FC<TimerProps> = ({
   duration,
@@ -31,7 +42,7 @@ const Timer: React.FC<TimerProps> = ({
   const circularProgress = useRef(new Animated.Value(duration)).current;
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: number;
 
     if (isRunning && timeRemaining > 0) {
       interval = setInterval(() => {
@@ -116,12 +127,22 @@ const Timer: React.FC<TimerProps> = ({
     const isUrgent = timeRemaining <= warningThreshold;
     const isExpired = timeRemaining === 0;
 
+    // Helper function to ensure gradient colors are properly typed
+    const createGradient = (colors: string[]): GradientColors => {
+      if (colors.length < 2) {
+        return [colors[0] || '#000000', colors[0] || '#000000'];
+      }
+      // Ensure we have at least 2 colors and properly type them
+      return [colors[0], colors[1], ...colors.slice(2)] as GradientColors;
+    };
+
     if (isExpired) {
       return {
         backgroundColor: Colors.error,
         textColor: Colors.white,
         iconColor: Colors.white,
         borderColor: Colors.vibrant?.orange || Colors.error,
+        gradient: null,
       };
     }
 
@@ -131,6 +152,7 @@ const Timer: React.FC<TimerProps> = ({
         textColor: Colors.white,
         iconColor: Colors.white,
         borderColor: Colors.vibrant?.orange || Colors.warning,
+        gradient: null,
       };
     }
 
@@ -141,6 +163,7 @@ const Timer: React.FC<TimerProps> = ({
           textColor: Colors.gray[800],
           iconColor: Colors.gray[600],
           borderColor: Colors.gray[300],
+          gradient: null,
         };
       case 'urgent':
         return {
@@ -148,6 +171,7 @@ const Timer: React.FC<TimerProps> = ({
           textColor: Colors.white,
           iconColor: Colors.white,
           borderColor: Colors.vibrant?.orange || Colors.warning,
+          gradient: null,
         };
       case 'gradient':
         return {
@@ -155,10 +179,12 @@ const Timer: React.FC<TimerProps> = ({
           textColor: Colors.white,
           iconColor: Colors.white,
           borderColor: 'transparent',
-          gradient: Colors.gradients?.ocean || [
-            Colors.primary.DEFAULT,
-            Colors.primary.light,
-          ],
+          gradient: createGradient(
+            Colors.gradients?.ocean || [
+              Colors.primary.DEFAULT,
+              Colors.primary.light,
+            ],
+          ),
         };
       case 'circular':
         return {
@@ -166,6 +192,7 @@ const Timer: React.FC<TimerProps> = ({
           textColor: Colors.gray[800],
           iconColor: Colors.gray[600],
           borderColor: Colors.gray[300],
+          gradient: null,
           isCircular: true,
         };
       default:
@@ -174,6 +201,7 @@ const Timer: React.FC<TimerProps> = ({
           textColor: Colors.gray[800],
           iconColor: Colors.gray[600],
           borderColor: Colors.gray[300],
+          gradient: null,
         };
     }
   };
@@ -227,34 +255,35 @@ const Timer: React.FC<TimerProps> = ({
     ],
   });
 
-  const animatedStyle = {
+  // Separate complex animated styles into variables
+  const animatedStyle = toAnimatedStyle({
     transform: [{ scale: pulseAnimation }],
     backgroundColor:
       timeRemaining <= warningThreshold
         ? urgentBackgroundColor
         : variantStyles.backgroundColor,
-  };
+  });
 
   if (variantStyles.isCircular) {
     const circumference = 2 * Math.PI * (sizeStyles.circularSize / 2 - 10);
     const strokeDashoffset = circumference * (1 - progress);
 
+    // Wrap complex style arrays with toAnimatedStyle
+    const circularContainerStyle = toAnimatedStyle([
+      styles.circularContainer,
+      {
+        width: sizeStyles.circularSize,
+        height: sizeStyles.circularSize,
+      },
+      animatedStyle,
+      style,
+    ]);
+
     return (
-      <Animated.View
-        style={[
-          styles.circularContainer,
-          {
-            width: sizeStyles.circularSize,
-            height: sizeStyles.circularSize,
-          },
-          animatedStyle,
-          style,
-        ]}
-        testID={testID}
-      >
+      <Animated.View style={circularContainerStyle} testID={testID}>
         <View style={styles.circularTimer}>
           <FontAwesome
-            name='clock-o'
+            name={'clock-o' as const}
             size={sizeStyles.iconSize}
             color={variantStyles.iconColor}
             style={styles.icon}
@@ -275,25 +304,25 @@ const Timer: React.FC<TimerProps> = ({
     );
   }
 
+  // Wrap complex style arrays with toAnimatedStyle
+  const timerStyle = toAnimatedStyle([
+    styles.timer,
+    {
+      padding: sizeStyles.padding,
+      borderRadius: sizeStyles.borderRadius,
+      borderColor: variantStyles.borderColor,
+      borderWidth: 2,
+    },
+    createPlayfulShadow?.(variantStyles.borderColor, 'medium') || {},
+    animatedStyle,
+    style,
+  ]);
+
   return (
-    <Animated.View
-      style={[
-        styles.timer,
-        {
-          padding: sizeStyles.padding,
-          borderRadius: sizeStyles.borderRadius,
-          borderColor: variantStyles.borderColor,
-          borderWidth: 2,
-        },
-        createPlayfulShadow(variantStyles.borderColor, 'medium'),
-        animatedStyle,
-        style,
-      ]}
-      testID={testID}
-    >
+    <Animated.View style={timerStyle} testID={testID}>
       <View style={styles.content}>
         <FontAwesome
-          name='clock-o'
+          name={'clock-o' as const}
           size={sizeStyles.iconSize}
           color={variantStyles.iconColor}
           style={styles.icon}
@@ -314,7 +343,7 @@ const Timer: React.FC<TimerProps> = ({
       {timeRemaining <= warningThreshold && (
         <View style={styles.warningBadge}>
           <FontAwesome
-            name='exclamation-triangle'
+            name={'exclamation-triangle' as const}
             size={12}
             color={Colors.white}
           />
@@ -348,7 +377,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing[2],
   },
   timeText: {
-    fontWeight: FontWeights.bold,
+    fontWeight: FontWeights.bold as any,
     fontFamily: 'monospace',
     letterSpacing: 1,
   },

@@ -12,6 +12,13 @@ interface UseSpringAnimationOptions {
   onComplete?: () => void;
 }
 
+// Simplified interpolation config that matches React Native's expectations
+interface InterpolationConfig {
+  inputRange: number[];
+  outputRange: number[] | string[];
+  extrapolate?: 'extend' | 'clamp' | 'identity';
+}
+
 export const useSpringAnimation = (options: UseSpringAnimationOptions = {}) => {
   const {
     initialValue = 0,
@@ -120,11 +127,7 @@ export const useSpringAnimation = (options: UseSpringAnimationOptions = {}) => {
     animatedValue.setValue(value);
   };
 
-  const interpolate = (config: {
-    inputRange: number[];
-    outputRange: (number | string)[];
-    extrapolate?: 'extend' | 'clamp' | 'identity';
-  }) => {
+  const interpolate = (config: InterpolationConfig) => {
     return animatedValue.interpolate(config);
   };
 

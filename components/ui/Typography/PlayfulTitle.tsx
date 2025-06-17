@@ -3,6 +3,7 @@ import React, { useRef, useEffect } from 'react';
 import { Text, StyleSheet, Animated, Easing } from 'react-native';
 import { PlayfulTitleProps } from '../types';
 import { Colors, FontSizes, FontWeights } from '../../../constants/theme';
+import { toAnimatedStyle } from '../../../utils/styleTypes';
 
 const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
   children,
@@ -83,37 +84,37 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
       case 1:
         return {
           fontSize: FontSizes['4xl'] || 36,
-          fontWeight: FontWeights.extrabold,
+          fontWeight: FontWeights.extrabold as any,
         };
       case 2:
         return {
           fontSize: FontSizes['3xl'] || 30,
-          fontWeight: FontWeights.bold,
+          fontWeight: FontWeights.bold as any,
         };
       case 3:
         return {
           fontSize: FontSizes['2xl'] || 24,
-          fontWeight: FontWeights.bold,
+          fontWeight: FontWeights.bold as any,
         };
       case 4:
         return {
           fontSize: FontSizes.xl,
-          fontWeight: FontWeights.semibold,
+          fontWeight: FontWeights.semibold as any,
         };
       case 5:
         return {
           fontSize: FontSizes.lg,
-          fontWeight: FontWeights.semibold,
+          fontWeight: FontWeights.semibold as any,
         };
       case 6:
         return {
           fontSize: FontSizes.base,
-          fontWeight: FontWeights.medium,
+          fontWeight: FontWeights.medium as any,
         };
       default:
         return {
           fontSize: FontSizes['4xl'] || 36,
-          fontWeight: FontWeights.extrabold,
+          fontWeight: FontWeights.extrabold as any,
         };
     }
   };
@@ -179,24 +180,28 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
     outputRange: ['-3deg', '3deg'],
   });
 
-  const animatedStyle = {
+  // Separate complex animated styles into variables
+  const animatedStyle = toAnimatedStyle({
     opacity: fadeAnimation,
     transform: [{ scale: bounceAnimation }, { rotate: rotation }],
-  };
+  });
+
+  // Wrap complex style arrays with toAnimatedStyle
+  const titleStyle = toAnimatedStyle([
+    styles.title,
+    levelStyles,
+    variantStyles,
+    {
+      textAlign: align,
+      letterSpacing,
+    },
+    animatedStyle,
+    style,
+  ]);
 
   return (
     <Animated.Text
-      style={[
-        styles.title,
-        levelStyles,
-        variantStyles,
-        {
-          textAlign: align,
-          letterSpacing,
-        },
-        animatedStyle,
-        style,
-      ]}
+      style={titleStyle}
       numberOfLines={numberOfLines}
       testID={testID}
       {...props}

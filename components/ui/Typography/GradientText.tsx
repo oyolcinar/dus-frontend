@@ -1,10 +1,21 @@
 // components/ui/Typography/GradientText.tsx
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import LinearGradient from 'expo-linear-gradient';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  Easing,
+  ColorValue,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { GradientTextProps } from '../types';
 import { Colors, FontSizes, FontWeights } from '../../../constants/theme';
+import { toAnimatedStyle } from '../../../utils/styleTypes';
+
+// Helper type to ensure gradient colors are properly typed
+type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
 const GradientText: React.FC<GradientTextProps> = ({
   children,
@@ -45,27 +56,36 @@ const GradientText: React.FC<GradientTextProps> = ({
     }
   }, [shimmerEffect]);
 
-  const getGradientColors = () => {
+  const getGradientColors = (): GradientColors => {
+    // Helper function to ensure gradient colors are properly typed
+    const createGradient = (colors: string[]): GradientColors => {
+      if (colors.length < 2) {
+        return [colors[0] || '#000000', colors[0] || '#000000'];
+      }
+      // Ensure we have at least 2 colors and properly type them
+      return [colors[0], colors[1], ...colors.slice(2)] as GradientColors;
+    };
+
     if (typeof gradient === 'string') {
-      return (
-        Colors.gradients?.[gradient as keyof typeof Colors.gradients] ||
+      const gradientColors = Colors.gradients?.[
+        gradient as keyof typeof Colors.gradients
+      ] ||
         Colors.gradients?.primary || [
           Colors.primary.DEFAULT,
           Colors.primary.light,
-        ]
-      );
+        ];
+      return createGradient(gradientColors);
     }
 
     if (gradient?.colors) {
-      return gradient.colors;
+      return createGradient(gradient.colors);
     }
 
-    return (
-      Colors.gradients?.primary || [
-        Colors.primary.DEFAULT,
-        Colors.primary.light,
-      ]
-    );
+    const defaultColors = Colors.gradients?.primary || [
+      Colors.primary.DEFAULT,
+      Colors.primary.light,
+    ];
+    return createGradient(defaultColors);
   };
 
   const getGradientDirection = () => {
@@ -90,19 +110,40 @@ const GradientText: React.FC<GradientTextProps> = ({
     outputRange: [-200, 200],
   });
 
+  // Create shimmer colors with proper typing
+  const shimmerColors: GradientColors = [
+    'transparent',
+    'rgba(255, 255, 255, 0.8)',
+    'transparent',
+  ];
+
+  // Separate complex animated styles into variables
+  const containerStyle = toAnimatedStyle([
+    styles.container,
+    {
+      opacity: fadeAnimation,
+    },
+  ]);
+
+  const fallbackTextStyle = toAnimatedStyle([
+    styles.fallbackText,
+    {
+      color: gradientColors[0],
+      opacity: fadeAnimation,
+    },
+    style,
+  ]);
+
+  const shimmerStyle = toAnimatedStyle([
+    styles.shimmer,
+    {
+      transform: [{ translateX: shimmerTranslateX }],
+    },
+  ]);
+
   // Fallback for platforms that don't support MaskedView
   const renderFallback = () => (
-    <Animated.Text
-      style={[
-        styles.fallbackText,
-        {
-          color: gradientColors[0],
-          opacity: fadeAnimation,
-        },
-        style,
-      ]}
-      testID={testID}
-    >
+    <Animated.Text style={fallbackTextStyle} testID={testID}>
       {children}
     </Animated.Text>
   );
@@ -110,15 +151,7 @@ const GradientText: React.FC<GradientTextProps> = ({
   // Try to render with MaskedView for gradient effect
   try {
     return (
-      <Animated.View
-        style={[
-          styles.container,
-          {
-            opacity: fadeAnimation,
-          },
-        ]}
-        testID={testID}
-      >
+      <Animated.View style={containerStyle} testID={testID}>
         <MaskedView
           style={styles.maskedView}
           maskElement={
@@ -137,20 +170,9 @@ const GradientText: React.FC<GradientTextProps> = ({
           </LinearGradient>
 
           {shimmerEffect && (
-            <Animated.View
-              style={[
-                styles.shimmer,
-                {
-                  transform: [{ translateX: shimmerTranslateX }],
-                },
-              ]}
-            >
+            <Animated.View style={shimmerStyle}>
               <LinearGradient
-                colors={[
-                  'transparent',
-                  'rgba(255, 255, 255, 0.8)',
-                  'transparent',
-                ]}
+                colors={shimmerColors}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.shimmerGradient}
@@ -183,7 +205,7 @@ const styles = StyleSheet.create({
   },
   maskText: {
     fontSize: FontSizes.lg,
-    fontWeight: FontWeights.bold,
+    fontWeight: FontWeights.bold as any,
     textAlign: 'center',
     backgroundColor: 'transparent',
     color: 'black', // This will be masked
@@ -195,7 +217,7 @@ const styles = StyleSheet.create({
   },
   gradientText: {
     fontSize: FontSizes.lg,
-    fontWeight: FontWeights.bold,
+    fontWeight: FontWeights.bold as any,
     textAlign: 'center',
     backgroundColor: 'transparent',
     color: 'transparent', // This will show the gradient
@@ -212,7 +234,7 @@ const styles = StyleSheet.create({
   },
   fallbackText: {
     fontSize: FontSizes.lg,
-    fontWeight: FontWeights.bold,
+    fontWeight: FontWeights.bold as any,
     textAlign: 'center',
   },
 });

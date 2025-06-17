@@ -1,7 +1,14 @@
 // components/ui/ScoreDisplay.tsx
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import LinearGradient from 'expo-linear-gradient';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  Easing,
+  ColorValue,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome } from '@expo/vector-icons';
 import { ScoreDisplayProps } from './types';
 import {
@@ -12,6 +19,10 @@ import {
   BorderRadius,
 } from '../../constants/theme';
 import { createPlayfulShadow } from '../../utils/styleUtils';
+import { toAnimatedStyle } from '../../utils/styleTypes';
+
+// Helper type to ensure gradient colors are properly typed
+type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
 const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   score,
@@ -99,6 +110,15 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   }, [score, maxScore, celebrationThreshold]);
 
   const getVariantStyles = () => {
+    // Helper function to ensure gradient colors are properly typed
+    const createGradient = (colors: string[]): GradientColors => {
+      if (colors.length < 2) {
+        return [colors[0] || '#000000', colors[0] || '#000000'];
+      }
+      // Ensure we have at least 2 colors and properly type them
+      return [colors[0], colors[1], ...colors.slice(2)] as GradientColors;
+    };
+
     switch (variant) {
       case 'default':
         return {
@@ -112,20 +132,24 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
           backgroundColor: 'transparent',
           textColor: Colors.white,
           labelColor: Colors.white,
-          gradient: Colors.gradients?.candy || [
-            Colors.vibrant?.pink || '#FF6B9D',
-            Colors.vibrant?.orange || '#FF6B6B',
-          ],
+          gradient: createGradient(
+            Colors.gradients?.candy || [
+              Colors.vibrant?.pink || '#FF6B9D',
+              Colors.vibrant?.orange || '#FF6B6B',
+            ],
+          ),
         };
       case 'gradient':
         return {
           backgroundColor: 'transparent',
           textColor: Colors.white,
           labelColor: Colors.white,
-          gradient: Colors.gradients?.primary || [
-            Colors.primary.DEFAULT,
-            Colors.primary.light,
-          ],
+          gradient: createGradient(
+            Colors.gradients?.primary || [
+              Colors.primary.DEFAULT,
+              Colors.primary.light,
+            ],
+          ),
         };
       default:
         return {
@@ -192,39 +216,40 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
     outputRange: ['0deg', '360deg'],
   });
 
-  const animatedStyle = {
-    transform: [{ scale: Animated.multiply(pulseAnimation, celebrationScale) }],
-  };
-
   const progressWidth =
     showProgress && maxScore ? (displayScore / maxScore) * 100 : 0;
+
+  // Separate complex animated styles into variables
+  const animatedStyle = toAnimatedStyle({
+    transform: [{ scale: Animated.multiply(pulseAnimation, celebrationScale) }],
+  });
+
+  const sparkleAnimatedStyle = toAnimatedStyle([
+    styles.sparkles,
+    {
+      transform: [{ rotate: sparkleRotation }],
+      opacity: sparkleAnimation,
+    },
+  ]);
 
   const scoreContent = (
     <View style={[styles.container, { padding: sizeStyles.padding }]}>
       {isCelebration && (
-        <Animated.View
-          style={[
-            styles.sparkles,
-            {
-              transform: [{ rotate: sparkleRotation }],
-              opacity: sparkleAnimation,
-            },
-          ]}
-        >
+        <Animated.View style={sparkleAnimatedStyle}>
           <FontAwesome
-            name='star'
+            name={'star' as const}
             size={sizeStyles.scoreSize * 0.3}
             color={Colors.vibrant?.yellow || '#FFD93D'}
             style={styles.sparkle1}
           />
           <FontAwesome
-            name='star'
+            name={'star' as const}
             size={sizeStyles.scoreSize * 0.2}
             color={Colors.vibrant?.yellow || '#FFD93D'}
             style={styles.sparkle2}
           />
           <FontAwesome
-            name='star'
+            name={'star' as const}
             size={sizeStyles.scoreSize * 0.25}
             color={Colors.vibrant?.yellow || '#FFD93D'}
             style={styles.sparkle3}
@@ -301,19 +326,20 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
     </View>
   );
 
-  const containerStyle = [
+  // Wrap complex style arrays with toAnimatedStyle
+  const containerStyle = toAnimatedStyle([
     styles.scoreDisplay,
     {
       backgroundColor: variantStyles.backgroundColor,
       borderRadius: sizeStyles.borderRadius,
     },
-    createPlayfulShadow(
-      variantStyles.gradient?.[0] || variantStyles.backgroundColor,
+    createPlayfulShadow?.(
+      (variantStyles.gradient?.[0] as string) || variantStyles.backgroundColor,
       size === 'small' ? 'light' : size === 'hero' ? 'heavy' : 'medium',
-    ),
+    ) || {},
     animatedStyle,
     style,
-  ];
+  ]);
 
   if (variantStyles.gradient) {
     return (
@@ -377,19 +403,19 @@ const styles = StyleSheet.create({
     left: '20%',
   },
   label: {
-    fontWeight: FontWeights.medium,
+    fontWeight: FontWeights.medium as any,
     textAlign: 'center',
     marginBottom: Spacing[1],
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   score: {
-    fontWeight: FontWeights.extrabold,
+    fontWeight: FontWeights.extrabold as any,
     textAlign: 'center',
     lineHeight: undefined,
   },
   maxScore: {
-    fontWeight: FontWeights.normal,
+    fontWeight: FontWeights.normal as any,
     textAlign: 'center',
     marginTop: Spacing[1],
   },
@@ -409,7 +435,7 @@ const styles = StyleSheet.create({
   },
   percentage: {
     fontSize: FontSizes.xs,
-    fontWeight: FontWeights.medium,
+    fontWeight: FontWeights.medium as any,
   },
 });
 

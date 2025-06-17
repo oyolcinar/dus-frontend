@@ -7,6 +7,7 @@ import {
   View,
   Animated,
   Easing,
+  ColorValue,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome } from '@expo/vector-icons';
@@ -23,6 +24,10 @@ import {
   createPlayfulShadow,
   createVibrantStyle,
 } from '../../utils/styleUtils';
+import { toAnimatedStyle } from '../../utils/styleTypes';
+
+// Helper type to ensure gradient colors are properly typed
+type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
 const PlayfulButton: React.FC<ButtonProps> = ({
   title,
@@ -70,60 +75,134 @@ const PlayfulButton: React.FC<ButtonProps> = ({
   }, [glowEffect]);
 
   const getVariantStyles = () => {
+    // Helper function to ensure gradient colors are properly typed
+    const createGradient = (colors: string[]): GradientColors => {
+      if (colors.length < 2) {
+        return [colors[0] || '#000000', colors[0] || '#000000'];
+      }
+      // Ensure we have at least 2 colors and properly type them
+      return [colors[0], colors[1], ...colors.slice(2)] as GradientColors;
+    };
+
+    // Helper to resolve gradient from different sources
+    const resolveGradient = (fallbackColors: string[]): GradientColors => {
+      // If gradient prop is provided and is an array
+      if (gradient && Array.isArray(gradient)) {
+        return createGradient(gradient);
+      }
+
+      // If gradient prop is a GradientStyle object
+      if (gradient && typeof gradient === 'object' && 'colors' in gradient) {
+        return createGradient(gradient.colors);
+      }
+
+      // If gradient prop is a string key, try to resolve it
+      if (
+        gradient &&
+        typeof gradient === 'string' &&
+        Colors.gradients?.[gradient]
+      ) {
+        return createGradient(Colors.gradients[gradient]);
+      }
+
+      // Use fallback colors
+      return createGradient(fallbackColors);
+    };
+
     switch (variant) {
       case 'primary':
         return {
           backgroundColor: Colors.primary.DEFAULT,
           textColor: Colors.white,
-          gradient: gradient || Colors.gradients.primary,
+          gradient: resolveGradient(
+            Colors.gradients?.primary || [
+              Colors.primary.DEFAULT,
+              Colors.primary.light,
+            ],
+          ),
         };
       case 'secondary':
         return {
           backgroundColor: Colors.secondary.DEFAULT,
           textColor: Colors.white,
-          gradient: gradient || Colors.gradients.sunset,
+          gradient: resolveGradient(
+            Colors.gradients?.sunset || [
+              Colors.secondary.DEFAULT,
+              Colors.secondary.light,
+            ],
+          ),
         };
       case 'success':
         return {
           backgroundColor: Colors.success,
           textColor: Colors.white,
-          gradient: gradient || Colors.gradients.success,
+          gradient: resolveGradient(
+            Colors.gradients?.success || [Colors.success, Colors.success],
+          ),
         };
       case 'error':
         return {
           backgroundColor: Colors.error,
           textColor: Colors.white,
-          gradient: gradient || [Colors.vibrant.orange, Colors.vibrant.pink],
+          gradient: resolveGradient([
+            Colors.vibrant?.orange || Colors.error,
+            Colors.vibrant?.pink || Colors.error,
+          ]),
         };
       case 'vibrant':
         return {
-          backgroundColor: Colors.vibrant.purple,
+          backgroundColor: Colors.vibrant?.purple || Colors.primary.DEFAULT,
           textColor: Colors.white,
-          gradient: gradient || Colors.gradients.purple,
+          gradient: resolveGradient(
+            Colors.gradients?.purple || [
+              Colors.vibrant?.purple || Colors.primary.DEFAULT,
+              Colors.vibrant?.purpleLight || Colors.primary.light,
+            ],
+          ),
         };
       case 'gradient':
         return {
           backgroundColor: 'transparent',
           textColor: Colors.white,
-          gradient: gradient || Colors.gradients.primary,
+          gradient: resolveGradient(
+            Colors.gradients?.primary || [
+              Colors.primary.DEFAULT,
+              Colors.primary.light,
+            ],
+          ),
         };
       case 'playful':
         return {
-          backgroundColor: Colors.vibrant.orange,
+          backgroundColor: Colors.vibrant?.orange || Colors.secondary.DEFAULT,
           textColor: Colors.white,
-          gradient: gradient || Colors.gradients.candy,
+          gradient: resolveGradient(
+            Colors.gradients?.candy || [
+              Colors.vibrant?.orange || Colors.secondary.DEFAULT,
+              Colors.vibrant?.pink || Colors.secondary.light,
+            ],
+          ),
         };
       case 'bouncy':
         return {
-          backgroundColor: Colors.vibrant.green,
+          backgroundColor: Colors.vibrant?.green || Colors.success,
           textColor: Colors.white,
-          gradient: gradient || Colors.gradients.tropical,
+          gradient: resolveGradient(
+            Colors.gradients?.tropical || [
+              Colors.vibrant?.green || Colors.success,
+              Colors.vibrant?.greenLight || Colors.success,
+            ],
+          ),
         };
       case 'floating':
         return {
-          backgroundColor: Colors.vibrant.blue,
+          backgroundColor: Colors.vibrant?.blue || Colors.primary.DEFAULT,
           textColor: Colors.white,
-          gradient: gradient || Colors.gradients.sky,
+          gradient: resolveGradient(
+            Colors.gradients?.sky || [
+              Colors.vibrant?.blue || Colors.primary.DEFAULT,
+              Colors.vibrant?.blueLight || Colors.primary.light,
+            ],
+          ),
         };
       case 'outline':
         return {
@@ -141,7 +220,12 @@ const PlayfulButton: React.FC<ButtonProps> = ({
         return {
           backgroundColor: Colors.primary.DEFAULT,
           textColor: Colors.white,
-          gradient: gradient || Colors.gradients.primary,
+          gradient: resolveGradient(
+            Colors.gradients?.primary || [
+              Colors.primary.DEFAULT,
+              Colors.primary.light,
+            ],
+          ),
         };
     }
   };
@@ -278,11 +362,32 @@ const PlayfulButton: React.FC<ButtonProps> = ({
     </View>
   );
 
-  const animatedStyle = {
+  // Separate complex animated styles into variables
+  const animatedStyle = toAnimatedStyle({
     transform: [{ scale: scaleAnimation }, { rotate: rotation }],
-  };
+  });
 
-  const buttonStyle = [
+  const glowOverlayGradientStyle = toAnimatedStyle([
+    styles.glowOverlay,
+    {
+      opacity: glowOpacity,
+      backgroundColor:
+        variantStyles.gradient?.[1] ||
+        variantStyles.gradient?.[0] ||
+        variantStyles.backgroundColor,
+    },
+  ]);
+
+  const glowOverlayStyle = toAnimatedStyle([
+    styles.glowOverlay,
+    {
+      opacity: glowOpacity,
+      backgroundColor: variantStyles.backgroundColor,
+    },
+  ]);
+
+  // Wrap complex style arrays with toAnimatedStyle
+  const buttonStyle = toAnimatedStyle([
     styles.button,
     sizeStyles,
     {
@@ -290,17 +395,17 @@ const PlayfulButton: React.FC<ButtonProps> = ({
       borderColor: variantStyles.borderColor,
       borderWidth: variantStyles.borderWidth,
     },
-    createPlayfulShadow(
-      variantStyles.gradient?.[0] || variantStyles.backgroundColor,
+    createPlayfulShadow?.(
+      (variantStyles.gradient?.[0] as string) || variantStyles.backgroundColor,
       size === 'small'
         ? 'light'
         : size === 'large' || size === 'xl'
         ? 'heavy'
         : 'medium',
-    ),
+    ) || {},
     animatedStyle,
     style,
-  ];
+  ]);
 
   if (variantStyles.gradient && variant !== 'outline' && variant !== 'ghost') {
     return (
@@ -315,29 +420,12 @@ const PlayfulButton: React.FC<ButtonProps> = ({
       >
         <Animated.View style={buttonStyle}>
           <LinearGradient
-            colors={
-              typeof variantStyles.gradient === 'string'
-                ? Colors.gradients[
-                    variantStyles.gradient as keyof typeof Colors.gradients
-                  ] || Colors.gradients.primary
-                : variantStyles.gradient
-            }
+            colors={variantStyles.gradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={[styles.gradient, sizeStyles]}
           >
-            {glowEffect && (
-              <Animated.View
-                style={[
-                  styles.glowOverlay,
-                  {
-                    opacity: glowOpacity,
-                    backgroundColor:
-                      variantStyles.gradient[1] || variantStyles.gradient[0],
-                  },
-                ]}
-              />
-            )}
+            {glowEffect && <Animated.View style={glowOverlayGradientStyle} />}
             {buttonContent}
           </LinearGradient>
         </Animated.View>
@@ -356,17 +444,7 @@ const PlayfulButton: React.FC<ButtonProps> = ({
       {...props}
     >
       <Animated.View style={buttonStyle}>
-        {glowEffect && (
-          <Animated.View
-            style={[
-              styles.glowOverlay,
-              {
-                opacity: glowOpacity,
-                backgroundColor: variantStyles.backgroundColor,
-              },
-            ]}
-          />
-        )}
+        {glowEffect && <Animated.View style={glowOverlayStyle} />}
         {buttonContent}
       </Animated.View>
     </TouchableOpacity>
@@ -391,7 +469,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing[2],
   },
   text: {
-    fontWeight: FontWeights.bold,
+    fontWeight: FontWeights.bold as any,
     textAlign: 'center',
     letterSpacing: 0.5,
   },

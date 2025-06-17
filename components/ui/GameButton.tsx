@@ -7,8 +7,9 @@ import {
   View,
   Animated,
   Easing,
+  ColorValue,
 } from 'react-native';
-import LinearGradient from 'expo-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome } from '@expo/vector-icons';
 import { GameButtonProps } from './types';
 import {
@@ -19,6 +20,10 @@ import {
   BorderRadius,
 } from '../../constants/theme';
 import { createPlayfulShadow } from '../../utils/styleUtils';
+import { toAnimatedStyle } from '../../utils/styleTypes';
+
+// Helper type to ensure gradient colors are properly typed
+type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
 const GameButton: React.FC<GameButtonProps> = ({
   title,
@@ -64,55 +69,71 @@ const GameButton: React.FC<GameButtonProps> = ({
   }, [pulseWhenReady, disabled, loading]);
 
   const getGameActionStyles = () => {
+    // Helper function to ensure gradient colors are properly typed
+    const createGradient = (colors: string[]): GradientColors => {
+      if (colors.length < 2) {
+        return [colors[0] || '#000000', colors[0] || '#000000'];
+      }
+      // Ensure we have at least 2 colors and properly type them
+      return [colors[0], colors[1], ...colors.slice(2)] as GradientColors;
+    };
+
     switch (gameAction) {
       case 'start':
         return {
           backgroundColor: Colors.vibrant?.green || Colors.success,
           textColor: Colors.white,
-          gradient: Colors.gradients?.success || [
-            Colors.success,
-            Colors.success,
-          ],
-          icon: icon || 'play',
+          gradient: createGradient(
+            Colors.gradients?.success || [Colors.success, Colors.success],
+          ),
+          icon: 'play' as const,
         };
       case 'join':
         return {
           backgroundColor: Colors.vibrant?.blue || Colors.primary.DEFAULT,
           textColor: Colors.white,
-          gradient: Colors.gradients?.ocean || [
-            Colors.primary.DEFAULT,
-            Colors.primary.light,
-          ],
-          icon: icon || 'users',
+          gradient: createGradient(
+            Colors.gradients?.ocean || [
+              Colors.primary.DEFAULT,
+              Colors.primary.light,
+            ],
+          ),
+          icon: 'users' as const,
         };
       case 'challenge':
         return {
           backgroundColor: Colors.vibrant?.orange || Colors.secondary.DEFAULT,
           textColor: Colors.white,
-          gradient: Colors.gradients?.sunset || [
-            Colors.secondary.DEFAULT,
-            Colors.secondary.light,
-          ],
-          icon: icon || 'sword',
+          gradient: createGradient(
+            Colors.gradients?.sunset || [
+              Colors.secondary.DEFAULT,
+              Colors.secondary.light,
+            ],
+          ),
+          icon: 'star' as const, // Changed from 'sword' to 'star'
         };
       case 'answer':
         return {
           backgroundColor: Colors.vibrant?.purple || Colors.primary.DEFAULT,
           textColor: Colors.white,
-          gradient: Colors.gradients?.primary || [
-            Colors.primary.DEFAULT,
-            Colors.primary.light,
-          ],
-          icon: icon || 'check',
+          gradient: createGradient(
+            Colors.gradients?.primary || [
+              Colors.primary.DEFAULT,
+              Colors.primary.light,
+            ],
+          ),
+          icon: 'check' as const,
         };
       default:
         return {
           backgroundColor: Colors.primary.DEFAULT,
           textColor: Colors.white,
-          gradient: Colors.gradients?.primary || [
-            Colors.primary.DEFAULT,
-            Colors.primary.light,
-          ],
+          gradient: createGradient(
+            Colors.gradients?.primary || [
+              Colors.primary.DEFAULT,
+              Colors.primary.light,
+            ],
+          ),
           icon: icon,
         };
     }
@@ -208,14 +229,23 @@ const GameButton: React.FC<GameButtonProps> = ({
   const gameActionStyles = getGameActionStyles();
   const sizeStyles = getSizeStyles();
 
-  const animatedStyle = {
+  // Separate complex animated styles into variables
+  const animatedStyle = toAnimatedStyle({
     transform: [{ scale: Animated.multiply(scaleAnimation, pulseAnimation) }],
-  };
+  });
 
   const readyScale = readyAnimation.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 1.2],
   });
+
+  const confettiOverlayStyle = toAnimatedStyle([
+    styles.confettiOverlay,
+    {
+      transform: [{ scale: readyScale }],
+      opacity: readyAnimation,
+    },
+  ]);
 
   const buttonContent = (
     <View style={[styles.content, { opacity: disabled ? 0.6 : 1 }]}>
@@ -242,6 +272,22 @@ const GameButton: React.FC<GameButtonProps> = ({
     </View>
   );
 
+  // Wrap complex style arrays with toAnimatedStyle
+  const buttonStyle = toAnimatedStyle([
+    styles.button,
+    sizeStyles,
+    createPlayfulShadow?.(
+      gameActionStyles.gradient[0] as string,
+      size === 'small'
+        ? 'light'
+        : size === 'large' || size === 'xl'
+        ? 'heavy'
+        : 'medium',
+    ) || {},
+    animatedStyle,
+    style,
+  ]);
+
   return (
     <TouchableOpacity
       onPress={handlePress}
@@ -251,39 +297,14 @@ const GameButton: React.FC<GameButtonProps> = ({
       testID={testID}
       {...props}
     >
-      <Animated.View
-        style={[
-          styles.button,
-          sizeStyles,
-          createPlayfulShadow(
-            gameActionStyles.gradient[0],
-            size === 'small'
-              ? 'light'
-              : size === 'large' || size === 'xl'
-              ? 'heavy'
-              : 'medium',
-          ),
-          animatedStyle,
-          style,
-        ]}
-      >
+      <Animated.View style={buttonStyle}>
         <LinearGradient
           colors={gameActionStyles.gradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.gradient, sizeStyles]}
         >
-          {confettiOnPress && (
-            <Animated.View
-              style={[
-                styles.confettiOverlay,
-                {
-                  transform: [{ scale: readyScale }],
-                  opacity: readyAnimation,
-                },
-              ]}
-            />
-          )}
+          {confettiOnPress && <Animated.View style={confettiOverlayStyle} />}
           {buttonContent}
         </LinearGradient>
       </Animated.View>
@@ -309,7 +330,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing[2],
   },
   text: {
-    fontWeight: FontWeights.extrabold,
+    fontWeight: FontWeights.extrabold as any,
     textAlign: 'center',
     letterSpacing: 1,
     textTransform: 'uppercase',

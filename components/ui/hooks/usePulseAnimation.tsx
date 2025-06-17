@@ -13,6 +13,13 @@ interface UsePulseAnimationOptions {
   easing?: (value: number) => number;
 }
 
+// Simplified interpolation config that matches React Native's expectations
+interface InterpolationConfig {
+  inputRange: number[];
+  outputRange: number[] | string[];
+  extrapolate?: 'extend' | 'clamp' | 'identity';
+}
+
 export const usePulseAnimation = (options: UsePulseAnimationOptions = {}) => {
   const {
     initialValue = 1,
@@ -168,11 +175,7 @@ export const usePulseAnimation = (options: UsePulseAnimationOptions = {}) => {
     beat.start(onComplete);
   };
 
-  const interpolate = (config: {
-    inputRange: number[];
-    outputRange: (number | string)[];
-    extrapolate?: 'extend' | 'clamp' | 'identity';
-  }) => {
+  const interpolate = (config: InterpolationConfig) => {
     return animatedValue.interpolate(config);
   };
 

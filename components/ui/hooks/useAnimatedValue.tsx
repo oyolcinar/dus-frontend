@@ -11,6 +11,13 @@ interface UseAnimatedValueOptions {
   onComplete?: () => void;
 }
 
+// Simplified interpolation config that matches React Native's expectations
+interface InterpolationConfig {
+  inputRange: number[];
+  outputRange: number[] | string[];
+  extrapolate?: 'extend' | 'clamp' | 'identity';
+}
+
 export const useAnimatedValue = (options: UseAnimatedValueOptions = {}) => {
   const {
     initialValue = 0,
@@ -58,11 +65,7 @@ export const useAnimatedValue = (options: UseAnimatedValueOptions = {}) => {
     animatedValue.setValue(value);
   };
 
-  const interpolate = (config: {
-    inputRange: number[];
-    outputRange: (number | string)[];
-    extrapolate?: 'extend' | 'clamp' | 'identity';
-  }) => {
+  const interpolate = (config: InterpolationConfig) => {
     return animatedValue.interpolate(config);
   };
 

@@ -10,6 +10,7 @@ import {
   Spacing,
   BorderRadius,
 } from '../../constants/theme';
+import { toAnimatedStyle } from '../../utils/styleTypes';
 
 interface GlassCardProps extends CardProps {
   blurIntensity?: number;
@@ -46,13 +47,13 @@ const GlassCard: React.FC<GlassCardProps> = ({
           Animated.timing(floatAnimation, {
             toValue: 1,
             duration: 3000,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
           Animated.timing(floatAnimation, {
             toValue: 0,
             duration: 3000,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
         ]),
@@ -84,13 +85,13 @@ const GlassCard: React.FC<GlassCardProps> = ({
           Animated.timing(glowAnimation, {
             toValue: 1,
             duration: 2000,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: false,
           }),
           Animated.timing(glowAnimation, {
             toValue: 0,
             duration: 2000,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: false,
           }),
         ]),
@@ -161,29 +162,38 @@ const GlassCard: React.FC<GlassCardProps> = ({
     outputRange: [0.3, 0.8],
   });
 
-  const animatedStyle = {
+  // Separate complex animated styles into variables
+  const animatedStyle = toAnimatedStyle({
     transform: [{ translateY }],
-  };
+  });
+
+  const glowBorderStyle = toAnimatedStyle([
+    styles.glowBorder,
+    {
+      borderColor:
+        glowColor || Colors.vibrant?.purple || Colors.primary.DEFAULT,
+      opacity: glowOpacity,
+    },
+  ]);
+
+  const shimmerStyle = toAnimatedStyle([
+    styles.shimmer,
+    {
+      transform: [{ translateX: shimmerTranslateX }],
+    },
+  ]);
+
+  // Wrap complex style arrays with toAnimatedStyle
+  const containerStyle = toAnimatedStyle([
+    styles.container,
+    animatedStyle,
+    style,
+  ]);
 
   return (
-    <Animated.View
-      style={[styles.container, animatedStyle, style]}
-      testID={testID}
-      {...props}
-    >
+    <Animated.View style={containerStyle} testID={testID} {...props}>
       {/* Glow Border */}
-      {borderGlow && (
-        <Animated.View
-          style={[
-            styles.glowBorder,
-            {
-              borderColor:
-                glowColor || Colors.vibrant?.purple || Colors.primary.DEFAULT,
-              opacity: glowOpacity,
-            },
-          ]}
-        />
-      )}
+      {borderGlow && <Animated.View style={glowBorderStyle} />}
 
       {/* Glass Background with Blur */}
       <BlurView
@@ -201,16 +211,7 @@ const GlassCard: React.FC<GlassCardProps> = ({
           ]}
         >
           {/* Shimmer Effect */}
-          {shimmerEffect && (
-            <Animated.View
-              style={[
-                styles.shimmer,
-                {
-                  transform: [{ translateX: shimmerTranslateX }],
-                },
-              ]}
-            />
-          )}
+          {shimmerEffect && <Animated.View style={shimmerStyle} />}
 
           {/* Content */}
           <View style={paddingStyles}>
@@ -230,16 +231,7 @@ const GlassCard: React.FC<GlassCardProps> = ({
               </View>
             )}
 
-            <View
-              style={[
-                styles.content,
-                {
-                  color: tintStyles.textColor,
-                },
-              ]}
-            >
-              {children}
-            </View>
+            <View style={[styles.content]}>{children}</View>
           </View>
         </View>
       </BlurView>
@@ -288,7 +280,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSizes.lg,
-    fontWeight: FontWeights.bold,
+    fontWeight: FontWeights.bold as any,
   },
   content: {
     flex: 1,

@@ -9,6 +9,7 @@ import {
   StyleProp,
 } from 'react-native';
 import { Colors, FontSizes, FontWeights } from '../../constants/theme';
+import { toAnimatedStyle } from '../../utils/styleTypes';
 
 interface AnimatedCounterProps {
   value: number;
@@ -109,27 +110,27 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
       case 'small':
         return {
           fontSize: FontSizes.sm,
-          fontWeight: FontWeights.medium,
+          fontWeight: FontWeights.medium as any,
         };
       case 'medium':
         return {
           fontSize: FontSizes.lg,
-          fontWeight: FontWeights.semibold,
+          fontWeight: FontWeights.semibold as any,
         };
       case 'large':
         return {
           fontSize: FontSizes['2xl'],
-          fontWeight: FontWeights.bold,
+          fontWeight: FontWeights.bold as any,
         };
       case 'xl':
         return {
           fontSize: FontSizes['4xl'],
-          fontWeight: FontWeights.extrabold,
+          fontWeight: FontWeights.extrabold as any,
         };
       default:
         return {
           fontSize: FontSizes.lg,
-          fontWeight: FontWeights.semibold,
+          fontWeight: FontWeights.semibold as any,
         };
     }
   };
@@ -142,7 +143,6 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
         };
       case 'gradient':
         return {
-          color: 'transparent',
           // Note: True gradient text requires additional implementation
           // For now, we'll use a vibrant color
           color: Colors.vibrant?.blue || Colors.primary.DEFAULT,
@@ -167,16 +167,23 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
       })
     : variantStyles.color;
 
-  const animatedStyle = {
+  // Separate complex animated styles into variables
+  const animatedStyle = toAnimatedStyle({
     transform: [{ scale: bounceAnimation }],
     color: colorTransition ? animatedTextColor : variantStyles.color,
-  };
+  });
+
+  // Wrap complex style arrays with toAnimatedStyle
+  const counterStyle = toAnimatedStyle([
+    styles.counter,
+    sizeStyles,
+    animatedStyle,
+    style,
+    textStyle,
+  ]);
 
   return (
-    <Animated.Text
-      style={[styles.counter, sizeStyles, animatedStyle, style, textStyle]}
-      testID={testID}
-    >
+    <Animated.Text style={counterStyle} testID={testID}>
       {prefix}
       {formatNumber(displayValue)}
       {suffix}
