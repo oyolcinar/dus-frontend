@@ -51,6 +51,13 @@ const PlayfulButton: React.FC<ButtonProps> = ({
   const wiggleAnimation = useRef(new Animated.Value(0)).current;
   const glowAnimation = useRef(new Animated.Value(0)).current;
 
+  // Store animation references for proper cleanup
+  const animationRefs = useRef<{
+    glow?: Animated.CompositeAnimation;
+    wiggle?: Animated.CompositeAnimation;
+    scale?: Animated.CompositeAnimation;
+  }>({});
+
   useEffect(() => {
     if (glowEffect) {
       const glowSequence = Animated.loop(
@@ -69,10 +76,40 @@ const PlayfulButton: React.FC<ButtonProps> = ({
           }),
         ]),
       );
+
+      animationRefs.current.glow = glowSequence;
       glowSequence.start();
-      return () => glowSequence.stop();
+
+      return () => {
+        if (animationRefs.current.glow) {
+          animationRefs.current.glow.stop();
+          animationRefs.current.glow = undefined;
+        }
+        // Reset animation value to prevent lingering effects
+        glowAnimation.setValue(0);
+      };
     }
-  }, [glowEffect]);
+  }, [glowEffect, glowAnimation]);
+
+  // Cleanup all animations when component unmounts
+  useEffect(() => {
+    return () => {
+      // Stop all running animations
+      Object.values(animationRefs.current).forEach((animation) => {
+        if (animation) {
+          animation.stop();
+        }
+      });
+
+      // Reset all animation values
+      scaleAnimation.setValue(1);
+      wiggleAnimation.setValue(0);
+      glowAnimation.setValue(0);
+
+      // Clear references
+      animationRefs.current = {};
+    };
+  }, []);
 
   const getVariantStyles = () => {
     // Helper function to ensure gradient colors are properly typed
@@ -279,14 +316,16 @@ const PlayfulButton: React.FC<ButtonProps> = ({
     if (disabled || loading) return;
 
     if (animated) {
-      Animated.spring(scaleAnimation, {
+      const scaleAnim = Animated.spring(scaleAnimation, {
         toValue: 0.95,
         useNativeDriver: true,
-      }).start();
+      });
+      animationRefs.current.scale = scaleAnim;
+      scaleAnim.start();
     }
 
     if (wiggleOnPress) {
-      Animated.sequence([
+      const wiggleAnim = Animated.sequence([
         Animated.timing(wiggleAnimation, {
           toValue: 1,
           duration: 100,
@@ -307,7 +346,11 @@ const PlayfulButton: React.FC<ButtonProps> = ({
           duration: 100,
           useNativeDriver: true,
         }),
-      ]).start();
+      ]);
+      animationRefs.current.wiggle = wiggleAnim;
+      wiggleAnim.start(() => {
+        animationRefs.current.wiggle = undefined;
+      });
     }
   };
 
@@ -315,12 +358,16 @@ const PlayfulButton: React.FC<ButtonProps> = ({
     if (disabled || loading) return;
 
     if (animated) {
-      Animated.spring(scaleAnimation, {
+      const scaleAnim = Animated.spring(scaleAnimation, {
         toValue: 1,
         tension: 400,
         friction: 3,
         useNativeDriver: true,
-      }).start();
+      });
+      animationRefs.current.scale = scaleAnim;
+      scaleAnim.start(() => {
+        animationRefs.current.scale = undefined;
+      });
     }
   };
 

@@ -155,6 +155,83 @@ export async function getAuthStatus(): Promise<{
   }
 }
 
+export async function requestPasswordReset(
+  email: string,
+): Promise<ApiResponse<any>> {
+  try {
+    return await apiRequest<any>('/auth/reset-password', 'POST', { email });
+  } catch (error) {
+    console.error('Password reset request service error:', error);
+    if (error instanceof ApiError) throw error;
+    throw new Error(
+      error instanceof Error ? error.message : 'Password reset request failed.',
+    );
+  }
+}
+
+export async function refreshAuthToken(): Promise<{
+  token: string;
+  refreshToken: string | null;
+}> {
+  try {
+    const currentRefreshToken = await AsyncStorage.getItem('refreshToken');
+    if (!currentRefreshToken) {
+      console.error(
+        'authService.refreshAuthToken: No refresh token available.',
+      );
+      await logout();
+      throw new Error('No refresh token available');
+    }
+
+    const response = await apiRequest<AuthApiPayload>(
+      '/auth/refresh-token',
+      'POST',
+      {
+        refreshToken: currentRefreshToken,
+      },
+    );
+
+    console.log(
+      'authService.refreshAuthToken - apiRequest response:',
+      response,
+    );
+    const apiData = response.data;
+
+    if (
+      !apiData ||
+      typeof apiData !== 'object' || // Ensure apiData is an object
+      !apiData.session || // Ensure session object exists
+      !apiData.session.access_token // Ensure access_token exists within session
+    ) {
+      console.error(
+        'Invalid refresh token response structure from server data (authService):',
+        apiData,
+      );
+      await logout();
+      throw new Error(
+        'Invalid refresh token response: structure is not as expected.',
+      );
+    }
+
+    await AsyncStorage.setItem('userToken', apiData.session.access_token);
+    if (apiData.session.refresh_token) {
+      await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
+    }
+
+    return {
+      token: apiData.session.access_token,
+      refreshToken: apiData.session.refresh_token || null,
+    };
+  } catch (error) {
+    console.error('authService.refreshAuthToken error:', error);
+    await logout();
+    if (error instanceof ApiError) throw error;
+    throw new Error(
+      error instanceof Error ? error.message : 'Token refresh failed.',
+    );
+  }
+}
+
 // ...any other non-OAuth functions like requestPasswordReset, etc., also go here...
 
 // ====================================================================

@@ -44,6 +44,10 @@ export const Colors = {
     tropical: ['#00CEC9', '#00D68F'],
     fire: ['#FF3838', '#FF6B6B'],
     sky: ['#5352ED', '#A29BFE'],
+    facebook: ['#1877F2', '#4267B2'],
+    appleDark: ['#ffffff', '#f0f0f0'],
+    appleLight: ['#000000', '#333333'],
+    google: ['#4285F4', '#34A853'],
   },
 
   // Your existing semantic colors

@@ -2,10 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   View,
-  Text,
   ScrollView,
   ActivityIndicator,
-  TouchableOpacity,
   useColorScheme,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
@@ -13,8 +11,9 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { authService, achievementService, duelService } from '../../src/api';
 import {
-  Card,
-  Button,
+  PlayfulCard,
+  ProfileHeader,
+  PlayfulButton,
   StatCard,
   Avatar,
   Container,
@@ -22,9 +21,13 @@ import {
   Paragraph,
   Alert,
   Row,
-  Divider,
+  Column,
+  GlassCard,
+  Badge,
+  AnimatedCounter,
+  ScoreDisplay,
 } from '../../components/ui';
-import { Colors, Spacing } from '../../constants/theme';
+import { Colors, Spacing, FontSizes } from '../../constants/theme';
 
 // Define interface for Achievement since it's not exported from models
 interface Achievement {
@@ -45,7 +48,6 @@ interface DuelStats {
   wins: number;
   losses: number;
   winRate: number;
-  // Using the correct property names from the error message:
   longestLosingStreak: number;
   currentLosingStreak: number;
 }
@@ -81,7 +83,6 @@ export default function ProfileScreen() {
           wins: duelStatsResponse.wins,
           losses: duelStatsResponse.losses,
           winRate: duelStatsResponse.winRate,
-          // Using the correct property names:
           longestLosingStreak: duelStatsResponse.longestLosingStreak || 0,
           currentLosingStreak: duelStatsResponse.currentLosingStreak || 0,
         });
@@ -100,23 +101,36 @@ export default function ProfileScreen() {
 
   // Get icon for achievement - returns only valid FontAwesome icon names
   const getAchievementIcon = (achievement: Achievement): string => {
-    // Use achievement.icon if available AND it's a valid FontAwesome icon
     if (achievement.icon) {
-      // This is a simplification - in reality we would need to check if the icon is valid
       return achievement.icon;
     }
 
     const category = achievement.category?.toLowerCase() || '';
 
-    // Only return valid FontAwesome icon names
     if (category.includes('course')) return 'book';
     if (category.includes('study')) return 'clock';
     if (category.includes('duel')) return 'trophy';
     if (category.includes('test')) return 'check-circle';
     if (category.includes('streak')) return 'fire';
 
-    // Default icon
     return 'certificate';
+  };
+
+  // Get achievement category color
+  const getAchievementColor = (achievement: Achievement): string => {
+    const category = achievement.category?.toLowerCase() || '';
+
+    if (category.includes('course')) return Colors.vibrant?.blue || Colors.info;
+    if (category.includes('study'))
+      return Colors.vibrant?.green || Colors.success;
+    if (category.includes('duel'))
+      return Colors.vibrant?.orange || Colors.warning;
+    if (category.includes('test'))
+      return Colors.vibrant?.purple || Colors.primary.DEFAULT;
+    if (category.includes('streak'))
+      return Colors.vibrant?.pink || Colors.error;
+
+    return Colors.vibrant?.yellow || Colors.secondary.DEFAULT;
   };
 
   const handleSignOut = async () => {
@@ -142,7 +156,7 @@ export default function ProfileScreen() {
           message={error}
           style={{ marginBottom: Spacing[4] }}
         />
-        <Button
+        <PlayfulButton
           title='Yenile'
           variant='primary'
           onPress={() => window.location.reload()}
@@ -153,239 +167,351 @@ export default function ProfileScreen() {
 
   return (
     <Container>
-      <ScrollView style={{ flex: 1, padding: Spacing[4] }}>
-        {/* Profile Header */}
-        <View style={{ alignItems: 'center', marginBottom: Spacing[6] }}>
-          <Avatar
-            name={user?.username?.[0] || 'U'}
-            size='lg' // Changed from 'xl' to 'lg' to match accepted values
-            bgColor={Colors.primary.DEFAULT}
-          />
-          <Title level={2} style={{ marginTop: Spacing[3] }}>
-            {user?.username || 'Kullanıcı'}
-          </Title>
-          <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
-            {user?.email || 'email@example.com'}
-          </Paragraph>
-        </View>
+      <ScrollView style={{ flex: 1 }}>
+        {/* Animated Profile Header */}
+        <PlayfulCard
+          variant='gradient'
+          gradient='primary'
+          padding='large'
+          animated
+          floatingAnimation
+          style={{ marginBottom: Spacing[6], borderRadius: 0 }}
+        >
+          <Column style={{ alignItems: 'center' }}>
+            <Avatar
+              name={user?.username?.[0] || 'U'}
+              size='xl'
+              bgColor={Colors.white}
+              gradient='sunset'
+              borderGlow
+              animated
+              floatingEffect
+              style={{ marginBottom: Spacing[4] }}
+            />
+            <Title
+              level={1}
+              style={{
+                color: Colors.white,
+                marginBottom: Spacing[1],
+                fontSize: FontSizes['3xl'],
+                textAlign: 'center',
+              }}
+            >
+              {user?.username || 'Kullanıcı'}
+            </Title>
+            <Paragraph
+              style={{ color: Colors.white, opacity: 0.9, textAlign: 'center' }}
+            >
+              {user?.email || 'email@example.com'}
+            </Paragraph>
 
-        {loading ? (
-          <View
-            style={{
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: Spacing[4],
-            }}
-          >
-            <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
-          </View>
-        ) : (
-          <>
-            {/* Duel Stats */}
-            {duelStats && (
-              <Card
-                title='Düello İstatistikleri'
-                style={{ marginBottom: Spacing[6] }}
-              >
+            {/* User level/score display */}
+            <View style={{ marginTop: Spacing[4] }}>
+              <ScoreDisplay
+                score={duelStats?.wins || 0}
+                maxScore={duelStats?.totalDuels || 1}
+                label='DÜELLO PUANI'
+                variant='celebration'
+                size='medium'
+                animated
+                showProgress={true}
+              />
+            </View>
+          </Column>
+        </PlayfulCard>
+
+        <View style={{ padding: Spacing[4] }}>
+          {loading ? (
+            <View
+              style={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: Spacing[8],
+              }}
+            >
+              <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
+            </View>
+          ) : (
+            <>
+              {/* Quick Stats */}
+              {duelStats && (
                 <Row
-                  style={{ flexWrap: 'wrap', justifyContent: 'space-between' }}
+                  style={{
+                    marginBottom: Spacing[6],
+                    flexWrap: 'wrap',
+                    gap: Spacing[3],
+                  }}
                 >
                   <StatCard
                     icon='trophy'
                     title='Toplam Düello'
                     value={duelStats.totalDuels.toString()}
-                    color={Colors.primary.DEFAULT}
+                    color={Colors.vibrant?.purple || Colors.primary.DEFAULT}
+                    size='medium'
                   />
                   <StatCard
                     icon='check-circle'
                     title='Kazanılan'
                     value={duelStats.wins.toString()}
-                    color={Colors.success}
+                    color={Colors.vibrant?.green || Colors.success}
+                    size='medium'
                   />
                   <StatCard
-                    icon='times-circle'
-                    title='Kaybedilen'
-                    value={duelStats.losses.toString()}
-                    color={Colors.error}
-                  />
-                  <StatCard
-                    icon='percent' // Changed from 'percentage' to 'percent' (valid FontAwesome icon)
+                    icon='fire'
                     title='Kazanma Oranı'
                     value={`${Math.round(duelStats.winRate)}%`}
-                    color={Colors.info}
+                    color={Colors.vibrant?.orange || Colors.warning}
+                    size='medium'
                   />
                 </Row>
-              </Card>
-            )}
+              )}
 
-            {/* Achievements */}
-            <Card title='Başarılar' style={{ marginBottom: Spacing[6] }}>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                {achievements.length > 0 ? (
-                  achievements.map((achievement) => (
-                    <View
-                      key={achievement.achievement_id}
-                      style={{
-                        width: '33.33%',
-                        alignItems: 'center',
-                        padding: Spacing[2],
-                      }}
-                    >
-                      <View
+              {/* Detailed Stats */}
+              {duelStats && (
+                <PlayfulCard
+                  title='Detaylı İstatistikler'
+                  variant='glass'
+                  style={{ marginBottom: Spacing[6] }}
+                  animated
+                >
+                  <Row style={{ flexWrap: 'wrap', gap: Spacing[3] }}>
+                    <View style={{ flex: 1, minWidth: '45%' }}>
+                      <Row
                         style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 24,
-                          backgroundColor: isDark
-                            ? Colors.primary.dark
-                            : Colors.primary.light,
+                          justifyContent: 'space-between',
                           alignItems: 'center',
-                          justifyContent: 'center',
                           marginBottom: Spacing[2],
                         }}
                       >
-                        <FontAwesome
-                          name={getAchievementIcon(achievement) as any}
-                          size={24}
-                          color={Colors.primary.DEFAULT}
+                        <Paragraph>Kaybedilen</Paragraph>
+                        <AnimatedCounter
+                          value={duelStats.losses}
+                          size='medium'
                         />
-                      </View>
-                      <Text
+                      </Row>
+                    </View>
+                    <View style={{ flex: 1, minWidth: '45%' }}>
+                      <Row
                         style={{
-                          fontSize: 12,
-                          textAlign: 'center',
-                          color: isDark ? Colors.gray[300] : Colors.gray[700],
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: Spacing[2],
                         }}
                       >
-                        {achievement.name}
-                      </Text>
+                        <Paragraph>En Uzun Seri</Paragraph>
+                        <AnimatedCounter
+                          value={duelStats.longestLosingStreak}
+                          size='medium'
+                        />
+                      </Row>
                     </View>
-                  ))
+                  </Row>
+                </PlayfulCard>
+              )}
+
+              {/* Achievements */}
+              <PlayfulCard
+                title='Başarılar'
+                variant='playful'
+                style={{ marginBottom: Spacing[6] }}
+                animated
+                pulseEffect
+              >
+                {achievements.length > 0 ? (
+                  <>
+                    <Row
+                      style={{
+                        flexWrap: 'wrap',
+                        gap: Spacing[2],
+                        marginBottom: Spacing[4],
+                      }}
+                    >
+                      {achievements.slice(0, 6).map((achievement) => (
+                        <GlassCard
+                          key={achievement.achievement_id}
+                          style={{
+                            width: '30%',
+                            alignItems: 'center',
+                            padding: Spacing[3],
+                            minHeight: 100,
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 20,
+                              backgroundColor: getAchievementColor(achievement),
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginBottom: Spacing[2],
+                            }}
+                          >
+                            <FontAwesome
+                              name={getAchievementIcon(achievement) as any}
+                              size={20}
+                              color={Colors.white}
+                            />
+                          </View>
+                          <Paragraph
+                            style={{
+                              fontSize: 10,
+                              textAlign: 'center',
+                              color: isDark
+                                ? Colors.gray[300]
+                                : Colors.gray[700],
+                            }}
+                            numberOfLines={2}
+                          >
+                            {achievement.name}
+                          </Paragraph>
+                        </GlassCard>
+                      ))}
+                    </Row>
+
+                    <Row style={{ gap: Spacing[3] }}>
+                      <PlayfulButton
+                        title='Tüm Başarılar'
+                        onPress={() => router.push('/achievements' as any)}
+                        variant='outline'
+                        style={{ flex: 1 }}
+                        icon='trophy'
+                      />
+                      <Badge
+                        text={`${achievements.length} Başarı`}
+                        variant='success'
+                        size='md'
+                      />
+                    </Row>
+                  </>
                 ) : (
-                  <View
+                  <Column
                     style={{
-                      width: '100%',
                       alignItems: 'center',
                       paddingVertical: Spacing[4],
                     }}
                   >
+                    <FontAwesome
+                      name='trophy'
+                      size={48}
+                      color={Colors.gray[400]}
+                      style={{ marginBottom: Spacing[3] }}
+                    />
                     <Paragraph
                       color={isDark ? Colors.gray[400] : Colors.gray[500]}
                     >
                       Henüz başarı kazanılmadı
                     </Paragraph>
-                  </View>
+                    <PlayfulButton
+                      title='Başarıları Keşfet'
+                      onPress={() => router.push('/achievements' as any)}
+                      variant='vibrant'
+                      size='small'
+                      style={{ marginTop: Spacing[3] }}
+                    />
+                  </Column>
                 )}
-              </View>
+              </PlayfulCard>
 
-              {achievements.length > 0 && (
-                <Button
-                  title='Tüm Başarılar'
-                  onPress={() => router.push('/achievements' as any)}
-                  variant='outline'
-                  style={{ marginTop: Spacing[3] }}
-                />
-              )}
-            </Card>
-
-            {/* Account Settings */}
-            <Card title='Hesap Ayarları' style={{ marginBottom: Spacing[6] }}>
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingVertical: Spacing[3],
-                  borderBottomWidth: 1,
-                  borderBottomColor: isDark
-                    ? Colors.gray[700]
-                    : Colors.gray[200],
-                }}
-                onPress={() => router.push('/edit-profile' as any)}
+              {/* Account Settings */}
+              <PlayfulCard
+                title='Hesap Ayarları'
+                variant='gradient'
+                gradient='sky'
+                style={{ marginBottom: Spacing[6] }}
               >
-                <FontAwesome
-                  name='user'
-                  size={18}
-                  color={Colors.primary.DEFAULT}
-                />
-                <Text
-                  style={{
-                    marginLeft: Spacing[3],
-                    color: isDark ? Colors.gray[200] : Colors.gray[800],
-                  }}
-                >
-                  Profil Düzenle
-                </Text>
-                <FontAwesome
-                  name='chevron-right'
-                  size={16}
-                  color={isDark ? Colors.gray[400] : Colors.gray[500]}
-                  style={{ marginLeft: 'auto' }}
-                />
-              </TouchableOpacity>
+                <Column style={{ gap: Spacing[2] }}>
+                  <PlayfulButton
+                    title='Profil Düzenle'
+                    onPress={() => router.push('/edit-profile' as any)}
+                    variant='bouncy'
+                    icon='user'
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      borderColor: 'rgba(255, 255, 255, 0.3)',
+                    }}
+                  />
 
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingVertical: Spacing[3],
-                  borderBottomWidth: 1,
-                  borderBottomColor: isDark
-                    ? Colors.gray[700]
-                    : Colors.gray[200],
-                }}
-                onPress={() => router.push('/change-password' as any)}
+                  <PlayfulButton
+                    title='Şifre Değiştir'
+                    onPress={() => router.push('/change-password' as any)}
+                    variant='bouncy'
+                    icon='lock'
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      borderColor: 'rgba(255, 255, 255, 0.3)',
+                    }}
+                  />
+
+                  <PlayfulButton
+                    title='Bildirim Ayarları'
+                    onPress={() => router.push('/notifications' as any)}
+                    variant='bouncy'
+                    icon='bell'
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      borderColor: 'rgba(255, 255, 255, 0.3)',
+                    }}
+                  />
+                </Column>
+              </PlayfulCard>
+
+              {/* Quick Actions */}
+              <PlayfulCard
+                title='Hızlı İşlemler'
+                variant='playful'
+                style={{ marginBottom: Spacing[6] }}
               >
-                <FontAwesome
-                  name='lock'
-                  size={18}
-                  color={Colors.primary.DEFAULT}
-                />
-                <Text
-                  style={{
-                    marginLeft: Spacing[3],
-                    color: isDark ? Colors.gray[200] : Colors.gray[800],
-                  }}
-                >
-                  Şifre Değiştir
-                </Text>
-                <FontAwesome
-                  name='chevron-right'
-                  size={16}
-                  color={isDark ? Colors.gray[400] : Colors.gray[500]}
-                  style={{ marginLeft: 'auto' }}
-                />
-              </TouchableOpacity>
+                <Row style={{ gap: Spacing[3] }}>
+                  <PlayfulButton
+                    title='Test Geçmişi'
+                    onPress={() => router.push('/test-history' as any)}
+                    variant='outline'
+                    style={{ flex: 1 }}
+                    icon='history'
+                    gradient='purple'
+                  />
+                  <PlayfulButton
+                    title='Düello Geçmişi'
+                    onPress={() => router.push('/duel-history' as any)}
+                    variant='outline'
+                    style={{ flex: 1 }}
+                    icon='list'
+                    gradient='fire'
+                  />
+                </Row>
+              </PlayfulCard>
 
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingVertical: Spacing[3],
-                }}
-                onPress={handleSignOut}
-              >
-                <FontAwesome name='sign-out' size={18} color={Colors.error} />
-                <Text
-                  style={{
-                    marginLeft: Spacing[3],
-                    color: Colors.error,
-                  }}
-                >
-                  Çıkış Yap
-                </Text>
-              </TouchableOpacity>
-            </Card>
+              {/* App Info & Sign Out */}
+              <GlassCard style={{ marginBottom: Spacing[6] }}>
+                <Column style={{ gap: Spacing[3] }}>
+                  <Row
+                    style={{
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Paragraph
+                      color={isDark ? Colors.gray[400] : Colors.gray[600]}
+                    >
+                      Versiyon: 1.0.0
+                    </Paragraph>
+                    <Badge text='Güncel' variant='success' size='sm' />
+                  </Row>
 
-            {/* App Info */}
-            <Card title='Uygulama Bilgisi'>
-              <View style={{ paddingVertical: Spacing[2] }}>
-                <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
-                  Versiyon: 1.0.0
-                </Paragraph>
-              </View>
-            </Card>
-          </>
-        )}
+                  <PlayfulButton
+                    title='Çıkış Yap'
+                    onPress={handleSignOut}
+                    variant='vibrant'
+                    gradient='fire'
+                    icon='sign-out'
+                    animated
+                  />
+                </Column>
+              </GlassCard>
+            </>
+          )}
+        </View>
       </ScrollView>
     </Container>
   );

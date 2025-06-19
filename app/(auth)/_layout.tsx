@@ -1,20 +1,22 @@
 import React from 'react';
 import { Stack } from 'expo-router';
-import { useTheme } from '@react-navigation/native';
+import { useColorScheme } from 'react-native';
+import { Colors } from '../../constants/theme';
 
 export default function AuthLayout() {
-  const { colors } = useTheme();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   return (
     <Stack
       screenOptions={{
         headerStyle: {
-          backgroundColor: colors.background,
+          backgroundColor: isDark ? Colors.gray[900] : Colors.gray[50],
         },
-        headerTintColor: colors.text,
+        headerTintColor: isDark ? Colors.white : Colors.gray[900],
         headerShadowVisible: false,
         contentStyle: {
-          backgroundColor: colors.background,
+          backgroundColor: isDark ? Colors.gray[900] : Colors.gray[50],
         },
       }}
     />

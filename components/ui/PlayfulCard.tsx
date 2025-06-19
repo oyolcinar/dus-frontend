@@ -42,9 +42,16 @@ const PlayfulCard: React.FC<CardProps> = ({
   const pulseAnimation = useRef(new Animated.Value(1)).current;
   const glowAnimation = useRef(new Animated.Value(0)).current;
 
+  // Store animation references for proper cleanup
+  const animationRefs = useRef<{
+    float?: Animated.CompositeAnimation;
+    pulse?: Animated.CompositeAnimation;
+    glow?: Animated.CompositeAnimation;
+  }>({});
+
   useEffect(() => {
     if (floatingAnimation) {
-      const float = Animated.loop(
+      const floatAnim = Animated.loop(
         Animated.sequence([
           Animated.timing(floatAnimation, {
             toValue: 1,
@@ -60,14 +67,24 @@ const PlayfulCard: React.FC<CardProps> = ({
           }),
         ]),
       );
-      float.start();
-      return () => float.stop();
+
+      animationRefs.current.float = floatAnim;
+      floatAnim.start();
+
+      return () => {
+        if (animationRefs.current.float) {
+          animationRefs.current.float.stop();
+          animationRefs.current.float = undefined;
+        }
+        // Reset animation value to prevent lingering effects
+        floatAnimation.setValue(0);
+      };
     }
-  }, [floatingAnimation]);
+  }, [floatingAnimation, floatAnimation]);
 
   useEffect(() => {
     if (pulseEffect) {
-      const pulse = Animated.loop(
+      const pulseAnim = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnimation, {
             toValue: 1.05,
@@ -83,14 +100,24 @@ const PlayfulCard: React.FC<CardProps> = ({
           }),
         ]),
       );
-      pulse.start();
-      return () => pulse.stop();
+
+      animationRefs.current.pulse = pulseAnim;
+      pulseAnim.start();
+
+      return () => {
+        if (animationRefs.current.pulse) {
+          animationRefs.current.pulse.stop();
+          animationRefs.current.pulse = undefined;
+        }
+        // Reset animation value to prevent lingering effects
+        pulseAnimation.setValue(1);
+      };
     }
-  }, [pulseEffect]);
+  }, [pulseEffect, pulseAnimation]);
 
   useEffect(() => {
     if (borderGlow) {
-      const glow = Animated.loop(
+      const glowAnim = Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnimation, {
             toValue: 1,
@@ -106,10 +133,40 @@ const PlayfulCard: React.FC<CardProps> = ({
           }),
         ]),
       );
-      glow.start();
-      return () => glow.stop();
+
+      animationRefs.current.glow = glowAnim;
+      glowAnim.start();
+
+      return () => {
+        if (animationRefs.current.glow) {
+          animationRefs.current.glow.stop();
+          animationRefs.current.glow = undefined;
+        }
+        // Reset animation value to prevent lingering effects
+        glowAnimation.setValue(0);
+      };
     }
-  }, [borderGlow]);
+  }, [borderGlow, glowAnimation]);
+
+  // Cleanup all animations when component unmounts
+  useEffect(() => {
+    return () => {
+      // Stop all running animations
+      Object.values(animationRefs.current).forEach((animation) => {
+        if (animation) {
+          animation.stop();
+        }
+      });
+
+      // Reset all animation values
+      floatAnimation.setValue(0);
+      pulseAnimation.setValue(1);
+      glowAnimation.setValue(0);
+
+      // Clear references
+      animationRefs.current = {};
+    };
+  }, []);
 
   const getVariantStyles = () => {
     // Helper function to ensure gradient colors are properly typed

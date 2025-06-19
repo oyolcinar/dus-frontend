@@ -10,20 +10,29 @@ import {
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
-  Card,
-  Button,
+  PlayfulCard,
+  GameCard,
+  PlayfulButton,
   StatCard,
   EmptyState,
   Avatar,
   Badge,
   AppLink,
   Container,
-  Title,
+  PlayfulTitle,
   Paragraph,
   Alert,
   ProgressBar,
   Row,
   Column,
+  AnimatedCounter,
+  FloatingElement,
+  BouncyButton,
+  Timer,
+  ScoreDisplay,
+  GameButton,
+  SlideInElement,
+  PulseElement,
 } from '../../components/ui';
 import {
   courseService,
@@ -36,6 +45,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Course, Test, Duel } from '../../src/types/models';
 import { Colors, Spacing } from '../../constants/theme';
 
+// Use the theme constants correctly
+const VIBRANT_COLORS = Colors.vibrant;
+const GRADIENTS = Colors.gradients;
+
 // Define interface to extend Course with additional fields we need
 interface CourseWithProgress extends Course {
   progress: number;
@@ -45,8 +58,6 @@ interface CourseWithProgress extends Course {
 // Extend Test interface with display properties
 interface TestWithDetails extends Test {
   difficulty: string;
-  // Now these properties should be present in your database
-  // But we'll provide backup defaults if they're missing for any reason
   questionCount?: number;
   timeLimit?: number;
 }
@@ -226,7 +237,7 @@ export default function HomeScreen() {
     if (titleLower.includes('patoloji')) return 'microscope';
     if (titleLower.includes('cerrahi')) return 'cut';
     if (titleLower.includes('protez')) return 'cogs';
-    if (titleLower.includes('periodont')) return 'bacteria';
+    if (titleLower.includes('periodon')) return 'bacteria';
     if (titleLower.includes('pedodonti')) return 'child';
     if (titleLower.includes('endodonti')) return 'syringe';
     if (titleLower.includes('ortodonti')) return 'exchange';
@@ -311,10 +322,11 @@ export default function HomeScreen() {
           message={error}
           style={{ marginBottom: Spacing[4] }}
         />
-        <Button
+        <PlayfulButton
           title='Yenile'
           onPress={() => window.location.reload()}
           variant='primary'
+          animated
         />
       </Container>
     );
@@ -346,46 +358,60 @@ export default function HomeScreen() {
       }}
     >
       {/* Welcome message and streak */}
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: Spacing[6],
-        }}
-      >
-        <View>
-          <Title level={2} style={{ marginBottom: Spacing[1] }}>
-            Merhaba {userData?.username || 'Öğrenci'}!
-          </Title>
-          <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
-            DUS sınavına hazırlanmaya devam edelim
-          </Paragraph>
-        </View>
+      <SlideInElement direction='down' delay={0}>
         <View
           style={{
             flexDirection: 'row',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            backgroundColor: isDark
-              ? Colors.primary.dark
-              : Colors.primary.light,
-            borderRadius: 999,
-            paddingHorizontal: Spacing[3],
-            paddingVertical: Spacing[1],
+            marginBottom: Spacing[6],
           }}
         >
-          <FontAwesome name='fire' size={16} color={Colors.secondary.DEFAULT} />
-          <Text
-            style={{
-              marginLeft: Spacing[2],
-              fontWeight: '500',
-              color: isDark ? Colors.white : Colors.gray[800],
-            }}
-          >
-            {analyticsData?.studySessions || 0} gün
-          </Text>
+          <View>
+            <PlayfulTitle
+              level={2}
+              style={{ marginBottom: Spacing[1] }}
+              gradient='primary'
+            >
+              Merhaba {userData?.username || 'Öğrenci'}!
+            </PlayfulTitle>
+            <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
+              DUS sınavına hazırlanmaya devam edelim
+            </Paragraph>
+          </View>
+          <FloatingElement>
+            <PulseElement>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: isDark
+                    ? Colors.primary.dark
+                    : Colors.primary.light,
+                  borderRadius: 999,
+                  paddingHorizontal: Spacing[3],
+                  paddingVertical: Spacing[1],
+                }}
+              >
+                <FontAwesome
+                  name='fire'
+                  size={16}
+                  color={Colors.secondary.DEFAULT}
+                />
+                <Text
+                  style={{
+                    marginLeft: Spacing[2],
+                    fontWeight: '500',
+                    color: isDark ? Colors.white : Colors.gray[800],
+                  }}
+                >
+                  {analyticsData?.studySessions || 0} gün
+                </Text>
+              </View>
+            </PulseElement>
+          </FloatingElement>
         </View>
-      </View>
+      </SlideInElement>
 
       {loading ? (
         <View
@@ -400,377 +426,444 @@ export default function HomeScreen() {
       ) : (
         <>
           {/* User statistics */}
-          <Row
-            style={{
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              marginBottom: Spacing[6],
-            }}
-          >
-            <StatCard
-              icon='book'
-              title='Tamamlanan Dersler'
-              value={
-                analyticsData
-                  ? `${analyticsData.branchPerformance?.length || 0}/${
-                      courses.length || 0
-                    }`
-                  : '0/0'
-              }
-              color={Colors.primary.DEFAULT}
-            />
-            <StatCard
-              icon='check-circle'
-              title='Çözülen Sorular'
-              value={(analyticsData?.totalQuestionsAnswered || 0).toString()}
-              color={Colors.info}
-            />
-            <StatCard
-              icon='trophy'
-              title='Düello Skoru'
-              value={calculateDuelScore()}
-              color={Colors.secondary.DEFAULT}
-            />
-          </Row>
+          <SlideInElement direction='up' delay={200}>
+            <Row
+              style={{
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                marginBottom: Spacing[6],
+              }}
+            >
+              <StatCard
+                icon='book'
+                title='Tamamlanan Dersler'
+                value={
+                  analyticsData
+                    ? `${analyticsData.branchPerformance?.length || 0}/${
+                        courses.length || 0
+                      }`
+                    : '0/0'
+                }
+                color={VIBRANT_COLORS.purple}
+              />
+              <StatCard
+                icon='check-circle'
+                title='Çözülen Sorular'
+                value={(analyticsData?.totalQuestionsAnswered || 0).toString()}
+                color={VIBRANT_COLORS.blue}
+              />
+              <StatCard
+                icon='trophy'
+                title='Düello Skoru'
+                value={calculateDuelScore()}
+                color={VIBRANT_COLORS.orange}
+              />
+            </Row>
+          </SlideInElement>
 
           {/* Continue studying */}
-          <Card title='Çalışmaya Devam Et' style={{ marginBottom: Spacing[6] }}>
-            {courses.length > 0 ? (
-              courses.map((course) => (
-                <AppLink
-                  key={course.course_id}
-                  href={`/courses/${course.course_id}`}
-                >
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      padding: Spacing[3],
-                      backgroundColor: isDark
-                        ? Colors.gray[700]
-                        : Colors.gray[50],
-                      borderRadius: 8,
-                      marginBottom: Spacing[3],
-                    }}
+          <SlideInElement direction='left' delay={400}>
+            <PlayfulCard
+              title='Çalışmaya Devam Et'
+              style={{ marginBottom: Spacing[6] }}
+              variant='playful'
+              animated
+              floatingAnimation
+            >
+              {courses.length > 0 ? (
+                courses.map((course) => (
+                  <AppLink
+                    key={course.course_id}
+                    href={`/courses/${course.course_id}`}
                   >
-                    <View
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        backgroundColor: Colors.primary.DEFAULT,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginRight: Spacing[3],
-                      }}
+                    <BouncyButton
+                      style={{ marginBottom: Spacing[3] }}
+                      onPress={() => {}}
                     >
-                      <FontAwesome
-                        name={course.iconName as any}
-                        size={20}
-                        color={Colors.white}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontWeight: '600',
-                          color: isDark ? Colors.white : Colors.gray[800],
-                          marginBottom: Spacing[1],
-                        }}
-                      >
-                        {course.title}
-                      </Text>
-                      <View
-                        style={{ flexDirection: 'row', alignItems: 'center' }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: isDark ? Colors.gray[400] : Colors.gray[500],
-                            marginBottom: Spacing[1],
-                          }}
-                        >
-                          {course.progress}% tamamlandı
-                        </Text>
-                      </View>
-                      <ProgressBar
-                        progress={course.progress}
-                        height={8}
-                        width='100%'
-                        trackColor={
-                          isDark ? Colors.gray[700] : Colors.gray[200]
-                        }
-                        progressColor={Colors.primary.DEFAULT}
-                        style={{ borderRadius: 4 }}
-                      />
-                    </View>
-                    <FontAwesome
-                      name='chevron-right'
-                      size={16}
-                      color={isDark ? Colors.gray[400] : Colors.gray[500]}
-                    />
-                  </TouchableOpacity>
-                </AppLink>
-              ))
-            ) : (
-              <EmptyState
-                icon='book'
-                title='Henüz kurs yok'
-                message='Kurslar sekmesinden ilk kursunuzu seçin ve çalışmaya başlayın.'
-                actionButton={{
-                  title: 'Kurslara Git',
-                  onPress: () => router.push('/courses' as any),
-                }}
-              />
-            )}
-            <AppLink href='/courses'>
-              <Button
-                title='Tüm Kursları Gör'
-                onPress={() => {}} // No-op function since AppLink handles navigation
-                variant='outline'
-                style={{ marginTop: Spacing[2] }}
-              />
-            </AppLink>
-          </Card>
-
-          {/* Recent Tests */}
-          <Card title='Popüler Testler' style={{ marginBottom: Spacing[6] }}>
-            {tests.length > 0 ? (
-              tests.map((test) => (
-                <AppLink key={test.test_id} href={`/tests/${test.test_id}`}>
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      padding: Spacing[3],
-                      backgroundColor: isDark
-                        ? Colors.gray[700]
-                        : Colors.gray[50],
-                      borderRadius: 8,
-                      marginBottom: Spacing[3],
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        backgroundColor: Colors.info,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginRight: Spacing[3],
-                      }}
-                    >
-                      <FontAwesome
-                        name='question-circle'
-                        size={20}
-                        color={Colors.white}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontWeight: '600',
-                          color: isDark ? Colors.white : Colors.gray[800],
-                          marginBottom: Spacing[1],
-                        }}
-                      >
-                        {test.title}
-                      </Text>
-                      <View
-                        style={{ flexDirection: 'row', alignItems: 'center' }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: isDark ? Colors.gray[400] : Colors.gray[500],
-                          }}
-                        >
-                          {test.questionCount || 0} soru • {test.timeLimit || 0}{' '}
-                          dakika •
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            marginLeft: Spacing[1],
-                            color:
-                              test.difficulty === 'Kolay'
-                                ? Colors.success
-                                : test.difficulty === 'Orta'
-                                ? Colors.warning
-                                : Colors.error,
-                          }}
-                        >
-                          {test.difficulty}
-                        </Text>
-                      </View>
-                    </View>
-                    <Button
-                      title='Başla'
-                      variant='primary'
-                      onPress={() => {}} // No-op function since AppLink handles navigation
-                      style={{
-                        paddingHorizontal: Spacing[3],
-                        paddingVertical: Spacing[1],
-                      }}
-                    />
-                  </TouchableOpacity>
-                </AppLink>
-              ))
-            ) : (
-              <EmptyState
-                icon='file'
-                title='Test bulunamadı'
-                message='Testler sekmesinden testlere erişebilirsiniz.'
-              />
-            )}
-            <AppLink href='/tests'>
-              <Button
-                title='Tüm Testleri Gör'
-                onPress={() => {}} // No-op function since AppLink handles navigation
-                variant='outline'
-                style={{ marginTop: Spacing[2] }}
-              />
-            </AppLink>
-          </Card>
-
-          {/* Active Duels */}
-          <Card title='Aktif Düellolar' style={{ marginBottom: Spacing[6] }}>
-            {activeDuels.length > 0 ? (
-              activeDuels.map((duel) => (
-                <AppLink key={duel.duel_id} href={`/duels/${duel.duel_id}`}>
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      padding: Spacing[3],
-                      backgroundColor: isDark
-                        ? Colors.gray[700]
-                        : Colors.gray[50],
-                      borderRadius: 8,
-                      marginBottom: Spacing[3],
-                    }}
-                  >
-                    <Avatar
-                      name={getOpponentAvatarInitial(duel)}
-                      size='md'
-                      bgColor={Colors.secondary.DEFAULT}
-                    />
-                    <View style={{ flex: 1, marginLeft: Spacing[3] }}>
-                      <Text
-                        style={{
-                          fontWeight: '600',
-                          color: isDark ? Colors.white : Colors.gray[800],
-                          marginBottom: Spacing[1],
-                        }}
-                      >
-                        {getOpponentDisplayName(duel)}
-                      </Text>
-                      <View
+                      <TouchableOpacity
                         style={{
                           flexDirection: 'row',
                           alignItems: 'center',
-                          marginTop: Spacing[1],
+                          padding: Spacing[3],
+                          backgroundColor: isDark
+                            ? Colors.gray[700]
+                            : Colors.gray[50],
+                          borderRadius: 8,
                         }}
                       >
-                        {renderDuelStatusBadge(duel.status)}
-                      </View>
-                    </View>
-                    <Button
-                      title={duel.status === 'active' ? 'Oyna' : 'Görüntüle'}
-                      variant={duel.status === 'active' ? 'primary' : 'outline'}
-                      onPress={() => {}} // No-op function since AppLink handles navigation
-                      style={{
-                        paddingHorizontal: Spacing[3],
-                        paddingVertical: Spacing[1],
-                      }}
-                    />
-                  </TouchableOpacity>
-                </AppLink>
-              ))
-            ) : (
-              <EmptyState
-                icon='users'
-                title='Aktif düello yok'
-                message='Arkadaşlarınızı düelloya davet edin ve rekabeti başlatın.'
-                actionButton={{
-                  title: 'Düello Başlat',
-                  onPress: () => router.push('/duel/new' as any),
-                }}
-              />
-            )}
-            <AppLink href='/duels'>
-              <Button
-                title='Tüm Düelloları Gör'
-                onPress={() => {}} // No-op function since AppLink handles navigation
-                variant='outline'
-                style={{ marginTop: Spacing[2] }}
-              />
-            </AppLink>
-          </Card>
-
-          {/* Recent Achievements */}
-          <Card title='Son Başarılar'>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              {userAchievements.length > 0 ? (
-                userAchievements.map((achievement) => (
-                  <View
-                    key={achievement.achievement_id}
-                    style={{
-                      width: '33.33%',
-                      alignItems: 'center',
-                      padding: Spacing[2],
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 24,
-                        backgroundColor: isDark
-                          ? Colors.primary.dark
-                          : Colors.primary.light,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: Spacing[2],
-                      }}
-                    >
-                      <FontAwesome
-                        name={getAchievementIcon(achievement)}
-                        size={24}
-                        color={Colors.primary.DEFAULT}
-                      />
-                    </View>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        textAlign: 'center',
-                        color: isDark ? Colors.gray[300] : Colors.gray[700],
-                      }}
-                    >
-                      {achievement.name}
-                    </Text>
-                  </View>
+                        <View
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 20,
+                            backgroundColor: VIBRANT_COLORS.purple,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginRight: Spacing[3],
+                          }}
+                        >
+                          <FontAwesome
+                            name={course.iconName as any}
+                            size={20}
+                            color={Colors.white}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              fontWeight: '600',
+                              color: isDark ? Colors.white : Colors.gray[800],
+                              marginBottom: Spacing[1],
+                            }}
+                          >
+                            {course.title}
+                          </Text>
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: isDark
+                                  ? Colors.gray[400]
+                                  : Colors.gray[500],
+                                marginBottom: Spacing[1],
+                              }}
+                            >
+                              {course.progress}% tamamlandı
+                            </Text>
+                          </View>
+                          <ProgressBar
+                            progress={course.progress}
+                            height={8}
+                            width='100%'
+                            trackColor={
+                              isDark ? Colors.gray[700] : Colors.gray[200]
+                            }
+                            progressColor={VIBRANT_COLORS.purple}
+                            style={{ borderRadius: 4 }}
+                            animated
+                          />
+                        </View>
+                        <FontAwesome
+                          name='chevron-right'
+                          size={16}
+                          color={isDark ? Colors.gray[400] : Colors.gray[500]}
+                        />
+                      </TouchableOpacity>
+                    </BouncyButton>
+                  </AppLink>
                 ))
               ) : (
                 <EmptyState
-                  icon='trophy'
-                  title='Henüz başarı yok'
-                  message='Daha fazla çalıştıkça başarılar kazanacaksınız.'
+                  icon='book'
+                  title='Henüz kurs yok'
+                  message='Kurslar sekmesinden ilk kursunuzu seçin ve çalışmaya başlayın.'
+                  actionButton={{
+                    title: 'Kurslara Git',
+                    onPress: () => router.push('/courses' as any),
+                  }}
                 />
               )}
-            </View>
-            {userAchievements.length > 0 && (
-              <AppLink href='/profile'>
-                <Button
-                  title='Tüm Başarılar'
+              <AppLink href='/courses'>
+                <PlayfulButton
+                  title='Tüm Kursları Gör'
                   onPress={() => {}} // No-op function since AppLink handles navigation
                   variant='outline'
-                  style={{ marginTop: Spacing[4] }}
+                  style={{ marginTop: Spacing[2] }}
+                  animated
                 />
               </AppLink>
-            )}
-          </Card>
+            </PlayfulCard>
+          </SlideInElement>
+
+          {/* Recent Tests */}
+          <SlideInElement direction='right' delay={600}>
+            <GameCard
+              title='Popüler Testler'
+              style={{ marginBottom: Spacing[6] }}
+              variant='gradient'
+              gradient='sunset'
+              pulseEffect
+            >
+              {tests.length > 0 ? (
+                tests.map((test) => (
+                  <AppLink key={test.test_id} href={`/tests/${test.test_id}`}>
+                    <BouncyButton
+                      style={{ marginBottom: Spacing[3] }}
+                      onPress={() => {}}
+                    >
+                      <TouchableOpacity
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          padding: Spacing[3],
+                          backgroundColor: isDark
+                            ? Colors.gray[700]
+                            : Colors.gray[50],
+                          borderRadius: 8,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 20,
+                            backgroundColor: VIBRANT_COLORS.blue,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginRight: Spacing[3],
+                          }}
+                        >
+                          <FontAwesome
+                            name='question-circle'
+                            size={20}
+                            color={Colors.white}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              fontWeight: '600',
+                              color: isDark ? Colors.white : Colors.gray[800],
+                              marginBottom: Spacing[1],
+                            }}
+                          >
+                            {test.title}
+                          </Text>
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: isDark
+                                  ? Colors.gray[400]
+                                  : Colors.gray[500],
+                              }}
+                            >
+                              {test.questionCount || 0} soru •{' '}
+                              {test.timeLimit || 0} dakika •{' '}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                marginLeft: Spacing[1],
+                                color:
+                                  test.difficulty === 'Kolay'
+                                    ? Colors.success
+                                    : test.difficulty === 'Orta'
+                                    ? Colors.warning
+                                    : Colors.error,
+                              }}
+                            >
+                              {test.difficulty}
+                            </Text>
+                          </View>
+                        </View>
+                        <GameButton
+                          title='Başla'
+                          variant='primary'
+                          onPress={() => {}} // No-op function since AppLink handles navigation
+                          style={{
+                            paddingHorizontal: Spacing[3],
+                            paddingVertical: Spacing[1],
+                          }}
+                          size='small'
+                        />
+                      </TouchableOpacity>
+                    </BouncyButton>
+                  </AppLink>
+                ))
+              ) : (
+                <EmptyState
+                  icon='file'
+                  title='Test bulunamadı'
+                  message='Testler sekmesinden testlere erişebilirsiniz.'
+                />
+              )}
+              <AppLink href='/tests'>
+                <PlayfulButton
+                  title='Tüm Testleri Gör'
+                  onPress={() => {}} // No-op function since AppLink handles navigation
+                  variant='outline'
+                  style={{ marginTop: Spacing[2] }}
+                  animated
+                />
+              </AppLink>
+            </GameCard>
+          </SlideInElement>
+
+          {/* Active Duels */}
+          <SlideInElement direction='up' delay={800}>
+            <PlayfulCard
+              title='Aktif Düellolar'
+              style={{ marginBottom: Spacing[6] }}
+              variant='game'
+              borderGlow
+            >
+              {activeDuels.length > 0 ? (
+                activeDuels.map((duel) => (
+                  <AppLink key={duel.duel_id} href={`/duels/${duel.duel_id}`}>
+                    <BouncyButton
+                      style={{ marginBottom: Spacing[3] }}
+                      onPress={() => {}}
+                    >
+                      <TouchableOpacity
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          padding: Spacing[3],
+                          backgroundColor: isDark
+                            ? Colors.gray[700]
+                            : Colors.gray[50],
+                          borderRadius: 8,
+                        }}
+                      >
+                        <Avatar
+                          name={getOpponentAvatarInitial(duel)}
+                          size='md'
+                          bgColor={VIBRANT_COLORS.orange}
+                        />
+                        <View style={{ flex: 1, marginLeft: Spacing[3] }}>
+                          <Text
+                            style={{
+                              fontWeight: '600',
+                              color: isDark ? Colors.white : Colors.gray[800],
+                              marginBottom: Spacing[1],
+                            }}
+                          >
+                            {getOpponentDisplayName(duel)}
+                          </Text>
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              marginTop: Spacing[1],
+                            }}
+                          >
+                            {renderDuelStatusBadge(duel.status)}
+                          </View>
+                        </View>
+                        <GameButton
+                          title={
+                            duel.status === 'active' ? 'Oyna' : 'Görüntüle'
+                          }
+                          variant={
+                            duel.status === 'active' ? 'primary' : 'outline'
+                          }
+                          onPress={() => {}} // No-op function since AppLink handles navigation
+                          style={{
+                            paddingHorizontal: Spacing[3],
+                            paddingVertical: Spacing[1],
+                          }}
+                          size='small'
+                        />
+                      </TouchableOpacity>
+                    </BouncyButton>
+                  </AppLink>
+                ))
+              ) : (
+                <EmptyState
+                  icon='users'
+                  title='Aktif düello yok'
+                  message='Arkadaşlarınızı düelloya davet edin ve rekabeti başlatın.'
+                  actionButton={{
+                    title: 'Düello Başlat',
+                    onPress: () => router.push('/duel/new' as any),
+                  }}
+                />
+              )}
+              <AppLink href='/duels'>
+                <PlayfulButton
+                  title='Tüm Düelloları Gör'
+                  onPress={() => {}} // No-op function since AppLink handles navigation
+                  variant='outline'
+                  style={{ marginTop: Spacing[2] }}
+                  animated
+                />
+              </AppLink>
+            </PlayfulCard>
+          </SlideInElement>
+
+          {/* Recent Achievements */}
+          <SlideInElement direction='left' delay={1000}>
+            <PlayfulCard
+              title='Son Başarılar'
+              variant='gradient'
+              gradient='tropical'
+              pulseEffect
+            >
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {userAchievements.length > 0 ? (
+                  userAchievements.map((achievement) => (
+                    <View
+                      key={achievement.achievement_id}
+                      style={{
+                        width: '33.33%',
+                        alignItems: 'center',
+                        padding: Spacing[2],
+                      }}
+                    >
+                      <FloatingElement>
+                        <View
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 24,
+                            backgroundColor: isDark
+                              ? Colors.primary.dark
+                              : Colors.primary.light,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: Spacing[2],
+                          }}
+                        >
+                          <FontAwesome
+                            name={getAchievementIcon(achievement)}
+                            size={24}
+                            color={VIBRANT_COLORS.yellow}
+                          />
+                        </View>
+                      </FloatingElement>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          textAlign: 'center',
+                          color: isDark ? Colors.gray[300] : Colors.gray[700],
+                        }}
+                      >
+                        {achievement.name}
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  <EmptyState
+                    icon='trophy'
+                    title='Henüz başarı yok'
+                    message='Daha fazla çalışıkça başarılar kazanacaksınız.'
+                  />
+                )}
+              </View>
+              {userAchievements.length > 0 && (
+                <AppLink href='/profile'>
+                  <PlayfulButton
+                    title='Tüm Başarıları Gör'
+                    onPress={() => {}} // No-op function since AppLink handles navigation
+                    variant='outline'
+                    style={{ marginTop: Spacing[4] }}
+                    animated
+                  />
+                </AppLink>
+              )}
+            </PlayfulCard>
+          </SlideInElement>
         </>
       )}
     </ScrollView>

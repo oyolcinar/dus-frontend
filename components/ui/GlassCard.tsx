@@ -40,66 +40,123 @@ const GlassCard: React.FC<GlassCardProps> = ({
   const shimmerAnimation = useRef(new Animated.Value(0)).current;
   const glowAnimation = useRef(new Animated.Value(0)).current;
 
+  // Store animation references for proper cleanup
+  const animationRefs = useRef<{
+    float?: Animated.CompositeAnimation;
+    shimmer?: Animated.CompositeAnimation;
+    glow?: Animated.CompositeAnimation;
+  }>({});
+
   useEffect(() => {
     if (floatingAnimation) {
-      const float = Animated.loop(
+      const floatAnim = Animated.loop(
         Animated.sequence([
           Animated.timing(floatAnimation, {
             toValue: 1,
-            duration: 3000,
+            duration: 7000,
             easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
           Animated.timing(floatAnimation, {
             toValue: 0,
-            duration: 3000,
+            duration: 7000,
             easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
           }),
         ]),
       );
-      float.start();
-      return () => float.stop();
+
+      animationRefs.current.float = floatAnim;
+      floatAnim.start();
+
+      return () => {
+        if (animationRefs.current.float) {
+          animationRefs.current.float.stop();
+          animationRefs.current.float = undefined;
+        }
+        // Reset animation value to prevent lingering effects
+        floatAnimation.setValue(0);
+      };
     }
-  }, [floatingAnimation]);
+  }, [floatingAnimation, floatAnimation]);
 
   useEffect(() => {
     if (shimmerEffect) {
-      const shimmer = Animated.loop(
+      const shimmerAnim = Animated.loop(
         Animated.timing(shimmerAnimation, {
           toValue: 1,
-          duration: 2000,
+          duration: 6000,
           easing: Easing.linear,
           useNativeDriver: true,
         }),
       );
-      shimmer.start();
-      return () => shimmer.stop();
+
+      animationRefs.current.shimmer = shimmerAnim;
+      shimmerAnim.start();
+
+      return () => {
+        if (animationRefs.current.shimmer) {
+          animationRefs.current.shimmer.stop();
+          animationRefs.current.shimmer = undefined;
+        }
+        // Reset animation value to prevent lingering effects
+        shimmerAnimation.setValue(0);
+      };
     }
-  }, [shimmerEffect]);
+  }, [shimmerEffect, shimmerAnimation]);
 
   useEffect(() => {
     if (borderGlow) {
-      const glow = Animated.loop(
+      const glowAnim = Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnimation, {
             toValue: 1,
-            duration: 2000,
+            duration: 5000,
             easing: Easing.inOut(Easing.sin),
             useNativeDriver: false,
           }),
           Animated.timing(glowAnimation, {
             toValue: 0,
-            duration: 2000,
+            duration: 5000,
             easing: Easing.inOut(Easing.sin),
             useNativeDriver: false,
           }),
         ]),
       );
-      glow.start();
-      return () => glow.stop();
+
+      animationRefs.current.glow = glowAnim;
+      glowAnim.start();
+
+      return () => {
+        if (animationRefs.current.glow) {
+          animationRefs.current.glow.stop();
+          animationRefs.current.glow = undefined;
+        }
+        // Reset animation value to prevent lingering effects
+        glowAnimation.setValue(0);
+      };
     }
-  }, [borderGlow]);
+  }, [borderGlow, glowAnimation]);
+
+  // Cleanup all animations when component unmounts
+  useEffect(() => {
+    return () => {
+      // Stop all running animations
+      Object.values(animationRefs.current).forEach((animation) => {
+        if (animation) {
+          animation.stop();
+        }
+      });
+
+      // Reset all animation values
+      floatAnimation.setValue(0);
+      shimmerAnimation.setValue(0);
+      glowAnimation.setValue(0);
+
+      // Clear references
+      animationRefs.current = {};
+    };
+  }, []);
 
   const getPaddingStyles = () => {
     switch (padding) {
@@ -154,7 +211,7 @@ const GlassCard: React.FC<GlassCardProps> = ({
 
   const shimmerTranslateX = shimmerAnimation.interpolate({
     inputRange: [0, 1],
-    outputRange: [-200, 200],
+    outputRange: [-1500, 1500],
   });
 
   const glowOpacity = glowAnimation.interpolate({

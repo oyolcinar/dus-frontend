@@ -19,6 +19,7 @@ import {
   BorderRadius,
   FontSizes,
 } from '../../constants/theme';
+import { mergeStyles } from '../../utils/styleTypes';
 
 export interface InputProps {
   /**
@@ -182,50 +183,92 @@ const Input: React.FC<InputProps> = ({
       : 'eye'
     : rightIcon;
 
-  // Placeholder text color based on theme
-  const placeholderTextColor = isDark ? Colors.gray[500] : Colors.gray[400];
+  // Check if custom containerStyle overrides are provided
+  const hasCustomContainer =
+    containerStyle && typeof containerStyle === 'object';
+
+  // Create base styles conditionally
+  const baseInputContainerStyle = hasCustomContainer
+    ? {} // Don't apply default styles if custom container is provided
+    : isDark
+    ? styles.inputContainerDark
+    : styles.inputContainerLight;
+
+  const baseLabelStyle = hasCustomContainer
+    ? {} // Don't apply default label styles if custom styling is used
+    : isDark
+    ? styles.labelDark
+    : styles.labelLight;
+
+  // Merge styles safely
+  const finalInputContainerStyle = mergeStyles(
+    styles.inputContainer,
+    baseInputContainerStyle,
+    error ? styles.inputError : null,
+    disabled ? styles.inputDisabled : null,
+    multiline ? styles.inputMultiline : null,
+    containerStyle,
+  );
+
+  const finalLabelStyle = mergeStyles(styles.label, baseLabelStyle, labelStyle);
+
+  // Determine input padding based on icons and custom styles
+  const getInputPadding = () => {
+    // If custom inputStyle is provided, let it handle padding
+    if (
+      inputStyle &&
+      typeof inputStyle === 'object' &&
+      'paddingLeft' in inputStyle
+    ) {
+      return {};
+    }
+
+    return {
+      paddingLeft: leftIcon ? Spacing[1] : Spacing[3],
+      paddingRight: displayRightIcon ? Spacing[1] : Spacing[3],
+    };
+  };
+
+  const finalInputStyle = mergeStyles(
+    styles.input,
+    hasCustomContainer ? {} : isDark ? styles.inputDark : styles.inputLight,
+    getInputPadding(),
+    leftIcon ? styles.inputWithLeftIcon : null,
+    displayRightIcon ? styles.inputWithRightIcon : null,
+    multiline ? styles.textMultiline : null,
+    inputStyle,
+  );
+
+  // Placeholder text color
+  const placeholderTextColor = hasCustomContainer
+    ? Colors.gray[400]
+    : isDark
+    ? Colors.gray[500]
+    : Colors.gray[400];
 
   return (
-    <View style={[styles.container, containerStyle]}>
-      {label && (
-        <Text
-          style={[
-            styles.label,
-            isDark ? styles.labelDark : styles.labelLight,
-            labelStyle,
-          ]}
-        >
-          {label}
-        </Text>
-      )}
+    <View style={[styles.container]}>
+      {label && <Text style={finalLabelStyle}>{label}</Text>}
 
-      <View
-        style={[
-          styles.inputContainer,
-          isDark ? styles.inputContainerDark : styles.inputContainerLight,
-          error ? styles.inputError : null,
-          disabled ? styles.inputDisabled : null,
-          multiline ? styles.inputMultiline : null,
-        ]}
-      >
+      <View style={finalInputContainerStyle}>
         {leftIcon && (
-          <FontAwesome
-            name={leftIcon}
-            size={16}
-            color={isDark ? Colors.gray[400] : Colors.gray[500]}
-            style={styles.leftIcon}
-          />
+          <View style={styles.leftIconContainer}>
+            <FontAwesome
+              name={leftIcon}
+              size={16}
+              color={
+                hasCustomContainer
+                  ? Colors.gray[500]
+                  : isDark
+                  ? Colors.gray[400]
+                  : Colors.gray[500]
+              }
+            />
+          </View>
         )}
 
         <TextInput
-          style={[
-            styles.input,
-            isDark ? styles.inputDark : styles.inputLight,
-            leftIcon ? styles.inputWithLeftIcon : null,
-            displayRightIcon ? styles.inputWithRightIcon : null,
-            multiline ? styles.textMultiline : null,
-            inputStyle,
-          ]}
+          style={finalInputStyle}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -254,7 +297,13 @@ const Input: React.FC<InputProps> = ({
             <FontAwesome
               name={displayRightIcon}
               size={16}
-              color={isDark ? Colors.gray[400] : Colors.gray[500]}
+              color={
+                hasCustomContainer
+                  ? Colors.gray[500]
+                  : isDark
+                  ? Colors.gray[400]
+                  : Colors.gray[500]
+              }
             />
           </TouchableOpacity>
         )}
@@ -280,7 +329,7 @@ const Input: React.FC<InputProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: Spacing[4],
+    marginBottom: Spacing[3],
     width: '100%',
   },
   label: {
@@ -298,30 +347,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
+    minHeight: 48,
   },
   inputContainerLight: {
-    backgroundColor: Colors.gray[100],
+    backgroundColor: Colors.white,
+    borderWidth: 1,
     borderColor: Colors.gray[300],
   },
   inputContainerDark: {
     backgroundColor: Colors.gray[700],
+    borderWidth: 1,
     borderColor: Colors.gray[600],
   },
   inputError: {
     borderColor: Colors.error,
+    borderWidth: 1.5,
   },
   inputDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   inputMultiline: {
     minHeight: 80,
     alignItems: 'flex-start',
+    paddingTop: Spacing[2],
   },
   input: {
     flex: 1,
-    paddingVertical: Spacing[2],
     fontSize: FontSizes.base,
+    paddingVertical: Spacing[3],
+    // Remove default margins and padding to prevent misalignment
+    margin: 0,
+    textAlignVertical: 'center',
   },
   inputLight: {
     color: Colors.gray[900],
@@ -337,13 +393,19 @@ const styles = StyleSheet.create({
   },
   textMultiline: {
     textAlignVertical: 'top',
-    paddingTop: Spacing[2],
+    paddingTop: Spacing[3],
   },
-  leftIcon: {
-    paddingHorizontal: Spacing[3],
+  leftIconContainer: {
+    paddingLeft: Spacing[3],
+    paddingRight: Spacing[2],
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   rightIconContainer: {
-    padding: Spacing[3],
+    paddingRight: Spacing[3],
+    paddingLeft: Spacing[2],
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   helperText: {
     marginTop: Spacing[1],

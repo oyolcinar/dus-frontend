@@ -2,18 +2,18 @@
 import React, { useEffect, useState } from 'react';
 import {
   View,
-  Text,
   ScrollView,
   ActivityIndicator,
-  TouchableOpacity,
   useColorScheme,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { testService } from '../../src/api';
 import { Test } from '../../src/types/models';
 import {
-  Card,
-  Button,
+  PlayfulCard,
+  QuizCard,
+  PlayfulButton,
   EmptyState,
   Badge,
   Container,
@@ -21,8 +21,12 @@ import {
   Paragraph,
   Alert,
   Row,
+  Column,
+  StatCard,
+  AnimatedCounter,
+  GlassCard,
 } from '../../components/ui';
-import { Colors, Spacing } from '../../constants/theme';
+import { Colors, Spacing, FontSizes } from '../../constants/theme';
 
 // Extend Test interface with display properties
 interface TestWithDetails extends Test {
@@ -32,6 +36,7 @@ interface TestWithDetails extends Test {
 }
 
 export default function TestsScreen() {
+  const router = useRouter();
   const [tests, setTests] = useState<TestWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,22 +99,86 @@ export default function TestsScreen() {
   const getDifficultyColor = (difficulty: string): string => {
     switch (difficulty) {
       case 'Kolay':
-        return Colors.success;
+        return Colors.vibrant?.green || Colors.success;
       case 'Orta':
-        return Colors.warning;
+        return Colors.vibrant?.yellow || Colors.warning;
+      case 'Zor':
+        return Colors.vibrant?.orange || Colors.error;
+      case 'Çok Zor':
+        return Colors.vibrant?.pink || Colors.error;
+      case 'Uzman':
+        return Colors.vibrant?.purple || Colors.error;
+      default:
+        return Colors.vibrant?.blue || Colors.info;
+    }
+  };
+
+  // Get variant for difficulty
+  const getDifficultyVariant = (
+    difficulty: string,
+  ): 'success' | 'warning' | 'error' | 'info' => {
+    switch (difficulty) {
+      case 'Kolay':
+        return 'success';
+      case 'Orta':
+        return 'warning';
       case 'Zor':
       case 'Çok Zor':
       case 'Uzman':
-        return Colors.error;
+        return 'error';
       default:
-        return Colors.info;
+        return 'info';
     }
+  };
+
+  // Convert Turkish difficulty to QuizCard expected format
+  const mapDifficultyToQuizCard = (
+    difficulty: string,
+  ): 'easy' | 'medium' | 'hard' => {
+    switch (difficulty) {
+      case 'Kolay':
+        return 'easy';
+      case 'Orta':
+        return 'medium';
+      case 'Zor':
+      case 'Çok Zor':
+      case 'Uzman':
+        return 'hard';
+      default:
+        return 'medium';
+    }
+  };
+
+  // Get icon for test category
+  const getTestIcon = (test: TestWithDetails): any => {
+    const title = test.title?.toLowerCase() || '';
+
+    if (title.includes('anatomi')) return 'tooth';
+    if (title.includes('patoloji')) return 'microscope';
+    if (title.includes('cerrahi')) return 'cut';
+    if (title.includes('protez')) return 'cogs';
+    if (title.includes('periodon')) return 'bacteria';
+    if (title.includes('pedodon')) return 'child';
+    if (title.includes('endodon')) return 'syringe';
+    if (title.includes('ortodon')) return 'exchange';
+
+    return 'question-circle';
   };
 
   // Filter tests by difficulty
   const filteredTests = filter
     ? tests.filter((test) => test.difficulty === filter)
     : tests;
+
+  // Get stats
+  const totalTests = tests.length;
+  const averageQuestions = Math.round(
+    tests.reduce((sum, test) => sum + (test.questionCount || 0), 0) /
+      totalTests || 0,
+  );
+  const hardTests = tests.filter((test) =>
+    ['Zor', 'Çok Zor', 'Uzman'].includes(test.difficulty),
+  ).length;
 
   if (error) {
     return (
@@ -125,7 +194,7 @@ export default function TestsScreen() {
           message={error}
           style={{ marginBottom: Spacing[4] }}
         />
-        <Button
+        <PlayfulButton
           title='Yenile'
           variant='primary'
           onPress={() => window.location.reload()}
@@ -137,84 +206,101 @@ export default function TestsScreen() {
   return (
     <Container>
       <ScrollView style={{ flex: 1, padding: Spacing[4] }}>
-        <View style={{ marginBottom: Spacing[6] }}>
-          <Title level={2}>Testler</Title>
-          <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
-            Sınavlara hazırlanmak için testleri çözün
-          </Paragraph>
-        </View>
-
-        {/* Filter buttons */}
-        <Row style={{ marginBottom: Spacing[4], flexWrap: 'wrap' }}>
-          <TouchableOpacity
-            style={{
-              marginRight: Spacing[2],
-              marginBottom: Spacing[2],
-              paddingHorizontal: Spacing[3],
-              paddingVertical: Spacing[1],
-              borderRadius: 9999,
-              backgroundColor:
-                filter === null
-                  ? Colors.primary.DEFAULT
-                  : isDark
-                  ? Colors.gray[700]
-                  : Colors.gray[200],
-            }}
-            onPress={() => setFilter(null)}
+        {/* Header with animated title */}
+        <PlayfulCard
+          variant='gradient'
+          gradient='ocean'
+          padding='large'
+          animated
+          floatingAnimation
+          style={{ marginBottom: Spacing[6] }}
+        >
+          <Row
+            style={{ justifyContent: 'space-between', alignItems: 'center' }}
           >
-            <Text
-              style={{
-                color:
-                  filter === null
-                    ? Colors.white
-                    : isDark
-                    ? Colors.gray[300]
-                    : Colors.gray[700],
-              }}
-            >
-              Tümü
-            </Text>
-          </TouchableOpacity>
-          {['Kolay', 'Orta', 'Zor', 'Çok Zor', 'Uzman'].map((difficulty) => (
-            <TouchableOpacity
-              key={difficulty}
-              style={{
-                marginRight: Spacing[2],
-                marginBottom: Spacing[2],
-                paddingHorizontal: Spacing[3],
-                paddingVertical: Spacing[1],
-                borderRadius: 9999,
-                backgroundColor:
-                  filter === difficulty
-                    ? Colors.primary.DEFAULT
-                    : isDark
-                    ? Colors.gray[700]
-                    : Colors.gray[200],
-              }}
-              onPress={() => setFilter(difficulty)}
-            >
-              <Text
+            <Column style={{ flex: 1 }}>
+              <Title
+                level={1}
                 style={{
-                  color:
-                    filter === difficulty
-                      ? Colors.white
-                      : isDark
-                      ? Colors.gray[300]
-                      : Colors.gray[700],
+                  color: Colors.white,
+                  marginBottom: Spacing[2],
+                  fontSize: FontSizes['4xl'],
                 }}
               >
-                {difficulty}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                Testler 📝
+              </Title>
+              <Paragraph style={{ color: Colors.white, opacity: 0.9 }}>
+                Sınavlara hazırlanmak için testleri çözün
+              </Paragraph>
+            </Column>
+            <AnimatedCounter
+              value={totalTests}
+              size='large'
+              variant='vibrant'
+            />
+          </Row>
+        </PlayfulCard>
+
+        {/* Stats Cards */}
+        <Row
+          style={{
+            marginBottom: Spacing[6],
+            flexWrap: 'wrap',
+            gap: Spacing[3],
+          }}
+        >
+          <StatCard
+            icon='file'
+            title='Toplam Test'
+            value={totalTests.toString()}
+            color={Colors.vibrant?.blue || Colors.info}
+          />
+          <StatCard
+            icon='question'
+            title='Ortalama Soru'
+            value={averageQuestions.toString()}
+            color={Colors.vibrant?.green || Colors.success}
+          />
+          <StatCard
+            icon='fire'
+            title='Zor Testler'
+            value={hardTests.toString()}
+            color={Colors.vibrant?.orange || Colors.error}
+          />
         </Row>
+
+        {/* Filter buttons */}
+        <GlassCard style={{ marginBottom: Spacing[6], padding: Spacing[4] }}>
+          <Title level={3} style={{ marginBottom: Spacing[3] }}>
+            Zorluk Filtresi
+          </Title>
+          <Row style={{ flexWrap: 'wrap', gap: Spacing[2] }}>
+            <PlayfulButton
+              title='Tümü'
+              variant={filter === null ? 'primary' : 'outline'}
+              size='small'
+              onPress={() => setFilter(null)}
+              animated
+            />
+            {['Kolay', 'Orta', 'Zor', 'Çok Zor', 'Uzman'].map((difficulty) => (
+              <PlayfulButton
+                key={difficulty}
+                title={difficulty}
+                variant={filter === difficulty ? 'primary' : 'outline'}
+                size='small'
+                onPress={() => setFilter(difficulty)}
+                animated
+              />
+            ))}
+          </Row>
+        </GlassCard>
 
         {loading ? (
           <View
             style={{
               alignItems: 'center',
               justifyContent: 'center',
-              padding: Spacing[4],
+              padding: Spacing[8],
             }}
           >
             <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
@@ -224,99 +310,170 @@ export default function TestsScreen() {
             {filteredTests.length > 0 ? (
               <View>
                 {filteredTests.map((test) => (
-                  <TouchableOpacity
-                    key={test.test_id}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      padding: Spacing[3],
-                      backgroundColor: isDark
-                        ? Colors.gray[700]
-                        : Colors.gray[50],
-                      borderRadius: 8,
-                      marginBottom: Spacing[3],
-                    }}
-                    onPress={() => {
-                      // Navigation would go here
-                    }}
-                  >
-                    <View
+                  <View key={test.test_id} style={{ marginBottom: Spacing[4] }}>
+                    <QuizCard
+                      title={test.title || 'Test'}
+                      description={`${test.questionCount || 0} soru • ${
+                        test.timeLimit || 0
+                      } dakika`}
+                      difficulty={mapDifficultyToQuizCard(test.difficulty)}
+                      questionCount={test.questionCount || 0}
+                      estimatedTime={test.timeLimit || 0}
+                      onPress={() =>
+                        router.push(`/tests/${test.test_id}` as any)
+                      }
+                    />
+
+                    {/* Additional content below QuizCard */}
+                    <PlayfulCard
+                      variant='glass'
+                      padding='small'
                       style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        backgroundColor: Colors.info,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginRight: Spacing[3],
+                        marginTop: -Spacing[2],
+                        marginHorizontal: Spacing[2],
+                        borderTopLeftRadius: 0,
+                        borderTopRightRadius: 0,
                       }}
                     >
-                      <FontAwesome
-                        name='question-circle'
-                        size={20}
-                        color={Colors.white}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text
+                      <Row
                         style={{
-                          fontWeight: '600',
-                          color: isDark ? Colors.white : Colors.gray[800],
-                          marginBottom: Spacing[1],
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
                         }}
                       >
-                        {test.title}
-                      </Text>
-                      <View
-                        style={{ flexDirection: 'row', alignItems: 'center' }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: isDark ? Colors.gray[400] : Colors.gray[500],
-                          }}
-                        >
-                          {test.questionCount || 0} soru • {test.timeLimit || 0}{' '}
-                          dakika •
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            marginLeft: Spacing[1],
-                            color: getDifficultyColor(test.difficulty),
-                          }}
-                        >
-                          {test.difficulty}
-                        </Text>
-                      </View>
-                    </View>
-                    <Button
-                      title='Başla'
-                      variant='primary'
-                      onPress={() => {
-                        // Navigation would go here
-                      }}
-                      style={{
-                        paddingHorizontal: Spacing[3],
-                        paddingVertical: Spacing[1],
-                      }}
-                    />
-                  </TouchableOpacity>
+                        <Badge
+                          text={test.difficulty}
+                          variant={getDifficultyVariant(test.difficulty)}
+                          size='sm'
+                        />
+
+                        <Row style={{ gap: Spacing[2] }}>
+                          <PlayfulButton
+                            title='Önizle'
+                            variant='outline'
+                            size='small'
+                            onPress={() =>
+                              router.push(
+                                `/tests/${test.test_id}/preview` as any,
+                              )
+                            }
+                          />
+                          <PlayfulButton
+                            title='Başla'
+                            variant='primary'
+                            size='small'
+                            gradient='success'
+                            onPress={() =>
+                              router.push(`/tests/${test.test_id}` as any)
+                            }
+                            animated
+                          />
+                        </Row>
+                      </Row>
+                    </PlayfulCard>
+                  </View>
                 ))}
               </View>
             ) : (
-              <EmptyState
-                icon='file'
-                title='Test bulunamadı'
-                message={
-                  filter
-                    ? `"${filter}" zorluğunda test bulunamadı.`
-                    : 'Henüz test eklenmemiş.'
-                }
-              />
+              <PlayfulCard
+                variant='glass'
+                animated
+                floatingAnimation
+                style={{ marginTop: Spacing[4] }}
+              >
+                <EmptyState
+                  icon='file'
+                  title='Test bulunamadı'
+                  message={
+                    filter
+                      ? `"${filter}" zorluğunda test bulunamadı.`
+                      : 'Henüz test eklenmemiş.'
+                  }
+                  actionButton={
+                    !filter
+                      ? {
+                          title: 'Filtreyi Temizle',
+                          onPress: () => setFilter(null),
+                        }
+                      : undefined
+                  }
+                />
+              </PlayfulCard>
             )}
           </>
         )}
+
+        {/* Quick Actions */}
+        <PlayfulCard
+          title='Hızlı İşlemler'
+          variant='playful'
+          style={{ marginTop: Spacing[6] }}
+        >
+          <Row style={{ gap: Spacing[3] }}>
+            <PlayfulButton
+              title='Rastgele Test'
+              onPress={() => {
+                if (tests.length > 0) {
+                  const randomTest =
+                    tests[Math.floor(Math.random() * tests.length)];
+                  router.push(`/tests/${randomTest.test_id}` as any);
+                }
+              }}
+              variant='outline'
+              style={{ flex: 1 }}
+              icon='random'
+              gradient='sky'
+            />
+            <PlayfulButton
+              title='Test Geçmişi'
+              onPress={() => router.push('/tests/history' as any)}
+              variant='outline'
+              style={{ flex: 1 }}
+              icon='history'
+              gradient='purple'
+            />
+          </Row>
+        </PlayfulCard>
+
+        {/* Test Categories */}
+        <PlayfulCard
+          title='Popüler Kategoriler'
+          variant='gradient'
+          gradient='tropical'
+          style={{ marginTop: Spacing[6] }}
+        >
+          <Row style={{ flexWrap: 'wrap', gap: Spacing[2] }}>
+            {[
+              'Anatomi',
+              'Patoloji',
+              'Cerrahi',
+              'Protez',
+              'Periodonti',
+              'Pedodonti',
+            ].map((category) => (
+              <PlayfulButton
+                key={category}
+                title={category}
+                variant='playful'
+                size='small'
+                onPress={() => {
+                  const categoryTests = tests.filter((test) =>
+                    test.title?.toLowerCase().includes(category.toLowerCase()),
+                  );
+                  if (categoryTests.length > 0) {
+                    router.push(
+                      `/tests/category/${category.toLowerCase()}` as any,
+                    );
+                  }
+                }}
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                }}
+              />
+            ))}
+          </Row>
+        </PlayfulCard>
       </ScrollView>
     </Container>
   );

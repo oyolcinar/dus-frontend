@@ -76,6 +76,7 @@ export interface CardProps {
   floatingAnimation?: boolean;
   pulseEffect?: boolean;
   borderGlow?: boolean;
+  bounceOnPress?: boolean;
 }
 
 // Enhanced Badge component props

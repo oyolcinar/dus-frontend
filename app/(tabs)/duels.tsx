@@ -2,10 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   View,
-  Text,
   ScrollView,
   ActivityIndicator,
-  TouchableOpacity,
   useColorScheme,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
@@ -13,8 +11,9 @@ import { useRouter } from 'expo-router';
 import { duelService } from '../../src/api';
 import { Duel } from '../../src/types/models';
 import {
-  Card,
-  Button,
+  PlayfulCard,
+  GameCard,
+  PlayfulButton,
   EmptyState,
   Avatar,
   Badge,
@@ -23,8 +22,12 @@ import {
   Paragraph,
   Alert,
   Row,
+  Column,
+  StatCard,
+  AnimatedCounter,
+  ScoreDisplay,
 } from '../../components/ui';
-import { Colors, Spacing } from '../../constants/theme';
+import { Colors, Spacing, FontSizes } from '../../constants/theme';
 
 export default function DuelsScreen() {
   const router = useRouter();
@@ -40,7 +43,6 @@ export default function DuelsScreen() {
         setLoading(true);
         setError(null);
 
-        // Using only getActiveDuels which we know exists
         const activeDuelsResponse = await duelService.getActiveDuels();
         setActiveDuels(activeDuelsResponse);
       } catch (error) {
@@ -58,7 +60,6 @@ export default function DuelsScreen() {
 
   // Helper function to get opponent display name
   const getOpponentDisplayName = (duel: Duel): string => {
-    // Try different possible properties
     if ((duel as any).opponent_username) {
       return (duel as any).opponent_username;
     }
@@ -79,7 +80,6 @@ export default function DuelsScreen() {
 
   // Render badge for duel status
   const renderDuelStatusBadge = (status?: string) => {
-    // Use string comparison instead of enum comparison
     if (status === 'pending') {
       return <Badge text='Bekliyor' variant='info' size='sm' />;
     } else if (status === 'active') {
@@ -88,6 +88,42 @@ export default function DuelsScreen() {
       return <Badge text='Tamamlandı' variant='success' size='sm' />;
     }
     return null;
+  };
+
+  // Get status-specific properties for GameCard
+  const getDuelCardProps = (duel: Duel) => {
+    const status = duel.status;
+
+    if (status === 'active') {
+      return {
+        status: 'active' as const,
+        animated: true,
+        pulseEffect: true,
+        icon: 'sword' as any, // This will fallback to 'gamepad' in GameCard
+        onPlay: () => router.push(`/duel/${duel.duel_id}` as any),
+      };
+    } else if (status === 'completed') {
+      return {
+        status: 'completed' as const,
+        animated: false,
+        icon: 'check-circle' as any,
+        onPlay: () => router.push(`/duel/${duel.duel_id}` as any),
+      };
+    } else if (status === 'pending') {
+      return {
+        status: 'waiting' as const,
+        animated: false,
+        icon: 'clock' as any,
+        onPlay: () => router.push(`/duel/${duel.duel_id}` as any),
+      };
+    }
+
+    return {
+      status: 'waiting' as const,
+      animated: false,
+      icon: 'gamepad' as any,
+      onPlay: () => router.push(`/duel/${duel.duel_id}` as any),
+    };
   };
 
   if (error) {
@@ -104,7 +140,7 @@ export default function DuelsScreen() {
           message={error}
           style={{ marginBottom: Spacing[4] }}
         />
-        <Button
+        <PlayfulButton
           title='Yenile'
           variant='primary'
           onPress={() => window.location.reload()}
@@ -116,19 +152,82 @@ export default function DuelsScreen() {
   return (
     <Container>
       <ScrollView style={{ flex: 1, padding: Spacing[4] }}>
-        <View style={{ marginBottom: Spacing[6] }}>
-          <Title level={2}>Düellolar</Title>
-          <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
-            Arkadaşlarınla yarışarak öğren
-          </Paragraph>
-        </View>
+        {/* Header with animated title */}
+        <PlayfulCard
+          variant='gradient'
+          gradient='sunset'
+          padding='large'
+          animated
+          floatingAnimation
+          style={{ marginBottom: Spacing[6] }}
+        >
+          <Row
+            style={{ justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <Column style={{ flex: 1 }}>
+              <Title
+                level={1}
+                style={{
+                  color: Colors.white,
+                  marginBottom: Spacing[2],
+                  fontSize: FontSizes['4xl'],
+                }}
+              >
+                Düellolar ⚔️
+              </Title>
+              <Paragraph style={{ color: Colors.white, opacity: 0.9 }}>
+                Arkadaşlarınla yarışarak öğren
+              </Paragraph>
+            </Column>
+            <AnimatedCounter
+              value={activeDuels.length}
+              size='large'
+              variant='vibrant'
+            />
+          </Row>
+        </PlayfulCard>
 
-        {/* Button to create new duel */}
-        <Button
+        {/* Stats Cards */}
+        <Row
+          style={{
+            marginBottom: Spacing[6],
+            flexWrap: 'wrap',
+            gap: Spacing[3],
+          }}
+        >
+          <StatCard
+            icon='trophy'
+            title='Aktif Düellolar'
+            value={activeDuels.length.toString()}
+            color={Colors.vibrant?.orange || Colors.secondary.DEFAULT}
+          />
+          <StatCard
+            icon='fire'
+            title='Kazanılan'
+            value={activeDuels
+              .filter((d) => d.status === 'completed')
+              .length.toString()}
+            color={Colors.vibrant?.green || Colors.success}
+          />
+          <StatCard
+            icon='hourglass'
+            title='Bekleyen'
+            value={activeDuels
+              .filter((d) => d.status === 'pending')
+              .length.toString()}
+            color={Colors.vibrant?.blue || Colors.info}
+          />
+        </Row>
+
+        {/* Create New Duel Button */}
+        <PlayfulButton
           title='Yeni Düello Başlat'
           onPress={() => router.push('/duel/new' as any)}
           variant='primary'
-          style={{ marginBottom: Spacing[4] }}
+          gradient='sunset'
+          animated
+          style={{ marginBottom: Spacing[6] }}
+          icon='plus'
         />
 
         {loading ? (
@@ -136,7 +235,7 @@ export default function DuelsScreen() {
             style={{
               alignItems: 'center',
               justifyContent: 'center',
-              padding: Spacing[4],
+              padding: Spacing[8],
             }}
           >
             <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
@@ -145,73 +244,106 @@ export default function DuelsScreen() {
           <>
             {activeDuels.length > 0 ? (
               <View>
-                {activeDuels.map((duel) => (
-                  <TouchableOpacity
-                    key={duel.duel_id}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      padding: Spacing[3],
-                      backgroundColor: isDark
-                        ? Colors.gray[700]
-                        : Colors.gray[50],
-                      borderRadius: 8,
-                      marginBottom: Spacing[3],
-                    }}
-                    onPress={() => router.push(`/duel/${duel.duel_id}` as any)}
-                  >
-                    <Avatar
-                      name={getOpponentAvatarInitial(duel)}
-                      size='md'
-                      bgColor={Colors.secondary.DEFAULT}
-                    />
-                    <View style={{ flex: 1, marginLeft: Spacing[3] }}>
-                      <Text
+                {activeDuels.map((duel) => {
+                  const cardProps = getDuelCardProps(duel);
+
+                  return (
+                    <GameCard
+                      key={duel.duel_id}
+                      title={getOpponentDisplayName(duel)}
+                      playerName={`vs ${getOpponentDisplayName(duel)}`}
+                      gameType='Tıp Bilgisi Düellosu'
+                      style={{ marginBottom: Spacing[4] }}
+                      {...cardProps}
+                    >
+                      <Row
                         style={{
-                          fontWeight: '600',
-                          color: isDark ? Colors.white : Colors.gray[800],
-                          marginBottom: Spacing[1],
-                        }}
-                      >
-                        {getOpponentDisplayName(duel)}
-                      </Text>
-                      <View
-                        style={{
-                          flexDirection: 'row',
                           alignItems: 'center',
-                          marginTop: Spacing[1],
+                          justifyContent: 'space-between',
                         }}
                       >
-                        {renderDuelStatusBadge(duel.status)}
-                      </View>
-                    </View>
-                    <Button
-                      title={duel.status === 'active' ? 'Oyna' : 'Görüntüle'}
-                      variant={duel.status === 'active' ? 'primary' : 'outline'}
-                      onPress={() =>
-                        router.push(`/duel/${duel.duel_id}` as any)
-                      }
-                      style={{
-                        paddingHorizontal: Spacing[3],
-                        paddingVertical: Spacing[1],
-                      }}
-                    />
-                  </TouchableOpacity>
-                ))}
+                        <Row style={{ alignItems: 'center', flex: 1 }}>
+                          <Avatar
+                            name={getOpponentAvatarInitial(duel)}
+                            size='lg'
+                            bgColor={
+                              Colors.vibrant?.purple || Colors.primary.DEFAULT
+                            }
+                            style={{ marginRight: Spacing[3] }}
+                          />
+                          <Column style={{ flex: 1 }}>
+                            <Title
+                              level={3}
+                              style={{
+                                color: Colors.white,
+                                marginBottom: Spacing[1],
+                              }}
+                            >
+                              {getOpponentDisplayName(duel)}
+                            </Title>
+                            {renderDuelStatusBadge(duel.status)}
+                          </Column>
+                        </Row>
+
+                        {/* Score Display if available */}
+                        {(duel as any).your_score !== undefined && (
+                          <ScoreDisplay
+                            score={(duel as any).your_score || 0}
+                            maxScore={(duel as any).max_score || 100}
+                            variant='gradient'
+                            size='small'
+                            animated
+                          />
+                        )}
+                      </Row>
+                    </GameCard>
+                  );
+                })}
               </View>
             ) : (
-              <EmptyState
-                icon='users'
-                title='Aktif düello yok'
-                message='Arkadaşlarını düelloya davet et ve rekabeti başlat.'
-                actionButton={{
-                  title: 'Düello Başlat',
-                  onPress: () => router.push('/duel/new' as any),
-                }}
-              />
+              <PlayfulCard
+                variant='glass'
+                animated
+                floatingAnimation
+                style={{ marginTop: Spacing[4] }}
+              >
+                <EmptyState
+                  icon='users'
+                  title='Aktif düello yok'
+                  message='Arkadaşlarını düelloya davet et ve rekabeti başlat.'
+                  actionButton={{
+                    title: 'Düello Başlat',
+                    onPress: () => router.push('/duel/new' as any),
+                  }}
+                />
+              </PlayfulCard>
             )}
           </>
         )}
+
+        {/* Quick Actions */}
+        <PlayfulCard
+          title='Hızlı İşlemler'
+          variant='playful'
+          style={{ marginTop: Spacing[6] }}
+        >
+          <Row style={{ gap: Spacing[3] }}>
+            <PlayfulButton
+              title='Tüm Düellolar'
+              onPress={() => router.push('/duels/all' as any)}
+              variant='outline'
+              style={{ flex: 1 }}
+              icon='list'
+            />
+            <PlayfulButton
+              title='Düello Geçmişi'
+              onPress={() => router.push('/duels/history' as any)}
+              variant='outline'
+              style={{ flex: 1 }}
+              icon='history'
+            />
+          </Row>
+        </PlayfulCard>
       </ScrollView>
     </Container>
   );

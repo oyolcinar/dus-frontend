@@ -5,22 +5,15 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   useColorScheme,
-  TouchableOpacity,
   Text,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
-import {
-  Button,
-  Input,
-  TextLink,
-  Title,
-  Paragraph,
-  Card,
-  Alert,
-} from '../../components/ui';
-import { Colors, Spacing } from '../../constants/theme';
+import { Button, Input, TextLink, Alert } from '../../components/ui';
+import { PlayfulButton, GlassCard, PlayfulCard } from '../../components/ui';
+import { Colors, Spacing, BorderRadius } from '../../constants/theme';
 
 export default function RegisterScreen() {
   const [username, setUsername] = useState('');
@@ -35,7 +28,6 @@ export default function RegisterScreen() {
     useAuth();
 
   const handleRegister = async () => {
-    // Clear previous errors
     setError(null);
 
     // Basic form validation
@@ -52,7 +44,6 @@ export default function RegisterScreen() {
     try {
       setIsLoading(true);
       await signUp(username, email, password);
-      // No need to navigate, the AuthContext will handle redirection
     } catch (error: any) {
       const errorMessage =
         error.message || 'Registration failed. Please try again.';
@@ -80,7 +71,6 @@ export default function RegisterScreen() {
           await signInWithFacebook();
           break;
       }
-      // No need to navigate, the AuthContext will handle redirection
     } catch (error: any) {
       console.error(`${provider} OAuth error:`, error);
       const errorMessage =
@@ -91,147 +81,181 @@ export default function RegisterScreen() {
     }
   };
 
-  const OAuthButton = ({
-    provider,
-    title,
-    backgroundColor,
-    textColor = 'white',
-    icon,
-  }: {
-    provider: 'google' | 'apple' | 'facebook';
-    title: string;
-    backgroundColor: string;
-    textColor?: string;
-    icon?: string;
-  }) => (
-    <TouchableOpacity
-      style={{
-        backgroundColor,
-        paddingVertical: 14,
-        paddingHorizontal: 20,
-        borderRadius: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 12,
-        opacity: isOAuthLoading === provider ? 0.7 : 1,
-        shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 2,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84,
-        elevation: 5,
-      }}
-      onPress={() => handleOAuthSignUp(provider)}
-      disabled={isOAuthLoading !== null || isLoading}
-    >
-      <Text
-        style={{
-          color: textColor,
-          fontSize: 16,
-          fontWeight: '600',
-          textAlign: 'center',
-        }}
-      >
-        {isOAuthLoading === provider ? `Signing up...` : title}
-      </Text>
-    </TouchableOpacity>
-  );
-
   const isDarkMode = colorScheme === 'dark';
 
+  // Fix: Ensure gradient colors are properly typed for LinearGradient
+  const gradientColors = Colors.gradients?.tropical || [
+    Colors.vibrant?.green || Colors.success,
+    Colors.vibrant?.mint || Colors.primary.DEFAULT,
+  ];
+
+  // Safely convert to the required tuple type
+  const linearGradientColors =
+    Array.isArray(gradientColors) && gradientColors.length >= 2
+      ? ([
+          gradientColors[0],
+          gradientColors[1],
+          ...(gradientColors.slice(2) || []),
+        ] as readonly [string, string, ...string[]])
+      : ([Colors.success, Colors.primary.DEFAULT] as readonly [
+          string,
+          string,
+          ...string[],
+        ]);
+
   return (
-    <SafeAreaView
-      style={{
-        flex: 1,
-        backgroundColor: isDarkMode ? Colors.gray[900] : Colors.gray[50],
-      }}
-    >
+    <View style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           headerShown: false,
         }}
       />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
-          style={{ flex: 1, paddingHorizontal: Spacing[6] }}
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-          keyboardShouldPersistTaps='handled'
-        >
-          {/* Logo and Title */}
-          <View style={{ alignItems: 'center', marginVertical: Spacing[8] }}>
-            <View
-              style={{
-                width: 96,
-                height: 96,
-                backgroundColor: Colors.primary.DEFAULT,
-                borderRadius: 48,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: Spacing[4],
-                shadowColor: '#000',
-                shadowOffset: {
-                  width: 0,
-                  height: 4,
-                },
-                shadowOpacity: 0.3,
-                shadowRadius: 4.65,
-                elevation: 8,
-              }}
-            >
-              <Title level={1} color='white' style={{ marginBottom: 0 }}>
-                D
-              </Title>
-            </View>
-            <Title level={2} style={{ marginBottom: 4 }}>
-              Join DUS Exam Prep
-            </Title>
-            <Paragraph align='center' size='medium'>
-              Start your journey to dental exam success
-            </Paragraph>
-          </View>
+      {/* Animated Background Gradient */}
+      <LinearGradient
+        colors={linearGradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+      />
 
-          {/* OAuth Sign Up Options */}
-          <Card style={{ marginBottom: Spacing[4] }}>
-            <View style={{ marginBottom: Spacing[2] }}>
-              <Paragraph
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <ScrollView
+            style={{ flex: 1, paddingHorizontal: Spacing[6] }}
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+            keyboardShouldPersistTaps='handled'
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Logo and Title */}
+            <View style={{ alignItems: 'center', marginVertical: Spacing[8] }}>
+              <PlayfulCard
+                variant='playful'
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: 48,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: Spacing[4],
+                }}
+                animated={true}
+                floatingAnimation={true}
+                pulseEffect={true}
+              >
+                <Text
+                  style={{
+                    fontSize: 36,
+                    fontWeight: '900',
+                    color: Colors.white,
+                    textAlign: 'center',
+                  }}
+                >
+                  D
+                </Text>
+              </PlayfulCard>
+
+              <Text
+                style={{
+                  fontSize: 28,
+                  fontWeight: '800',
+                  color: Colors.white,
+                  textAlign: 'center',
+                  marginBottom: 4,
+                  textShadowColor: 'rgba(0, 0, 0, 0.3)',
+                  textShadowOffset: { width: 0, height: 2 },
+                  textShadowRadius: 4,
+                }}
+              >
+                Join DUS Exam Prep
+              </Text>
+
+              <Text
+                style={{
+                  fontSize: 16,
+                  color: Colors.white,
+                  textAlign: 'center',
+                  opacity: 0.9,
+                  textShadowColor: 'rgba(0, 0, 0, 0.2)',
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 2,
+                }}
+              >
+                Start your journey to dental exam success
+              </Text>
+            </View>
+
+            {/* OAuth Sign Up Options */}
+            <GlassCard
+              style={{ marginBottom: Spacing[4] }}
+              tint='light'
+              blurIntensity={15}
+              borderGlow={true}
+              glowColor={Colors.vibrant?.greenLight}
+              shimmerEffect={true}
+            >
+              <Text
                 style={{
                   textAlign: 'center',
                   marginBottom: Spacing[4],
                   fontWeight: '600',
-                  color: isDarkMode ? Colors.gray[200] : Colors.gray[700],
+                  fontSize: 16,
+                  color: Colors.neutral?.darkGray || Colors.gray[700],
                 }}
               >
                 Quick Sign Up
-              </Paragraph>
+              </Text>
 
-              <OAuthButton
-                provider='google'
-                title='Continue with Google'
-                backgroundColor='#4285F4'
-                textColor='white'
+              <PlayfulButton
+                title={
+                  isOAuthLoading === 'google'
+                    ? 'Signing up...'
+                    : 'Continue with Google'
+                }
+                onPress={() => handleOAuthSignUp('google')}
+                variant='gradient'
+                gradient='google'
+                disabled={isOAuthLoading !== null || isLoading}
+                size='medium'
+                style={{ marginBottom: 12 }}
+                animated={true}
+                wiggleOnPress={true}
               />
 
-              <OAuthButton
-                provider='apple'
-                title='Continue with Apple'
-                backgroundColor={isDarkMode ? '#ffffff' : '#000000'}
-                textColor={isDarkMode ? '#000000' : '#ffffff'}
+              <PlayfulButton
+                title={
+                  isOAuthLoading === 'apple'
+                    ? 'Signing up...'
+                    : 'Continue with Apple'
+                }
+                onPress={() => handleOAuthSignUp('apple')}
+                variant='gradient'
+                gradient={isDarkMode ? 'appleLight' : 'appleDark'}
+                disabled={isOAuthLoading !== null || isLoading}
+                size='medium'
+                style={{ marginBottom: 12 }}
+                animated={true}
+                wiggleOnPress={true}
               />
 
-              <OAuthButton
-                provider='facebook'
-                title='Continue with Facebook'
-                backgroundColor='#1877F2'
-                textColor='white'
+              <PlayfulButton
+                title={
+                  isOAuthLoading === 'facebook'
+                    ? 'Signing up...'
+                    : 'Continue with Facebook'
+                }
+                onPress={() => handleOAuthSignUp('facebook')}
+                variant='gradient'
+                gradient='facebook'
+                disabled={isOAuthLoading !== null || isLoading}
+                size='medium'
+                animated={true}
+                wiggleOnPress={true}
               />
-            </View>
+            </GlassCard>
 
             {/* Divider */}
             <View
@@ -245,156 +269,155 @@ export default function RegisterScreen() {
                 style={{
                   flex: 1,
                   height: 1,
-                  backgroundColor: isDarkMode
-                    ? Colors.gray[600]
-                    : Colors.gray[300],
+                  backgroundColor: 'rgba(255, 255, 255, 0.3)',
                 }}
               />
-              <Paragraph
+              <Text
                 style={{
                   marginHorizontal: Spacing[3],
-                  color: isDarkMode ? Colors.gray[400] : Colors.gray[500],
+                  color: Colors.white,
                   fontSize: 14,
+                  opacity: 0.8,
                 }}
               >
                 or create account with email
-              </Paragraph>
+              </Text>
               <View
                 style={{
                   flex: 1,
                   height: 1,
-                  backgroundColor: isDarkMode
-                    ? Colors.gray[600]
-                    : Colors.gray[300],
+                  backgroundColor: 'rgba(255, 255, 255, 0.3)',
                 }}
               />
             </View>
-          </Card>
 
-          {/* Email/Password Registration Form */}
-          <Card>
-            <View style={{ marginBottom: Spacing[4] }}>
-              <Input
-                label='Username'
-                value={username}
-                onChangeText={setUsername}
-                placeholder='Enter your username'
+            {/* Email/Password Registration Form */}
+            <GlassCard
+              tint='light'
+              blurIntensity={15}
+              borderGlow={true}
+              glowColor={Colors.vibrant?.coral}
+            >
+              <View style={{ marginBottom: Spacing[4] }}>
+                <Input
+                  label='Username'
+                  value={username}
+                  onChangeText={setUsername}
+                  placeholder='Enter your username'
+                  disabled={isLoading || isOAuthLoading !== null}
+                  leftIcon='user'
+                  containerStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    borderRadius: BorderRadius.lg,
+                  }}
+                />
+
+                <Input
+                  label='Email'
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder='Enter your email'
+                  inputMode='email'
+                  autoCapitalize='none'
+                  disabled={isLoading || isOAuthLoading !== null}
+                  leftIcon='envelope'
+                  containerStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    borderRadius: BorderRadius.lg,
+                  }}
+                />
+
+                <Input
+                  label='Password'
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder='Create a password'
+                  secureTextEntry
+                  disabled={isLoading || isOAuthLoading !== null}
+                  leftIcon='lock'
+                  containerStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    borderRadius: BorderRadius.lg,
+                  }}
+                />
+
+                <Input
+                  label='Confirm Password'
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder='Confirm your password'
+                  secureTextEntry
+                  disabled={isLoading || isOAuthLoading !== null}
+                  leftIcon='lock'
+                  containerStyle={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    borderRadius: BorderRadius.lg,
+                  }}
+                />
+              </View>
+
+              {/* Display error message if exists */}
+              {error && (
+                <Alert
+                  type='error'
+                  message={error}
+                  style={{ marginBottom: Spacing[4] }}
+                />
+              )}
+
+              <PlayfulButton
+                title={isLoading ? 'Creating Account...' : 'Create Account'}
+                onPress={handleRegister}
                 disabled={isLoading || isOAuthLoading !== null}
+                variant='vibrant'
+                gradient='tropical'
+                size='medium'
+                loading={isLoading}
+                style={{
+                  width: '100%',
+                  marginTop: Spacing[2],
+                }}
+                animated={true}
+                glowEffect={true}
+                wiggleOnPress={true}
               />
+            </GlassCard>
 
-              <Input
-                label='Email'
-                value={email}
-                onChangeText={setEmail}
-                placeholder='Enter your email'
-                inputMode='email'
-                autoCapitalize='none'
-                disabled={isLoading || isOAuthLoading !== null}
-              />
-
-              <Input
-                label='Password'
-                value={password}
-                onChangeText={setPassword}
-                placeholder='Create a password'
-                secureTextEntry
-                disabled={isLoading || isOAuthLoading !== null}
-              />
-
-              <Input
-                label='Confirm Password'
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholder='Confirm your password'
-                secureTextEntry
-                disabled={isLoading || isOAuthLoading !== null}
-              />
-            </View>
-
-            {/* Display error message if exists */}
-            {error && (
-              <Alert
-                type='error'
-                message={error}
-                style={{ marginBottom: Spacing[4] }}
-              />
-            )}
-
-            <Button
-              title={isLoading ? 'Creating Account...' : 'Create Account'}
-              onPress={handleRegister}
-              disabled={isLoading || isOAuthLoading !== null}
-              variant='primary'
-              style={{
-                width: '100%',
-                marginTop: Spacing[2],
-                opacity: isLoading || isOAuthLoading !== null ? 0.7 : 1,
-              }}
-            />
-          </Card>
-
-          {/* Sign In Link */}
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'center',
-              alignItems: 'center',
-              marginTop: Spacing[4],
-              marginBottom: Spacing[4],
-            }}
-          >
-            <Paragraph size='medium'>Already have an account? </Paragraph>
-            <TextLink href='/(auth)/login' label='Sign In' />
-          </View>
-
-          {/* Loading indicator for OAuth */}
-          {isOAuthLoading && (
+            {/* Sign In Link */}
             <View
               style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.3)',
+                flexDirection: 'row',
                 justifyContent: 'center',
                 alignItems: 'center',
-                zIndex: 1000,
+                marginTop: Spacing[4],
+                marginBottom: Spacing[4],
               }}
             >
-              <View
+              <Text
                 style={{
-                  backgroundColor: isDarkMode ? Colors.gray[800] : 'white',
-                  padding: Spacing[6],
-                  borderRadius: 12,
-                  alignItems: 'center',
-                  shadowColor: '#000',
-                  shadowOffset: {
-                    width: 0,
-                    height: 2,
-                  },
-                  shadowOpacity: 0.25,
-                  shadowRadius: 3.84,
-                  elevation: 5,
+                  fontSize: 16,
+                  color: Colors.white,
+                  opacity: 0.9,
                 }}
               >
-                <Paragraph style={{ marginBottom: Spacing[2] }}>
-                  Signing up with {isOAuthLoading}...
-                </Paragraph>
-                <Paragraph
-                  size='small'
-                  style={{
-                    color: isDarkMode ? Colors.gray[400] : Colors.gray[600],
-                    textAlign: 'center',
-                  }}
-                >
-                  You may be redirected to your browser
-                </Paragraph>
-              </View>
+                Already have an account?
+              </Text>
+              <TextLink
+                href='/(auth)/login'
+                label=' Sign In'
+                style={{
+                  color: Colors.vibrant?.yellow || Colors.secondary.light,
+                  fontWeight: '700',
+                  fontSize: 16,
+                  textShadowColor: 'rgba(0, 0, 0, 0.3)',
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 2,
+                }}
+              />
             </View>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
