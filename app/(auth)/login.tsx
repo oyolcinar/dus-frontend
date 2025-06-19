@@ -22,7 +22,13 @@ import {
   GlassCard,
 } from '../../components/ui';
 import { PlayfulButton, PlayfulCard } from '../../components/ui';
-import { Colors, Spacing, BorderRadius } from '../../constants/theme';
+import {
+  Colors,
+  Spacing,
+  BorderRadius,
+  Typography,
+  FontFamilies,
+} from '../../constants/theme';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -147,42 +153,47 @@ export default function LoginScreen() {
                 gradient='purple'
               >
                 <Text
-                  style={{
-                    fontSize: 36,
-                    fontWeight: '900',
-                    color: Colors.white,
-                    textAlign: 'center',
-                  }}
+                  style={[
+                    Typography.gameTitle,
+                    {
+                      fontSize: 36,
+                      color: Colors.white,
+                      textAlign: 'center',
+                    },
+                  ]}
                 >
                   D
                 </Text>
               </PlayfulCard>
 
               <Text
-                style={{
-                  fontSize: 28,
-                  fontWeight: '800',
-                  color: Colors.white,
-                  textAlign: 'center',
-                  marginBottom: 4,
-                  textShadowColor: 'rgba(0, 0, 0, 0.3)',
-                  textShadowOffset: { width: 0, height: 2 },
-                  textShadowRadius: 4,
-                }}
+                style={[
+                  Typography.h1,
+                  {
+                    color: Colors.white,
+                    textAlign: 'center',
+                    marginBottom: 4,
+                    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+                    textShadowOffset: { width: 0, height: 2 },
+                    textShadowRadius: 4,
+                  },
+                ]}
               >
                 DUS Exam Prep
               </Text>
 
               <Text
-                style={{
-                  fontSize: 16,
-                  color: Colors.white,
-                  textAlign: 'center',
-                  opacity: 0.9,
-                  textShadowColor: 'rgba(0, 0, 0, 0.2)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 2,
-                }}
+                style={[
+                  Typography.bodyLarge,
+                  {
+                    color: Colors.white,
+                    textAlign: 'center',
+                    opacity: 0.9,
+                    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 2,
+                  },
+                ]}
               >
                 Master your dental exams with confidence
               </Text>
@@ -198,13 +209,14 @@ export default function LoginScreen() {
               shimmerEffect={true}
             >
               <Text
-                style={{
-                  textAlign: 'center',
-                  marginBottom: Spacing[4],
-                  fontWeight: '600',
-                  fontSize: 16,
-                  color: Colors.neutral?.darkGray || Colors.gray[700],
-                }}
+                style={[
+                  Typography.h4,
+                  {
+                    textAlign: 'center',
+                    marginBottom: Spacing[4],
+                    color: Colors.neutral?.darkGray || Colors.gray[700],
+                  },
+                ]}
               >
                 Quick Sign In
               </Text>
@@ -272,12 +284,14 @@ export default function LoginScreen() {
                   }}
                 />
                 <Text
-                  style={{
-                    marginHorizontal: Spacing[3],
-                    color: Colors.white,
-                    fontSize: 14,
-                    opacity: 0.8,
-                  }}
+                  style={[
+                    Typography.bodySmall,
+                    {
+                      marginHorizontal: Spacing[3],
+                      color: Colors.white,
+                      opacity: 0.8,
+                    },
+                  ]}
                 >
                   or continue with email
                 </Text>
@@ -319,15 +333,20 @@ export default function LoginScreen() {
                     elevation: 3,
                     minHeight: 50,
                   }}
-                  labelStyle={{
-                    color: Colors.gray[700],
-                    fontWeight: '600',
-                    marginBottom: Spacing[2],
-                  }}
-                  inputStyle={{
-                    color: Colors.gray[800],
-                    fontSize: 16,
-                  }}
+                  labelStyle={[
+                    Typography.caption,
+                    {
+                      color: Colors.gray[700],
+                      fontFamily: FontFamilies.secondary.bold,
+                      marginBottom: Spacing[2],
+                    },
+                  ]}
+                  inputStyle={[
+                    Typography.body,
+                    {
+                      color: Colors.gray[800],
+                    },
+                  ]}
                 />
 
                 <Input
@@ -349,15 +368,20 @@ export default function LoginScreen() {
                     elevation: 3,
                     minHeight: 50,
                   }}
-                  labelStyle={{
-                    color: Colors.gray[700],
-                    fontWeight: '600',
-                    marginBottom: Spacing[2],
-                  }}
-                  inputStyle={{
-                    color: Colors.gray[800],
-                    fontSize: 16,
-                  }}
+                  labelStyle={[
+                    Typography.caption,
+                    {
+                      color: Colors.gray[700],
+                      fontFamily: FontFamilies.secondary.bold,
+                      marginBottom: Spacing[2],
+                    },
+                  ]}
+                  inputStyle={[
+                    Typography.body,
+                    {
+                      color: Colors.gray[800],
+                    },
+                  ]}
                 />
               </View>
 
@@ -377,10 +401,13 @@ export default function LoginScreen() {
                 <TextLink
                   href='/(auth)/forgot-password'
                   label='Forgot password?'
-                  style={{
-                    color: Colors.vibrant?.purple || Colors.primary.DEFAULT,
-                    fontWeight: '600',
-                  }}
+                  style={[
+                    Typography.bodySmall,
+                    {
+                      color: Colors.vibrant?.purple || Colors.primary.DEFAULT,
+                      fontFamily: FontFamilies.secondary.bold,
+                    },
+                  ]}
                 />
               </View>
 
@@ -410,25 +437,29 @@ export default function LoginScreen() {
               }}
             >
               <Text
-                style={{
-                  fontSize: 16,
-                  color: Colors.white,
-                  opacity: 0.9,
-                }}
+                style={[
+                  Typography.bodyLarge,
+                  {
+                    color: Colors.white,
+                    opacity: 0.9,
+                  },
+                ]}
               >
                 Don't have an account?
               </Text>
               <TextLink
                 href='/(auth)/register'
                 label=' Sign Up'
-                style={{
-                  color: Colors.vibrant?.yellow || Colors.secondary.light,
-                  fontWeight: '700',
-                  fontSize: 16,
-                  textShadowColor: 'rgba(0, 0, 0, 0.3)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 2,
-                }}
+                style={[
+                  Typography.bodyLarge,
+                  {
+                    color: Colors.vibrant?.yellow || Colors.secondary.light,
+                    fontFamily: FontFamilies.secondary.bold,
+                    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 2,
+                  },
+                ]}
               />
             </View>
           </ScrollView>

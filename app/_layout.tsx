@@ -48,8 +48,11 @@ export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [loaded, error] = useFonts({
     ...FontAwesome.font,
-    // Use default system fonts until you add the custom fonts to your assets directory
-    // You can remove these lines when you add your actual fonts
+
+    // Your custom fonts
+    PrimaryFont: require('../assets/fonts/primaryFont.ttf'),
+    'SecondaryFont-Regular': require('../assets/fonts/secondaryFontRegular.ttf'),
+    'SecondaryFont-Bold': require('../assets/fonts/secondaryFontBold.ttf'),
   });
 
   // Initialize app resources and services

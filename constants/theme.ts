@@ -1,3 +1,5 @@
+// constants/theme.ts - Updated with custom fonts and enhanced styling
+
 export const Colors = {
   // Your existing primary colors (keeping for backward compatibility)
   primary: {
@@ -192,7 +194,150 @@ export const AnimationConfig = {
   },
 };
 
-// Enhanced and expanded common styles
+// NEW: Font families for your custom fonts
+export const FontFamilies = {
+  // Your custom fonts
+  primary: {
+    regular: 'PrimaryFont', // Use WOFF first, fallback to WOFF2 if needed
+    woff2: 'PrimaryFont-WOFF2', // Alternative format
+  },
+
+  secondary: {
+    regular: 'SecondaryFont-Regular',
+    bold: 'SecondaryFont-Bold',
+  },
+
+  // Fallbacks for system fonts
+  system: {
+    ios: 'System',
+    android: 'Roboto',
+    default: 'System',
+  },
+};
+
+// Updated Typography styles with your actual fonts
+export const Typography = {
+  // Headings (using secondary bold for impact)
+  h1: {
+    fontFamily: FontFamilies.secondary.bold,
+    fontSize: FontSizes['4xl'],
+    fontWeight: 'normal' as any, // Let the font handle weight
+    lineHeight: 44,
+    letterSpacing: -0.5,
+  },
+
+  h2: {
+    fontFamily: FontFamilies.secondary.bold,
+    fontSize: FontSizes['3xl'],
+    fontWeight: 'normal' as any,
+    lineHeight: 36,
+    letterSpacing: -0.3,
+  },
+
+  h3: {
+    fontFamily: FontFamilies.secondary.bold,
+    fontSize: FontSizes['2xl'],
+    fontWeight: 'normal' as any,
+    lineHeight: 30,
+  },
+
+  h4: {
+    fontFamily: FontFamilies.secondary.regular,
+    fontSize: FontSizes.xl,
+    fontWeight: 'normal' as any,
+    lineHeight: 26,
+  },
+
+  // Body text (using primary font for readability)
+  body: {
+    fontFamily: FontFamilies.primary.regular,
+    fontSize: FontSizes.base,
+    fontWeight: 'normal' as any,
+    lineHeight: 24,
+  },
+
+  bodyLarge: {
+    fontFamily: FontFamilies.primary.regular,
+    fontSize: FontSizes.lg,
+    fontWeight: 'normal' as any,
+    lineHeight: 26,
+  },
+
+  bodySmall: {
+    fontFamily: FontFamilies.primary.regular,
+    fontSize: FontSizes.sm,
+    fontWeight: 'normal' as any,
+    lineHeight: 20,
+  },
+
+  // Special styles
+  caption: {
+    fontFamily: FontFamilies.primary.regular,
+    fontSize: FontSizes.xs,
+    fontWeight: 'normal' as any,
+    lineHeight: 16,
+  },
+
+  button: {
+    fontFamily: FontFamilies.secondary.bold,
+    fontSize: FontSizes.base,
+    fontWeight: 'normal' as any,
+    letterSpacing: 0.5,
+  },
+
+  buttonLarge: {
+    fontFamily: FontFamilies.secondary.bold,
+    fontSize: FontSizes.lg,
+    fontWeight: 'normal' as any,
+    letterSpacing: 0.5,
+  },
+
+  // Playful styles for game elements
+  gameTitle: {
+    fontFamily: FontFamilies.secondary.bold,
+    fontSize: FontSizes['5xl'],
+    fontWeight: 'normal' as any,
+    lineHeight: 52,
+    letterSpacing: -1,
+  },
+
+  score: {
+    fontFamily: FontFamilies.secondary.bold,
+    fontSize: FontSizes['3xl'],
+    fontWeight: 'normal' as any,
+    lineHeight: 36,
+  },
+
+  timer: {
+    fontFamily: FontFamilies.secondary.bold,
+    fontSize: FontSizes['2xl'],
+    fontWeight: 'normal' as any,
+    lineHeight: 28,
+    letterSpacing: 1,
+  },
+};
+
+// Helper function to get font family with fallback
+export const getFontFamily = (
+  family: 'primary' | 'secondary' = 'primary',
+  variant: 'regular' | 'bold' = 'regular',
+) => {
+  if (family === 'primary') {
+    return FontFamilies.primary.regular || FontFamilies.system.default;
+  }
+
+  if (family === 'secondary') {
+    return (
+      FontFamilies.secondary[variant] ||
+      FontFamilies.secondary.regular ||
+      FontFamilies.system.default
+    );
+  }
+
+  return FontFamilies.system.default;
+};
+
+// Enhanced and expanded common styles with custom fonts
 export const CommonStyles = {
   // Your existing card styles (enhanced)
   card: {
@@ -252,7 +397,7 @@ export const CommonStyles = {
     padding: Spacing[6],
   },
 
-  // NEW: Button styles
+  // NEW: Button styles with custom fonts
   primaryButton: {
     borderRadius: BorderRadius.button,
     paddingVertical: Spacing[4],
@@ -287,38 +432,82 @@ export const CommonStyles = {
     padding: Spacing[4],
   },
 
-  // NEW: Text styles
+  // NEW: Text styles with custom fonts
   headingText: {
-    fontSize: FontSizes['3xl'],
-    fontWeight: FontWeights.bold,
+    ...Typography.h2,
     color: Colors.gray[800],
     textAlign: 'center',
   },
 
   playfulHeading: {
-    fontSize: FontSizes['4xl'],
-    fontWeight: FontWeights.extrabold,
+    ...Typography.gameTitle,
     color: Colors.vibrant.purple,
     textAlign: 'center',
-    letterSpacing: -0.5,
+    textShadowColor: 'rgba(108, 92, 231, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+
+  heroTitle: {
+    ...Typography.h1,
+    color: Colors.white,
+    textAlign: 'center',
+  },
+
+  cardTitle: {
+    ...Typography.h3,
+    color: Colors.gray[800],
+    marginBottom: Spacing[2],
   },
 
   bodyText: {
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.normal,
+    ...Typography.body,
     color: Colors.gray[600],
-    lineHeight: 24,
+  },
+
+  bodyTextPrimary: {
+    ...Typography.body,
+    color: Colors.gray[700],
+  },
+
+  bodyTextSecondary: {
+    ...Typography.bodySmall,
+    color: Colors.gray[500],
+  },
+
+  buttonText: {
+    ...Typography.button,
+    color: Colors.white,
+    textAlign: 'center',
+  },
+
+  buttonTextLarge: {
+    ...Typography.buttonLarge,
+    color: Colors.white,
+    textAlign: 'center',
+  },
+
+  scoreText: {
+    ...Typography.score,
+    color: Colors.vibrant.yellow,
+    textAlign: 'center',
+  },
+
+  timerText: {
+    ...Typography.timer,
+    color: Colors.vibrant.orange,
+    textAlign: 'center',
   },
 
   // NEW: Input styles
   input: {
+    ...Typography.body,
     borderRadius: BorderRadius.lg,
     borderWidth: 2,
     borderColor: Colors.gray[200],
     backgroundColor: Colors.white,
     paddingVertical: Spacing[3],
     paddingHorizontal: Spacing[4],
-    fontSize: FontSizes.base,
     color: Colors.gray[800],
   },
 
@@ -371,4 +560,37 @@ export const StyleHelpers = {
     paddingHorizontal: baseSize,
     paddingVertical: baseSize * 0.75,
   }),
+
+  // Create text style with custom font
+  createTextStyle: (
+    family: 'primary' | 'secondary' = 'primary',
+    variant: 'regular' | 'bold' = 'regular',
+    size: keyof typeof FontSizes = 'base',
+    color: string = Colors.gray[800],
+  ) => ({
+    fontFamily: getFontFamily(family, variant),
+    fontSize: FontSizes[size],
+    fontWeight: 'normal' as any,
+    color,
+  }),
+
+  // Create button style with gradient
+  createButtonStyle: (
+    gradient: keyof typeof Colors.gradients = 'primary',
+    size: 'small' | 'medium' | 'large' = 'medium',
+  ) => {
+    const baseStyle = CommonStyles.primaryButton;
+    const padding =
+      size === 'small'
+        ? Spacing[2]
+        : size === 'large'
+        ? Spacing[6]
+        : Spacing[4];
+
+    return {
+      ...baseStyle,
+      paddingVertical: padding,
+      paddingHorizontal: padding * 1.5,
+    };
+  },
 };

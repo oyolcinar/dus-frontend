@@ -8,6 +8,13 @@
     "scheme": "dus-app",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*"],
+    "fonts": [
+      "./assets/fonts/primaryFont.woff",
+      "./assets/fonts/primaryFont.woff2",
+      "./assets/fonts/secondaryFontRegular.woff",
+      "./assets/fonts/secondaryFontBold.woff"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dortac.dusfrontend",
