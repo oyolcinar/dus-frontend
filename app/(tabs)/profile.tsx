@@ -1,6 +1,7 @@
 // app/(tabs)/profile.tsx
 import React, { useEffect, useState, useCallback } from 'react';
 import {
+  Text,
   View,
   ScrollView,
   ActivityIndicator,
@@ -27,6 +28,8 @@ import {
   Badge,
   AnimatedCounter,
   ScoreDisplay,
+  SlideInElement,
+  PlayfulTitle,
 } from '../../components/ui';
 import { Colors, Spacing, FontSizes } from '../../constants/theme';
 
@@ -185,9 +188,10 @@ export default function ProfileScreen() {
   }
 
   return (
-    <Container>
+    <View style={{ flex: 1 }}>
       <ScrollView
         style={{ flex: 1 }}
+        contentContainerStyle={{ padding: Spacing[4] }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -198,76 +202,85 @@ export default function ProfileScreen() {
         }
       >
         {/* Animated Profile Header */}
-        <PlayfulCard
-          variant='gradient'
-          gradient='primary'
-          padding='large'
-          animated
-          floatingAnimation
-          style={{ marginBottom: Spacing[6], borderRadius: 0 }}
-        >
-          <Column style={{ alignItems: 'center' }}>
-            <Avatar
-              name={user?.username?.[0] || 'U'}
-              size='xl'
-              bgColor={Colors.white}
-              gradient='sunset'
-              borderGlow
-              animated
-              floatingEffect
-              style={{ marginBottom: Spacing[4] }}
-            />
-            <Title
-              level={1}
-              style={{
-                color: Colors.white,
-                marginBottom: Spacing[1],
-                fontSize: FontSizes['3xl'],
-                textAlign: 'center',
-              }}
-            >
-              {user?.username || 'Kullanıcı'}
-            </Title>
-            <Paragraph
-              style={{ color: Colors.white, opacity: 0.9, textAlign: 'center' }}
-            >
-              {user?.email || 'email@example.com'}
-            </Paragraph>
-
-            {/* User level/score display */}
-            <View style={{ marginTop: Spacing[4] }}>
-              <ScoreDisplay
-                score={duelStats?.wins || 0}
-                maxScore={duelStats?.totalDuels || 1}
-                label='DÜELLO PUANI'
-                variant='celebration'
-                size='medium'
+        <SlideInElement delay={0}>
+          <PlayfulCard
+            style={{ marginBottom: Spacing[6], backgroundColor: 'transparent' }}
+          >
+            <Column style={{ alignItems: 'center' }}>
+              <Avatar
+                name={user?.username?.[0] || 'U'}
+                size='xl'
+                bgColor={Colors.white}
+                gradient='sunset'
+                borderGlow
                 animated
-                showProgress={true}
+                floatingEffect
+                style={{ marginBottom: Spacing[2] }}
               />
-            </View>
-          </Column>
-        </PlayfulCard>
+              <PlayfulTitle
+                level={1}
+                style={{
+                  color: Colors.white,
+                  marginBottom: Spacing[1],
+                  fontSize: FontSizes['3xl'],
+                  textAlign: 'center',
+                  fontFamily: 'PrimaryFont',
+                }}
+              >
+                {user?.username || 'Kullanıcı'}
+              </PlayfulTitle>
+              <Text
+                style={{
+                  color: Colors.white,
+                  opacity: 0.9,
+                  textAlign: 'center',
+                  fontFamily: 'PrimaryFont',
+                }}
+              >
+                {user?.email || 'email@example.com'}
+              </Text>
 
-        <View style={{ padding: Spacing[4] }}>
+              {/* User level/score display */}
+              <View style={{ marginTop: Spacing[4] }}>
+                <ScoreDisplay
+                  score={duelStats?.wins || 0}
+                  maxScore={duelStats?.totalDuels || 1}
+                  label='DÜELLO PUANI'
+                  variant='celebration'
+                  size='medium'
+                  scoreFontFamily='SecondaryFont-Bold'
+                  labelFontFamily='SecondaryFont-Bold'
+                  maxScoreFontFamily='SecondaryFont-Bold'
+                  animated
+                  showProgress={true}
+                />
+              </View>
+            </Column>
+          </PlayfulCard>
+        </SlideInElement>
+
+        <View>
           {loading ? (
             <View
               style={{
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: Spacing[8],
+                padding: Spacing[4],
               }}
             >
-              <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
-              <Paragraph
+              <ActivityIndicator
+                size='large'
+                color={isDark ? Colors.primary.DEFAULT : Colors.vibrant.coral}
+              />
+              <Text
                 style={{
                   marginTop: Spacing[3],
-                  color: isDark ? Colors.gray[400] : Colors.gray[600],
-                  textAlign: 'center',
+                  color: isDark ? Colors.gray[400] : Colors.white,
+                  fontFamily: 'SecondaryFont-Regular',
                 }}
               >
                 Profil verileri yükleniyor...
-              </Paragraph>
+              </Text>
             </View>
           ) : (
             <>
@@ -275,17 +288,18 @@ export default function ProfileScreen() {
               {duelStats && (
                 <Row
                   style={{
+                    justifyContent: 'space-between',
+                    flexWrap: 'nowrap',
                     marginBottom: Spacing[6],
-                    flexWrap: 'wrap',
-                    gap: Spacing[3],
                   }}
                 >
                   <StatCard
                     icon='trophy'
                     title='Toplam Düello'
                     value={duelStats.totalDuels.toString()}
-                    color={Colors.vibrant?.purple || Colors.primary.DEFAULT}
+                    color={Colors.secondary?.light || Colors.primary.DEFAULT}
                     size='medium'
+                    titleFontFamily='SecondaryFont-Bold'
                   />
                   <StatCard
                     icon='check-circle'
@@ -293,6 +307,7 @@ export default function ProfileScreen() {
                     value={duelStats.wins.toString()}
                     color={Colors.vibrant?.green || Colors.success}
                     size='medium'
+                    titleFontFamily='SecondaryFont-Bold'
                   />
                   <StatCard
                     icon='fire'
@@ -300,6 +315,7 @@ export default function ProfileScreen() {
                     value={`${Math.round(duelStats.winRate)}%`}
                     color={Colors.vibrant?.orange || Colors.warning}
                     size='medium'
+                    titleFontFamily='SecondaryFont-Bold'
                   />
                 </Row>
               )}
@@ -307,8 +323,9 @@ export default function ProfileScreen() {
               {/* Detailed Stats */}
               {duelStats && (
                 <PlayfulCard
+                  titleFontFamily='PrimaryFont'
                   title='Detaylı İstatistikler'
-                  variant='glass'
+                  variant='playful'
                   style={{ marginBottom: Spacing[6] }}
                   animated
                 >
@@ -321,9 +338,18 @@ export default function ProfileScreen() {
                           marginBottom: Spacing[2],
                         }}
                       >
-                        <Paragraph>Kaybedilen</Paragraph>
+                        <Text
+                          style={{
+                            fontFamily: 'SecondaryFont-Regular',
+                            color: Colors.white,
+                          }}
+                        >
+                          Kaybedilen:
+                        </Text>
                         <AnimatedCounter
                           value={duelStats.losses}
+                          fontFamily='SecondaryFont-Bold'
+                          style={{ color: Colors.white }}
                           size='medium'
                         />
                       </Row>
@@ -336,9 +362,18 @@ export default function ProfileScreen() {
                           marginBottom: Spacing[2],
                         }}
                       >
-                        <Paragraph>En Uzun Seri</Paragraph>
+                        <Text
+                          style={{
+                            fontFamily: 'SecondaryFont-Regular',
+                            color: Colors.white,
+                          }}
+                        >
+                          En Uzun Seri:
+                        </Text>
                         <AnimatedCounter
                           value={duelStats.longestLosingStreak}
+                          fontFamily='SecondaryFont-Bold'
+                          style={{ color: Colors.white }}
                           size='medium'
                         />
                       </Row>
@@ -350,6 +385,7 @@ export default function ProfileScreen() {
               {/* Achievements */}
               <PlayfulCard
                 title='Başarılar'
+                titleFontFamily='PrimaryFont'
                 variant='playful'
                 style={{ marginBottom: Spacing[6] }}
                 animated
@@ -436,18 +472,23 @@ export default function ProfileScreen() {
                       color={Colors.gray[400]}
                       style={{ marginBottom: Spacing[3] }}
                     />
-                    <Paragraph
-                      color={isDark ? Colors.gray[400] : Colors.gray[500]}
+                    <Text
+                      style={{
+                        fontFamily: 'SecondaryFont-Regular',
+                        color: isDark ? Colors.gray[400] : Colors.white,
+                      }}
                     >
                       Henüz başarı kazanılmadı
-                    </Paragraph>
+                    </Text>
                     <PlayfulButton
                       title='Başarıları Keşfet'
                       onPress={() => router.push('/achievements' as any)}
-                      variant='vibrant'
+                      variant='secondary'
                       size='small'
                       style={{ marginTop: Spacing[3] }}
                       animated
+                      wiggleOnPress={true}
+                      fontFamily='SecondaryFont-Bold'
                     />
                   </Column>
                 )}
@@ -456,8 +497,9 @@ export default function ProfileScreen() {
               {/* Account Settings */}
               <PlayfulCard
                 title='Hesap Ayarları'
-                variant='gradient'
+                variant='playful'
                 gradient='sky'
+                titleFontFamily='PrimaryFont'
                 style={{ marginBottom: Spacing[6] }}
                 animated
               >
@@ -465,36 +507,36 @@ export default function ProfileScreen() {
                   <PlayfulButton
                     title='Profil Düzenle'
                     onPress={() => router.push('/edit-profile' as any)}
-                    variant='bouncy'
+                    variant='outline'
                     icon='user'
-                    style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                      borderColor: 'rgba(255, 255, 255, 0.3)',
-                    }}
+                    // style={{
+                    //   backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    //   borderColor: 'rgba(255, 255, 255, 0.3)',
+                    // }}
                     animated
                   />
 
                   <PlayfulButton
                     title='Şifre Değiştir'
                     onPress={() => router.push('/change-password' as any)}
-                    variant='bouncy'
+                    variant='outline'
                     icon='lock'
-                    style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                      borderColor: 'rgba(255, 255, 255, 0.3)',
-                    }}
+                    // style={{
+                    //   backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    //   borderColor: 'rgba(255, 255, 255, 0.3)',
+                    // }}
                     animated
                   />
 
                   <PlayfulButton
                     title='Bildirim Ayarları'
                     onPress={() => router.push('/notifications' as any)}
-                    variant='bouncy'
+                    variant='outline'
                     icon='bell'
-                    style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                      borderColor: 'rgba(255, 255, 255, 0.3)',
-                    }}
+                    // style={{
+                    //   backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    //   borderColor: 'rgba(255, 255, 255, 0.3)',
+                    // }}
                     animated
                   />
                 </Column>
@@ -504,10 +546,11 @@ export default function ProfileScreen() {
               <PlayfulCard
                 title='Hızlı İşlemler'
                 variant='playful'
+                titleFontFamily='PrimaryFont'
                 style={{ marginBottom: Spacing[6] }}
                 animated
               >
-                <Row style={{ gap: Spacing[3] }}>
+                <Row style={{ justifyContent: 'space-between' }}>
                   <PlayfulButton
                     title='Test Geçmişi'
                     onPress={() => router.push('/test-history' as any)}
@@ -515,6 +558,8 @@ export default function ProfileScreen() {
                     style={{ flex: 1 }}
                     icon='history'
                     gradient='purple'
+                    fontFamily='PrimaryFont'
+                    size='small'
                     animated
                   />
                   <PlayfulButton
@@ -524,6 +569,8 @@ export default function ProfileScreen() {
                     style={{ flex: 1 }}
                     icon='list'
                     gradient='fire'
+                    fontFamily='PrimaryFont'
+                    size='small'
                     animated
                   />
                 </Row>
@@ -538,12 +585,20 @@ export default function ProfileScreen() {
                       alignItems: 'center',
                     }}
                   >
-                    <Paragraph
-                      color={isDark ? Colors.gray[400] : Colors.gray[600]}
+                    <Text
+                      style={{
+                        color: isDark ? Colors.gray[400] : Colors.gray[100],
+                        fontFamily: 'SecondaryFont-Regular',
+                      }}
                     >
                       Versiyon: 1.0.0
-                    </Paragraph>
-                    <Badge text='Güncel' variant='success' size='sm' />
+                    </Text>
+                    <Badge
+                      text='Güncel'
+                      variant='success'
+                      size='md'
+                      fontFamily='SecondaryFont-Bold'
+                    />
                   </Row>
 
                   <PlayfulButton
@@ -570,6 +625,6 @@ export default function ProfileScreen() {
           )}
         </View>
       </ScrollView>
-    </Container>
+    </View>
   );
 }

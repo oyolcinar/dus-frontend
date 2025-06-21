@@ -168,7 +168,7 @@ const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
           transparent: false,
           horizontal: false,
         };
-      case 'celebration':
+      case 'celebration': // NOTE: No longer needs `horizontal: true`
         return {
           backgroundColor: 'transparent',
           textColor: Colors.white,
@@ -180,7 +180,7 @@ const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
             ],
           ),
           transparent: false,
-          horizontal: false,
+          horizontal: false, // This is its own layout now
         };
       case 'gradient':
         return {
@@ -261,24 +261,20 @@ const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
   const sizeStyles = getSizeStyles();
   const percentage = maxScore ? (score / maxScore) * 100 : 0;
   const isCelebration = percentage >= celebrationThreshold;
-  const isHorizontal = variant === 'horizontal';
 
-  // *** START OF FIX ***
-  // Helper function to create dynamic font styles
+  // Layout-determining booleans
+  const isCelebrationLayout = variant === 'celebration';
+  const isHorizontalLayout = variantStyles.horizontal;
+
   const getFontStyles = (
     specificFamily: string | undefined,
     defaultWeight: TextStyle['fontWeight'],
   ): TextStyle => {
     const family = specificFamily || fontFamily;
-    if (family) {
-      // If a font family is provided, let it control the weight. Do not add a fontWeight prop.
-      return { fontFamily: family };
-    }
-    // If no font family, use the default weight from the theme.
+    if (family) return { fontFamily: family };
     return { fontWeight: defaultWeight };
   };
 
-  // Create style objects for each text element
   const labelTextStyles = getFontStyles(
     labelFontFamily,
     FontWeights.medium as any,
@@ -295,142 +291,190 @@ const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
     percentageFontFamily,
     FontWeights.medium as any,
   );
-  // *** END OF FIX ***
 
   const celebrationScale = celebrationAnimation.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 1.3],
   });
-
   const sparkleRotation = sparkleAnimation.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
-
   const progressWidth =
     showProgress && maxScore ? (displayScore / maxScore) * 100 : 0;
 
   const animatedStyle = toAnimatedStyle({
     transform: [{ scale: Animated.multiply(pulseAnimation, celebrationScale) }],
   });
-
   const sparkleAnimatedStyle = toAnimatedStyle([
     styles.sparkles,
-    {
-      transform: [{ rotate: sparkleRotation }],
-      opacity: sparkleAnimation,
-    },
+    { transform: [{ rotate: sparkleRotation }], opacity: sparkleAnimation },
   ]);
 
-  const scoreContent = (
-    <View
+  // --- Render Functions for DRY code ---
+  const renderLabel = (isTitle = false) => (
+    <Text
       style={[
-        isHorizontal ? styles.horizontalContent : styles.container,
-        { padding: isHorizontal ? Spacing[2] : sizeStyles.padding },
-        isHorizontal && { width: '100%' },
+        styles.label,
+        {
+          color: variantStyles.labelColor,
+          fontSize: isTitle ? sizeStyles.labelSize : sizeStyles.scoreSize,
+          marginBottom: isTitle ? Spacing[2] : 0,
+        },
+        labelTextStyles,
       ]}
     >
-      {isCelebration && !isHorizontal && (
-        <Animated.View style={sparkleAnimatedStyle}>{/* ... */}</Animated.View>
-      )}
+      {label}
+    </Text>
+  );
 
-      <View
-        style={{
-          flexDirection: isHorizontal ? 'row' : 'column',
-          alignItems: isHorizontal ? 'baseline' : 'center',
-          gap: isHorizontal ? Spacing[1] : 0,
-        }}
+  const renderScore = () => (
+    <Text
+      style={[
+        styles.score,
+        { color: variantStyles.textColor, fontSize: sizeStyles.scoreSize },
+        scoreTextStyles,
+      ]}
+    >
+      {displayScore.toLocaleString()}
+    </Text>
+  );
+
+  const renderMaxScore = () =>
+    maxScore ? (
+      <Text
+        style={[
+          styles.maxScore,
+          { color: variantStyles.labelColor, fontSize: sizeStyles.scoreSize },
+          maxScoreTextStyles,
+        ]}
       >
-        <Text
+         / {maxScore.toLocaleString()}
+      </Text>
+    ) : null;
+
+  const renderProgressBar = () =>
+    showProgress && maxScore ? (
+      <View
+        style={
+          isHorizontalLayout || isCelebrationLayout
+            ? styles.horizontalProgress
+            : styles.progressContainer
+        }
+      >
+        <View
           style={[
-            styles.label,
-            {
-              color: variantStyles.labelColor,
-              fontSize: isHorizontal
-                ? sizeStyles.scoreSize
-                : sizeStyles.labelSize,
-              marginBottom: isHorizontal ? 0 : Spacing[1],
-            },
-            labelTextStyles, // Apply dynamic font style
+            styles.progressTrack,
+            { borderRadius: sizeStyles.borderRadius / 4 },
           ]}
         >
-          {label}
-        </Text>
+          <View
+            style={[
+              styles.progressBar,
+              {
+                width: `${progressWidth}%`,
+                backgroundColor: isCelebration
+                  ? Colors.vibrant?.yellow || '#FFD93D'
+                  : Colors.vibrant?.green || Colors.success,
+                borderRadius: sizeStyles.borderRadius / 4,
+              },
+            ]}
+          />
+        </View>
+      </View>
+    ) : null;
 
-        <Text
-          style={[
-            styles.score,
-            {
-              color: variantStyles.textColor,
-              fontSize: sizeStyles.scoreSize,
-            },
-            scoreTextStyles, // Apply dynamic font style
-          ]}
-        >
-          {displayScore.toLocaleString()}
-        </Text>
-
+  // --- Conditional Layout Logic ---
+  let scoreContent;
+  if (isCelebrationLayout) {
+    scoreContent = (
+      <View style={[styles.container, { padding: sizeStyles.padding }]}>
+        {renderLabel(true)}
+        <View style={styles.horizontalContent}>
+          {renderScore()}
+          {renderMaxScore()}
+          {renderProgressBar()}
+        </View>
+      </View>
+    );
+  } else if (isHorizontalLayout) {
+    scoreContent = (
+      <View
+        style={[
+          styles.horizontalContent,
+          { paddingVertical: Spacing[1], paddingHorizontal: Spacing[2] },
+        ]}
+      >
+        {renderLabel()}
+        {renderScore()}
+        {renderMaxScore()}
+        {renderProgressBar()}
+      </View>
+    );
+  } else {
+    // Default Vertical Layout
+    scoreContent = (
+      <View style={[styles.container, { padding: sizeStyles.padding }]}>
+        {isCelebration && (
+          <Animated.View style={sparkleAnimatedStyle}>
+            {/* ... */}
+          </Animated.View>
+        )}
+        {renderLabel(true)}
+        {renderScore()}
         {maxScore && (
           <Text
             style={[
               styles.maxScore,
               {
                 color: variantStyles.labelColor,
-                fontSize: isHorizontal
-                  ? sizeStyles.scoreSize
-                  : sizeStyles.labelSize * 0.8,
-                marginTop: isHorizontal ? 0 : Spacing[1],
+                fontSize: sizeStyles.labelSize * 0.8,
+                marginTop: Spacing[1],
               },
-              maxScoreTextStyles, // Apply dynamic font style
+              maxScoreTextStyles,
             ]}
           >
             / {maxScore.toLocaleString()}
           </Text>
         )}
-      </View>
-
-      {showProgress && maxScore && (
-        <View
-          style={
-            isHorizontal ? styles.horizontalProgress : styles.progressContainer
-          }
-        >
-          <View
-            style={[
-              styles.progressTrack,
-              isHorizontal && styles.horizontalProgressTrack,
-              { borderRadius: sizeStyles.borderRadius / 4 },
-            ]}
-          >
+        {showProgress && maxScore && (
+          <View style={styles.progressContainer}>
             <View
               style={[
-                styles.progressBar,
-                isHorizontal && styles.horizontalProgressBar,
+                styles.progressTrack,
                 {
-                  width: `${progressWidth}%`,
-                  backgroundColor: isCelebration
-                    ? Colors.vibrant?.yellow || '#FFD93D'
-                    : Colors.vibrant?.green || Colors.success,
+                  marginBottom: Spacing[1],
                   borderRadius: sizeStyles.borderRadius / 4,
                 },
               ]}
-            />
-          </View>
-          {!isHorizontal && (
+            >
+              <View
+                style={[
+                  styles.progressBar,
+                  {
+                    width: `${progressWidth}%`,
+                    backgroundColor: isCelebration
+                      ? Colors.vibrant?.yellow || '#FFD93D'
+                      : Colors.vibrant?.green || Colors.success,
+                    borderRadius: sizeStyles.borderRadius / 4,
+                  },
+                ]}
+              />
+            </View>
             <Text
               style={[
                 styles.percentage,
                 { color: variantStyles.labelColor },
-                percentageTextStyles, // Apply dynamic font style
+                percentageTextStyles,
               ]}
             >
               {Math.round(percentage)}%
             </Text>
-          )}
-        </View>
-      )}
-    </View>
-  );
+          </View>
+        )}
+      </View>
+    );
+  }
 
   const containerStyle = toAnimatedStyle([
     styles.scoreDisplay,
@@ -447,15 +491,14 @@ const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
         size === 'small' ? 'light' : size === 'hero' ? 'heavy' : 'medium',
       ) ||
         {}),
-    isHorizontal && {
-      alignSelf: 'stretch',
-      minWidth: 'auto',
-    },
+    // Sizing logic based on layout type
+    isCelebrationLayout && { width: '100%' },
+    isHorizontalLayout && { alignSelf: 'flex-start' },
     animatedStyle,
     style,
   ]);
 
-  if (variantStyles.gradient) {
+  if (variantStyles.gradient && !variantStyles.transparent) {
     return (
       <Animated.View style={containerStyle} testID={testID}>
         <LinearGradient
@@ -477,7 +520,6 @@ const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
   );
 };
 
-// *** STYLE DECLARATIONS ARE NOW CLEANER ***
 const styles = StyleSheet.create({
   scoreDisplay: {
     alignItems: 'center',
@@ -487,29 +529,23 @@ const styles = StyleSheet.create({
   gradient: {
     alignItems: 'center',
     justifyContent: 'center',
+    width: '100%',
   },
   container: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    width: '100%',
   },
   horizontalContent: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing[2],
+    alignItems: 'baseline',
   },
   horizontalProgress: {
     flex: 1,
     minWidth: 60,
     marginLeft: Spacing[2],
-  },
-  horizontalProgressTrack: {
-    width: '100%',
-    height: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  horizontalProgressBar: {
-    height: '100%',
+    alignSelf: 'center',
   },
   sparkles: {
     position: 'absolute',
@@ -524,21 +560,16 @@ const styles = StyleSheet.create({
   sparkle2: { position: 'absolute', bottom: '15%', left: '10%' },
   sparkle3: { position: 'absolute', top: '20%', left: '20%' },
   label: {
-    // fontWeight removed
     textAlign: 'center',
-    marginBottom: Spacing[1],
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   score: {
-    // fontWeight removed
     textAlign: 'center',
     lineHeight: undefined,
   },
   maxScore: {
-    // fontWeight removed
     textAlign: 'center',
-    marginTop: Spacing[1],
   },
   progressContainer: {
     width: '100%',
@@ -549,13 +580,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    marginBottom: Spacing[1],
   },
   progressBar: {
     height: '100%',
   },
   percentage: {
-    // fontWeight removed
     fontSize: FontSizes.xs,
   },
 });

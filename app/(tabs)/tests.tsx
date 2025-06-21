@@ -230,7 +230,7 @@ export default function TestsScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#A29BFE' }}>
+    <View style={{ flex: 1 }}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: Spacing[4] }}
@@ -260,7 +260,7 @@ export default function TestsScreen() {
                   Testler 📝
                 </PlayfulTitle>
                 <Paragraph
-                  color={isDark ? Colors.gray[400] : Colors.gray[600]}
+                  color={isDark ? Colors.gray[400] : Colors.gray[100]}
                   style={{
                     fontFamily: 'SecondaryFont-Regular',
                   }}
@@ -313,7 +313,11 @@ export default function TestsScreen() {
         <GlassCard style={{ marginBottom: Spacing[6] }}>
           <PlayfulTitle
             level={3}
-            style={{ fontFamily: 'PrimaryFont', marginBottom: Spacing[3] }}
+            style={{
+              fontFamily: 'PrimaryFont',
+              marginBottom: Spacing[3],
+              color: Colors.white,
+            }}
           >
             Zorluk Filtresi
           </PlayfulTitle>
@@ -663,6 +667,7 @@ export default function TestsScreen() {
                   icon='file'
                   fontFamily='PrimaryFont'
                   title='Test bulunamadı'
+                  buttonFontFamily='PrimaryFont'
                   message={
                     filter
                       ? `"${filter}" zorluğunda test bulunamadı.`

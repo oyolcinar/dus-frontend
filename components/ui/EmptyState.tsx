@@ -20,89 +20,42 @@ import {
 import Button from './Button';
 
 export interface EmptyStateProps {
-  /**
-   * Icon to display (FontAwesome)
-   */
   icon: React.ComponentProps<typeof FontAwesome>['name'];
-
-  /**
-   * Title text for the empty state
-   */
   title: string;
-
-  /**
-   * Message describing the empty state
-   */
   message: string;
-
-  /**
-   * Optional action button configuration
-   */
   actionButton?: {
     title: string;
     onPress: () => void;
-    variant?: 'primary' | 'secondary' | 'outline';
+    variant?:
+      | 'primary'
+      | 'secondary'
+      | 'outline'
+      | 'success'
+      | 'error'
+      | 'ghost';
+    fontFamily?: string;
   };
-
-  /**
-   * Optional secondary action button configuration
-   */
   secondaryButton?: {
     title: string;
     onPress: () => void;
-    variant?: 'outline' | 'ghost';
+    variant?: 'outline' | 'ghost' | 'success' | 'error';
+    fontFamily?: string;
   };
-
-  /**
-   * Custom style for the container
-   */
   style?: StyleProp<ViewStyle>;
-
-  /**
-   * Custom style for the title
-   */
   titleStyle?: StyleProp<TextStyle>;
-
-  /**
-   * Custom style for the message
-   */
   messageStyle?: StyleProp<TextStyle>;
-
-  /**
-   * Icon color
-   */
   iconColor?: string;
-
-  /**
-   * Icon size
-   */
   iconSize?: number;
-
-  /**
-   * Font family for the title text
-   */
   titleFontFamily?: string;
-
-  /**
-   * Font family for the message text
-   */
   messageFontFamily?: string;
-
-  /**
-   * Font family for both title and message (will be overridden by specific font family props)
-   */
   fontFamily?: string;
-
-  /**
-   * Test ID for testing
-   */
+  buttonFontFamily?: string;
   testID?: string;
+  animated?: boolean;
+  colorful?: boolean;
+  gradient?: any;
 }
 
-/**
- * EmptyState component displays when there is no content to show
- * with options for guidance text and action buttons
- */
 const EmptyState: React.FC<EmptyStateProps> = ({
   icon,
   title,
@@ -117,22 +70,23 @@ const EmptyState: React.FC<EmptyStateProps> = ({
   titleFontFamily,
   messageFontFamily,
   fontFamily,
+  buttonFontFamily,
   testID,
+  animated,
+  colorful,
+  gradient,
 }) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  // Determine icon color based on theme if not explicitly provided
   const iconColorValue =
     iconColor || (isDark ? Colors.white : Colors.gray[400]);
 
-  // Calculate the bottom margin for primary button based on whether secondary button exists
   const primaryButtonStyle = [
     styles.primaryButton,
     secondaryButton ? { marginBottom: Spacing[3] } : undefined,
   ];
 
-  // Determine font families with fallback logic
   const titleFont = titleFontFamily || fontFamily;
   const messageFont = messageFontFamily || fontFamily;
 
@@ -180,6 +134,11 @@ const EmptyState: React.FC<EmptyStateProps> = ({
           onPress={actionButton.onPress}
           variant={actionButton.variant || 'primary'}
           style={primaryButtonStyle}
+          textStyle={
+            actionButton.fontFamily || buttonFontFamily
+              ? { fontFamily: actionButton.fontFamily || buttonFontFamily }
+              : undefined
+          }
         />
       )}
 
@@ -189,28 +148,18 @@ const EmptyState: React.FC<EmptyStateProps> = ({
           onPress={secondaryButton.onPress}
           variant={secondaryButton.variant || 'outline'}
           style={styles.secondaryButton}
+          textStyle={
+            secondaryButton.fontFamily || buttonFontFamily
+              ? { fontFamily: secondaryButton.fontFamily || buttonFontFamily }
+              : undefined
+          }
         />
       )}
     </View>
   );
 };
 
-// Define the styles type to help TypeScript understand our style object
-type EmptyStateStyles = {
-  container: ViewStyle;
-  containerLight: ViewStyle;
-  containerDark: ViewStyle;
-  title: TextStyle;
-  titleLight: TextStyle;
-  titleDark: TextStyle;
-  message: TextStyle;
-  messageLight: TextStyle;
-  messageDark: TextStyle;
-  primaryButton: ViewStyle;
-  secondaryButton: ViewStyle;
-};
-
-const styles = StyleSheet.create<EmptyStateStyles>({
+const styles = StyleSheet.create({
   container: {
     padding: Spacing[6],
     alignItems: 'center',

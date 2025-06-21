@@ -402,7 +402,7 @@ export default function HomeScreen() {
               Merhaba {userData?.username || 'Öğrenci'}!
             </PlayfulTitle>
             <Paragraph
-              color={isDark ? Colors.white : Colors.gray[800]}
+              color={isDark ? Colors.white : Colors.gray[100]}
               style={{
                 fontFamily: 'SecondaryFont-Regular',
               }}
@@ -630,6 +630,7 @@ export default function HomeScreen() {
                     onPress: () => router.push('/courses' as any),
                     variant: 'primary',
                   }}
+                  buttonFontFamily='PrimaryFont'
                   style={{
                     backgroundColor: isDark
                       ? Colors.primary.dark
@@ -763,6 +764,7 @@ export default function HomeScreen() {
                   icon='file'
                   title='Test bulunamadı'
                   fontFamily='PrimaryFont'
+                  buttonFontFamily='PrimaryFont'
                   message='Testler sekmesinden testlere erişebilirsiniz.'
                   style={{
                     backgroundColor: isDark
@@ -862,6 +864,7 @@ export default function HomeScreen() {
                   icon='users'
                   title='Aktif düello yok'
                   fontFamily='PrimaryFont'
+                  buttonFontFamily='PrimaryFont'
                   message='Arkadaşlarınızı düelloya davet edin ve rekabeti başlatın.'
                   actionButton={{
                     title: 'Düello Başlat',
@@ -951,6 +954,7 @@ export default function HomeScreen() {
                     icon='trophy'
                     title='Henüz başarı yok'
                     fontFamily='PrimaryFont'
+                    buttonFontFamily='PrimaryFont'
                     message='Daha fazla çalışıkça başarılar kazanacaksınız.'
                     style={{
                       backgroundColor: isDark

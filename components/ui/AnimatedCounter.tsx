@@ -25,6 +25,7 @@ interface AnimatedCounterProps {
   colorTransition?: boolean;
   size?: 'small' | 'medium' | 'large' | 'xl';
   variant?: 'default' | 'gradient' | 'vibrant';
+  fontFamily?: string;
   testID?: string;
 }
 
@@ -42,6 +43,7 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
   colorTransition = false,
   size = 'medium',
   variant = 'default',
+  fontFamily,
   testID,
 }) => {
   const [displayValue, setDisplayValue] = useState(animateOnMount ? 0 : value);
@@ -157,6 +159,13 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
   const sizeStyles = getSizeStyles();
   const variantStyles = getVariantStyles();
 
+  // Create custom font style with font family support
+  const customFontStyle = {
+    ...(fontFamily ? { fontFamily } : {}),
+    // Remove fontWeight if custom font is provided to avoid conflicts
+    ...(fontFamily ? {} : { fontWeight: sizeStyles.fontWeight }),
+  };
+
   const animatedTextColor = colorTransition
     ? colorAnimation.interpolate({
         inputRange: [0, 1],
@@ -177,6 +186,7 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
   const counterStyle = toAnimatedStyle([
     styles.counter,
     sizeStyles,
+    customFontStyle,
     animatedStyle,
     style,
     textStyle,

@@ -295,6 +295,14 @@ const PlayfulButton: React.FC<EnhancedButtonProps> = ({
 
   const getSizeStyles = () => {
     switch (size) {
+      case 'xs':
+        return {
+          paddingVertical: Spacing[2],
+          paddingHorizontal: Spacing[5],
+          borderRadius: BorderRadius.md,
+          minHeight: 36,
+          fontSize: FontSizes.xs,
+        };
       case 'small':
         return {
           paddingVertical: Spacing[2],

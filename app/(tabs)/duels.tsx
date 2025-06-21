@@ -1,6 +1,7 @@
 // app/(tabs)/duels.tsx
 import React, { useEffect, useState, useCallback } from 'react';
 import {
+  Text,
   View,
   ScrollView,
   ActivityIndicator,
@@ -27,6 +28,8 @@ import {
   StatCard,
   AnimatedCounter,
   ScoreDisplay,
+  SlideInElement,
+  PlayfulTitle,
 } from '../../components/ui';
 import { Colors, Spacing, FontSizes } from '../../constants/theme';
 
@@ -166,9 +169,10 @@ export default function DuelsScreen() {
   }
 
   return (
-    <Container>
+    <View style={{ flex: 1 }}>
       <ScrollView
-        style={{ flex: 1, padding: Spacing[4] }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: Spacing[4] }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -179,46 +183,45 @@ export default function DuelsScreen() {
         }
       >
         {/* Header with animated title */}
-        <PlayfulCard
-          variant='gradient'
-          gradient='sunset'
-          padding='large'
-          animated
-          floatingAnimation
-          style={{ marginBottom: Spacing[6] }}
-        >
-          <Row
-            style={{ justifyContent: 'space-between', alignItems: 'center' }}
+        <SlideInElement delay={0}>
+          <PlayfulCard
+            style={{ marginBottom: Spacing[6], backgroundColor: 'transparent' }}
           >
-            <Column style={{ flex: 1 }}>
-              <Title
-                level={1}
-                style={{
-                  color: Colors.white,
-                  marginBottom: Spacing[2],
-                  fontSize: FontSizes['4xl'],
-                }}
-              >
-                Düellolar ⚔️
-              </Title>
-              <Paragraph style={{ color: Colors.white, opacity: 0.9 }}>
-                Arkadaşlarınla yarışarak öğren
-              </Paragraph>
-            </Column>
-            <AnimatedCounter
-              value={activeDuels.length}
-              size='large'
-              variant='vibrant'
-            />
-          </Row>
-        </PlayfulCard>
+            <Row
+              style={{ justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <Column style={{ flex: 1 }}>
+                <PlayfulTitle
+                  level={1}
+                  gradient='primary'
+                  style={{ fontFamily: 'PrimaryFont', color: 'white' }}
+                >
+                  Düellolar ⚔️
+                </PlayfulTitle>
+                <Paragraph
+                  color={isDark ? Colors.gray[400] : Colors.gray[100]}
+                  style={{
+                    fontFamily: 'SecondaryFont-Regular',
+                  }}
+                >
+                  Arkadaşlarınla yarışarak öğren
+                </Paragraph>
+              </Column>
+              {/* <AnimatedCounter
+                value={activeDuels.length}
+                size='large'
+                variant='vibrant'
+              /> */}
+            </Row>
+          </PlayfulCard>
+        </SlideInElement>
 
         {/* Stats Cards */}
         <Row
           style={{
+            justifyContent: 'space-between',
+            flexWrap: 'nowrap',
             marginBottom: Spacing[6],
-            flexWrap: 'wrap',
-            gap: Spacing[3],
           }}
         >
           <StatCard
@@ -226,6 +229,7 @@ export default function DuelsScreen() {
             title='Aktif Düellolar'
             value={activeDuels.length.toString()}
             color={Colors.vibrant?.orange || Colors.secondary.DEFAULT}
+            titleFontFamily='SecondaryFont-Bold'
           />
           <StatCard
             icon='fire'
@@ -233,7 +237,8 @@ export default function DuelsScreen() {
             value={activeDuels
               .filter((d) => d.status === 'completed')
               .length.toString()}
-            color={Colors.vibrant?.green || Colors.success}
+            color={isDark ? Colors.vibrant.purple : Colors.vibrant.yellow}
+            titleFontFamily='SecondaryFont-Bold'
           />
           <StatCard
             icon='hourglass'
@@ -241,7 +246,8 @@ export default function DuelsScreen() {
             value={activeDuels
               .filter((d) => d.status === 'pending')
               .length.toString()}
-            color={Colors.vibrant?.blue || Colors.info}
+            color={Colors.vibrant?.mint || Colors.info}
+            titleFontFamily='SecondaryFont-Bold'
           />
         </Row>
 
@@ -249,8 +255,8 @@ export default function DuelsScreen() {
         <PlayfulButton
           title='Yeni Düello Başlat'
           onPress={() => router.push('/duel/new' as any)}
-          variant='primary'
-          gradient='sunset'
+          variant='secondary'
+          gradient='fire'
           animated
           style={{ marginBottom: Spacing[6] }}
           icon='plus'
@@ -262,19 +268,22 @@ export default function DuelsScreen() {
             style={{
               alignItems: 'center',
               justifyContent: 'center',
-              padding: Spacing[8],
+              padding: Spacing[4],
             }}
           >
-            <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
-            <Paragraph
+            <ActivityIndicator
+              size='large'
+              color={isDark ? Colors.primary.DEFAULT : Colors.vibrant.coral}
+            />
+            <Text
               style={{
                 marginTop: Spacing[3],
-                color: Colors.gray[600],
-                textAlign: 'center',
+                color: isDark ? Colors.gray[400] : Colors.white,
+                fontFamily: 'SecondaryFont-Regular',
               }}
             >
               Düellolar yükleniyor...
-            </Paragraph>
+            </Text>
           </View>
         ) : (
           <>
@@ -347,12 +356,14 @@ export default function DuelsScreen() {
               >
                 <EmptyState
                   icon='users'
+                  fontFamily='PrimaryFont'
                   title='Aktif düello yok'
+                  buttonFontFamily='PrimaryFont'
                   message='Arkadaşlarını düelloya davet et ve rekabeti başlat.'
                   actionButton={{
                     title: 'Düello Başlat',
                     onPress: () => router.push('/duel/new' as any),
-                    variant: 'primary',
+                    variant: 'secondary',
                   }}
                 />
               </PlayfulCard>
@@ -364,10 +375,11 @@ export default function DuelsScreen() {
         <PlayfulCard
           title='Hızlı İşlemler'
           variant='playful'
+          titleFontFamily='PrimaryFont'
           style={{ marginTop: Spacing[6] }}
           animated
         >
-          <Row style={{ gap: Spacing[3] }}>
+          <Row style={{ justifyContent: 'space-between' }}>
             <PlayfulButton
               title='Tüm Düellolar'
               onPress={() => router.push('/duels/all' as any)}
@@ -375,6 +387,8 @@ export default function DuelsScreen() {
               style={{ flex: 1 }}
               icon='list'
               animated
+              size='xs'
+              fontFamily='PrimaryFont'
             />
             <PlayfulButton
               title='Düello Geçmişi'
@@ -383,6 +397,8 @@ export default function DuelsScreen() {
               style={{ flex: 1 }}
               icon='history'
               animated
+              size='xs'
+              fontFamily='PrimaryFont'
             />
           </Row>
         </PlayfulCard>
@@ -396,6 +412,6 @@ export default function DuelsScreen() {
           />
         )}
       </ScrollView>
-    </Container>
+    </View>
   );
 }

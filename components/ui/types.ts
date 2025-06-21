@@ -34,7 +34,7 @@ export interface ButtonProps {
     | 'bouncy'
     | 'floating';
   icon?: React.ComponentProps<typeof FontAwesome>['name'];
-  size?: 'small' | 'medium' | 'large' | 'xl'; // NEW: xl size
+  size?: 'xs' | 'small' | 'medium' | 'large' | 'xl'; // NEW: xl size
   disabled?: boolean;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -161,6 +161,7 @@ export interface EmptyStateProps {
   messageStyle?: StyleProp<TextStyle>;
   iconColor?: string;
   iconSize?: number;
+  buttonFontFamily?: string;
   testID?: string;
   // NEW: Playful options
   animated?: boolean;

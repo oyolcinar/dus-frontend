@@ -258,7 +258,7 @@ export default function CoursesScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#A29BFE' }}>
+    <View style={{ flex: 1 }}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: Spacing[4] }}
@@ -288,7 +288,7 @@ export default function CoursesScreen() {
                   Kurslar
                 </PlayfulTitle>
                 <Paragraph
-                  color={isDark ? Colors.gray[400] : Colors.gray[600]}
+                  color={isDark ? Colors.gray[400] : Colors.gray[100]}
                   style={{
                     fontFamily: 'SecondaryFont-Regular',
                   }}
@@ -549,6 +549,7 @@ export default function CoursesScreen() {
                       : 'Farklı bir filtre seçmeyi deneyin.'
                   }
                   fontFamily='SecondaryFont-Regular'
+                  buttonFontFamily='PrimaryFont'
                   titleFontFamily='PrimaryFont'
                 />
               </SlideInElement>

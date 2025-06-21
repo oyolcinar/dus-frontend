@@ -32,6 +32,7 @@ import { LocalizationProvider } from '../context/LocalizationContext';
 
 // Asset prefetching for improved performance
 import { AssetProvider, preloadAssets } from '../services/assetManager';
+import AppBackground from '@/components/AppBackground';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -155,8 +156,10 @@ function RootLayoutNav() {
     colors: {
       ...navigationTheme.colors,
       primary: '#722ea5', // Your primary color from global.css
-      background: theme === 'dark' ? '#1f2937' : '#A29BFE',
-      card: theme === 'dark' ? '#1f2937' : '#ffffff',
+      // background: theme === 'dark' ? '#1f2937' : '#A29BFE',
+      // card: theme === 'dark' ? '#1f2937' : '#ffffff',
+      background: 'transparent',
+      card: 'transparent',
       text: theme === 'dark' ? '#ffffff' : '#1f2937',
     },
   };
@@ -165,101 +168,103 @@ function RootLayoutNav() {
     <ThemeContext.Provider value={themeContextValue}>
       <ThemeProvider value={customNavigationTheme}>
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: 'fade',
-            // Apply consistent styling to all screens in the stack
-            contentStyle: {
-              backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-            },
-          }}
-        >
-          {/* Your existing Auth Context already handles redirections,
+        <AppBackground>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: 'fade',
+              // Apply consistent styling to all screens in the stack
+              // contentStyle: {
+              //   backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+              // },
+            }}
+          >
+            {/* Your existing Auth Context already handles redirections,
               but we'll set up the screens here for proper stack navigation */}
-          <Stack.Screen name='(auth)' options={{ headerShown: false }} />
-          <Stack.Screen name='(tabs)' options={{ headerShown: false }} />
+            <Stack.Screen name='(auth)' options={{ headerShown: false }} />
+            <Stack.Screen name='(tabs)' options={{ headerShown: false }} />
 
-          <Stack.Screen
-            name='courses/[id]'
-            options={{
-              headerShown: true,
-              title: 'Kurs Detayı',
-              headerStyle: {
-                backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-              },
-              headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
-            }}
-          />
+            <Stack.Screen
+              name='courses/[id]'
+              options={{
+                headerShown: true,
+                title: 'Kurs Detayı',
+                headerStyle: {
+                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                },
+                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
+              }}
+            />
 
-          {/* These screens are available regardless of authentication state */}
-          <Stack.Screen
-            name='study/[id]'
-            options={{
-              headerShown: true,
-              title: 'Study',
-              headerStyle: {
-                backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-              },
-              headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
-            }}
-          />
-          <Stack.Screen
-            name='topic/[id]'
-            options={{
-              headerShown: true,
-              title: 'Topic',
-              headerStyle: {
-                backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-              },
-              headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
-            }}
-          />
-          <Stack.Screen
-            name='subtopic/[id]'
-            options={{
-              headerShown: true,
-              title: 'Lesson',
-              headerStyle: {
-                backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-              },
-              headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
-            }}
-          />
-          <Stack.Screen
-            name='test/[id]'
-            options={{
-              headerShown: true,
-              title: 'Quiz',
-              headerStyle: {
-                backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-              },
-              headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
-            }}
-          />
-          <Stack.Screen
-            name='duel/[id]'
-            options={{
-              headerShown: true,
-              title: 'Duel',
-              headerStyle: {
-                backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-              },
-              headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
-            }}
-          />
-          <Stack.Screen
-            name='profile/[id]'
-            options={{
-              headerShown: true,
-              title: 'Profile',
-              headerStyle: {
-                backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-              },
-              headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
-            }}
-          />
-        </Stack>
+            {/* These screens are available regardless of authentication state */}
+            <Stack.Screen
+              name='study/[id]'
+              options={{
+                headerShown: true,
+                title: 'Study',
+                headerStyle: {
+                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                },
+                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
+              }}
+            />
+            <Stack.Screen
+              name='topic/[id]'
+              options={{
+                headerShown: true,
+                title: 'Topic',
+                headerStyle: {
+                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                },
+                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
+              }}
+            />
+            <Stack.Screen
+              name='subtopic/[id]'
+              options={{
+                headerShown: true,
+                title: 'Lesson',
+                headerStyle: {
+                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                },
+                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
+              }}
+            />
+            <Stack.Screen
+              name='test/[id]'
+              options={{
+                headerShown: true,
+                title: 'Quiz',
+                headerStyle: {
+                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                },
+                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
+              }}
+            />
+            <Stack.Screen
+              name='duel/[id]'
+              options={{
+                headerShown: true,
+                title: 'Duel',
+                headerStyle: {
+                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                },
+                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
+              }}
+            />
+            <Stack.Screen
+              name='profile/[id]'
+              options={{
+                headerShown: true,
+                title: 'Profile',
+                headerStyle: {
+                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                },
+                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
+              }}
+            />
+          </Stack>
+        </AppBackground>
       </ThemeProvider>
     </ThemeContext.Provider>
   );
