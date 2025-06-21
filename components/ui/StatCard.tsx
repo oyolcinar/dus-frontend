@@ -119,7 +119,7 @@ const StatCard: React.FC<StatCardProps> = ({
 
   // Calculate card width to fit 2 cards per row with proper spacing
   // Account for screen padding and gap between cards
-  const cardWidth = (screenWidth - Spacing[4] * 2 - Spacing[3]) / 2;
+  const cardWidth = (screenWidth - Spacing[4] * 2 - Spacing[3]) / 3;
 
   // Determine padding based on size
   const containerPadding =

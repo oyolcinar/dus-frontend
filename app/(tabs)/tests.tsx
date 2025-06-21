@@ -1,11 +1,13 @@
 // app/(tabs)/tests.tsx
 import React, { useEffect, useState, useCallback } from 'react';
 import {
+  Text,
   View,
   ScrollView,
   ActivityIndicator,
   useColorScheme,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -26,8 +28,15 @@ import {
   StatCard,
   AnimatedCounter,
   GlassCard,
+  SlideInElement,
+  PlayfulTitle,
 } from '../../components/ui';
-import { Colors, Spacing, FontSizes } from '../../constants/theme';
+import {
+  Colors,
+  Spacing,
+  FontSizes,
+  BorderRadius,
+} from '../../constants/theme';
 
 // Extend Test interface with display properties
 interface TestWithDetails extends Test {
@@ -221,9 +230,10 @@ export default function TestsScreen() {
   }
 
   return (
-    <Container>
+    <View style={{ flex: 1, backgroundColor: '#A29BFE' }}>
       <ScrollView
-        style={{ flex: 1, padding: Spacing[4] }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: Spacing[4] }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -234,91 +244,318 @@ export default function TestsScreen() {
         }
       >
         {/* Header with animated title */}
-        <PlayfulCard
-          variant='gradient'
-          gradient='ocean'
-          padding='large'
-          animated
-          floatingAnimation
-          style={{ marginBottom: Spacing[6] }}
-        >
-          <Row
-            style={{ justifyContent: 'space-between', alignItems: 'center' }}
+        <SlideInElement delay={0}>
+          <PlayfulCard
+            style={{ marginBottom: Spacing[6], backgroundColor: 'transparent' }}
           >
-            <Column style={{ flex: 1 }}>
-              <Title
-                level={1}
-                style={{
-                  color: Colors.white,
-                  marginBottom: Spacing[2],
-                  fontSize: FontSizes['4xl'],
-                }}
-              >
-                Testler 📝
-              </Title>
-              <Paragraph style={{ color: Colors.white, opacity: 0.9 }}>
-                Sınavlara hazırlanmak için testleri çözün
-              </Paragraph>
-            </Column>
-            <AnimatedCounter
-              value={totalTests}
-              size='large'
-              variant='vibrant'
-            />
-          </Row>
-        </PlayfulCard>
+            <Row
+              style={{ justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <Column style={{ flex: 1 }}>
+                <PlayfulTitle
+                  level={1}
+                  gradient='primary'
+                  style={{ fontFamily: 'PrimaryFont', color: 'white' }}
+                >
+                  Testler 📝
+                </PlayfulTitle>
+                <Paragraph
+                  color={isDark ? Colors.gray[400] : Colors.gray[600]}
+                  style={{
+                    fontFamily: 'SecondaryFont-Regular',
+                  }}
+                >
+                  Sınavlara hazırlanmak için testleri çözün
+                </Paragraph>
+              </Column>
+              {/* <AnimatedCounter
+                value={totalTests}
+                size='large'
+                variant='vibrant'
+              /> */}
+            </Row>
+          </PlayfulCard>
+        </SlideInElement>
 
         {/* Stats Cards */}
         <Row
           style={{
+            justifyContent: 'space-between',
+            flexWrap: 'nowrap',
             marginBottom: Spacing[6],
-            flexWrap: 'wrap',
-            gap: Spacing[3],
           }}
         >
           <StatCard
             icon='file'
             title='Toplam Test'
             value={totalTests.toString()}
-            color={Colors.vibrant?.blue || Colors.info}
+            color={isDark ? Colors.vibrant.purple : Colors.vibrant.yellow}
+            titleFontFamily='SecondaryFont-Bold'
           />
           <StatCard
             icon='question'
             title='Ortalama Soru'
             value={averageQuestions.toString()}
             color={Colors.vibrant?.green || Colors.success}
+            titleFontFamily='SecondaryFont-Bold'
           />
           <StatCard
             icon='fire'
             title='Zor Testler'
             value={hardTests.toString()}
             color={Colors.vibrant?.orange || Colors.error}
+            titleFontFamily='SecondaryFont-Bold'
           />
         </Row>
 
         {/* Filter buttons */}
-        <GlassCard style={{ marginBottom: Spacing[6], padding: Spacing[4] }}>
-          <Title level={3} style={{ marginBottom: Spacing[3] }}>
+        {/* Filter buttons - Two rows layout */}
+        <GlassCard style={{ marginBottom: Spacing[6] }}>
+          <PlayfulTitle
+            level={3}
+            style={{ fontFamily: 'PrimaryFont', marginBottom: Spacing[3] }}
+          >
             Zorluk Filtresi
-          </Title>
-          <Row style={{ flexWrap: 'wrap', gap: Spacing[2] }}>
-            <PlayfulButton
-              title='Tümü'
-              variant={filter === null ? 'primary' : 'outline'}
-              size='small'
+          </PlayfulTitle>
+
+          {/* First Row - 3 buttons */}
+          <Row style={{ marginBottom: Spacing[2] }}>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                marginHorizontal: Spacing[1],
+                paddingVertical: Spacing[2],
+                paddingHorizontal: Spacing[2],
+                borderRadius: BorderRadius.button,
+                backgroundColor:
+                  filter === null
+                    ? Colors.vibrant.purple
+                    : isDark
+                    ? Colors.gray[700]
+                    : Colors.white,
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 36,
+              }}
               onPress={() => setFilter(null)}
-              animated
-            />
-            {['Kolay', 'Orta', 'Zor', 'Çok Zor', 'Uzman'].map((difficulty) => (
-              <PlayfulButton
-                key={difficulty}
-                title={difficulty}
-                variant={filter === difficulty ? 'primary' : 'outline'}
-                size='small'
-                onPress={() => setFilter(difficulty)}
-                animated
-              />
-            ))}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: filter === null ? '600' : '500',
+                  color:
+                    filter === null
+                      ? Colors.white
+                      : isDark
+                      ? Colors.white
+                      : Colors.gray[700],
+                  textAlign: 'center',
+                  fontFamily: 'SecondaryFont-Regular',
+                }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Tümü
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                marginHorizontal: Spacing[1],
+                paddingVertical: Spacing[2],
+                paddingHorizontal: Spacing[2],
+                borderRadius: BorderRadius.button,
+                backgroundColor:
+                  filter === 'Kolay'
+                    ? Colors.vibrant.purple
+                    : isDark
+                    ? Colors.gray[700]
+                    : Colors.white,
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 36,
+              }}
+              onPress={() => setFilter('Kolay')}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: filter === 'Kolay' ? '600' : '500',
+                  color:
+                    filter === 'Kolay'
+                      ? Colors.white
+                      : isDark
+                      ? Colors.white
+                      : Colors.gray[700],
+                  textAlign: 'center',
+                  fontFamily: 'SecondaryFont-Regular',
+                }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Kolay
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                marginHorizontal: Spacing[1],
+                paddingVertical: Spacing[2],
+                paddingHorizontal: Spacing[2],
+                borderRadius: BorderRadius.button,
+                backgroundColor:
+                  filter === 'Orta'
+                    ? Colors.vibrant.purple
+                    : isDark
+                    ? Colors.gray[700]
+                    : Colors.white,
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 36,
+              }}
+              onPress={() => setFilter('Orta')}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: filter === 'Orta' ? '600' : '500',
+                  color:
+                    filter === 'Orta'
+                      ? Colors.white
+                      : isDark
+                      ? Colors.white
+                      : Colors.gray[700],
+                  textAlign: 'center',
+                  fontFamily: 'SecondaryFont-Regular',
+                }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Orta
+              </Text>
+            </TouchableOpacity>
+          </Row>
+
+          {/* Second Row - 3 buttons */}
+          <Row>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                marginHorizontal: Spacing[1],
+                paddingVertical: Spacing[2],
+                paddingHorizontal: Spacing[2],
+                borderRadius: BorderRadius.button,
+                backgroundColor:
+                  filter === 'Zor'
+                    ? Colors.vibrant.purple
+                    : isDark
+                    ? Colors.gray[700]
+                    : Colors.white,
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 36,
+              }}
+              onPress={() => setFilter('Zor')}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: filter === 'Zor' ? '600' : '500',
+                  color:
+                    filter === 'Zor'
+                      ? Colors.white
+                      : isDark
+                      ? Colors.white
+                      : Colors.gray[700],
+                  textAlign: 'center',
+                  fontFamily: 'SecondaryFont-Regular',
+                }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Zor
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                marginHorizontal: Spacing[1],
+                paddingVertical: Spacing[2],
+                paddingHorizontal: Spacing[2],
+                borderRadius: BorderRadius.button,
+                backgroundColor:
+                  filter === 'Çok Zor'
+                    ? Colors.vibrant.purple
+                    : isDark
+                    ? Colors.gray[700]
+                    : Colors.white,
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 36,
+              }}
+              onPress={() => setFilter('Çok Zor')}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: filter === 'Çok Zor' ? '600' : '500',
+                  color:
+                    filter === 'Çok Zor'
+                      ? Colors.white
+                      : isDark
+                      ? Colors.white
+                      : Colors.gray[700],
+                  textAlign: 'center',
+                  fontFamily: 'SecondaryFont-Regular',
+                }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Çok Zor
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                marginHorizontal: Spacing[1],
+                paddingVertical: Spacing[2],
+                paddingHorizontal: Spacing[2],
+                borderRadius: BorderRadius.button,
+                backgroundColor:
+                  filter === 'Uzman'
+                    ? Colors.vibrant.purple
+                    : isDark
+                    ? Colors.gray[700]
+                    : Colors.white,
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 36,
+              }}
+              onPress={() => setFilter('Uzman')}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: filter === 'Uzman' ? '600' : '500',
+                  color:
+                    filter === 'Uzman'
+                      ? Colors.white
+                      : isDark
+                      ? Colors.white
+                      : Colors.gray[700],
+                  textAlign: 'center',
+                  fontFamily: 'SecondaryFont-Regular',
+                }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Uzman
+              </Text>
+            </TouchableOpacity>
           </Row>
         </GlassCard>
 
@@ -327,19 +564,22 @@ export default function TestsScreen() {
             style={{
               alignItems: 'center',
               justifyContent: 'center',
-              padding: Spacing[8],
+              padding: Spacing[4],
             }}
           >
-            <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
-            <Paragraph
+            <ActivityIndicator
+              size='large'
+              color={isDark ? Colors.primary.DEFAULT : Colors.vibrant.coral}
+            />
+            <Text
               style={{
                 marginTop: Spacing[3],
-                color: isDark ? Colors.gray[400] : Colors.gray[600],
-                textAlign: 'center',
+                color: isDark ? Colors.gray[400] : Colors.white,
+                fontFamily: 'SecondaryFont-Regular',
               }}
             >
               Testler yükleniyor...
-            </Paragraph>
+            </Text>
           </View>
         ) : (
           <>
@@ -421,6 +661,7 @@ export default function TestsScreen() {
               >
                 <EmptyState
                   icon='file'
+                  fontFamily='PrimaryFont'
                   title='Test bulunamadı'
                   message={
                     filter
@@ -432,7 +673,7 @@ export default function TestsScreen() {
                       ? {
                           title: 'Filtreyi Temizle',
                           onPress: () => setFilter(null),
-                          variant: 'primary',
+                          variant: 'secondary',
                         }
                       : undefined
                   }
@@ -446,10 +687,11 @@ export default function TestsScreen() {
         <PlayfulCard
           title='Hızlı İşlemler'
           variant='playful'
+          titleFontFamily='PrimaryFont'
           style={{ marginTop: Spacing[6] }}
           animated
         >
-          <Row style={{ gap: Spacing[3] }}>
+          <Row style={{ justifyContent: 'space-between' }}>
             <PlayfulButton
               title='Rastgele Test'
               onPress={() => {
@@ -460,10 +702,15 @@ export default function TestsScreen() {
                 }
               }}
               variant='outline'
-              style={{ flex: 1 }}
+              style={{
+                flex: 1,
+                marginRight: Spacing[2], // Add margin instead of gap
+              }}
               icon='random'
               gradient='sky'
               animated
+              size='small'
+              fontFamily='PrimaryFont'
             />
             <PlayfulButton
               title='Test Geçmişi'
@@ -473,6 +720,8 @@ export default function TestsScreen() {
               icon='history'
               gradient='purple'
               animated
+              size='small'
+              fontFamily='PrimaryFont'
             />
           </Row>
         </PlayfulCard>
@@ -480,43 +729,82 @@ export default function TestsScreen() {
         {/* Test Categories */}
         <PlayfulCard
           title='Popüler Kategoriler'
-          variant='gradient'
+          variant='playful'
           gradient='tropical'
           style={{ marginTop: Spacing[6] }}
+          titleFontFamily='PrimaryFont'
           animated
         >
-          <Row style={{ flexWrap: 'wrap', gap: Spacing[2] }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+            }}
+          >
             {[
-              'Anatomi',
-              'Patoloji',
-              'Cerrahi',
-              'Protez',
-              'Periodonti',
-              'Pedodonti',
+              {
+                name: 'Ağız, Diş ve Çene Cerrahisi',
+                bgColor: Colors.vibrant.orange,
+              }, // Orange for surgery
+              {
+                name: 'Restoratif Diş Tedavisi',
+                bgColor: Colors.vibrant.green,
+              }, // Green for restorative
+              { name: 'Endodonti', bgColor: Colors.vibrant.yellow }, // Yellow for endodontics
+              { name: 'Pedodonti', bgColor: Colors.vibrant.pink }, // Pink for pediatrics
+              { name: 'Protetik Diş Tedavisi', bgColor: Colors.vibrant.purple }, // Purple for prosthetics
+              { name: 'Periodontoloji', bgColor: Colors.vibrant.mint }, // Mint for periodontics
+              {
+                name: 'Ağız, Diş ve Çene Radyolojisi',
+                bgColor: Colors.vibrant.blue,
+              }, // Blue for radiology
+              { name: 'Ortodonti', bgColor: Colors.vibrant.peach }, // Peach for orthodontics
             ].map((category) => (
-              <PlayfulButton
-                key={category}
-                title={category}
-                variant='playful'
-                size='small'
+              <TouchableOpacity
+                key={category.name}
+                style={{
+                  paddingVertical: Spacing[2],
+                  paddingHorizontal: Spacing[2],
+                  borderRadius: BorderRadius.button,
+                  backgroundColor: category.bgColor,
+                  marginBottom: Spacing[2],
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: 60, // Fixed uniform height
+                  width: '48%',
+                }}
                 onPress={() => {
                   const categoryTests = tests.filter((test) =>
-                    test.title?.toLowerCase().includes(category.toLowerCase()),
+                    test.title
+                      ?.toLowerCase()
+                      .includes(category.name.toLowerCase()),
                   );
                   if (categoryTests.length > 0) {
                     router.push(
-                      `/tests/category/${category.toLowerCase()}` as any,
+                      `/tests/category/${category.name
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]/g, '-')}` as any,
                     );
                   }
                 }}
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
-                }}
-                animated
-              />
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '600',
+                    color: Colors.white,
+                    textAlign: 'center',
+                    fontFamily: 'SecondaryFont-Bold',
+                  }}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                >
+                  {category.name}
+                </Text>
+              </TouchableOpacity>
             ))}
-          </Row>
+          </View>
         </PlayfulCard>
 
         {/* Error display at bottom if there's an error but data is loaded */}
@@ -528,6 +816,6 @@ export default function TestsScreen() {
           />
         )}
       </ScrollView>
-    </Container>
+    </View>
   );
 }

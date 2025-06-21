@@ -482,7 +482,7 @@ export default function HomeScreen() {
             <Row
               style={{
                 justifyContent: 'space-between',
-                flexWrap: 'wrap',
+                flexWrap: 'nowrap',
                 marginBottom: Spacing[6],
               }}
             >
@@ -508,7 +508,7 @@ export default function HomeScreen() {
               />
               <StatCard
                 icon='trophy'
-                title='Düello Skoru'
+                title={'Düello\nSkoru'}
                 value={calculateDuelScore()}
                 color={VIBRANT_COLORS.orange}
                 titleFontFamily='SecondaryFont-Bold'

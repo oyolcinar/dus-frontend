@@ -173,7 +173,7 @@ export interface EmptyStateProps {
 // Enhanced StatCard component props
 export interface StatCardProps {
   icon: React.ComponentProps<typeof FontAwesome>['name'];
-  title: string;
+  title: string | React.ReactNode;
   value: string | number;
   change?: {
     value: string | number;
