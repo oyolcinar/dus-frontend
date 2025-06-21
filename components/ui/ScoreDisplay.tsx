@@ -7,6 +7,7 @@ import {
   Animated,
   Easing,
   ColorValue,
+  TextStyle, // Import TextStyle
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome } from '@expo/vector-icons';
@@ -24,7 +25,40 @@ import { toAnimatedStyle } from '../../utils/styleTypes';
 // Helper type to ensure gradient colors are properly typed
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
-const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
+// Enhanced interface with font family props
+interface EnhancedScoreDisplayProps extends Omit<ScoreDisplayProps, 'variant'> {
+  /**
+   * Display variant
+   */
+  variant?: 'default' | 'celebration' | 'gradient' | 'horizontal';
+
+  /**
+   * Font family for the score text
+   */
+  scoreFontFamily?: string;
+
+  /**
+   * Font family for the label text
+   */
+  labelFontFamily?: string;
+
+  /**
+   * Font family for the max score text
+   */
+  maxScoreFontFamily?: string;
+
+  /**
+   * Font family for the percentage text
+   */
+  percentageFontFamily?: string;
+
+  /**
+   * Font family for all text elements (will be overridden by specific font family props)
+   */
+  fontFamily?: string;
+}
+
+const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
   score,
   maxScore,
   label = 'Score',
@@ -35,6 +69,11 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   celebrationThreshold = 80,
   style,
   testID,
+  scoreFontFamily,
+  labelFontFamily,
+  maxScoreFontFamily,
+  percentageFontFamily,
+  fontFamily,
 }) => {
   const [displayScore, setDisplayScore] = useState(0);
   const countAnimation = useRef(new Animated.Value(0)).current;
@@ -126,6 +165,8 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
           textColor: Colors.gray[800],
           labelColor: Colors.gray[600],
           gradient: null,
+          transparent: false,
+          horizontal: false,
         };
       case 'celebration':
         return {
@@ -138,6 +179,8 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
               Colors.vibrant?.orange || '#FF6B6B',
             ],
           ),
+          transparent: false,
+          horizontal: false,
         };
       case 'gradient':
         return {
@@ -150,6 +193,17 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
               Colors.primary.light,
             ],
           ),
+          transparent: false,
+          horizontal: false,
+        };
+      case 'horizontal':
+        return {
+          backgroundColor: 'transparent',
+          textColor: Colors.gray[800],
+          labelColor: Colors.gray[600],
+          gradient: null,
+          transparent: true,
+          horizontal: true,
         };
       default:
         return {
@@ -157,6 +211,8 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
           textColor: Colors.gray[800],
           labelColor: Colors.gray[600],
           gradient: null,
+          transparent: false,
+          horizontal: false,
         };
     }
   };
@@ -205,6 +261,41 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   const sizeStyles = getSizeStyles();
   const percentage = maxScore ? (score / maxScore) * 100 : 0;
   const isCelebration = percentage >= celebrationThreshold;
+  const isHorizontal = variant === 'horizontal';
+
+  // *** START OF FIX ***
+  // Helper function to create dynamic font styles
+  const getFontStyles = (
+    specificFamily: string | undefined,
+    defaultWeight: TextStyle['fontWeight'],
+  ): TextStyle => {
+    const family = specificFamily || fontFamily;
+    if (family) {
+      // If a font family is provided, let it control the weight. Do not add a fontWeight prop.
+      return { fontFamily: family };
+    }
+    // If no font family, use the default weight from the theme.
+    return { fontWeight: defaultWeight };
+  };
+
+  // Create style objects for each text element
+  const labelTextStyles = getFontStyles(
+    labelFontFamily,
+    FontWeights.medium as any,
+  );
+  const scoreTextStyles = getFontStyles(
+    scoreFontFamily,
+    FontWeights.extrabold as any,
+  );
+  const maxScoreTextStyles = getFontStyles(
+    maxScoreFontFamily,
+    FontWeights.normal as any,
+  );
+  const percentageTextStyles = getFontStyles(
+    percentageFontFamily,
+    FontWeights.medium as any,
+  );
+  // *** END OF FIX ***
 
   const celebrationScale = celebrationAnimation.interpolate({
     inputRange: [0, 1],
@@ -219,7 +310,6 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   const progressWidth =
     showProgress && maxScore ? (displayScore / maxScore) * 100 : 0;
 
-  // Separate complex animated styles into variables
   const animatedStyle = toAnimatedStyle({
     transform: [{ scale: Animated.multiply(pulseAnimation, celebrationScale) }],
   });
@@ -233,79 +323,89 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   ]);
 
   const scoreContent = (
-    <View style={[styles.container, { padding: sizeStyles.padding }]}>
-      {isCelebration && (
-        <Animated.View style={sparkleAnimatedStyle}>
-          <FontAwesome
-            name={'star' as const}
-            size={sizeStyles.scoreSize * 0.3}
-            color={Colors.vibrant?.yellow || '#FFD93D'}
-            style={styles.sparkle1}
-          />
-          <FontAwesome
-            name={'star' as const}
-            size={sizeStyles.scoreSize * 0.2}
-            color={Colors.vibrant?.yellow || '#FFD93D'}
-            style={styles.sparkle2}
-          />
-          <FontAwesome
-            name={'star' as const}
-            size={sizeStyles.scoreSize * 0.25}
-            color={Colors.vibrant?.yellow || '#FFD93D'}
-            style={styles.sparkle3}
-          />
-        </Animated.View>
+    <View
+      style={[
+        isHorizontal ? styles.horizontalContent : styles.container,
+        { padding: isHorizontal ? Spacing[2] : sizeStyles.padding },
+        isHorizontal && { width: '100%' },
+      ]}
+    >
+      {isCelebration && !isHorizontal && (
+        <Animated.View style={sparkleAnimatedStyle}>{/* ... */}</Animated.View>
       )}
 
-      <Text
-        style={[
-          styles.label,
-          {
-            color: variantStyles.labelColor,
-            fontSize: sizeStyles.labelSize,
-          },
-        ]}
+      <View
+        style={{
+          flexDirection: isHorizontal ? 'row' : 'column',
+          alignItems: isHorizontal ? 'baseline' : 'center',
+          gap: isHorizontal ? Spacing[1] : 0,
+        }}
       >
-        {label}
-      </Text>
-
-      <Text
-        style={[
-          styles.score,
-          {
-            color: variantStyles.textColor,
-            fontSize: sizeStyles.scoreSize,
-          },
-        ]}
-      >
-        {displayScore.toLocaleString()}
-      </Text>
-
-      {maxScore && (
         <Text
           style={[
-            styles.maxScore,
+            styles.label,
             {
               color: variantStyles.labelColor,
-              fontSize: sizeStyles.labelSize * 0.8,
+              fontSize: isHorizontal
+                ? sizeStyles.scoreSize
+                : sizeStyles.labelSize,
+              marginBottom: isHorizontal ? 0 : Spacing[1],
             },
+            labelTextStyles, // Apply dynamic font style
           ]}
         >
-          / {maxScore.toLocaleString()}
+          {label}
         </Text>
-      )}
+
+        <Text
+          style={[
+            styles.score,
+            {
+              color: variantStyles.textColor,
+              fontSize: sizeStyles.scoreSize,
+            },
+            scoreTextStyles, // Apply dynamic font style
+          ]}
+        >
+          {displayScore.toLocaleString()}
+        </Text>
+
+        {maxScore && (
+          <Text
+            style={[
+              styles.maxScore,
+              {
+                color: variantStyles.labelColor,
+                fontSize: isHorizontal
+                  ? sizeStyles.scoreSize
+                  : sizeStyles.labelSize * 0.8,
+                marginTop: isHorizontal ? 0 : Spacing[1],
+              },
+              maxScoreTextStyles, // Apply dynamic font style
+            ]}
+          >
+            / {maxScore.toLocaleString()}
+          </Text>
+        )}
+      </View>
 
       {showProgress && maxScore && (
-        <View style={styles.progressContainer}>
+        <View
+          style={
+            isHorizontal ? styles.horizontalProgress : styles.progressContainer
+          }
+        >
           <View
             style={[
               styles.progressTrack,
+              isHorizontal && styles.horizontalProgressTrack,
               { borderRadius: sizeStyles.borderRadius / 4 },
             ]}
           >
             <View
               style={[
                 styles.progressBar,
+                isHorizontal && styles.horizontalProgressBar,
                 {
                   width: `${progressWidth}%`,
                   backgroundColor: isCelebration
@@ -316,27 +416,41 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
               ]}
             />
           </View>
-          <Text
-            style={[styles.percentage, { color: variantStyles.labelColor }]}
-          >
-            {Math.round(percentage)}%
-          </Text>
+          {!isHorizontal && (
+            <Text
+              style={[
+                styles.percentage,
+                { color: variantStyles.labelColor },
+                percentageTextStyles, // Apply dynamic font style
+              ]}
+            >
+              {Math.round(percentage)}%
+            </Text>
+          )}
         </View>
       )}
     </View>
   );
 
-  // Wrap complex style arrays with toAnimatedStyle
   const containerStyle = toAnimatedStyle([
     styles.scoreDisplay,
     {
-      backgroundColor: variantStyles.backgroundColor,
-      borderRadius: sizeStyles.borderRadius,
+      backgroundColor: variantStyles.transparent
+        ? 'transparent'
+        : variantStyles.backgroundColor,
+      borderRadius: variantStyles.transparent ? 0 : sizeStyles.borderRadius,
     },
-    createPlayfulShadow?.(
-      (variantStyles.gradient?.[0] as string) || variantStyles.backgroundColor,
-      size === 'small' ? 'light' : size === 'hero' ? 'heavy' : 'medium',
-    ) || {},
+    !variantStyles.transparent &&
+      (createPlayfulShadow?.(
+        (variantStyles.gradient?.[0] as string) ||
+          variantStyles.backgroundColor,
+        size === 'small' ? 'light' : size === 'hero' ? 'heavy' : 'medium',
+      ) ||
+        {}),
+    isHorizontal && {
+      alignSelf: 'stretch',
+      minWidth: 'auto',
+    },
     animatedStyle,
     style,
   ]);
@@ -363,6 +477,7 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   );
 };
 
+// *** STYLE DECLARATIONS ARE NOW CLEANER ***
 const styles = StyleSheet.create({
   scoreDisplay: {
     alignItems: 'center',
@@ -378,6 +493,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
   },
+  horizontalContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+  },
+  horizontalProgress: {
+    flex: 1,
+    minWidth: 60,
+    marginLeft: Spacing[2],
+  },
+  horizontalProgressTrack: {
+    width: '100%',
+    height: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  horizontalProgressBar: {
+    height: '100%',
+  },
   sparkles: {
     position: 'absolute',
     top: 0,
@@ -387,35 +520,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sparkle1: {
-    position: 'absolute',
-    top: '10%',
-    right: '15%',
-  },
-  sparkle2: {
-    position: 'absolute',
-    bottom: '15%',
-    left: '10%',
-  },
-  sparkle3: {
-    position: 'absolute',
-    top: '20%',
-    left: '20%',
-  },
+  sparkle1: { position: 'absolute', top: '10%', right: '15%' },
+  sparkle2: { position: 'absolute', bottom: '15%', left: '10%' },
+  sparkle3: { position: 'absolute', top: '20%', left: '20%' },
   label: {
-    fontWeight: FontWeights.medium as any,
+    // fontWeight removed
     textAlign: 'center',
     marginBottom: Spacing[1],
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   score: {
-    fontWeight: FontWeights.extrabold as any,
+    // fontWeight removed
     textAlign: 'center',
     lineHeight: undefined,
   },
   maxScore: {
-    fontWeight: FontWeights.normal as any,
+    // fontWeight removed
     textAlign: 'center',
     marginTop: Spacing[1],
   },
@@ -434,8 +555,8 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   percentage: {
+    // fontWeight removed
     fontSize: FontSizes.xs,
-    fontWeight: FontWeights.medium as any,
   },
 });
 

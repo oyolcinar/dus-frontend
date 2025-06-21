@@ -1,5 +1,5 @@
 // app/(tabs)/courses.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   useColorScheme,
+  RefreshControl,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { courseService } from '../../src/api';
@@ -54,6 +55,7 @@ interface CourseWithProgress extends Course {
 export default function CoursesScreen() {
   const [courses, setCourses] = useState<CourseWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<
     'all' | 'in-progress' | 'completed'
@@ -61,59 +63,74 @@ export default function CoursesScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  useEffect(() => {
-    async function fetchCourses() {
-      try {
-        setLoading(true);
-        setError(null);
+  const fetchCourses = useCallback(async () => {
+    try {
+      setError(null);
 
-        // Fetch courses from API
-        const coursesResponse = await courseService.getAllCourses();
+      // Fetch courses from API
+      const coursesResponse = await courseService.getAllCourses();
 
-        // Map courses to include progress and icon
-        const coursesWithProgress: CourseWithProgress[] = await Promise.all(
-          coursesResponse.map(async (course) => {
-            // Get progress for each course
-            let progress = 0;
-            try {
-              const courseProgress = await courseService.getCourseProgress(
-                course.course_id,
-              );
-              if (courseProgress) {
-                progress = courseProgress.progress || 0;
-              }
-            } catch (err) {
-              console.error(
-                `Failed to fetch progress for course ${course.course_id}:`,
-                err,
-              );
+      // Map courses to include progress and icon
+      const coursesWithProgress: CourseWithProgress[] = await Promise.all(
+        coursesResponse.map(async (course) => {
+          // Get progress for each course
+          let progress = 0;
+          try {
+            const courseProgress = await courseService.getCourseProgress(
+              course.course_id,
+            );
+            if (courseProgress) {
+              progress = courseProgress.progress || 0;
             }
+          } catch (err) {
+            console.error(
+              `Failed to fetch progress for course ${course.course_id}:`,
+              err,
+            );
+          }
 
-            return {
-              ...course,
-              progress,
-              iconName: getIconForCourse(course.title),
-              difficulty: getDifficultyForCourse(course.title),
-              timeEstimate: getTimeEstimate(progress),
-              studentsCount: Math.floor(Math.random() * 1000) + 100, // Mock data
-            };
-          }),
-        );
+          return {
+            ...course,
+            progress,
+            iconName: getIconForCourse(course.title),
+            difficulty: getDifficultyForCourse(course.title),
+            timeEstimate: getTimeEstimate(progress),
+            studentsCount: Math.floor(Math.random() * 1000) + 100, // Mock data
+          };
+        }),
+      );
 
-        // Sort courses by progress (highest first)
-        coursesWithProgress.sort((a, b) => b.progress - a.progress);
+      // Sort courses by progress (highest first)
+      coursesWithProgress.sort((a, b) => b.progress - a.progress);
 
-        setCourses(coursesWithProgress);
-      } catch (error) {
-        console.error('Error fetching courses:', error);
-        setError('Kurslar yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
-      } finally {
-        setLoading(false);
-      }
+      setCourses(coursesWithProgress);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+      setError('Kurslar yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+    }
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchCourses();
+    setRefreshing(false);
+  }, [fetchCourses]);
+
+  const handleRetry = useCallback(async () => {
+    setLoading(true);
+    await fetchCourses();
+    setLoading(false);
+  }, [fetchCourses]);
+
+  useEffect(() => {
+    async function initialFetch() {
+      setLoading(true);
+      await fetchCourses();
+      setLoading(false);
     }
 
-    fetchCourses();
-  }, []);
+    initialFetch();
+  }, [fetchCourses]);
 
   // Helper to map course titles to FontAwesome icons
   const getIconForCourse = (title?: string): string => {
@@ -172,22 +189,55 @@ export default function CoursesScreen() {
     filter: typeof selectedFilter;
     title: string;
   }) => (
-    <PlayfulButton
-      title={title}
-      variant={selectedFilter === filter ? 'vibrant' : 'ghost'}
-      size='small'
+    <TouchableOpacity
+      style={{
+        flex: 1,
+        marginHorizontal: Spacing[1],
+        paddingVertical: Spacing[2],
+        paddingHorizontal: Spacing[2],
+        borderRadius: BorderRadius.button,
+        backgroundColor:
+          selectedFilter === filter
+            ? VIBRANT_COLORS.purple
+            : isDark
+            ? Colors.gray[700]
+            : Colors.white,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 36,
+      }}
       onPress={() => setSelectedFilter(filter)}
-      style={{ marginRight: Spacing[2] }}
-    />
+    >
+      <Text
+        style={{
+          fontSize: 12,
+          fontWeight: selectedFilter === filter ? '600' : '500',
+          color:
+            selectedFilter === filter
+              ? Colors.white
+              : isDark
+              ? Colors.white
+              : Colors.gray[700],
+          textAlign: 'center',
+          fontFamily: 'SecondaryFont-Regular',
+        }}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+      >
+        {title}
+      </Text>
+    </TouchableOpacity>
   );
 
-  if (error) {
+  if (error && !loading) {
     return (
       <Container
         style={{
+          flex: 1,
           justifyContent: 'center',
           alignItems: 'center',
           padding: Spacing[4],
+          backgroundColor: '#A29BFE',
         }}
       >
         <PlayfulAlert
@@ -199,39 +249,68 @@ export default function CoursesScreen() {
         <PlayfulButton
           title='Yenile'
           variant='primary'
-          onPress={() => window.location.reload()}
+          onPress={handleRetry}
+          icon='refresh'
+          animated
         />
       </Container>
     );
   }
 
   return (
-    <Container>
-      <ScrollView style={{ flex: 1, padding: Spacing[4] }}>
+    <View style={{ flex: 1, backgroundColor: '#A29BFE' }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: Spacing[4] }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.primary.DEFAULT}
+            colors={[Colors.primary.DEFAULT]}
+          />
+        }
+      >
         {/* Header Section */}
         <SlideInElement delay={0}>
-          <GlassCard style={{ marginBottom: Spacing[6] }}>
+          <PlayfulCard
+            style={{ marginBottom: Spacing[6], backgroundColor: 'transparent' }}
+          >
             <Row
               style={{ alignItems: 'center', justifyContent: 'space-between' }}
             >
               <Column style={{ flex: 1 }}>
-                <PlayfulTitle level={1} gradient='primary'>
+                <PlayfulTitle
+                  level={1}
+                  gradient='primary'
+                  style={{ fontFamily: 'PrimaryFont', color: 'white' }}
+                >
                   Kurslar
                 </PlayfulTitle>
-                <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
+                <Paragraph
+                  color={isDark ? Colors.gray[400] : Colors.gray[600]}
+                  style={{
+                    fontFamily: 'SecondaryFont-Regular',
+                  }}
+                >
                   Tüm kursları görüntüleyin ve çalışmaya devam edin
                 </Paragraph>
               </Column>
-              {/* FIX 1: Removed backgroundColor prop and used bgColor instead */}
               <Avatar size='md' name='📚' bgColor={VIBRANT_COLORS.purple} />
             </Row>
-          </GlassCard>
+          </PlayfulCard>
         </SlideInElement>
 
         {/* Filter Buttons */}
         <SlideInElement delay={100}>
           <View style={{ marginBottom: Spacing[6] }}>
-            <Row style={{ marginBottom: Spacing[3] }}>
+            <Row
+              style={{
+                marginBottom: Spacing[3],
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
               <FilterButton filter='all' title='Tümü' />
               <FilterButton filter='in-progress' title='Devam Eden' />
               <FilterButton filter='completed' title='Tamamlanan' />
@@ -240,24 +319,27 @@ export default function CoursesScreen() {
         </SlideInElement>
 
         {loading ? (
-          <SlideInElement delay={200}>
-            <GlassCard style={{ padding: Spacing[8] }}>
-              <View style={{ alignItems: 'center' }}>
-                <ActivityIndicator size='large' color={VIBRANT_COLORS.purple} />
-                <Text
-                  style={[
-                    globalStyles.textBase,
-                    {
-                      color: isDark ? Colors.white : Colors.gray[600],
-                      marginTop: Spacing[3],
-                    },
-                  ]}
-                >
-                  Kurslar yükleniyor...
-                </Text>
-              </View>
-            </GlassCard>
-          </SlideInElement>
+          <View
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: Spacing[4],
+            }}
+          >
+            <ActivityIndicator
+              size='large'
+              color={isDark ? Colors.primary.DEFAULT : Colors.vibrant.coral}
+            />
+            <Text
+              style={{
+                marginTop: Spacing[3],
+                color: isDark ? Colors.gray[400] : Colors.white,
+                fontFamily: 'SecondaryFont-Regular',
+              }}
+            >
+              Kurslar yükleniyor...
+            </Text>
+          </View>
         ) : (
           <>
             {getFilteredCourses().length > 0 ? (
@@ -271,6 +353,7 @@ export default function CoursesScreen() {
                       <PlayfulCard
                         style={[
                           {
+                            backgroundColor: Colors.vibrant.orangeLight,
                             marginBottom: Spacing[4],
                             overflow: 'hidden',
                           },
@@ -279,6 +362,7 @@ export default function CoursesScreen() {
                             'medium',
                           ),
                         ]}
+                        animated
                       >
                         <TouchableOpacity
                           style={{
@@ -287,6 +371,7 @@ export default function CoursesScreen() {
                           }}
                           onPress={() => {
                             // Navigation would go here
+                            console.log('Course pressed:', course.course_id);
                           }}
                         >
                           {/* Course Icon */}
@@ -327,13 +412,14 @@ export default function CoursesScreen() {
                                       ? Colors.white
                                       : Colors.gray[800],
                                     flex: 1,
+                                    marginRight: Spacing[2],
+                                    fontFamily: 'SecondaryFont-Bold',
                                   },
                                 ]}
                                 numberOfLines={2}
                               >
                                 {course.title}
                               </Text>
-                              {/* FIX 2: Changed size from "small" to "sm" */}
                               <Badge
                                 text={course.difficulty}
                                 variant={
@@ -343,7 +429,8 @@ export default function CoursesScreen() {
                                     ? 'error'
                                     : 'warning'
                                 }
-                                size='sm'
+                                size='md'
+                                fontFamily='SecondaryFont-Bold'
                               />
                             </Row>
 
@@ -351,6 +438,7 @@ export default function CoursesScreen() {
                             <Row
                               style={{
                                 alignItems: 'center',
+                                justifyContent: 'space-between',
                                 marginBottom: Spacing[2],
                               }}
                             >
@@ -358,17 +446,24 @@ export default function CoursesScreen() {
                                 score={course.progress}
                                 maxScore={100}
                                 label='%'
+                                variant='horizontal'
                                 size='small'
-                                variant='default'
-                                style={{ marginRight: Spacing[3] }}
+                                showProgress={false}
+                                scoreFontFamily='SecondaryFont-Bold'
+                                labelFontFamily='SecondaryFont-Bold'
+                                maxScoreFontFamily='SecondaryFont-Bold'
+                                animated
                               />
                               <Text
                                 style={[
-                                  globalStyles.textSm,
+                                  globalStyles.textPrimary,
                                   {
                                     color: isDark
                                       ? Colors.gray[400]
                                       : Colors.gray[500],
+
+                                    // marginBottom: 1,
+                                    fontFamily: 'SecondaryFont-Bold',
                                   },
                                 ]}
                               >
@@ -382,7 +477,7 @@ export default function CoursesScreen() {
                               height={6}
                               width='100%'
                               trackColor={
-                                isDark ? Colors.gray[700] : Colors.gray[200]
+                                isDark ? Colors.gray[200] : Colors.white
                               }
                               progressColor={getDifficultyColor(
                                 course.difficulty,
@@ -391,6 +486,7 @@ export default function CoursesScreen() {
                                 borderRadius: BorderRadius.button,
                                 marginBottom: Spacing[2],
                               }}
+                              animated
                             />
 
                             {/* Stats Row */}
@@ -405,7 +501,7 @@ export default function CoursesScreen() {
                                   name='users'
                                   size={12}
                                   color={
-                                    isDark ? Colors.gray[400] : Colors.gray[500]
+                                    isDark ? Colors.gray[200] : Colors.gray[800]
                                   }
                                   style={{ marginRight: Spacing[1] }}
                                 />
@@ -414,8 +510,8 @@ export default function CoursesScreen() {
                                     globalStyles.textXs,
                                     {
                                       color: isDark
-                                        ? Colors.gray[400]
-                                        : Colors.gray[500],
+                                        ? Colors.gray[200]
+                                        : Colors.gray[800],
                                     },
                                   ]}
                                 >
@@ -427,7 +523,7 @@ export default function CoursesScreen() {
                                 name='chevron-right'
                                 size={16}
                                 color={
-                                  isDark ? Colors.gray[400] : Colors.gray[500]
+                                  isDark ? Colors.gray[200] : Colors.gray[800]
                                 }
                               />
                             </Row>
@@ -452,12 +548,26 @@ export default function CoursesScreen() {
                       ? 'Yeni kurslar yakında eklenecektir.'
                       : 'Farklı bir filtre seçmeyi deneyin.'
                   }
+                  fontFamily='SecondaryFont-Regular'
+                  titleFontFamily='PrimaryFont'
                 />
               </SlideInElement>
             )}
           </>
         )}
+
+        {/* Error display at bottom if there's an error but data is loaded */}
+        {error && !loading && courses.length > 0 && (
+          <PlayfulAlert
+            type='warning'
+            message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
+            style={{ marginTop: Spacing[4] }}
+          />
+        )}
+
+        {/* Bottom spacing to ensure content is fully visible */}
+        <View style={{ height: Spacing[8] }} />
       </ScrollView>
-    </Container>
+    </View>
   );
 }

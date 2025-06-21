@@ -155,7 +155,7 @@ function RootLayoutNav() {
     colors: {
       ...navigationTheme.colors,
       primary: '#722ea5', // Your primary color from global.css
-      background: theme === 'dark' ? '#1f2937' : '#ffffff',
+      background: theme === 'dark' ? '#1f2937' : '#A29BFE',
       card: theme === 'dark' ? '#1f2937' : '#ffffff',
       text: theme === 'dark' ? '#ffffff' : '#1f2937',
     },

@@ -48,6 +48,8 @@ export interface ButtonProps {
   animated?: boolean;
   wiggleOnPress?: boolean;
   glowEffect?: boolean;
+  // NEW: Font option
+  fontFamily?: string;
 }
 
 // Enhanced Card component props with playful variants
@@ -77,6 +79,9 @@ export interface CardProps {
   pulseEffect?: boolean;
   borderGlow?: boolean;
   bounceOnPress?: boolean;
+  // NEW: Font options
+  titleFontFamily?: string;
+  contentFontFamily?: string;
 }
 
 // Enhanced Badge component props
@@ -188,6 +193,9 @@ export interface StatCardProps {
   animated?: boolean;
   countUpAnimation?: boolean;
   glowEffect?: boolean;
+  // NEW: Font options
+  titleFontFamily?: string;
+  valueFontFamily?: string;
 }
 
 // Enhanced Input component props
@@ -615,7 +623,7 @@ export interface ScoreDisplayProps {
   maxScore?: number;
   label?: string;
   animated?: boolean;
-  variant?: 'default' | 'celebration' | 'gradient';
+  variant?: 'default' | 'celebration' | 'gradient' | 'horizontal';
   size?: 'small' | 'medium' | 'large' | 'hero';
   showProgress?: boolean;
   celebrationThreshold?: number; // Score threshold for celebration effects
@@ -789,6 +797,7 @@ export interface PlayfulTitleProps extends Omit<TitleProps, 'variant'> {
     | 'shadow'
     | 'outlined'
     | 'playful'
+    | 'purple'
     | 'glowing';
   bounceOnMount?: boolean;
   shadowColor?: string;

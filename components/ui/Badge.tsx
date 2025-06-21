@@ -55,6 +55,16 @@ export interface BadgeProps {
   pill?: boolean;
 
   /**
+   * Font family for the badge text
+   */
+  fontFamily?: string;
+
+  /**
+   * Whether to automatically translate common English terms to Turkish
+   */
+  translateToTurkish?: boolean;
+
+  /**
    * Optional testID for testing
    */
   testID?: string;
@@ -70,8 +80,77 @@ const Badge: React.FC<BadgeProps> = ({
   style,
   textStyle,
   pill = true,
+  fontFamily,
+  translateToTurkish = true,
   testID,
 }) => {
+  // Turkish translation mapping
+  const turkishTranslations: { [key: string]: string } = {
+    // Difficulty levels
+    easy: 'Kolay',
+    medium: 'Orta',
+    hard: 'Zor',
+    'very hard': 'Çok Zor',
+    expert: 'Uzman',
+
+    // Status terms
+    new: 'Yeni',
+    hot: 'Popüler',
+    trending: 'Trend',
+    featured: 'Öne Çıkan',
+    recommended: 'Önerilen',
+    completed: 'Tamamlandı',
+    'in progress': 'Devam Ediyor',
+    pending: 'Bekliyor',
+    active: 'Aktif',
+    inactive: 'Pasif',
+    approved: 'Onaylandı',
+    rejected: 'Reddedildi',
+    draft: 'Taslak',
+    published: 'Yayınlandı',
+
+    // Academic terms
+    beginner: 'Başlangıç',
+    intermediate: 'Orta Seviye',
+    advanced: 'İleri Seviye',
+    free: 'Ücretsiz',
+    premium: 'Premium',
+    pro: 'Pro',
+    basic: 'Temel',
+    standard: 'Standart',
+
+    // Time-related
+    urgent: 'Acil',
+    deadline: 'Son Tarih',
+    due: 'Vadesi Geldi',
+    overdue: 'Gecikmiş',
+    upcoming: 'Yaklaşan',
+
+    // General terms
+    success: 'Başarılı',
+    error: 'Hata',
+    warning: 'Uyarı',
+    info: 'Bilgi',
+    important: 'Önemli',
+    optional: 'İsteğe Bağlı',
+    required: 'Zorunlu',
+    beta: 'Beta',
+    alpha: 'Alfa',
+    live: 'Canlı',
+    offline: 'Çevrimdışı',
+    online: 'Çevrimiçi',
+  };
+
+  // Function to get translated text
+  const getDisplayText = (inputText: string): string => {
+    if (!translateToTurkish) {
+      return inputText;
+    }
+
+    const lowerText = inputText.toLowerCase().trim();
+    return turkishTranslations[lowerText] || inputText;
+  };
+
   // Determine background color and text color based on variant
   let bgColor: string;
   let textColor: string = Colors.white;
@@ -110,6 +189,9 @@ const Badge: React.FC<BadgeProps> = ({
   // Determine border radius based on pill option
   const borderRadiusStyle = pill ? styles.pillRadius : styles.standardRadius;
 
+  // Get the display text (translated or original)
+  const displayText = getDisplayText(text);
+
   return (
     <View
       style={[
@@ -123,10 +205,16 @@ const Badge: React.FC<BadgeProps> = ({
       accessibilityRole='text'
     >
       <Text
-        style={[styles.text, { color: textColor }, textSizeClass, textStyle]}
+        style={[
+          styles.text,
+          { color: textColor },
+          textSizeClass,
+          fontFamily && { fontFamily },
+          textStyle,
+        ]}
         numberOfLines={1}
       >
-        {text}
+        {displayText}
       </Text>
     </View>
   );
@@ -146,7 +234,6 @@ const styles = StyleSheet.create({
   },
   badgeMedium: {
     paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[1],
     minWidth: 20,
     height: 24,
   },

@@ -1,10 +1,11 @@
 // app/(tabs)/tests.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   ScrollView,
   ActivityIndicator,
   useColorScheme,
+  RefreshControl,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -39,43 +40,57 @@ export default function TestsScreen() {
   const router = useRouter();
   const [tests, setTests] = useState<TestWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
+  const fetchTests = useCallback(async () => {
+    try {
+      setError(null);
+
+      // Fetch tests from API
+      const testsResponse = await testService.getAllTests();
+
+      // Map tests to include details
+      const testsWithDetails: TestWithDetails[] = testsResponse.map((test) => {
+        return {
+          ...test,
+          difficulty: getDifficultyLabel(test.difficulty_level || 2),
+          questionCount: test.question_count || 0,
+          timeLimit: test.time_limit || 30,
+        };
+      });
+
+      setTests(testsWithDetails);
+    } catch (error) {
+      console.error('Error fetching tests:', error);
+      setError('Testler yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+    }
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchTests();
+    setRefreshing(false);
+  }, [fetchTests]);
+
+  const handleRetry = useCallback(async () => {
+    setLoading(true);
+    await fetchTests();
+    setLoading(false);
+  }, [fetchTests]);
+
   useEffect(() => {
-    async function fetchTests() {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Fetch tests from API
-        const testsResponse = await testService.getAllTests();
-
-        // Map tests to include details
-        const testsWithDetails: TestWithDetails[] = testsResponse.map(
-          (test) => {
-            return {
-              ...test,
-              difficulty: getDifficultyLabel(test.difficulty_level || 2),
-              questionCount: test.question_count || 0,
-              timeLimit: test.time_limit || 30,
-            };
-          },
-        );
-
-        setTests(testsWithDetails);
-      } catch (error) {
-        console.error('Error fetching tests:', error);
-        setError('Testler yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
-      } finally {
-        setLoading(false);
-      }
+    async function initialFetch() {
+      setLoading(true);
+      await fetchTests();
+      setLoading(false);
     }
 
-    fetchTests();
-  }, []);
+    initialFetch();
+  }, [fetchTests]);
 
   // Helper to convert numeric difficulty to text labels
   const getDifficultyLabel = (level: number): string => {
@@ -180,7 +195,7 @@ export default function TestsScreen() {
     ['Zor', 'Çok Zor', 'Uzman'].includes(test.difficulty),
   ).length;
 
-  if (error) {
+  if (error && !loading) {
     return (
       <Container
         style={{
@@ -197,7 +212,9 @@ export default function TestsScreen() {
         <PlayfulButton
           title='Yenile'
           variant='primary'
-          onPress={() => window.location.reload()}
+          onPress={handleRetry}
+          icon='refresh'
+          animated
         />
       </Container>
     );
@@ -205,7 +222,17 @@ export default function TestsScreen() {
 
   return (
     <Container>
-      <ScrollView style={{ flex: 1, padding: Spacing[4] }}>
+      <ScrollView
+        style={{ flex: 1, padding: Spacing[4] }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.primary.DEFAULT}
+            colors={[Colors.primary.DEFAULT]}
+          />
+        }
+      >
         {/* Header with animated title */}
         <PlayfulCard
           variant='gradient'
@@ -304,6 +331,15 @@ export default function TestsScreen() {
             }}
           >
             <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
+            <Paragraph
+              style={{
+                marginTop: Spacing[3],
+                color: isDark ? Colors.gray[400] : Colors.gray[600],
+                textAlign: 'center',
+              }}
+            >
+              Testler yükleniyor...
+            </Paragraph>
           </View>
         ) : (
           <>
@@ -357,6 +393,7 @@ export default function TestsScreen() {
                                 `/tests/${test.test_id}/preview` as any,
                               )
                             }
+                            animated
                           />
                           <PlayfulButton
                             title='Başla'
@@ -367,6 +404,7 @@ export default function TestsScreen() {
                               router.push(`/tests/${test.test_id}` as any)
                             }
                             animated
+                            wiggleOnPress
                           />
                         </Row>
                       </Row>
@@ -390,10 +428,11 @@ export default function TestsScreen() {
                       : 'Henüz test eklenmemiş.'
                   }
                   actionButton={
-                    !filter
+                    filter
                       ? {
                           title: 'Filtreyi Temizle',
                           onPress: () => setFilter(null),
+                          variant: 'primary',
                         }
                       : undefined
                   }
@@ -408,6 +447,7 @@ export default function TestsScreen() {
           title='Hızlı İşlemler'
           variant='playful'
           style={{ marginTop: Spacing[6] }}
+          animated
         >
           <Row style={{ gap: Spacing[3] }}>
             <PlayfulButton
@@ -423,6 +463,7 @@ export default function TestsScreen() {
               style={{ flex: 1 }}
               icon='random'
               gradient='sky'
+              animated
             />
             <PlayfulButton
               title='Test Geçmişi'
@@ -431,6 +472,7 @@ export default function TestsScreen() {
               style={{ flex: 1 }}
               icon='history'
               gradient='purple'
+              animated
             />
           </Row>
         </PlayfulCard>
@@ -441,6 +483,7 @@ export default function TestsScreen() {
           variant='gradient'
           gradient='tropical'
           style={{ marginTop: Spacing[6] }}
+          animated
         >
           <Row style={{ flexWrap: 'wrap', gap: Spacing[2] }}>
             {[
@@ -470,10 +513,20 @@ export default function TestsScreen() {
                   backgroundColor: 'rgba(255, 255, 255, 0.2)',
                   borderColor: 'rgba(255, 255, 255, 0.3)',
                 }}
+                animated
               />
             ))}
           </Row>
         </PlayfulCard>
+
+        {/* Error display at bottom if there's an error but data is loaded */}
+        {error && !loading && tests.length > 0 && (
+          <Alert
+            type='warning'
+            message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
+            style={{ marginTop: Spacing[4] }}
+          />
+        )}
       </ScrollView>
     </Container>
   );

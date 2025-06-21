@@ -1,10 +1,11 @@
 // app/(tabs)/profile.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   ScrollView,
   ActivityIndicator,
   useColorScheme,
+  RefreshControl,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -61,43 +62,59 @@ export default function ProfileScreen() {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [duelStats, setDuelStats] = useState<DuelStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchProfileData = useCallback(async () => {
+    try {
+      setError(null);
+
+      // Fetch data in parallel
+      const [userAchievements, duelStatsResponse] = await Promise.all([
+        achievementService.getUserAchievements(),
+        duelService.getDuelUserStats(),
+      ]);
+
+      setAchievements(userAchievements);
+
+      // Using the correct property names from the API response
+      setDuelStats({
+        totalDuels: duelStatsResponse.totalDuels,
+        wins: duelStatsResponse.wins,
+        losses: duelStatsResponse.losses,
+        winRate: duelStatsResponse.winRate,
+        longestLosingStreak: duelStatsResponse.longestLosingStreak || 0,
+        currentLosingStreak: duelStatsResponse.currentLosingStreak || 0,
+      });
+    } catch (error) {
+      console.error('Error fetching profile data:', error);
+      setError(
+        'Profil verileri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.',
+      );
+    }
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchProfileData();
+    setRefreshing(false);
+  }, [fetchProfileData]);
+
+  const handleRetry = useCallback(async () => {
+    setLoading(true);
+    await fetchProfileData();
+    setLoading(false);
+  }, [fetchProfileData]);
+
   useEffect(() => {
-    async function fetchProfileData() {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Fetch data in parallel
-        const [userAchievements, duelStatsResponse] = await Promise.all([
-          achievementService.getUserAchievements(),
-          duelService.getDuelUserStats(),
-        ]);
-
-        setAchievements(userAchievements);
-
-        // Using the correct property names from the API response
-        setDuelStats({
-          totalDuels: duelStatsResponse.totalDuels,
-          wins: duelStatsResponse.wins,
-          losses: duelStatsResponse.losses,
-          winRate: duelStatsResponse.winRate,
-          longestLosingStreak: duelStatsResponse.longestLosingStreak || 0,
-          currentLosingStreak: duelStatsResponse.currentLosingStreak || 0,
-        });
-      } catch (error) {
-        console.error('Error fetching profile data:', error);
-        setError(
-          'Profil verileri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.',
-        );
-      } finally {
-        setLoading(false);
-      }
+    async function initialFetch() {
+      setLoading(true);
+      await fetchProfileData();
+      setLoading(false);
     }
 
-    fetchProfileData();
-  }, []);
+    initialFetch();
+  }, [fetchProfileData]);
 
   // Get icon for achievement - returns only valid FontAwesome icon names
   const getAchievementIcon = (achievement: Achievement): string => {
@@ -142,7 +159,7 @@ export default function ProfileScreen() {
     }
   };
 
-  if (error) {
+  if (error && !loading) {
     return (
       <Container
         style={{
@@ -159,7 +176,9 @@ export default function ProfileScreen() {
         <PlayfulButton
           title='Yenile'
           variant='primary'
-          onPress={() => window.location.reload()}
+          onPress={handleRetry}
+          icon='refresh'
+          animated
         />
       </Container>
     );
@@ -167,7 +186,17 @@ export default function ProfileScreen() {
 
   return (
     <Container>
-      <ScrollView style={{ flex: 1 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.primary.DEFAULT}
+            colors={[Colors.primary.DEFAULT]}
+          />
+        }
+      >
         {/* Animated Profile Header */}
         <PlayfulCard
           variant='gradient'
@@ -230,6 +259,15 @@ export default function ProfileScreen() {
               }}
             >
               <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
+              <Paragraph
+                style={{
+                  marginTop: Spacing[3],
+                  color: isDark ? Colors.gray[400] : Colors.gray[600],
+                  textAlign: 'center',
+                }}
+              >
+                Profil verileri yükleniyor...
+              </Paragraph>
             </View>
           ) : (
             <>
@@ -376,6 +414,7 @@ export default function ProfileScreen() {
                         variant='outline'
                         style={{ flex: 1 }}
                         icon='trophy'
+                        animated
                       />
                       <Badge
                         text={`${achievements.length} Başarı`}
@@ -408,6 +447,7 @@ export default function ProfileScreen() {
                       variant='vibrant'
                       size='small'
                       style={{ marginTop: Spacing[3] }}
+                      animated
                     />
                   </Column>
                 )}
@@ -419,6 +459,7 @@ export default function ProfileScreen() {
                 variant='gradient'
                 gradient='sky'
                 style={{ marginBottom: Spacing[6] }}
+                animated
               >
                 <Column style={{ gap: Spacing[2] }}>
                   <PlayfulButton
@@ -430,6 +471,7 @@ export default function ProfileScreen() {
                       backgroundColor: 'rgba(255, 255, 255, 0.2)',
                       borderColor: 'rgba(255, 255, 255, 0.3)',
                     }}
+                    animated
                   />
 
                   <PlayfulButton
@@ -441,6 +483,7 @@ export default function ProfileScreen() {
                       backgroundColor: 'rgba(255, 255, 255, 0.2)',
                       borderColor: 'rgba(255, 255, 255, 0.3)',
                     }}
+                    animated
                   />
 
                   <PlayfulButton
@@ -452,6 +495,7 @@ export default function ProfileScreen() {
                       backgroundColor: 'rgba(255, 255, 255, 0.2)',
                       borderColor: 'rgba(255, 255, 255, 0.3)',
                     }}
+                    animated
                   />
                 </Column>
               </PlayfulCard>
@@ -461,6 +505,7 @@ export default function ProfileScreen() {
                 title='Hızlı İşlemler'
                 variant='playful'
                 style={{ marginBottom: Spacing[6] }}
+                animated
               >
                 <Row style={{ gap: Spacing[3] }}>
                   <PlayfulButton
@@ -470,6 +515,7 @@ export default function ProfileScreen() {
                     style={{ flex: 1 }}
                     icon='history'
                     gradient='purple'
+                    animated
                   />
                   <PlayfulButton
                     title='Düello Geçmişi'
@@ -478,6 +524,7 @@ export default function ProfileScreen() {
                     style={{ flex: 1 }}
                     icon='list'
                     gradient='fire'
+                    animated
                   />
                 </Row>
               </PlayfulCard>
@@ -506,9 +553,19 @@ export default function ProfileScreen() {
                     gradient='fire'
                     icon='sign-out'
                     animated
+                    wiggleOnPress
                   />
                 </Column>
               </GlassCard>
+
+              {/* Error display at bottom if there's an error but data is loaded */}
+              {error && !loading && (achievements.length > 0 || duelStats) && (
+                <Alert
+                  type='warning'
+                  message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
+                  style={{ marginTop: Spacing[4] }}
+                />
+              )}
             </>
           )}
         </View>

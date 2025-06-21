@@ -79,6 +79,21 @@ export interface EmptyStateProps {
   iconSize?: number;
 
   /**
+   * Font family for the title text
+   */
+  titleFontFamily?: string;
+
+  /**
+   * Font family for the message text
+   */
+  messageFontFamily?: string;
+
+  /**
+   * Font family for both title and message (will be overridden by specific font family props)
+   */
+  fontFamily?: string;
+
+  /**
    * Test ID for testing
    */
   testID?: string;
@@ -99,6 +114,9 @@ const EmptyState: React.FC<EmptyStateProps> = ({
   messageStyle,
   iconColor,
   iconSize = 40,
+  titleFontFamily,
+  messageFontFamily,
+  fontFamily,
   testID,
 }) => {
   const colorScheme = useColorScheme();
@@ -106,13 +124,17 @@ const EmptyState: React.FC<EmptyStateProps> = ({
 
   // Determine icon color based on theme if not explicitly provided
   const iconColorValue =
-    iconColor || (isDark ? Colors.gray[500] : Colors.gray[400]);
+    iconColor || (isDark ? Colors.white : Colors.gray[400]);
 
   // Calculate the bottom margin for primary button based on whether secondary button exists
   const primaryButtonStyle = [
     styles.primaryButton,
     secondaryButton ? { marginBottom: Spacing[3] } : undefined,
   ];
+
+  // Determine font families with fallback logic
+  const titleFont = titleFontFamily || fontFamily;
+  const messageFont = messageFontFamily || fontFamily;
 
   return (
     <View
@@ -127,7 +149,6 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         name={icon}
         size={iconSize}
         color={iconColorValue}
-        // Style prop removed from FontAwesome and using marginBottom directly
         style={{ marginBottom: Spacing[4] }}
       />
 
@@ -135,6 +156,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         style={[
           styles.title,
           isDark ? styles.titleDark : styles.titleLight,
+          titleFont && { fontFamily: titleFont },
           titleStyle,
         ]}
       >
@@ -145,6 +167,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
         style={[
           styles.message,
           isDark ? styles.messageDark : styles.messageLight,
+          messageFont && { fontFamily: messageFont },
           messageStyle,
         ]}
       >
@@ -177,7 +200,6 @@ type EmptyStateStyles = {
   container: ViewStyle;
   containerLight: ViewStyle;
   containerDark: ViewStyle;
-  // icon style removed as it was causing a type error
   title: TextStyle;
   titleLight: TextStyle;
   titleDark: TextStyle;
@@ -211,7 +233,6 @@ const styles = StyleSheet.create<EmptyStateStyles>({
     shadowRadius: 6,
     elevation: 5,
   },
-  // Removed icon style here - applied directly in component
   title: {
     fontSize: FontSizes.lg,
     fontWeight: '600',
@@ -233,11 +254,10 @@ const styles = StyleSheet.create<EmptyStateStyles>({
     color: Colors.gray[600],
   },
   messageDark: {
-    color: Colors.gray[400],
+    color: Colors.gray[200],
   },
   primaryButton: {
     minWidth: 200,
-    // Remove the function expression and handle this dynamically in the component
   },
   secondaryButton: {
     minWidth: 200,

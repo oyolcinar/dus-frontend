@@ -8,6 +8,7 @@ import {
   Animated,
   Easing,
   ColorValue,
+  useColorScheme,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome } from '@expo/vector-icons';
@@ -29,7 +30,15 @@ import { toAnimatedStyle } from '../../utils/styleTypes';
 // Helper type to ensure gradient colors are properly typed
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
 
-const PlayfulButton: React.FC<ButtonProps> = ({
+// Extended ButtonProps with font family support
+interface EnhancedButtonProps extends ButtonProps {
+  /**
+   * Custom font family for button text
+   */
+  fontFamily?: string;
+}
+
+const PlayfulButton: React.FC<EnhancedButtonProps> = ({
   title,
   onPress,
   variant = 'primary',
@@ -45,8 +54,11 @@ const PlayfulButton: React.FC<ButtonProps> = ({
   animated = true,
   wiggleOnPress = false,
   glowEffect = false,
+  fontFamily,
   ...props
 }) => {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const scaleAnimation = useRef(new Animated.Value(1)).current;
   const wiggleAnimation = useRef(new Animated.Value(0)).current;
   const glowAnimation = useRef(new Animated.Value(0)).current;
@@ -110,6 +122,18 @@ const PlayfulButton: React.FC<ButtonProps> = ({
       animationRefs.current = {};
     };
   }, []);
+
+  // Safe onPress handler with error boundary
+  const handlePress = () => {
+    if (disabled || loading || !onPress) return;
+
+    try {
+      onPress();
+    } catch (error) {
+      console.error('PlayfulButton onPress error:', error);
+      // Optionally show user-friendly error message
+    }
+  };
 
   const getVariantStyles = () => {
     // Helper function to ensure gradient colors are properly typed
@@ -244,14 +268,16 @@ const PlayfulButton: React.FC<ButtonProps> = ({
       case 'outline':
         return {
           backgroundColor: 'transparent',
-          textColor: Colors.primary.DEFAULT,
-          borderColor: Colors.primary.DEFAULT,
+          textColor: isDark ? Colors.primary.dark : Colors.white,
+          borderColor: isDark ? Colors.primary.dark : Colors.white,
           borderWidth: 2,
         };
       case 'ghost':
         return {
-          backgroundColor: Colors.neutral?.offWhite || Colors.gray[100],
-          textColor: Colors.primary.DEFAULT,
+          backgroundColor: isDark
+            ? 'rgba(255, 255, 255, 0.1)'
+            : Colors.neutral?.offWhite || Colors.gray[100],
+          textColor: isDark ? Colors.white : Colors.primary.DEFAULT,
         };
       default:
         return {
@@ -384,6 +410,13 @@ const PlayfulButton: React.FC<ButtonProps> = ({
     outputRange: [0.3, 0.8],
   });
 
+  // Create custom text style with font family support
+  const customTextStyle = {
+    ...(fontFamily ? { fontFamily } : {}),
+    // Remove fontWeight if custom font is provided
+    ...(fontFamily ? {} : { fontWeight: FontWeights.bold as any }),
+  };
+
   const buttonContent = (
     <View style={[styles.content, { opacity: disabled ? 0.6 : 1 }]}>
       {icon && (
@@ -397,6 +430,7 @@ const PlayfulButton: React.FC<ButtonProps> = ({
       <Text
         style={[
           styles.text,
+          customTextStyle,
           {
             color: variantStyles.textColor,
             fontSize: sizeStyles.fontSize,
@@ -433,6 +467,43 @@ const PlayfulButton: React.FC<ButtonProps> = ({
     },
   ]);
 
+  // Updated shadow styles using modern shadow approach
+  const createModernShadow = (
+    color: string,
+    intensity: 'light' | 'medium' | 'heavy',
+  ) => {
+    const shadows = {
+      light: {
+        shadowColor: color,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+        // For React Native Web
+        boxShadow: `0 2px 4px ${color}20`,
+      },
+      medium: {
+        shadowColor: color,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 4,
+        // For React Native Web
+        boxShadow: `0 4px 8px ${color}30`,
+      },
+      heavy: {
+        shadowColor: color,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.2,
+        shadowRadius: 16,
+        elevation: 8,
+        // For React Native Web
+        boxShadow: `0 8px 16px ${color}40`,
+      },
+    };
+    return shadows[intensity];
+  };
+
   // Wrap complex style arrays with toAnimatedStyle
   const buttonStyle = toAnimatedStyle([
     styles.button,
@@ -442,14 +513,14 @@ const PlayfulButton: React.FC<ButtonProps> = ({
       borderColor: variantStyles.borderColor,
       borderWidth: variantStyles.borderWidth,
     },
-    createPlayfulShadow?.(
+    createModernShadow(
       (variantStyles.gradient?.[0] as string) || variantStyles.backgroundColor,
       size === 'small'
         ? 'light'
         : size === 'large' || size === 'xl'
         ? 'heavy'
         : 'medium',
-    ) || {},
+    ),
     animatedStyle,
     style,
   ]);
@@ -457,7 +528,7 @@ const PlayfulButton: React.FC<ButtonProps> = ({
   if (variantStyles.gradient && variant !== 'outline' && variant !== 'ghost') {
     return (
       <TouchableOpacity
-        onPress={disabled || loading ? undefined : onPress}
+        onPress={handlePress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         activeOpacity={disabled ? 1 : 0.8}
@@ -482,7 +553,7 @@ const PlayfulButton: React.FC<ButtonProps> = ({
 
   return (
     <TouchableOpacity
-      onPress={disabled || loading ? undefined : onPress}
+      onPress={handlePress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       activeOpacity={disabled ? 1 : 0.8}
@@ -516,7 +587,6 @@ const styles = StyleSheet.create({
     marginRight: Spacing[2],
   },
   text: {
-    fontWeight: FontWeights.bold as any,
     textAlign: 'center',
     letterSpacing: 0.5,
   },

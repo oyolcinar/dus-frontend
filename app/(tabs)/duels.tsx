@@ -1,10 +1,11 @@
 // app/(tabs)/duels.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   ScrollView,
   ActivityIndicator,
   useColorScheme,
+  RefreshControl,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -33,30 +34,43 @@ export default function DuelsScreen() {
   const router = useRouter();
   const [activeDuels, setActiveDuels] = useState<Duel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  useEffect(() => {
-    async function fetchDuels() {
-      try {
-        setLoading(true);
-        setError(null);
+  const fetchDuels = useCallback(async () => {
+    try {
+      setError(null);
+      const activeDuelsResponse = await duelService.getActiveDuels();
+      setActiveDuels(activeDuelsResponse);
+    } catch (error) {
+      console.error('Error fetching duels:', error);
+      setError('Düellolar yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+    }
+  }, []);
 
-        const activeDuelsResponse = await duelService.getActiveDuels();
-        setActiveDuels(activeDuelsResponse);
-      } catch (error) {
-        console.error('Error fetching duels:', error);
-        setError(
-          'Düellolar yüklenirken bir hata oluştu. Lütfen tekrar deneyin.',
-        );
-      } finally {
-        setLoading(false);
-      }
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchDuels();
+    setRefreshing(false);
+  }, [fetchDuels]);
+
+  const handleRetry = useCallback(async () => {
+    setLoading(true);
+    await fetchDuels();
+    setLoading(false);
+  }, [fetchDuels]);
+
+  useEffect(() => {
+    async function initialFetch() {
+      setLoading(true);
+      await fetchDuels();
+      setLoading(false);
     }
 
-    fetchDuels();
-  }, []);
+    initialFetch();
+  }, [fetchDuels]);
 
   // Helper function to get opponent display name
   const getOpponentDisplayName = (duel: Duel): string => {
@@ -126,7 +140,7 @@ export default function DuelsScreen() {
     };
   };
 
-  if (error) {
+  if (error && !loading) {
     return (
       <Container
         style={{
@@ -143,7 +157,9 @@ export default function DuelsScreen() {
         <PlayfulButton
           title='Yenile'
           variant='primary'
-          onPress={() => window.location.reload()}
+          onPress={handleRetry}
+          icon='refresh'
+          animated
         />
       </Container>
     );
@@ -151,7 +167,17 @@ export default function DuelsScreen() {
 
   return (
     <Container>
-      <ScrollView style={{ flex: 1, padding: Spacing[4] }}>
+      <ScrollView
+        style={{ flex: 1, padding: Spacing[4] }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.primary.DEFAULT}
+            colors={[Colors.primary.DEFAULT]}
+          />
+        }
+      >
         {/* Header with animated title */}
         <PlayfulCard
           variant='gradient'
@@ -228,6 +254,7 @@ export default function DuelsScreen() {
           animated
           style={{ marginBottom: Spacing[6] }}
           icon='plus'
+          wiggleOnPress
         />
 
         {loading ? (
@@ -239,6 +266,15 @@ export default function DuelsScreen() {
             }}
           >
             <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
+            <Paragraph
+              style={{
+                marginTop: Spacing[3],
+                color: Colors.gray[600],
+                textAlign: 'center',
+              }}
+            >
+              Düellolar yükleniyor...
+            </Paragraph>
           </View>
         ) : (
           <>
@@ -270,6 +306,8 @@ export default function DuelsScreen() {
                               Colors.vibrant?.purple || Colors.primary.DEFAULT
                             }
                             style={{ marginRight: Spacing[3] }}
+                            borderGlow
+                            animated
                           />
                           <Column style={{ flex: 1 }}>
                             <Title
@@ -314,6 +352,7 @@ export default function DuelsScreen() {
                   actionButton={{
                     title: 'Düello Başlat',
                     onPress: () => router.push('/duel/new' as any),
+                    variant: 'primary',
                   }}
                 />
               </PlayfulCard>
@@ -326,6 +365,7 @@ export default function DuelsScreen() {
           title='Hızlı İşlemler'
           variant='playful'
           style={{ marginTop: Spacing[6] }}
+          animated
         >
           <Row style={{ gap: Spacing[3] }}>
             <PlayfulButton
@@ -334,6 +374,7 @@ export default function DuelsScreen() {
               variant='outline'
               style={{ flex: 1 }}
               icon='list'
+              animated
             />
             <PlayfulButton
               title='Düello Geçmişi'
@@ -341,9 +382,19 @@ export default function DuelsScreen() {
               variant='outline'
               style={{ flex: 1 }}
               icon='history'
+              animated
             />
           </Row>
         </PlayfulCard>
+
+        {/* Error display at bottom if there's an error but data is loaded */}
+        {error && !loading && activeDuels.length > 0 && (
+          <Alert
+            type='warning'
+            message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
+            style={{ marginTop: Spacing[4] }}
+          />
+        )}
       </ScrollView>
     </Container>
   );

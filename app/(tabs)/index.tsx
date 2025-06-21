@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   useColorScheme,
+  RefreshControl,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -96,6 +97,7 @@ export default function HomeScreen() {
   const isDark = colorScheme === 'dark';
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [userData, setUserData] = useState<{ username?: string } | null>(null);
   const [courses, setCourses] = useState<CourseWithProgress[]>([]);
   const [tests, setTests] = useState<TestWithDetails[]>([]);
@@ -123,89 +125,102 @@ export default function HomeScreen() {
   }, []);
 
   // Fetch all required data
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
+  const fetchData = useCallback(async () => {
+    try {
       setError(null);
-      try {
-        // Fetch all data in parallel
-        const [
-          coursesResponse,
-          testsResponse,
-          duelsResponse,
-          achievementsResponse,
-          analyticsResponse,
-        ] = await Promise.all([
-          courseService.getAllCourses(),
-          testService.getAllTests(),
-          duelService.getActiveDuels(),
-          achievementService.getUserAchievements(),
-          analyticsService.getUserPerformanceAnalytics(),
-        ]);
+      // Fetch all data in parallel
+      const [
+        coursesResponse,
+        testsResponse,
+        duelsResponse,
+        achievementsResponse,
+        analyticsResponse,
+      ] = await Promise.all([
+        courseService.getAllCourses(),
+        testService.getAllTests(),
+        duelService.getActiveDuels(),
+        achievementService.getUserAchievements(),
+        analyticsService.getUserPerformanceAnalytics(),
+      ]);
 
-        // Sort courses by progress descending
-        const coursesWithProgress: CourseWithProgress[] = coursesResponse.map(
-          (course) => {
-            return {
-              ...course,
-              // If we have course progress data, use it, otherwise set to 0
-              progress: 0, // Will be updated if we have course progress data
-              iconName: getIconForCourse(course.title), // Helper function to map course to icon
-            };
-          },
-        );
+      // Sort courses by progress descending
+      const coursesWithProgress: CourseWithProgress[] = coursesResponse.map(
+        (course) => {
+          return {
+            ...course,
+            // If we have course progress data, use it, otherwise set to 0
+            progress: 0, // Will be updated if we have course progress data
+            iconName: getIconForCourse(course.title), // Helper function to map course to icon
+          };
+        },
+      );
 
-        // Try to get progress for each course
-        for (let i = 0; i < coursesWithProgress.length; i++) {
-          try {
-            const courseProgress = await courseService.getCourseProgress(
-              coursesWithProgress[i].course_id,
-            );
-            if (courseProgress) {
-              coursesWithProgress[i].progress = courseProgress.progress || 0;
-            }
-          } catch (err) {
-            console.error(
-              `Failed to fetch progress for course ${coursesWithProgress[i].course_id}:`,
-              err,
-            );
+      // Try to get progress for each course
+      for (let i = 0; i < coursesWithProgress.length; i++) {
+        try {
+          const courseProgress = await courseService.getCourseProgress(
+            coursesWithProgress[i].course_id,
+          );
+          if (courseProgress) {
+            coursesWithProgress[i].progress = courseProgress.progress || 0;
           }
+        } catch (err) {
+          console.error(
+            `Failed to fetch progress for course ${coursesWithProgress[i].course_id}:`,
+            err,
+          );
         }
-
-        // Sort courses by progress (highest first)
-        coursesWithProgress.sort((a, b) => b.progress - a.progress);
-
-        // Take top 3 courses for the homepage
-        setCourses(coursesWithProgress.slice(0, 3));
-
-        // Sort tests by difficulty
-        const testsWithDetails: TestWithDetails[] = testsResponse.map(
-          (test) => {
-            return {
-              ...test,
-              difficulty: getDifficultyLabel(test.difficulty_level || 2),
-              // Map question_count to questionCount for the UI
-              questionCount: test.question_count || 0,
-              // Map time_limit to timeLimit for the UI
-              timeLimit: test.time_limit || 30,
-            };
-          },
-        );
-        setTests(testsWithDetails.slice(0, 2)); // Take just 2 tests for the homepage
-
-        setActiveDuels(duelsResponse.slice(0, 3)); // Just take top 3 for the homepage
-        setUserAchievements(achievementsResponse.slice(0, 3)); // Just take the most recent 3
-        setAnalyticsData(analyticsResponse);
-      } catch (error) {
-        console.error('Error fetching homepage data:', error);
-        setError('Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
-      } finally {
-        setLoading(false);
       }
-    };
 
-    fetchData();
+      // Sort courses by progress (highest first)
+      coursesWithProgress.sort((a, b) => b.progress - a.progress);
+
+      // Take top 3 courses for the homepage
+      setCourses(coursesWithProgress.slice(0, 3));
+
+      // Sort tests by difficulty
+      const testsWithDetails: TestWithDetails[] = testsResponse.map((test) => {
+        return {
+          ...test,
+          difficulty: getDifficultyLabel(test.difficulty_level || 2),
+          // Map question_count to questionCount for the UI
+          questionCount: test.question_count || 0,
+          // Map time_limit to timeLimit for the UI
+          timeLimit: test.time_limit || 30,
+        };
+      });
+      setTests(testsWithDetails.slice(0, 2)); // Take just 2 tests for the homepage
+
+      setActiveDuels(duelsResponse.slice(0, 3)); // Just take top 3 for the homepage
+      setUserAchievements(achievementsResponse.slice(0, 3)); // Just take the most recent 3
+      setAnalyticsData(analyticsResponse);
+    } catch (error) {
+      console.error('Error fetching homepage data:', error);
+      setError('Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  }, [fetchData]);
+
+  const handleRetry = useCallback(async () => {
+    setLoading(true);
+    await fetchData();
+    setLoading(false);
+  }, [fetchData]);
+
+  useEffect(() => {
+    async function initialFetch() {
+      setLoading(true);
+      await fetchData();
+      setLoading(false);
+    }
+
+    initialFetch();
+  }, [fetchData]);
 
   // Helper function to get opponent display name
   const getOpponentDisplayName = (duel: Duel): string => {
@@ -308,7 +323,7 @@ export default function HomeScreen() {
     return 'certificate';
   };
 
-  if (error) {
+  if (error && !loading) {
     return (
       <Container
         style={{
@@ -324,9 +339,10 @@ export default function HomeScreen() {
         />
         <PlayfulButton
           title='Yenile'
-          onPress={() => window.location.reload()}
+          onPress={handleRetry}
           variant='primary'
           animated
+          icon='refresh'
         />
       </Container>
     );
@@ -354,8 +370,16 @@ export default function HomeScreen() {
       style={{
         flex: 1,
         paddingHorizontal: Spacing[4],
-        paddingVertical: Spacing[4],
+        paddingVertical: Spacing[8],
       }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={Colors.primary.DEFAULT}
+          colors={[Colors.primary.DEFAULT]}
+        />
+      }
     >
       {/* Welcome message and streak */}
       <SlideInElement direction='down' delay={0}>
@@ -365,51 +389,67 @@ export default function HomeScreen() {
             justifyContent: 'space-between',
             alignItems: 'center',
             marginBottom: Spacing[6],
+            flexWrap: 'wrap',
           }}
         >
-          <View>
+          <View style={{ flex: 1, marginRight: Spacing[3] }}>
             <PlayfulTitle
               level={2}
-              style={{ marginBottom: Spacing[1] }}
-              gradient='primary'
+              style={{ marginBottom: Spacing[1], fontFamily: 'PrimaryFont' }}
+              variant='purple'
+              animated
             >
               Merhaba {userData?.username || 'Öğrenci'}!
             </PlayfulTitle>
-            <Paragraph color={isDark ? Colors.gray[400] : Colors.gray[600]}>
+            <Paragraph
+              color={isDark ? Colors.white : Colors.gray[800]}
+              style={{
+                fontFamily: 'SecondaryFont-Regular',
+              }}
+            >
               DUS sınavına hazırlanmaya devam edelim
             </Paragraph>
           </View>
-          <FloatingElement>
-            <PulseElement>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: isDark
-                    ? Colors.primary.dark
-                    : Colors.primary.light,
-                  borderRadius: 999,
-                  paddingHorizontal: Spacing[3],
-                  paddingVertical: Spacing[1],
-                }}
-              >
-                <FontAwesome
-                  name='fire'
-                  size={16}
-                  color={Colors.secondary.DEFAULT}
-                />
-                <Text
+
+          <View style={{ alignItems: 'center', marginTop: 8 }}>
+            <FloatingElement>
+              <PulseElement>
+                <View
                   style={{
-                    marginLeft: Spacing[2],
-                    fontWeight: '500',
-                    color: isDark ? Colors.white : Colors.gray[800],
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: isDark
+                      ? Colors.vibrant.purpleDark
+                      : Colors.vibrant.orange,
+                    borderRadius: 999,
+                    paddingHorizontal: Spacing[3],
+                    paddingVertical: Spacing[2],
+                    minWidth: 80,
+                    justifyContent: 'center',
                   }}
                 >
-                  {analyticsData?.studySessions || 0} gün
-                </Text>
-              </View>
-            </PulseElement>
-          </FloatingElement>
+                  <FontAwesome
+                    name='fire'
+                    size={16}
+                    color={
+                      isDark ? Colors.secondary.DEFAULT : Colors.secondary.light
+                    }
+                  />
+                  <Text
+                    style={{
+                      marginLeft: Spacing[2],
+                      fontWeight: '500',
+                      color: isDark ? Colors.white : Colors.gray[800],
+                      fontSize: 14,
+                      fontFamily: 'SecondaryFont-Bold',
+                    }}
+                  >
+                    {analyticsData?.studySessions || 0} gün
+                  </Text>
+                </View>
+              </PulseElement>
+            </FloatingElement>
+          </View>
         </View>
       </SlideInElement>
 
@@ -421,7 +461,19 @@ export default function HomeScreen() {
             padding: Spacing[4],
           }}
         >
-          <ActivityIndicator size='large' color={Colors.primary.DEFAULT} />
+          <ActivityIndicator
+            size='large'
+            color={isDark ? Colors.primary.DEFAULT : Colors.vibrant.coral}
+          />
+          <Text
+            style={{
+              marginTop: Spacing[3],
+              color: isDark ? Colors.gray[400] : Colors.white,
+              fontFamily: 'SecondaryFont-Regular',
+            }}
+          >
+            Ana sayfa yükleniyor...
+          </Text>
         </View>
       ) : (
         <>
@@ -444,19 +496,22 @@ export default function HomeScreen() {
                       }`
                     : '0/0'
                 }
-                color={VIBRANT_COLORS.purple}
+                color={isDark ? VIBRANT_COLORS.purple : VIBRANT_COLORS.yellow}
+                titleFontFamily='SecondaryFont-Bold'
               />
               <StatCard
                 icon='check-circle'
                 title='Çözülen Sorular'
                 value={(analyticsData?.totalQuestionsAnswered || 0).toString()}
-                color={VIBRANT_COLORS.blue}
+                color={isDark ? VIBRANT_COLORS.mint : VIBRANT_COLORS.green}
+                titleFontFamily='SecondaryFont-Bold'
               />
               <StatCard
                 icon='trophy'
                 title='Düello Skoru'
                 value={calculateDuelScore()}
                 color={VIBRANT_COLORS.orange}
+                titleFontFamily='SecondaryFont-Bold'
               />
             </Row>
           </SlideInElement>
@@ -466,7 +521,8 @@ export default function HomeScreen() {
             <PlayfulCard
               title='Çalışmaya Devam Et'
               style={{ marginBottom: Spacing[6] }}
-              variant='playful'
+              titleFontFamily='PrimaryFont'
+              variant='elevated'
               animated
               floatingAnimation
             >
@@ -486,8 +542,8 @@ export default function HomeScreen() {
                           alignItems: 'center',
                           padding: Spacing[3],
                           backgroundColor: isDark
-                            ? Colors.gray[700]
-                            : Colors.gray[50],
+                            ? Colors.vibrant.purpleDark
+                            : Colors.vibrant.orangeLight,
                           borderRadius: 8,
                         }}
                       >
@@ -496,7 +552,9 @@ export default function HomeScreen() {
                             width: 40,
                             height: 40,
                             borderRadius: 20,
-                            backgroundColor: VIBRANT_COLORS.purple,
+                            backgroundColor: isDark
+                              ? Colors.white
+                              : VIBRANT_COLORS.purple,
                             alignItems: 'center',
                             justifyContent: 'center',
                             marginRight: Spacing[3],
@@ -505,7 +563,9 @@ export default function HomeScreen() {
                           <FontAwesome
                             name={course.iconName as any}
                             size={20}
-                            color={Colors.white}
+                            color={
+                              isDark ? Colors.vibrant.purpleDark : Colors.white
+                            }
                           />
                         </View>
                         <View style={{ flex: 1 }}>
@@ -514,6 +574,7 @@ export default function HomeScreen() {
                               fontWeight: '600',
                               color: isDark ? Colors.white : Colors.gray[800],
                               marginBottom: Spacing[1],
+                              fontFamily: 'SecondaryFont-Bold',
                             }}
                           >
                             {course.title}
@@ -528,9 +589,10 @@ export default function HomeScreen() {
                               style={{
                                 fontSize: 12,
                                 color: isDark
-                                  ? Colors.gray[400]
-                                  : Colors.gray[500],
+                                  ? Colors.gray[200]
+                                  : Colors.gray[700],
                                 marginBottom: Spacing[1],
+                                fontFamily: 'SecondaryFont-Regular',
                               }}
                             >
                               {course.progress}% tamamlandı
@@ -541,7 +603,7 @@ export default function HomeScreen() {
                             height={8}
                             width='100%'
                             trackColor={
-                              isDark ? Colors.gray[700] : Colors.gray[200]
+                              isDark ? Colors.gray[200] : Colors.white
                             }
                             progressColor={VIBRANT_COLORS.purple}
                             style={{ borderRadius: 4 }}
@@ -551,7 +613,7 @@ export default function HomeScreen() {
                         <FontAwesome
                           name='chevron-right'
                           size={16}
-                          color={isDark ? Colors.gray[400] : Colors.gray[500]}
+                          color={isDark ? Colors.gray[200] : Colors.gray[800]}
                         />
                       </TouchableOpacity>
                     </BouncyButton>
@@ -561,19 +623,27 @@ export default function HomeScreen() {
                 <EmptyState
                   icon='book'
                   title='Henüz kurs yok'
+                  fontFamily='PrimaryFont'
                   message='Kurslar sekmesinden ilk kursunuzu seçin ve çalışmaya başlayın.'
                   actionButton={{
                     title: 'Kurslara Git',
                     onPress: () => router.push('/courses' as any),
+                    variant: 'primary',
+                  }}
+                  style={{
+                    backgroundColor: isDark
+                      ? Colors.primary.dark
+                      : Colors.white,
                   }}
                 />
               )}
               <AppLink href='/courses'>
                 <PlayfulButton
                   title='Tüm Kursları Gör'
-                  onPress={() => {}} // No-op function since AppLink handles navigation
+                  onPress={() => {}}
                   variant='outline'
                   style={{ marginTop: Spacing[2] }}
+                  fontFamily='PrimaryFont'
                   animated
                 />
               </AppLink>
@@ -582,12 +652,13 @@ export default function HomeScreen() {
 
           {/* Recent Tests */}
           <SlideInElement direction='right' delay={600}>
-            <GameCard
+            <PlayfulCard
               title='Popüler Testler'
               style={{ marginBottom: Spacing[6] }}
-              variant='gradient'
-              gradient='sunset'
-              pulseEffect
+              titleFontFamily='PrimaryFont'
+              variant='playful'
+              animated
+              floatingAnimation
             >
               {tests.length > 0 ? (
                 tests.map((test) => (
@@ -602,8 +673,8 @@ export default function HomeScreen() {
                           alignItems: 'center',
                           padding: Spacing[3],
                           backgroundColor: isDark
-                            ? Colors.gray[700]
-                            : Colors.gray[50],
+                            ? Colors.vibrant.purpleDark
+                            : Colors.white,
                           borderRadius: 8,
                         }}
                       >
@@ -612,7 +683,9 @@ export default function HomeScreen() {
                             width: 40,
                             height: 40,
                             borderRadius: 20,
-                            backgroundColor: VIBRANT_COLORS.blue,
+                            backgroundColor: isDark
+                              ? Colors.white
+                              : VIBRANT_COLORS.blue,
                             alignItems: 'center',
                             justifyContent: 'center',
                             marginRight: Spacing[3],
@@ -621,15 +694,18 @@ export default function HomeScreen() {
                           <FontAwesome
                             name='question-circle'
                             size={20}
-                            color={Colors.white}
+                            color={isDark ? VIBRANT_COLORS.blue : Colors.white}
                           />
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text
                             style={{
                               fontWeight: '600',
-                              color: isDark ? Colors.white : Colors.gray[800],
+                              color: isDark
+                                ? Colors.white
+                                : Colors.vibrant.purpleDark,
                               marginBottom: Spacing[1],
+                              fontFamily: 'SecondaryFont-Bold',
                             }}
                           >
                             {test.title}
@@ -644,8 +720,9 @@ export default function HomeScreen() {
                               style={{
                                 fontSize: 12,
                                 color: isDark
-                                  ? Colors.gray[400]
+                                  ? Colors.gray[200]
                                   : Colors.gray[500],
+                                fontFamily: 'SecondaryFont-Regular',
                               }}
                             >
                               {test.questionCount || 0} soru •{' '}
@@ -661,21 +738,21 @@ export default function HomeScreen() {
                                     : test.difficulty === 'Orta'
                                     ? Colors.warning
                                     : Colors.error,
+                                fontFamily: 'SecondaryFont-Regular',
                               }}
                             >
                               {test.difficulty}
                             </Text>
                           </View>
                         </View>
-                        <GameButton
-                          title='Başla'
-                          variant='primary'
-                          onPress={() => {}} // No-op function since AppLink handles navigation
-                          style={{
-                            paddingHorizontal: Spacing[3],
-                            paddingVertical: Spacing[1],
-                          }}
-                          size='small'
+                        <FontAwesome
+                          name='chevron-right'
+                          size={16}
+                          color={
+                            isDark
+                              ? Colors.gray[200]
+                              : Colors.vibrant.purpleLight
+                          }
                         />
                       </TouchableOpacity>
                     </BouncyButton>
@@ -685,19 +762,26 @@ export default function HomeScreen() {
                 <EmptyState
                   icon='file'
                   title='Test bulunamadı'
+                  fontFamily='PrimaryFont'
                   message='Testler sekmesinden testlere erişebilirsiniz.'
+                  style={{
+                    backgroundColor: isDark
+                      ? Colors.vibrant.purpleDark
+                      : Colors.white,
+                  }}
                 />
               )}
               <AppLink href='/tests'>
                 <PlayfulButton
                   title='Tüm Testleri Gör'
-                  onPress={() => {}} // No-op function since AppLink handles navigation
+                  onPress={() => {}}
                   variant='outline'
                   style={{ marginTop: Spacing[2] }}
+                  fontFamily='PrimaryFont'
                   animated
                 />
               </AppLink>
-            </GameCard>
+            </PlayfulCard>
           </SlideInElement>
 
           {/* Active Duels */}
@@ -705,8 +789,10 @@ export default function HomeScreen() {
             <PlayfulCard
               title='Aktif Düellolar'
               style={{ marginBottom: Spacing[6] }}
-              variant='game'
-              borderGlow
+              titleFontFamily='PrimaryFont'
+              variant='playful'
+              animated
+              floatingAnimation
             >
               {activeDuels.length > 0 ? (
                 activeDuels.map((duel) => (
@@ -721,22 +807,29 @@ export default function HomeScreen() {
                           alignItems: 'center',
                           padding: Spacing[3],
                           backgroundColor: isDark
-                            ? Colors.gray[700]
-                            : Colors.gray[50],
+                            ? Colors.vibrant.purpleDark
+                            : Colors.white,
                           borderRadius: 8,
                         }}
                       >
                         <Avatar
                           name={getOpponentAvatarInitial(duel)}
                           size='md'
-                          bgColor={VIBRANT_COLORS.orange}
+                          bgColor={
+                            isDark ? Colors.white : VIBRANT_COLORS.orange
+                          }
+                          borderGlow
+                          animated
                         />
                         <View style={{ flex: 1, marginLeft: Spacing[3] }}>
                           <Text
                             style={{
                               fontWeight: '600',
-                              color: isDark ? Colors.white : Colors.gray[800],
+                              color: isDark
+                                ? Colors.white
+                                : Colors.vibrant.purpleDark,
                               marginBottom: Spacing[1],
+                              fontFamily: 'SecondaryFont-Bold',
                             }}
                           >
                             {getOpponentDisplayName(duel)}
@@ -751,19 +844,14 @@ export default function HomeScreen() {
                             {renderDuelStatusBadge(duel.status)}
                           </View>
                         </View>
-                        <GameButton
-                          title={
-                            duel.status === 'active' ? 'Oyna' : 'Görüntüle'
+                        <FontAwesome
+                          name='chevron-right'
+                          size={16}
+                          color={
+                            isDark
+                              ? Colors.gray[200]
+                              : Colors.vibrant.purpleLight
                           }
-                          variant={
-                            duel.status === 'active' ? 'primary' : 'outline'
-                          }
-                          onPress={() => {}} // No-op function since AppLink handles navigation
-                          style={{
-                            paddingHorizontal: Spacing[3],
-                            paddingVertical: Spacing[1],
-                          }}
-                          size='small'
                         />
                       </TouchableOpacity>
                     </BouncyButton>
@@ -773,19 +861,27 @@ export default function HomeScreen() {
                 <EmptyState
                   icon='users'
                   title='Aktif düello yok'
+                  fontFamily='PrimaryFont'
                   message='Arkadaşlarınızı düelloya davet edin ve rekabeti başlatın.'
                   actionButton={{
                     title: 'Düello Başlat',
                     onPress: () => router.push('/duel/new' as any),
+                    variant: 'secondary',
+                  }}
+                  style={{
+                    backgroundColor: isDark
+                      ? Colors.vibrant.purpleDark
+                      : Colors.white,
                   }}
                 />
               )}
               <AppLink href='/duels'>
                 <PlayfulButton
                   title='Tüm Düelloları Gör'
-                  onPress={() => {}} // No-op function since AppLink handles navigation
+                  onPress={() => {}}
                   variant='outline'
                   style={{ marginTop: Spacing[2] }}
+                  fontFamily='PrimaryFont'
                   animated
                 />
               </AppLink>
@@ -796,9 +892,11 @@ export default function HomeScreen() {
           <SlideInElement direction='left' delay={1000}>
             <PlayfulCard
               title='Son Başarılar'
-              variant='gradient'
-              gradient='tropical'
-              pulseEffect
+              style={{ marginBottom: Spacing[6] }}
+              titleFontFamily='PrimaryFont'
+              variant='playful'
+              animated
+              floatingAnimation
             >
               <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                 {userAchievements.length > 0 ? (
@@ -818,8 +916,8 @@ export default function HomeScreen() {
                             height: 48,
                             borderRadius: 24,
                             backgroundColor: isDark
-                              ? Colors.primary.dark
-                              : Colors.primary.light,
+                              ? Colors.white
+                              : VIBRANT_COLORS.yellow,
                             alignItems: 'center',
                             justifyContent: 'center',
                             marginBottom: Spacing[2],
@@ -828,7 +926,9 @@ export default function HomeScreen() {
                           <FontAwesome
                             name={getAchievementIcon(achievement)}
                             size={24}
-                            color={VIBRANT_COLORS.yellow}
+                            color={
+                              isDark ? VIBRANT_COLORS.yellow : Colors.white
+                            }
                           />
                         </View>
                       </FloatingElement>
@@ -836,7 +936,10 @@ export default function HomeScreen() {
                         style={{
                           fontSize: 12,
                           textAlign: 'center',
-                          color: isDark ? Colors.gray[300] : Colors.gray[700],
+                          color: isDark
+                            ? Colors.white
+                            : Colors.vibrant.purpleDark,
+                          fontFamily: 'SecondaryFont-Regular',
                         }}
                       >
                         {achievement.name}
@@ -847,7 +950,13 @@ export default function HomeScreen() {
                   <EmptyState
                     icon='trophy'
                     title='Henüz başarı yok'
+                    fontFamily='PrimaryFont'
                     message='Daha fazla çalışıkça başarılar kazanacaksınız.'
+                    style={{
+                      backgroundColor: isDark
+                        ? Colors.vibrant.purpleDark
+                        : Colors.white,
+                    }}
                   />
                 )}
               </View>
@@ -855,17 +964,34 @@ export default function HomeScreen() {
                 <AppLink href='/profile'>
                   <PlayfulButton
                     title='Tüm Başarıları Gör'
-                    onPress={() => {}} // No-op function since AppLink handles navigation
+                    onPress={() => {}}
                     variant='outline'
                     style={{ marginTop: Spacing[4] }}
+                    fontFamily='PrimaryFont'
                     animated
                   />
                 </AppLink>
               )}
             </PlayfulCard>
           </SlideInElement>
+
+          {/* Error display at bottom if there's an error but data is loaded */}
+          {error &&
+            !loading &&
+            (courses.length > 0 ||
+              tests.length > 0 ||
+              activeDuels.length > 0) && (
+              <Alert
+                type='warning'
+                message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
+                style={{ marginTop: Spacing[4] }}
+              />
+            )}
         </>
       )}
+
+      {/* Bottom spacing to ensure content is fully visible */}
+      <View style={{ height: Spacing[8] }} />
     </ScrollView>
   );
 }

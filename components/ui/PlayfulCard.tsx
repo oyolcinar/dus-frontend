@@ -7,6 +7,7 @@ import {
   Animated,
   Easing,
   ColorValue,
+  useColorScheme,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CardProps } from './types';
@@ -36,8 +37,12 @@ const PlayfulCard: React.FC<CardProps> = ({
   floatingAnimation = false,
   pulseEffect = false,
   borderGlow = false,
+  titleFontFamily,
+  contentFontFamily,
   ...props
 }) => {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const floatAnimation = useRef(new Animated.Value(0)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
   const glowAnimation = useRef(new Animated.Value(0)).current;
@@ -76,7 +81,6 @@ const PlayfulCard: React.FC<CardProps> = ({
           animationRefs.current.float.stop();
           animationRefs.current.float = undefined;
         }
-        // Reset animation value to prevent lingering effects
         floatAnimation.setValue(0);
       };
     }
@@ -109,7 +113,6 @@ const PlayfulCard: React.FC<CardProps> = ({
           animationRefs.current.pulse.stop();
           animationRefs.current.pulse = undefined;
         }
-        // Reset animation value to prevent lingering effects
         pulseAnimation.setValue(1);
       };
     }
@@ -142,7 +145,6 @@ const PlayfulCard: React.FC<CardProps> = ({
           animationRefs.current.glow.stop();
           animationRefs.current.glow = undefined;
         }
-        // Reset animation value to prevent lingering effects
         glowAnimation.setValue(0);
       };
     }
@@ -151,19 +153,16 @@ const PlayfulCard: React.FC<CardProps> = ({
   // Cleanup all animations when component unmounts
   useEffect(() => {
     return () => {
-      // Stop all running animations
       Object.values(animationRefs.current).forEach((animation) => {
         if (animation) {
           animation.stop();
         }
       });
 
-      // Reset all animation values
       floatAnimation.setValue(0);
       pulseAnimation.setValue(1);
       glowAnimation.setValue(0);
 
-      // Clear references
       animationRefs.current = {};
     };
   }, []);
@@ -174,23 +173,19 @@ const PlayfulCard: React.FC<CardProps> = ({
       if (colors.length < 2) {
         return [colors[0] || '#000000', colors[0] || '#000000'];
       }
-      // Ensure we have at least 2 colors and properly type them
       return [colors[0], colors[1], ...colors.slice(2)] as GradientColors;
     };
 
     // Helper to resolve gradient from different sources
     const resolveGradient = (fallbackColors: string[]): GradientColors => {
-      // If gradient prop is provided and is an array
       if (gradient && Array.isArray(gradient)) {
         return createGradient(gradient);
       }
 
-      // If gradient prop is a GradientStyle object
       if (gradient && typeof gradient === 'object' && 'colors' in gradient) {
         return createGradient(gradient.colors);
       }
 
-      // If gradient prop is a string key, try to resolve it
       if (
         gradient &&
         typeof gradient === 'string' &&
@@ -199,27 +194,38 @@ const PlayfulCard: React.FC<CardProps> = ({
         return createGradient(Colors.gradients[gradient]);
       }
 
-      // Use fallback colors
       return createGradient(fallbackColors);
     };
+
+    // Base colors based on theme
+    const baseBackgroundColor = isDark
+      ? Colors.white
+      : Colors.vibrant?.purpleDark;
+    const baseBorderColor = isDark ? Colors.gray[700] : Colors.gray[200];
+    const glassBg = isDark
+      ? 'rgba(255, 255, 255, 0.1)'
+      : 'rgba(255, 255, 255, 0.15)';
+    const glassBorder = isDark
+      ? 'rgba(255, 255, 255, 0.2)'
+      : 'rgba(255, 255, 255, 0.3)';
 
     switch (variant) {
       case 'default':
         return {
-          backgroundColor: Colors.white,
-          borderColor: Colors.gray[200],
+          backgroundColor: baseBackgroundColor,
+          borderColor: baseBorderColor,
           gradient: null,
         };
       case 'outlined':
         return {
-          backgroundColor: Colors.white,
-          borderColor: Colors.gray[300],
+          backgroundColor: baseBackgroundColor,
+          borderColor: isDark ? Colors.gray[600] : Colors.gray[300],
           borderWidth: 1,
           gradient: null,
         };
       case 'elevated':
         return {
-          backgroundColor: Colors.white,
+          backgroundColor: baseBackgroundColor,
           gradient: null,
           shadow:
             createPlayfulShadow?.(
@@ -229,24 +235,24 @@ const PlayfulCard: React.FC<CardProps> = ({
         };
       case 'playful':
         return {
-          backgroundColor: Colors.white,
+          backgroundColor: baseBackgroundColor,
           gradient: null,
           shadow:
             createPlayfulShadow?.(
-              Colors.vibrant?.purple || Colors.primary.DEFAULT,
+              Colors.vibrant?.purpleLight || Colors.gray[200],
               'medium',
             ) || {},
         };
       case 'glass':
         return {
-          backgroundColor: 'rgba(255, 255, 255, 0.15)',
-          borderColor: 'rgba(255, 255, 255, 0.3)',
+          backgroundColor: glassBg,
+          borderColor: glassBorder,
           borderWidth: 1,
           gradient: null,
         };
       case 'game':
         return {
-          backgroundColor: Colors.white,
+          backgroundColor: baseBackgroundColor,
           gradient: null,
           shadow:
             createPlayfulShadow?.(
@@ -256,7 +262,7 @@ const PlayfulCard: React.FC<CardProps> = ({
         };
       case 'floating':
         return {
-          backgroundColor: Colors.white,
+          backgroundColor: baseBackgroundColor,
           gradient: null,
           shadow:
             createPlayfulShadow?.(
@@ -276,8 +282,8 @@ const PlayfulCard: React.FC<CardProps> = ({
         };
       default:
         return {
-          backgroundColor: Colors.white,
-          borderColor: Colors.gray[200],
+          backgroundColor: baseBackgroundColor,
+          borderColor: baseBorderColor,
           gradient: null,
         };
     }
@@ -313,6 +319,15 @@ const PlayfulCard: React.FC<CardProps> = ({
     outputRange: [0, 0.6],
   });
 
+  // Create custom title style with font family support
+  const customTitleStyle = {
+    ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+    // Remove fontWeight if custom font is provided
+    ...(titleFontFamily ? {} : { fontWeight: FontWeights.bold as any }),
+    // Theme-aware text color
+    color: isDark ? Colors.primary.dark : Colors.white,
+  };
+
   // Separate complex animated styles into variables
   const animatedStyle = toAnimatedStyle({
     transform: [{ translateY: translateY }, { scale: pulseAnimation }],
@@ -333,15 +348,24 @@ const PlayfulCard: React.FC<CardProps> = ({
     styles.glowBorder,
     {
       opacity: glowOpacity,
-      borderColor: Colors.vibrant?.purple || Colors.primary.DEFAULT,
+      borderColor: Colors.white || Colors.vibrant?.purpleLight,
     },
   ]);
 
   const cardContent = (
     <View style={[paddingStyles]}>
       {title && (
-        <View style={styles.header}>
-          <Text style={[styles.title, titleStyle]}>{title}</Text>
+        <View
+          style={[
+            styles.header,
+            {
+              borderBottomColor: isDark ? Colors.primary.dark : Colors.white,
+            },
+          ]}
+        >
+          <Text style={[styles.title, customTitleStyle, titleStyle]}>
+            {title}
+          </Text>
         </View>
       )}
       <View style={styles.content}>{children}</View>
@@ -397,12 +421,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing[3],
     paddingBottom: Spacing[2],
     borderBottomWidth: 1,
-    borderBottomColor: Colors.gray[200],
   },
   title: {
     fontSize: FontSizes.lg,
-    fontWeight: FontWeights.bold as any,
-    color: Colors.gray[800],
   },
   content: {
     flex: 1,

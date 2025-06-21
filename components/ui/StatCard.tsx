@@ -9,6 +9,7 @@ import {
   ViewStyle,
   TextStyle,
   useColorScheme,
+  Dimensions,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import {
@@ -71,6 +72,26 @@ export interface StatCardProps {
    * Test ID for testing
    */
   testID?: string;
+
+  /**
+   * Custom font family for title
+   */
+  titleFontFamily?: string;
+
+  /**
+   * Custom font family for value
+   */
+  valueFontFamily?: string;
+
+  /**
+   * Enable animated effects
+   */
+  animated?: boolean;
+
+  /**
+   * Enable count up animation for numbers
+   */
+  countUpAnimation?: boolean;
 }
 
 /**
@@ -87,9 +108,18 @@ const StatCard: React.FC<StatCardProps> = ({
   titleStyle,
   valueStyle,
   testID,
+  titleFontFamily,
+  valueFontFamily,
+  animated = false,
+  countUpAnimation = false,
 }) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const screenWidth = Dimensions.get('window').width;
+
+  // Calculate card width to fit 2 cards per row with proper spacing
+  // Account for screen padding and gap between cards
+  const cardWidth = (screenWidth - Spacing[4] * 2 - Spacing[3]) / 2;
 
   // Determine padding based on size
   const containerPadding =
@@ -131,12 +161,28 @@ const StatCard: React.FC<StatCardProps> = ({
     }
   }
 
+  // Create custom title style with font family support
+  const customTitleStyle: TextStyle = {
+    ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
+  };
+
+  // Create custom value style with font family support
+  const customValueStyle: TextStyle = {
+    ...(valueFontFamily ? { fontFamily: valueFontFamily } : {}),
+    // Remove fontWeight if custom font is provided
+    ...(valueFontFamily ? {} : { fontWeight: '600' }),
+  };
+
   return (
     <View
       style={[
         styles.container,
         containerPadding,
         isDark ? styles.containerDark : styles.containerLight,
+        {
+          width: cardWidth,
+          minHeight: size === 'small' ? 80 : size === 'large' ? 120 : 100,
+        },
         style,
       ]}
       testID={testID}
@@ -147,9 +193,11 @@ const StatCard: React.FC<StatCardProps> = ({
         style={[
           styles.title,
           isDark ? styles.titleDark : styles.titleLight,
+          customTitleStyle,
           titleStyle,
         ]}
-        numberOfLines={1}
+        numberOfLines={2}
+        adjustsFontSizeToFit
       >
         {title}
       </Text>
@@ -159,9 +207,11 @@ const StatCard: React.FC<StatCardProps> = ({
           styles.value,
           valueTextStyle,
           isDark ? styles.valueDark : styles.valueLight,
+          customValueStyle,
           valueStyle,
         ]}
         numberOfLines={1}
+        adjustsFontSizeToFit
       >
         {value}
       </Text>
@@ -201,13 +251,14 @@ type StatCardStyles = {
   valueLight: TextStyle;
   valueDark: TextStyle;
   changeContainer: ViewStyle;
-  // changeIcon removed as inline style used instead
   changeText: TextStyle;
 };
 
 const styles = StyleSheet.create<StatCardStyles>({
   container: {
     borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   containerSmall: {
     padding: Spacing[2],
@@ -219,55 +270,56 @@ const styles = StyleSheet.create<StatCardStyles>({
     padding: Spacing[4],
   },
   containerLight: {
-    backgroundColor: Colors.white,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  containerDark: {
-    backgroundColor: Colors.gray[800],
+    backgroundColor: Colors.vibrant.purpleDark || Colors.primary.DEFAULT,
     shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  containerDark: {
+    backgroundColor: Colors.white,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowRadius: 6,
+    elevation: 4,
   },
   title: {
     fontSize: FontSizes.xs,
     marginTop: Spacing[2],
+    textAlign: 'center',
   },
   titleLight: {
-    color: Colors.gray[500],
+    color: Colors.white,
   },
   titleDark: {
-    color: Colors.gray[400],
+    color: Colors.gray[600],
   },
   value: {
-    fontWeight: '600',
+    marginTop: Spacing[1],
+    textAlign: 'center',
   },
   valueSmall: {
     fontSize: FontSizes.sm,
   },
   valueMedium: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.lg,
   },
   valueLarge: {
     fontSize: FontSizes.xl,
   },
   valueLight: {
-    color: Colors.gray[900],
+    color: Colors.white,
   },
   valueDark: {
-    color: Colors.white,
+    color: Colors.gray[900],
   },
   changeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: Spacing[1],
   },
-  // Removed changeIcon style to use inline style instead
   changeText: {
     fontSize: FontSizes.xs,
     fontWeight: '500',

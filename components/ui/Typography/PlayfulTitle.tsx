@@ -1,6 +1,12 @@
 // components/ui/Typography/PlayfulTitle.tsx
 import React, { useRef, useEffect } from 'react';
-import { Text, StyleSheet, Animated, Easing } from 'react-native';
+import {
+  Text,
+  StyleSheet,
+  Animated,
+  Easing,
+  useColorScheme,
+} from 'react-native';
 import { PlayfulTitleProps } from '../types';
 import { Colors, FontSizes, FontWeights } from '../../../constants/theme';
 import { toAnimatedStyle } from '../../../utils/styleTypes';
@@ -22,6 +28,8 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
   wiggleOnMount = false,
   ...props
 }) => {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const bounceAnimation = useRef(new Animated.Value(0)).current;
   const wiggleAnimation = useRef(new Animated.Value(0)).current;
   const fadeAnimation = useRef(new Animated.Value(0)).current;
@@ -80,47 +88,60 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
   }, [wiggleOnMount]);
 
   const getLevelStyles = () => {
+    // Check if a custom fontFamily is passed in style prop
+    const hasCustomFont =
+      style &&
+      (Array.isArray(style)
+        ? style.some((s) => s && typeof s === 'object' && 'fontFamily' in s)
+        : typeof style === 'object' && style && 'fontFamily' in style);
+
     switch (level) {
       case 1:
         return {
           fontSize: FontSizes['4xl'] || 36,
-          fontWeight: FontWeights.extrabold as any,
+          // Only apply fontWeight if no custom font is provided
+          ...(hasCustomFont
+            ? {}
+            : { fontWeight: FontWeights.extrabold as any }),
         };
       case 2:
         return {
           fontSize: FontSizes['3xl'] || 30,
-          fontWeight: FontWeights.bold as any,
+          ...(hasCustomFont ? {} : { fontWeight: FontWeights.bold as any }),
         };
       case 3:
         return {
           fontSize: FontSizes['2xl'] || 24,
-          fontWeight: FontWeights.bold as any,
+          ...(hasCustomFont ? {} : { fontWeight: FontWeights.bold as any }),
         };
       case 4:
         return {
           fontSize: FontSizes.xl,
-          fontWeight: FontWeights.semibold as any,
+          ...(hasCustomFont ? {} : { fontWeight: FontWeights.semibold as any }),
         };
       case 5:
         return {
           fontSize: FontSizes.lg,
-          fontWeight: FontWeights.semibold as any,
+          ...(hasCustomFont ? {} : { fontWeight: FontWeights.semibold as any }),
         };
       case 6:
         return {
           fontSize: FontSizes.base,
-          fontWeight: FontWeights.medium as any,
+          ...(hasCustomFont ? {} : { fontWeight: FontWeights.medium as any }),
         };
       default:
         return {
           fontSize: FontSizes['4xl'] || 36,
-          fontWeight: FontWeights.extrabold as any,
+          ...(hasCustomFont
+            ? {}
+            : { fontWeight: FontWeights.extrabold as any }),
         };
     }
   };
 
   const getVariantStyles = () => {
-    const baseColor = color || Colors.gray[800];
+    // Default color based on theme if not provided
+    const defaultColor = color || (isDark ? Colors.white : Colors.gray[800]);
 
     switch (variant) {
       case 'bouncy':
@@ -132,28 +153,37 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
         };
       case 'gradient':
         return {
-          color: Colors.vibrant?.blue || Colors.primary.DEFAULT,
-          textShadowColor: 'rgba(55, 66, 250, 0.3)',
+          color: isDark
+            ? Colors.white
+            : Colors.vibrant?.blue || Colors.primary.DEFAULT,
+          textShadowColor: isDark
+            ? 'rgba(255, 255, 255, 0.3)'
+            : 'rgba(55, 66, 250, 0.3)',
           textShadowOffset: { width: 0, height: 2 },
           textShadowRadius: 6,
         };
       case 'shadow':
         return {
-          color: baseColor,
-          textShadowColor: shadowColor || 'rgba(0, 0, 0, 0.3)',
+          color: defaultColor,
+          textShadowColor:
+            shadowColor ||
+            (isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)'),
           textShadowOffset: { width: 2, height: 2 },
           textShadowRadius: 4,
         };
       case 'outlined':
         return {
-          color: baseColor,
-          textShadowColor: outlineColor || Colors.white,
+          color: defaultColor,
+          textShadowColor:
+            outlineColor || (isDark ? Colors.gray[800] : Colors.white),
           textShadowOffset: { width: 1, height: 1 },
           textShadowRadius: 0,
         };
       case 'playful':
         return {
-          color: Colors.vibrant?.orange || Colors.secondary.DEFAULT,
+          color: isDark
+            ? Colors.vibrant?.orange || Colors.secondary.DEFAULT
+            : Colors.vibrant?.orange || Colors.secondary.DEFAULT,
           textShadowColor: 'rgba(255, 107, 107, 0.4)',
           textShadowOffset: { width: 0, height: 3 },
           textShadowRadius: 8,
@@ -165,9 +195,20 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
           textShadowOffset: { width: 0, height: 0 },
           textShadowRadius: 8,
         };
+      case 'purple':
+        return {
+          color: isDark
+            ? Colors.vibrant?.purpleLight || Colors.vibrant?.purple || '#A855F7'
+            : Colors.white || Colors.primary.DEFAULT,
+          // textShadowColor: isDark
+          //   ? 'rgba(168, 85, 247, 0.4)'
+          //   : Colors.vibrant?.purpleDark || 'rgba(108, 92, 231, 0.4)',
+          // textShadowOffset: { width: 0, height: 2 },
+          // textShadowRadius: 8,
+        };
       default:
         return {
-          color: baseColor,
+          color: defaultColor,
         };
     }
   };
@@ -187,6 +228,7 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
   });
 
   // Wrap complex style arrays with toAnimatedStyle
+  // Custom style comes last to override internal styles
   const titleStyle = toAnimatedStyle([
     styles.title,
     levelStyles,
@@ -196,7 +238,7 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
       letterSpacing,
     },
     animatedStyle,
-    style,
+    style, // Custom style should come last to override internal styles
   ]);
 
   return (
