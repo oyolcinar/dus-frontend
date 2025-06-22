@@ -42,6 +42,8 @@ import {
   achievementService,
   analyticsService,
 } from '../../src/api';
+import { checkAndRefreshSession } from '../../src/api/authService';
+import { useAuth } from '../../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Course, Test, Duel } from '../../src/types/models';
 import { Colors, Spacing } from '../../constants/theme';
@@ -96,6 +98,7 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const router = useRouter();
+  const { refreshSession } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userData, setUserData] = useState<{ username?: string } | null>(null);
@@ -124,18 +127,27 @@ export default function HomeScreen() {
     loadUserData();
   }, []);
 
-  // Fetch all required data
+  // Enhanced fetchData function with better error handling
   const fetchData = useCallback(async () => {
     try {
       setError(null);
-      // Fetch all data in parallel
+
+      // Check session before making requests
+      const sessionValid = await checkAndRefreshSession();
+      if (!sessionValid) {
+        console.log('Session invalid, redirecting to login');
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      // Use Promise.allSettled to handle partial failures gracefully
       const [
         coursesResponse,
         testsResponse,
         duelsResponse,
         achievementsResponse,
         analyticsResponse,
-      ] = await Promise.all([
+      ] = await Promise.allSettled([
         courseService.getAllCourses(),
         testService.getAllTests(),
         duelService.getActiveDuels(),
@@ -143,84 +155,231 @@ export default function HomeScreen() {
         analyticsService.getUserPerformanceAnalytics(),
       ]);
 
-      // Sort courses by progress descending
-      const coursesWithProgress: CourseWithProgress[] = coursesResponse.map(
-        (course) => {
-          return {
-            ...course,
-            // If we have course progress data, use it, otherwise set to 0
-            progress: 0, // Will be updated if we have course progress data
-            iconName: getIconForCourse(course.title), // Helper function to map course to icon
-          };
-        },
-      );
+      // Process each response individually
+      let hasData = false;
 
-      // Try to get progress for each course
-      for (let i = 0; i < coursesWithProgress.length; i++) {
-        try {
-          const courseProgress = await courseService.getCourseProgress(
-            coursesWithProgress[i].course_id,
-          );
-          if (courseProgress) {
-            coursesWithProgress[i].progress = courseProgress.progress || 0;
+      // Process courses
+      if (coursesResponse.status === 'fulfilled') {
+        const coursesWithProgress = coursesResponse.value.map((course) => ({
+          ...course,
+          progress: 0,
+          iconName: getIconForCourse(course.title),
+        }));
+
+        // Fetch progress for each course (non-blocking)
+        for (let i = 0; i < coursesWithProgress.length; i++) {
+          try {
+            const courseProgress = await courseService.getCourseProgress(
+              coursesWithProgress[i].course_id,
+            );
+            if (courseProgress) {
+              coursesWithProgress[i].progress = courseProgress.progress || 0;
+            }
+          } catch (err) {
+            console.error(
+              `Failed to fetch progress for course ${coursesWithProgress[i].course_id}:`,
+              err,
+            );
+            // Continue without progress data
           }
-        } catch (err) {
-          console.error(
-            `Failed to fetch progress for course ${coursesWithProgress[i].course_id}:`,
-            err,
-          );
+        }
+
+        coursesWithProgress.sort((a, b) => b.progress - a.progress);
+        setCourses(coursesWithProgress.slice(0, 3));
+        hasData = true;
+      } else {
+        console.error('Failed to fetch courses:', coursesResponse.reason);
+        setCourses([]); // Set empty array instead of keeping old data
+      }
+
+      // Process tests
+      if (testsResponse.status === 'fulfilled') {
+        const testsWithDetails = testsResponse.value.map((test) => ({
+          ...test,
+          difficulty: getDifficultyLabel(test.difficulty_level || 2),
+          questionCount: test.question_count || 0,
+          timeLimit: test.time_limit || 30,
+        }));
+        setTests(testsWithDetails.slice(0, 2));
+        hasData = true;
+      } else {
+        console.error('Failed to fetch tests:', testsResponse.reason);
+        setTests([]);
+      }
+
+      // Process duels
+      if (duelsResponse.status === 'fulfilled') {
+        setActiveDuels(duelsResponse.value.slice(0, 3));
+        hasData = true;
+      } else {
+        console.error('Failed to fetch duels:', duelsResponse.reason);
+        setActiveDuels([]);
+      }
+
+      // Process achievements
+      if (achievementsResponse.status === 'fulfilled') {
+        setUserAchievements(achievementsResponse.value.slice(0, 3));
+        hasData = true;
+      } else {
+        console.error(
+          'Failed to fetch achievements:',
+          achievementsResponse.reason,
+        );
+        setUserAchievements([]);
+      }
+
+      // Process analytics
+      if (analyticsResponse.status === 'fulfilled') {
+        setAnalyticsData(analyticsResponse.value);
+        hasData = true;
+      } else {
+        console.error('Failed to fetch analytics:', analyticsResponse.reason);
+        setAnalyticsData(null);
+      }
+
+      // Check if all requests failed
+      if (!hasData) {
+        const firstError = [
+          coursesResponse,
+          testsResponse,
+          duelsResponse,
+          achievementsResponse,
+          analyticsResponse,
+        ].find((response) => response.status === 'rejected')?.reason;
+
+        if (firstError?.message?.includes('Oturum süresi doldu')) {
+          router.replace('/(auth)/login');
+          return;
+        }
+
+        setError('Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+      }
+    } catch (error) {
+      console.error('Error fetching homepage data:', error);
+
+      // Check if it's an authentication error
+      if (
+        error instanceof Error &&
+        (error.message.includes('Oturum süresi doldu') ||
+          error.message.includes('unauthorized') ||
+          error.message.includes('401'))
+      ) {
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      setError('Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+    }
+  }, [router]);
+
+  // Enhanced handleRefresh function
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      setError(null);
+
+      console.log('Refreshing data...');
+
+      // Check session before refreshing
+      const sessionValid = await checkAndRefreshSession();
+      if (!sessionValid) {
+        console.log('Session invalid during refresh, redirecting to login');
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      await fetchData();
+      console.log('Refresh completed successfully');
+    } catch (error) {
+      console.error('Refresh failed:', error);
+
+      if (
+        error instanceof Error &&
+        error.message.includes('Oturum süresi doldu')
+      ) {
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      setError('Yenileme başarısız. Lütfen tekrar deneyin.');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchData, router]);
+
+  // Enhanced handleRetry function
+  const handleRetry = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log('Retrying data fetch...');
+
+      // First try to refresh the session using AuthContext
+      try {
+        await refreshSession();
+        console.log('Session refreshed via AuthContext');
+      } catch (sessionError) {
+        console.error('AuthContext session refresh failed:', sessionError);
+
+        // Fallback to manual session check
+        const sessionValid = await checkAndRefreshSession();
+        if (!sessionValid) {
+          console.log('Manual session check failed, redirecting to login');
+          router.replace('/(auth)/login');
+          return;
         }
       }
 
-      // Sort courses by progress (highest first)
-      coursesWithProgress.sort((a, b) => b.progress - a.progress);
+      // Wait a bit before retrying
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Take top 3 courses for the homepage
-      setCourses(coursesWithProgress.slice(0, 3));
+      // Retry fetching data
+      await fetchData();
 
-      // Sort tests by difficulty
-      const testsWithDetails: TestWithDetails[] = testsResponse.map((test) => {
-        return {
-          ...test,
-          difficulty: getDifficultyLabel(test.difficulty_level || 2),
-          // Map question_count to questionCount for the UI
-          questionCount: test.question_count || 0,
-          // Map time_limit to timeLimit for the UI
-          timeLimit: test.time_limit || 30,
-        };
-      });
-      setTests(testsWithDetails.slice(0, 2)); // Take just 2 tests for the homepage
-
-      setActiveDuels(duelsResponse.slice(0, 3)); // Just take top 3 for the homepage
-      setUserAchievements(achievementsResponse.slice(0, 3)); // Just take the most recent 3
-      setAnalyticsData(analyticsResponse);
+      console.log('Retry completed successfully');
     } catch (error) {
-      console.error('Error fetching homepage data:', error);
-      setError('Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+      console.error('Retry failed:', error);
+
+      if (
+        error instanceof Error &&
+        error.message.includes('Oturum süresi doldu')
+      ) {
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      setError('Yeniden deneme başarısız. Lütfen uygulamayı yeniden başlatın.');
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [fetchData, router, refreshSession]);
 
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  }, [fetchData]);
-
-  const handleRetry = useCallback(async () => {
-    setLoading(true);
-    await fetchData();
-    setLoading(false);
-  }, [fetchData]);
-
+  // Enhanced initial fetch
   useEffect(() => {
     async function initialFetch() {
       setLoading(true);
-      await fetchData();
-      setLoading(false);
+
+      try {
+        // Check session on app load
+        const sessionValid = await checkAndRefreshSession();
+        if (!sessionValid) {
+          setLoading(false);
+          router.replace('/(auth)/login');
+          return;
+        }
+
+        await fetchData();
+      } catch (error) {
+        console.error('Initial fetch error:', error);
+        setError('Başlangıç verisi yüklenemedi. Lütfen tekrar deneyin.');
+      } finally {
+        setLoading(false);
+      }
     }
 
     initialFetch();
-  }, [fetchData]);
+  }, [fetchData, router]);
 
   // Helper function to get opponent display name
   const getOpponentDisplayName = (duel: Duel): string => {
@@ -323,6 +482,7 @@ export default function HomeScreen() {
     return 'certificate';
   };
 
+  // Enhanced error screen with better retry options
   if (error && !loading) {
     return (
       <Container
@@ -332,18 +492,53 @@ export default function HomeScreen() {
           padding: Spacing[4],
         }}
       >
-        <Alert
-          type='error'
-          message={error}
-          style={{ marginBottom: Spacing[4] }}
-        />
-        <PlayfulButton
-          title='Yenile'
-          onPress={handleRetry}
-          variant='primary'
-          animated
-          icon='refresh'
-        />
+        <View style={{ alignItems: 'center', maxWidth: 300 }}>
+          <FontAwesome
+            name='exclamation-triangle'
+            size={64}
+            color={Colors.vibrant?.orange || Colors.warning}
+            style={{ marginBottom: Spacing[4] }}
+          />
+
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: isDark ? Colors.white : Colors.gray[800],
+              textAlign: 'center',
+              marginBottom: Spacing[2],
+              fontFamily: 'SecondaryFont-Bold',
+            }}
+          >
+            Bir Sorun Oluştu
+          </Text>
+
+          <Alert
+            type='error'
+            message={error}
+            style={{ marginBottom: Spacing[6] }}
+          />
+
+          <View style={{ width: '100%', gap: Spacing[3] }}>
+            <PlayfulButton
+              title='Yeniden Dene'
+              onPress={handleRetry}
+              variant='primary'
+              animated
+              icon='refresh'
+              size='medium'
+              style={{ width: '100%' }}
+            />
+
+            <PlayfulButton
+              title='Giriş Ekranına Dön'
+              onPress={() => router.replace('/(auth)/login')}
+              variant='outline'
+              size='medium'
+              style={{ width: '100%' }}
+            />
+          </View>
+        </View>
       </Container>
     );
   }
@@ -378,6 +573,8 @@ export default function HomeScreen() {
           onRefresh={handleRefresh}
           tintColor={Colors.primary.DEFAULT}
           colors={[Colors.primary.DEFAULT]}
+          title='Yenileniyor...'
+          titleColor={isDark ? Colors.white : Colors.gray[600]}
         />
       }
     >
@@ -458,7 +655,7 @@ export default function HomeScreen() {
           style={{
             alignItems: 'center',
             justifyContent: 'center',
-            padding: Spacing[4],
+            padding: Spacing[8],
           }}
         >
           <ActivityIndicator
@@ -467,12 +664,24 @@ export default function HomeScreen() {
           />
           <Text
             style={{
-              marginTop: Spacing[3],
+              marginTop: Spacing[4],
               color: isDark ? Colors.gray[400] : Colors.white,
               fontFamily: 'SecondaryFont-Regular',
+              fontSize: 16,
             }}
           >
             Ana sayfa yükleniyor...
+          </Text>
+          <Text
+            style={{
+              marginTop: Spacing[2],
+              color: isDark ? Colors.gray[500] : Colors.gray[200],
+              fontFamily: 'SecondaryFont-Regular',
+              fontSize: 14,
+              textAlign: 'center',
+            }}
+          >
+            Bu birkaç saniye sürebilir
           </Text>
         </View>
       ) : (
@@ -990,6 +1199,51 @@ export default function HomeScreen() {
                 message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
                 style={{ marginTop: Spacing[4] }}
               />
+            )}
+
+          {/* Retry button at bottom for partial failures */}
+          {!loading &&
+            courses.length === 0 &&
+            tests.length === 0 &&
+            activeDuels.length === 0 &&
+            !error && (
+              <View
+                style={{
+                  alignItems: 'center',
+                  padding: Spacing[6],
+                  backgroundColor: isDark
+                    ? 'rgba(255,255,255,0.05)'
+                    : 'rgba(0,0,0,0.05)',
+                  borderRadius: 12,
+                  marginTop: Spacing[4],
+                }}
+              >
+                <FontAwesome
+                  name='wifi'
+                  size={48}
+                  color={Colors.gray[400]}
+                  style={{ marginBottom: Spacing[3] }}
+                />
+                <Text
+                  style={{
+                    color: isDark ? Colors.gray[300] : Colors.gray[600],
+                    fontFamily: 'SecondaryFont-Regular',
+                    textAlign: 'center',
+                    marginBottom: Spacing[4],
+                    fontSize: 16,
+                  }}
+                >
+                  Veriler yüklenemedi
+                </Text>
+                <PlayfulButton
+                  title='Tekrar Dene'
+                  onPress={handleRetry}
+                  variant='primary'
+                  size='medium'
+                  animated
+                  icon='refresh'
+                />
+              </View>
             )}
         </>
       )}
