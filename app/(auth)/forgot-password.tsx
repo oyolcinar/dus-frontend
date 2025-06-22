@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { FontAwesome } from '@expo/vector-icons';
 import { requestPasswordReset } from '../../src/api/authService';
 import {
   Button,
@@ -23,7 +24,13 @@ import {
   Alert,
 } from '../../components/ui';
 import { PlayfulButton, GlassCard, PlayfulCard } from '../../components/ui';
-import { Colors, Spacing, BorderRadius } from '../../constants/theme';
+import {
+  Colors,
+  Spacing,
+  BorderRadius,
+  Typography,
+  FontFamilies,
+} from '../../constants/theme';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
@@ -55,25 +62,24 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  // Fix: Ensure gradient colors are properly typed for LinearGradient
-  const gradientColors = Colors.gradients?.warning || [
-    Colors.vibrant?.orange || Colors.warning,
-    Colors.vibrant?.yellow || Colors.secondary.DEFAULT,
+  // Create coral gradient using vibrant coral colors
+  const coralGradientColors = [
+    Colors.vibrant?.coral || '#FF7675',
+    Colors.vibrant?.peach || '#FDCB6E',
   ];
 
   // Safely convert to the required tuple type
   const linearGradientColors =
-    Array.isArray(gradientColors) && gradientColors.length >= 2
-      ? ([
-          gradientColors[0],
-          gradientColors[1],
-          ...(gradientColors.slice(2) || []),
-        ] as readonly [string, string, ...string[]])
-      : ([Colors.warning, Colors.secondary.DEFAULT] as readonly [
+    Array.isArray(coralGradientColors) && coralGradientColors.length >= 2
+      ? ([coralGradientColors[0], coralGradientColors[1]] as readonly [
           string,
           string,
           ...string[],
-        ]);
+        ])
+      : ([
+          Colors.vibrant?.coral || '#FF7675',
+          Colors.vibrant?.peach || '#FDCB6E',
+        ] as readonly [string, string, ...string[]]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -118,44 +124,43 @@ export default function ForgotPasswordScreen() {
                 floatingAnimation={true}
                 gradient='warning'
               >
-                <Text
-                  style={{
-                    fontSize: 36,
-                    fontWeight: '900',
-                    color: Colors.white,
-                    textAlign: 'center',
-                  }}
-                >
-                  🔐
-                </Text>
+                <FontAwesome
+                  name='lock'
+                  size={36}
+                  color={Colors.white}
+                  style={{ textAlign: 'center' }}
+                />
               </PlayfulCard>
 
               <Text
-                style={{
-                  fontSize: 28,
-                  fontWeight: '800',
-                  color: Colors.white,
-                  textAlign: 'center',
-                  marginBottom: 4,
-                  textShadowColor: 'rgba(0, 0, 0, 0.3)',
-                  textShadowOffset: { width: 0, height: 2 },
-                  textShadowRadius: 4,
-                }}
+                style={[
+                  Typography.h1,
+                  {
+                    color: Colors.white,
+                    textAlign: 'center',
+                    marginBottom: 4,
+                    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+                    textShadowOffset: { width: 0, height: 2 },
+                    textShadowRadius: 4,
+                  },
+                ]}
               >
                 Şifre Sıfırla
               </Text>
 
               <Text
-                style={{
-                  fontSize: 16,
-                  color: Colors.white,
-                  textAlign: 'center',
-                  opacity: 0.9,
-                  textShadowColor: 'rgba(0, 0, 0, 0.2)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 2,
-                  paddingHorizontal: Spacing[4],
-                }}
+                style={[
+                  Typography.bodyLarge,
+                  {
+                    color: Colors.white,
+                    textAlign: 'center',
+                    opacity: 0.9,
+                    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 2,
+                    paddingHorizontal: Spacing[4],
+                  },
+                ]}
               >
                 Şifre sıfırlama bağlantısı almak için e-posta adresinizi girin
               </Text>
@@ -180,9 +185,37 @@ export default function ForgotPasswordScreen() {
                     disabled={isLoading}
                     leftIcon='envelope'
                     containerStyle={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                      backgroundColor: Colors.white,
                       borderRadius: BorderRadius.lg,
+                      borderWidth: 0,
+                      shadowColor: 'rgba(0, 0, 0, 0.1)',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 1,
+                      shadowRadius: 4,
+                      elevation: 3,
+                      minHeight: 50,
                     }}
+                    labelStyle={[
+                      Typography.caption,
+                      {
+                        color: Colors.gray[700],
+                        fontFamily: FontFamilies.secondary.bold,
+                        marginBottom: Spacing[2],
+                      },
+                    ]}
+                    inputStyle={[
+                      Typography.body,
+                      {
+                        color: Colors.gray[800],
+                        // Custom font fixes for iOS
+                        ...(Platform.OS === 'ios' && {
+                          fontFamily: FontFamilies.primary.regular, // Use a more reliable font variant
+                          lineHeight: Typography.body.fontSize * 1.2, // Explicit line height
+                          paddingTop: 2, // Fine-tune vertical position
+                          paddingBottom: -3,
+                        }),
+                      },
+                    ]}
                   />
                 </View>
 
@@ -204,7 +237,9 @@ export default function ForgotPasswordScreen() {
                   onPress={handleResetRequest}
                   disabled={isLoading}
                   variant='vibrant'
+                  fontFamily='SecondaryFont-Bold'
                   gradient='warning'
+                  textStyle={{ color: Colors.vibrant.purple }}
                   size='medium'
                   loading={isLoading}
                   style={{ width: '100%' }}
@@ -217,14 +252,16 @@ export default function ForgotPasswordScreen() {
                   <TextLink
                     href='/(auth)/login'
                     label='Giriş Ekranına Dön'
-                    style={{
-                      color: Colors.white,
-                      fontWeight: '600',
-                      fontSize: 16,
-                      textShadowColor: 'rgba(0, 0, 0, 0.3)',
-                      textShadowOffset: { width: 0, height: 1 },
-                      textShadowRadius: 2,
-                    }}
+                    style={[
+                      Typography.body,
+                      {
+                        color: Colors.white,
+                        fontFamily: FontFamilies.secondary.bold,
+                        textShadowColor: 'rgba(0, 0, 0, 0.3)',
+                        textShadowOffset: { width: 0, height: 1 },
+                        textShadowRadius: 2,
+                      },
+                    ]}
                   />
                 </View>
               </GlassCard>
@@ -255,25 +292,23 @@ export default function ForgotPasswordScreen() {
                     pulseEffect={true}
                     gradient='success'
                   >
-                    <Text
-                      style={{
-                        fontSize: 24,
-                        color: Colors.white,
-                        textAlign: 'center',
-                      }}
-                    >
-                      ✓
-                    </Text>
+                    <FontAwesome
+                      name='check'
+                      size={24}
+                      color={Colors.white}
+                      style={{ textAlign: 'center' }}
+                    />
                   </PlayfulCard>
 
                   <Text
-                    style={{
-                      fontSize: 18,
-                      fontWeight: '700',
-                      color: Colors.neutral?.darkGray || Colors.gray[700],
-                      textAlign: 'center',
-                      marginBottom: Spacing[2],
-                    }}
+                    style={[
+                      Typography.h3,
+                      {
+                        color: Colors.neutral?.darkGray || Colors.gray[700],
+                        textAlign: 'center',
+                        marginBottom: Spacing[2],
+                      },
+                    ]}
                   >
                     Başarılı!
                   </Text>
@@ -304,31 +339,45 @@ export default function ForgotPasswordScreen() {
               style={{
                 flexDirection: 'row',
                 justifyContent: 'center',
-                alignItems: 'center',
+                alignItems: 'baseline',
                 marginTop: Spacing[6],
                 marginBottom: Spacing[4],
               }}
             >
               <Text
-                style={{
-                  fontSize: 14,
-                  color: Colors.white,
-                  opacity: 0.8,
-                  textAlign: 'center',
-                }}
+                style={[
+                  Typography.bodySmall,
+                  {
+                    color: Colors.white,
+                    opacity: 0.8,
+                    textAlign: 'center',
+                    includeFontPadding: false,
+                    textAlignVertical: 'center',
+                  },
+                ]}
               >
                 Sorun mu yaşıyorsun?{' '}
               </Text>
               <TextLink
                 href='/(auth)/login'
                 label='Destek Al'
-                style={{
-                  color: Colors.white,
-                  fontWeight: '600',
-                  fontSize: 14,
-                  textShadowColor: 'rgba(0, 0, 0, 0.3)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 2,
+                style={[
+                  Typography.bodySmall,
+                  {
+                    color: Colors.vibrant.purple,
+                    fontFamily: FontFamilies.secondary.bold,
+                    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 2,
+                    includeFontPadding: false,
+                    textAlignVertical: 'center',
+                  },
+                ]}
+                touchableProps={{
+                  style: {
+                    paddingVertical: 0,
+                    marginVertical: 0,
+                  },
                 }}
               />
             </View>

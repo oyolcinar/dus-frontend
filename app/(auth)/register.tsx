@@ -10,10 +10,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { FontAwesome } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Input, TextLink, Alert } from '../../components/ui';
 import { PlayfulButton, GlassCard, PlayfulCard } from '../../components/ui';
-import { Colors, Spacing, BorderRadius } from '../../constants/theme';
+import {
+  Colors,
+  Spacing,
+  BorderRadius,
+  Typography,
+  FontFamilies,
+} from '../../constants/theme';
 
 export default function RegisterScreen() {
   const [username, setUsername] = useState('');
@@ -32,12 +39,12 @@ export default function RegisterScreen() {
 
     // Basic form validation
     if (!username || !email || !password || !confirmPassword) {
-      setError('Please fill in all fields');
+      setError('Lütfen tüm alanları doldurun');
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError('Şifreler eşleşmiyor');
       return;
     }
 
@@ -46,7 +53,7 @@ export default function RegisterScreen() {
       await signUp(username, email, password);
     } catch (error: any) {
       const errorMessage =
-        error.message || 'Registration failed. Please try again.';
+        error.message || 'Kayıt başarısız. Lütfen tekrar deneyin.';
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -74,7 +81,7 @@ export default function RegisterScreen() {
     } catch (error: any) {
       console.error(`${provider} OAuth error:`, error);
       const errorMessage =
-        error.message || `${provider} sign up failed. Please try again.`;
+        error.message || `${provider} kaydı başarısız. Lütfen tekrar deneyin.`;
       setError(errorMessage);
     } finally {
       setIsOAuthLoading(null);
@@ -147,44 +154,49 @@ export default function RegisterScreen() {
                 pulseEffect={true}
               >
                 <Text
-                  style={{
-                    fontSize: 36,
-                    fontWeight: '900',
-                    color: Colors.white,
-                    textAlign: 'center',
-                  }}
+                  style={[
+                    Typography.gameTitle,
+                    {
+                      fontSize: 36,
+                      color: Colors.white,
+                      textAlign: 'center',
+                    },
+                  ]}
                 >
                   D
                 </Text>
               </PlayfulCard>
 
               <Text
-                style={{
-                  fontSize: 28,
-                  fontWeight: '800',
-                  color: Colors.white,
-                  textAlign: 'center',
-                  marginBottom: 4,
-                  textShadowColor: 'rgba(0, 0, 0, 0.3)',
-                  textShadowOffset: { width: 0, height: 2 },
-                  textShadowRadius: 4,
-                }}
+                style={[
+                  Typography.h1,
+                  {
+                    color: Colors.white,
+                    textAlign: 'center',
+                    marginBottom: 4,
+                    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+                    textShadowOffset: { width: 0, height: 2 },
+                    textShadowRadius: 4,
+                  },
+                ]}
               >
-                Join DUS Exam Prep
+                DUS Sınav Hazırlığına Katıl
               </Text>
 
               <Text
-                style={{
-                  fontSize: 16,
-                  color: Colors.white,
-                  textAlign: 'center',
-                  opacity: 0.9,
-                  textShadowColor: 'rgba(0, 0, 0, 0.2)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 2,
-                }}
+                style={[
+                  Typography.bodyLarge,
+                  {
+                    color: Colors.white,
+                    textAlign: 'center',
+                    opacity: 0.9,
+                    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 2,
+                  },
+                ]}
               >
-                Start your journey to dental exam success
+                Diş hekimliği sınav başarınıza giden yolculuğa başlayın
               </Text>
             </View>
 
@@ -198,25 +210,25 @@ export default function RegisterScreen() {
               shimmerEffect={true}
             >
               <Text
-                style={{
-                  textAlign: 'center',
-                  marginBottom: Spacing[4],
-                  fontWeight: '600',
-                  fontSize: 16,
-                  color: Colors.neutral?.darkGray || Colors.gray[700],
-                }}
+                style={[
+                  Typography.h4,
+                  {
+                    textAlign: 'center',
+                    marginBottom: Spacing[4],
+                    color: Colors.neutral?.darkGray || Colors.gray[700],
+                  },
+                ]}
               >
-                Quick Sign Up
+                Hızlı Kayıt
               </Text>
 
               <PlayfulButton
                 title={
-                  isOAuthLoading === 'google'
-                    ? 'Signing up...'
-                    : 'Continue with Google'
+                  isOAuthLoading === 'google' ? 'Kayıt oluyor...' : 'Google'
                 }
+                icon='google'
                 onPress={() => handleOAuthSignUp('google')}
-                variant='gradient'
+                variant='vibrant'
                 gradient='google'
                 disabled={isOAuthLoading !== null || isLoading}
                 size='medium'
@@ -226,13 +238,10 @@ export default function RegisterScreen() {
               />
 
               <PlayfulButton
-                title={
-                  isOAuthLoading === 'apple'
-                    ? 'Signing up...'
-                    : 'Continue with Apple'
-                }
+                title={isOAuthLoading === 'apple' ? 'Kayıt oluyor...' : 'Apple'}
+                icon='apple'
                 onPress={() => handleOAuthSignUp('apple')}
-                variant='gradient'
+                variant='vibrant'
                 gradient={isDarkMode ? 'appleLight' : 'appleDark'}
                 disabled={isOAuthLoading !== null || isLoading}
                 size='medium'
@@ -243,12 +252,11 @@ export default function RegisterScreen() {
 
               <PlayfulButton
                 title={
-                  isOAuthLoading === 'facebook'
-                    ? 'Signing up...'
-                    : 'Continue with Facebook'
+                  isOAuthLoading === 'facebook' ? 'Kayıt oluyor...' : 'Facebook'
                 }
+                icon='facebook'
                 onPress={() => handleOAuthSignUp('facebook')}
-                variant='gradient'
+                variant='vibrant'
                 gradient='facebook'
                 disabled={isOAuthLoading !== null || isLoading}
                 size='medium'
@@ -273,14 +281,16 @@ export default function RegisterScreen() {
                 }}
               />
               <Text
-                style={{
-                  marginHorizontal: Spacing[3],
-                  color: Colors.white,
-                  fontSize: 14,
-                  opacity: 0.8,
-                }}
+                style={[
+                  Typography.bodySmall,
+                  {
+                    marginHorizontal: Spacing[3],
+                    color: Colors.white,
+                    opacity: 0.8,
+                  },
+                ]}
               >
-                or create account with email
+                veya e-posta ile hesap oluştur
               </Text>
               <View
                 style={{
@@ -300,59 +310,171 @@ export default function RegisterScreen() {
             >
               <View style={{ marginBottom: Spacing[4] }}>
                 <Input
-                  label='Username'
+                  label='Kullanıcı Adı'
                   value={username}
                   onChangeText={setUsername}
-                  placeholder='Enter your username'
+                  placeholder='Kullanıcı adınızı girin'
                   disabled={isLoading || isOAuthLoading !== null}
                   leftIcon='user'
                   containerStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    backgroundColor: Colors.white,
                     borderRadius: BorderRadius.lg,
+                    borderWidth: 0,
+                    shadowColor: 'rgba(0, 0, 0, 0.1)',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                    minHeight: 50,
                   }}
+                  labelStyle={[
+                    Typography.caption,
+                    {
+                      color: Colors.gray[700],
+                      fontFamily: FontFamilies.secondary.bold,
+                      marginBottom: Spacing[2],
+                    },
+                  ]}
+                  inputStyle={[
+                    Typography.body,
+                    {
+                      color: Colors.gray[800],
+                      // Custom font fixes for iOS
+                      ...(Platform.OS === 'ios' && {
+                        fontFamily: FontFamilies.primary.regular, // Use a more reliable font variant
+                        lineHeight: Typography.body.fontSize * 1.2, // Explicit line height
+                        paddingTop: 2, // Fine-tune vertical position
+                        paddingBottom: -3,
+                      }),
+                    },
+                  ]}
                 />
 
                 <Input
-                  label='Email'
+                  label='E-posta'
                   value={email}
                   onChangeText={setEmail}
-                  placeholder='Enter your email'
+                  placeholder='E-posta adresinizi girin'
                   inputMode='email'
                   autoCapitalize='none'
                   disabled={isLoading || isOAuthLoading !== null}
                   leftIcon='envelope'
                   containerStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    backgroundColor: Colors.white,
                     borderRadius: BorderRadius.lg,
+                    borderWidth: 0,
+                    shadowColor: 'rgba(0, 0, 0, 0.1)',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                    minHeight: 50,
                   }}
+                  labelStyle={[
+                    Typography.caption,
+                    {
+                      color: Colors.gray[700],
+                      fontFamily: FontFamilies.secondary.bold,
+                      marginBottom: Spacing[2],
+                    },
+                  ]}
+                  inputStyle={[
+                    Typography.body,
+                    {
+                      color: Colors.gray[800],
+                      // Custom font fixes for iOS
+                      ...(Platform.OS === 'ios' && {
+                        fontFamily: FontFamilies.primary.regular, // Use a more reliable font variant
+                        lineHeight: Typography.body.fontSize * 1.2, // Explicit line height
+                        paddingTop: 2, // Fine-tune vertical position
+                        paddingBottom: -3,
+                      }),
+                    },
+                  ]}
                 />
 
                 <Input
-                  label='Password'
+                  label='Şifre'
                   value={password}
                   onChangeText={setPassword}
-                  placeholder='Create a password'
+                  placeholder='Şifre oluşturun'
                   secureTextEntry
                   disabled={isLoading || isOAuthLoading !== null}
                   leftIcon='lock'
                   containerStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    backgroundColor: Colors.white,
                     borderRadius: BorderRadius.lg,
+                    borderWidth: 0,
+                    shadowColor: 'rgba(0, 0, 0, 0.1)',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                    minHeight: 50,
                   }}
+                  labelStyle={[
+                    Typography.caption,
+                    {
+                      color: Colors.gray[700],
+                      fontFamily: FontFamilies.secondary.bold,
+                      marginBottom: Spacing[2],
+                    },
+                  ]}
+                  inputStyle={[
+                    Typography.body,
+                    {
+                      color: Colors.gray[800],
+                      // Custom font fixes for iOS
+                      ...(Platform.OS === 'ios' && {
+                        fontFamily: FontFamilies.primary.regular, // Use a more reliable font variant
+                        lineHeight: Typography.body.fontSize * 1.2, // Explicit line height
+                        paddingTop: 2, // Fine-tune vertical position
+                        paddingBottom: -3,
+                      }),
+                    },
+                  ]}
                 />
 
                 <Input
-                  label='Confirm Password'
+                  label='Şifre Tekrarı'
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  placeholder='Confirm your password'
+                  placeholder='Şifrenizi tekrar girin'
                   secureTextEntry
                   disabled={isLoading || isOAuthLoading !== null}
                   leftIcon='lock'
                   containerStyle={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    backgroundColor: Colors.white,
                     borderRadius: BorderRadius.lg,
+                    borderWidth: 0,
+                    shadowColor: 'rgba(0, 0, 0, 0.1)',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                    minHeight: 50,
                   }}
+                  labelStyle={[
+                    Typography.caption,
+                    {
+                      color: Colors.gray[700],
+                      fontFamily: FontFamilies.secondary.bold,
+                      marginBottom: Spacing[2],
+                    },
+                  ]}
+                  inputStyle={[
+                    Typography.body,
+                    {
+                      color: Colors.gray[800],
+                      // Custom font fixes for iOS
+                      ...(Platform.OS === 'ios' && {
+                        fontFamily: FontFamilies.primary.regular, // Use a more reliable font variant
+                        lineHeight: Typography.body.fontSize * 1.2, // Explicit line height
+                        paddingTop: 2, // Fine-tune vertical position
+                        paddingBottom: -3,
+                      }),
+                    },
+                  ]}
                 />
               </View>
 
@@ -366,12 +488,13 @@ export default function RegisterScreen() {
               )}
 
               <PlayfulButton
-                title={isLoading ? 'Creating Account...' : 'Create Account'}
+                title={isLoading ? 'Hesap Oluşturuluyor...' : 'Hesap Oluştur'}
                 onPress={handleRegister}
                 disabled={isLoading || isOAuthLoading !== null}
                 variant='vibrant'
                 gradient='tropical'
                 size='medium'
+                fontFamily='SecondaryFont-Bold'
                 loading={isLoading}
                 style={{
                   width: '100%',
@@ -388,30 +511,44 @@ export default function RegisterScreen() {
               style={{
                 flexDirection: 'row',
                 justifyContent: 'center',
-                alignItems: 'center',
+                alignItems: 'baseline',
                 marginTop: Spacing[4],
                 marginBottom: Spacing[4],
               }}
             >
               <Text
-                style={{
-                  fontSize: 16,
-                  color: Colors.white,
-                  opacity: 0.9,
-                }}
+                style={[
+                  Typography.bodyLarge,
+                  {
+                    color: Colors.white,
+                    opacity: 0.9,
+                    includeFontPadding: false,
+                    textAlignVertical: 'center',
+                  },
+                ]}
               >
-                Already have an account?
+                Zaten hesabınız var mı?
               </Text>
               <TextLink
                 href='/(auth)/login'
-                label=' Sign In'
-                style={{
-                  color: Colors.vibrant?.yellow || Colors.secondary.light,
-                  fontWeight: '700',
-                  fontSize: 16,
-                  textShadowColor: 'rgba(0, 0, 0, 0.3)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 2,
+                label=' Giriş Yap'
+                style={[
+                  Typography.bodyLarge,
+                  {
+                    color: Colors.vibrant?.yellow || Colors.secondary.light,
+                    fontFamily: FontFamilies.secondary.bold,
+                    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 2,
+                    includeFontPadding: false,
+                    textAlignVertical: 'center',
+                  },
+                ]}
+                touchableProps={{
+                  style: {
+                    paddingVertical: 0,
+                    marginVertical: 0,
+                  },
                 }}
               />
             </View>

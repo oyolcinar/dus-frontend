@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { FontAwesome } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import {
   Button,
@@ -44,7 +45,7 @@ export default function LoginScreen() {
     setError(null);
 
     if (!email || !password) {
-      setError('Please enter your email and password');
+      setError('Lütfen e-posta ve şifrenizi girin');
       return;
     }
 
@@ -52,7 +53,8 @@ export default function LoginScreen() {
       setIsLoading(true);
       await signIn(email, password);
     } catch (error: any) {
-      const errorMessage = error.message || 'Login failed. Please try again.';
+      const errorMessage =
+        error.message || 'Giriş başarısız. Lütfen tekrar deneyin.';
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -80,7 +82,7 @@ export default function LoginScreen() {
     } catch (error: any) {
       console.error(`${provider} OAuth error:`, error);
       const errorMessage =
-        error.message || `${provider} login failed. Please try again.`;
+        error.message || `${provider} girişi başarısız. Lütfen tekrar deneyin.`;
       setError(errorMessage);
     } finally {
       setIsOAuthLoading(null);
@@ -179,7 +181,7 @@ export default function LoginScreen() {
                   },
                 ]}
               >
-                DUS Exam Prep
+                DUS Sınav Hazırlığı
               </Text>
 
               <Text
@@ -195,7 +197,7 @@ export default function LoginScreen() {
                   },
                 ]}
               >
-                Master your dental exams with confidence
+                Diş hekimliği sınavlarınızda güvenle başarılı olun
               </Text>
             </View>
 
@@ -218,53 +220,55 @@ export default function LoginScreen() {
                   },
                 ]}
               >
-                Quick Sign In
+                Hızlı Giriş
               </Text>
 
               <PlayfulButton
                 title={
-                  isOAuthLoading === 'google'
-                    ? 'Signing in...'
-                    : 'Continue with Google'
+                  isOAuthLoading === 'google' ? 'Giriş yapılıyor...' : 'Google'
                 }
+                icon='google'
                 onPress={() => handleOAuthLogin('google')}
-                variant='gradient'
+                variant='vibrant'
                 gradient='google'
                 disabled={isOAuthLoading !== null || isLoading}
                 size='medium'
                 style={{ marginBottom: 12 }}
                 animated={true}
+                // fontFamily='SecondaryFont-Bold'
                 wiggleOnPress={true}
               />
 
               <PlayfulButton
                 title={
-                  isOAuthLoading === 'apple'
-                    ? 'Signing in...'
-                    : 'Continue with Apple'
+                  isOAuthLoading === 'apple' ? 'Giriş yapılıyor...' : 'Apple'
                 }
+                icon='apple'
                 onPress={() => handleOAuthLogin('apple')}
-                variant='gradient'
+                variant='vibrant'
                 gradient={isDarkMode ? 'appleLight' : 'appleDark'}
                 disabled={isOAuthLoading !== null || isLoading}
                 size='medium'
                 style={{ marginBottom: 12 }}
                 animated={true}
+                // fontFamily='SecondaryFont-Bold'
                 wiggleOnPress={true}
               />
 
               <PlayfulButton
                 title={
                   isOAuthLoading === 'facebook'
-                    ? 'Signing in...'
-                    : 'Continue with Facebook'
+                    ? 'Giriş yapılıyor...'
+                    : 'Facebook'
                 }
+                icon='facebook'
                 onPress={() => handleOAuthLogin('facebook')}
-                variant='gradient'
+                variant='vibrant'
                 gradient='facebook'
                 disabled={isOAuthLoading !== null || isLoading}
                 size='medium'
                 animated={true}
+                // fontFamily='SecondaryFont-Bold'
                 wiggleOnPress={true}
               />
 
@@ -293,7 +297,7 @@ export default function LoginScreen() {
                     },
                   ]}
                 >
-                  or continue with email
+                  veya e-posta ile devam et
                 </Text>
                 <View
                   style={{
@@ -314,10 +318,10 @@ export default function LoginScreen() {
             >
               <View style={{ marginBottom: Spacing[4] }}>
                 <Input
-                  label='Email'
+                  label='E-posta'
                   value={email}
                   onChangeText={setEmail}
-                  placeholder='Enter your email'
+                  placeholder='E-posta adresinizi girin'
                   inputMode='email'
                   autoCapitalize='none'
                   disabled={isLoading || isOAuthLoading !== null}
@@ -345,15 +349,22 @@ export default function LoginScreen() {
                     Typography.body,
                     {
                       color: Colors.gray[800],
+                      // Custom font fixes for iOS
+                      ...(Platform.OS === 'ios' && {
+                        fontFamily: FontFamilies.primary.regular, // Use a more reliable font variant
+                        lineHeight: Typography.body.fontSize * 1.2, // Explicit line height
+                        paddingTop: 2, // Fine-tune vertical position
+                        paddingBottom: -2,
+                      }),
                     },
                   ]}
                 />
 
                 <Input
-                  label='Password'
+                  label='Şifre'
                   value={password}
                   onChangeText={setPassword}
-                  placeholder='Enter your password'
+                  placeholder='Şifrenizi girin'
                   secureTextEntry
                   disabled={isLoading || isOAuthLoading !== null}
                   leftIcon='lock'
@@ -380,6 +391,13 @@ export default function LoginScreen() {
                     Typography.body,
                     {
                       color: Colors.gray[800],
+                      // Custom font fixes for iOS
+                      ...(Platform.OS === 'ios' && {
+                        fontFamily: FontFamilies.primary.regular, // Use a more reliable font variant
+                        lineHeight: Typography.body.fontSize * 1.2, // Explicit line height
+                        paddingTop: 2, // Fine-tune vertical position
+                        paddingBottom: -3,
+                      }),
                     },
                   ]}
                 />
@@ -400,7 +418,7 @@ export default function LoginScreen() {
               >
                 <TextLink
                   href='/(auth)/forgot-password'
-                  label='Forgot password?'
+                  label='Şifremi unuttum?'
                   style={[
                     Typography.bodySmall,
                     {
@@ -412,7 +430,9 @@ export default function LoginScreen() {
               </View>
 
               <PlayfulButton
-                title={isLoading ? 'Signing in...' : 'Sign In with Email'}
+                title={
+                  isLoading ? 'Giriş yapılıyor...' : 'E-posta ile Giriş Yap'
+                }
                 onPress={handleLogin}
                 disabled={isLoading || isOAuthLoading !== null}
                 variant='vibrant'
@@ -422,6 +442,7 @@ export default function LoginScreen() {
                 style={{ width: '100%' }}
                 animated={true}
                 glowEffect={true}
+                fontFamily='SecondaryFont-Bold'
                 wiggleOnPress={true}
               />
             </GlassCard>
@@ -431,7 +452,7 @@ export default function LoginScreen() {
               style={{
                 flexDirection: 'row',
                 justifyContent: 'center',
-                alignItems: 'center',
+                alignItems: 'baseline',
                 marginTop: Spacing[4],
                 marginBottom: Spacing[4],
               }}
@@ -442,14 +463,16 @@ export default function LoginScreen() {
                   {
                     color: Colors.white,
                     opacity: 0.9,
+                    includeFontPadding: false,
+                    textAlignVertical: 'center',
                   },
                 ]}
               >
-                Don't have an account?
+                Hesabınız yok mu?
               </Text>
               <TextLink
                 href='/(auth)/register'
-                label=' Sign Up'
+                label=' Kayıt Ol'
                 style={[
                   Typography.bodyLarge,
                   {
@@ -458,8 +481,16 @@ export default function LoginScreen() {
                     textShadowColor: 'rgba(0, 0, 0, 0.3)',
                     textShadowOffset: { width: 0, height: 1 },
                     textShadowRadius: 2,
+                    includeFontPadding: false,
+                    textAlignVertical: 'center',
                   },
                 ]}
+                touchableProps={{
+                  style: {
+                    paddingVertical: 0,
+                    marginVertical: 0,
+                  },
+                }}
               />
             </View>
           </ScrollView>

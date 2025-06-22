@@ -509,6 +509,7 @@ export default function ProfileScreen() {
                     onPress={() => router.push('/edit-profile' as any)}
                     variant='outline'
                     icon='user'
+                    fontFamily='SecondaryFont-Bold'
                     // style={{
                     //   backgroundColor: 'rgba(255, 255, 255, 0.2)',
                     //   borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -521,6 +522,7 @@ export default function ProfileScreen() {
                     onPress={() => router.push('/change-password' as any)}
                     variant='outline'
                     icon='lock'
+                    fontFamily='SecondaryFont-Bold'
                     // style={{
                     //   backgroundColor: 'rgba(255, 255, 255, 0.2)',
                     //   borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -533,6 +535,7 @@ export default function ProfileScreen() {
                     onPress={() => router.push('/notifications' as any)}
                     variant='outline'
                     icon='bell'
+                    fontFamily='SecondaryFont-Bold'
                     // style={{
                     //   backgroundColor: 'rgba(255, 255, 255, 0.2)',
                     //   borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -607,6 +610,7 @@ export default function ProfileScreen() {
                     variant='vibrant'
                     gradient='fire'
                     icon='sign-out'
+                    fontFamily='SecondaryFont-Bold'
                     animated
                     wiggleOnPress
                   />

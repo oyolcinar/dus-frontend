@@ -11,6 +11,7 @@ import {
   TextStyle,
   TouchableOpacity,
   useColorScheme,
+  Platform,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import {
@@ -236,6 +237,8 @@ const Input: React.FC<InputProps> = ({
     leftIcon ? styles.inputWithLeftIcon : null,
     displayRightIcon ? styles.inputWithRightIcon : null,
     multiline ? styles.textMultiline : null,
+    // Apply iOS-specific fixes
+    Platform.OS === 'ios' ? styles.inputIOS : null,
     inputStyle,
   );
 
@@ -282,6 +285,11 @@ const Input: React.FC<InputProps> = ({
           testID={testID}
           accessibilityLabel={accessibilityLabel || label}
           accessibilityState={{ disabled }}
+          // iOS-specific props to fix text alignment
+          {...(Platform.OS === 'ios' && {
+            textContentType: inputMode === 'email' ? 'emailAddress' : 'none',
+            autoCorrect: false,
+          })}
         />
 
         {displayRightIcon && (
@@ -379,6 +387,15 @@ const styles = StyleSheet.create({
     margin: 0,
     textAlignVertical: 'center',
   },
+  // iOS-specific fixes for text alignment
+  inputIOS: {
+    paddingTop: Platform.OS === 'ios' ? Spacing[3] + 2 : Spacing[3], // Extra adjustment for custom fonts
+    paddingBottom: Platform.OS === 'ios' ? Spacing[3] - 2 : Spacing[3], // Compensate bottom padding
+    height: Platform.OS === 'ios' ? 48 : undefined, // Fixed height for iOS
+    textAlignVertical: Platform.OS === 'ios' ? 'center' : 'center',
+    includeFontPadding: false, // Remove extra font padding
+    lineHeight: Platform.OS === 'ios' ? FontSizes.base * 1.1 : undefined, // Custom font line height fix
+  },
   inputLight: {
     color: Colors.gray[900],
   },
@@ -394,18 +411,22 @@ const styles = StyleSheet.create({
   textMultiline: {
     textAlignVertical: 'top',
     paddingTop: Spacing[3],
+    // Override iOS height for multiline
+    height: Platform.OS === 'ios' ? undefined : undefined,
   },
   leftIconContainer: {
     paddingLeft: Spacing[3],
     paddingRight: Spacing[2],
     justifyContent: 'center',
     alignItems: 'center',
+    height: 48, // Fixed height to match input container
   },
   rightIconContainer: {
     paddingRight: Spacing[3],
     paddingLeft: Spacing[2],
     justifyContent: 'center',
     alignItems: 'center',
+    height: 48, // Fixed height to match input container
   },
   helperText: {
     marginTop: Spacing[1],
