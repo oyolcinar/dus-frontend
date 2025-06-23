@@ -18,9 +18,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dortac.dusfrontend",
-      "buildNumber": "1.0.0",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.applesignin": ["Default"]
       }
     },
     "android": {
@@ -37,6 +39,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-apple-authentication",
       [
         "expo-splash-screen",
         {
