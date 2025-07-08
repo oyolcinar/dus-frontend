@@ -6,6 +6,8 @@ import {
   ScrollView,
   useColorScheme,
   Text,
+  Image,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -40,6 +42,8 @@ export default function LoginScreen() {
   const colorScheme = useColorScheme();
   const { signIn, signInWithGoogle, signInWithApple, signInWithFacebook } =
     useAuth();
+
+  const logoWhite = require('../../assets/images/logoWhite.jpg');
 
   const handleLogin = async () => {
     setError(null);
@@ -149,23 +153,17 @@ export default function LoginScreen() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginBottom: Spacing[4],
+                  alignContent: 'center',
                 }}
                 animated={true}
                 floatingAnimation={true}
                 gradient='purple'
               >
-                <Text
-                  style={[
-                    Typography.gameTitle,
-                    {
-                      fontSize: 36,
-                      color: Colors.white,
-                      textAlign: 'center',
-                    },
-                  ]}
-                >
-                  D
-                </Text>
+                <Image
+                  source={logoWhite}
+                  style={styles.logoImage}
+                  resizeMode='cover'
+                />
               </PlayfulCard>
 
               <Text
@@ -181,7 +179,7 @@ export default function LoginScreen() {
                   },
                 ]}
               >
-                DUS Sınav Hazırlığı
+                DUSPORT
               </Text>
 
               <Text
@@ -499,3 +497,11 @@ export default function LoginScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  logoImage: {
+    borderRadius: 48,
+    width: 96,
+    height: 96,
+  },
+});

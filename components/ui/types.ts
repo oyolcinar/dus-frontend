@@ -816,3 +816,19 @@ export interface GradientTextProps {
   shimmerEffect?: boolean;
   testID?: string;
 }
+
+export interface SpinningWheelProps {
+  items: string[];
+  onSpinEnd: (item: string, index: number) => void;
+  size?: number;
+  spinTrigger?: React.RefObject<() => void>;
+  spinDuration?: number;
+  sliceColors?: string[];
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
+  spinButtonText?: string;
+  spinButtonStyle?: StyleProp<ViewStyle>;
+  spinButtonTextStyle?: StyleProp<TextStyle>;
+  pointerColor?: string;
+  testID?: string;
+}

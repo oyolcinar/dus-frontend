@@ -25,6 +25,7 @@ import {
   EmptyState,
   OpponentListItem,
   Opponent,
+  SpinningWheel,
 } from '../../components/ui';
 import {
   duelService,
@@ -34,7 +35,13 @@ import {
 } from '../../src/api';
 import { ApiError } from '../../src/api/apiClient';
 import { Test } from '../../src/types/models';
-import { Colors, Spacing, BorderRadius } from '../../constants/theme';
+import {
+  Colors,
+  Spacing,
+  BorderRadius,
+  FontFamilies,
+} from '../../constants/theme';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 type DuelHubTab = 'find' | 'friends' | 'leaderboard';
 
@@ -51,6 +58,7 @@ export default function NewDuelScreen() {
   const [friends, setFriends] = useState<Opponent[]>([]);
   const [leaderboard, setLeaderboard] = useState<Opponent[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [showWheelForTest, setShowWheelForTest] = useState(false);
   const [isSubmittingChallenge, setIsSubmittingChallenge] = useState(false);
   const [selectedOpponent, setSelectedOpponent] = useState<Opponent | null>(
     null,
@@ -109,7 +117,17 @@ export default function NewDuelScreen() {
   const handleOpenChallengeModal = (opponent: Opponent) => {
     setSelectedOpponent(opponent);
     setSelectedTestId(null); // Reset test selection
+    setShowWheelForTest(false);
     setModalVisible(true);
+  };
+
+  const handleTestSpinComplete = (itemName: string, index: number) => {
+    const winningTest = tests[index];
+    if (winningTest) {
+      setSelectedTestId(winningTest.test_id);
+    }
+    // Hide the wheel and show the Picker again, now with the selected value
+    setShowWheelForTest(false);
   };
 
   const handleChallengeSubmit = async () => {
@@ -206,67 +224,98 @@ export default function NewDuelScreen() {
   };
 
   return (
-    <Container>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Title level={2}>Meydan Oku</Title>
-        {error && (
-          <Alert
-            type='error'
-            message={error}
-            style={{ marginVertical: Spacing[4] }}
-          />
-        )}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Container>
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <Title level={2}>Meydan Oku</Title>
+          {error && (
+            <Alert
+              type='error'
+              message={error}
+              style={{ marginVertical: Spacing[4] }}
+            />
+          )}
 
-        <Row style={[styles.tabContainer, isDark && styles.tabContainerDark]}>
-          <TabButton
-            title='Rakip Bul'
-            isActive={activeTab === 'find'}
-            onPress={() => setActiveTab('find')}
-          />
-          <TabButton
-            title='Arkadaşlar'
-            isActive={activeTab === 'friends'}
-            onPress={() => setActiveTab('friends')}
-          />
-          <TabButton
-            title='Liderlik'
-            isActive={activeTab === 'leaderboard'}
-            onPress={() => setActiveTab('leaderboard')}
-          />
-        </Row>
+          <Row style={[styles.tabContainer, isDark && styles.tabContainerDark]}>
+            <TabButton
+              title='Rakip Bul'
+              isActive={activeTab === 'find'}
+              onPress={() => setActiveTab('find')}
+            />
+            <TabButton
+              title='Arkadaşlar'
+              isActive={activeTab === 'friends'}
+              onPress={() => setActiveTab('friends')}
+            />
+            <TabButton
+              title='Liderlik'
+              isActive={activeTab === 'leaderboard'}
+              onPress={() => setActiveTab('leaderboard')}
+            />
+          </Row>
 
-        {renderTabContent()}
-      </ScrollView>
+          {renderTabContent()}
+        </ScrollView>
 
-      <Modal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        title='Meydan Okumayı Onayla'
-      >
-        <View style={styles.modalContent}>
-          <Paragraph>
-            <Text style={{ fontWeight: 'bold' }}>
-              {selectedOpponent?.username}
-            </Text>{' '}
-            adlı kullanıcıya meydan okumak için bir konu seçin.
-          </Paragraph>
-          <Picker
-            items={tests.map((t) => ({ label: t.title, value: t.test_id }))}
-            selectedValue={selectedTestId}
-            onValueChange={(val) => setSelectedTestId(val as number)}
-            placeholder='Bir Konu Seçin...'
-            style={{ marginTop: Spacing[4] }}
-          />
-          <Button
-            title='Meydan Oku'
-            onPress={handleChallengeSubmit}
-            loading={isSubmittingChallenge}
-            disabled={!selectedTestId || isSubmittingChallenge}
-            style={{ marginTop: Spacing[4] }}
-          />
-        </View>
-      </Modal>
-    </Container>
+        <Modal
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+          title='Meydan Okumayı Onayla'
+        >
+          <View style={styles.modalContent}>
+            <Paragraph>
+              <Text style={{ fontWeight: 'bold' }}>
+                {selectedOpponent?.username}
+              </Text>{' '}
+              adlı kullanıcıya meydan okumak için bir konu seçin veya şansınızı
+              deneyin!
+            </Paragraph>
+
+            {showWheelForTest ? (
+              // If showWheelForTest is true, render the wheel
+              <View style={styles.wheelContainer}>
+                <SpinningWheel
+                  items={tests.map((t) => t.title)}
+                  onSpinEnd={handleTestSpinComplete}
+                  size={280} // A bit smaller to fit nicely in the modal
+                  spinButtonText='ÇEVİR'
+                  fontFamily={FontFamilies.primary.regular}
+                />
+              </View>
+            ) : (
+              // Otherwise, show the Picker and the button to open the wheel
+              <>
+                <Picker
+                  items={tests.map((t) => ({
+                    label: t.title,
+                    value: t.test_id,
+                  }))}
+                  selectedValue={selectedTestId}
+                  onValueChange={(val) => setSelectedTestId(val as number)}
+                  placeholder='Bir Konu Seçin...'
+                  style={{ marginTop: Spacing[4] }}
+                />
+                <Button
+                  title='Konu İçin Çevir'
+                  onPress={() => setShowWheelForTest(true)}
+                  variant='secondary'
+                  icon='random'
+                  style={{ marginTop: Spacing[2] }}
+                />
+              </>
+            )}
+
+            <Button
+              title='Meydan Oku'
+              onPress={handleChallengeSubmit}
+              loading={isSubmittingChallenge}
+              disabled={!selectedTestId || isSubmittingChallenge}
+              style={{ marginTop: Spacing[6] }} // More space at the top
+            />
+          </View>
+        </Modal>
+      </Container>
+    </GestureHandlerRootView>
   );
 }
 
@@ -366,4 +415,9 @@ const styles = StyleSheet.create({
   tabTextDark: { color: Colors.gray[400] },
   activeTabText: { color: Colors.primary.DEFAULT },
   modalContent: { padding: Spacing[2] },
+  wheelContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing[4],
+  },
 });

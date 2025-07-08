@@ -106,6 +106,8 @@ export { default as PowerUpButton } from './Game/PowerUpButton';
 // Theme Context
 export { ThemeProvider, useTheme, ThemeContext } from './ThemeContext';
 
+export { default as SpinningWheel } from './SpinningWheel';
+
 // NEW: Enhanced Theme Utilities
 export {
   Spacing,
