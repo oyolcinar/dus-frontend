@@ -1,4 +1,4 @@
-// components/ui/SpinningWheel.tsx
+// components/ui/SpinningWheel.tsx - With hardcoded fonts
 
 import React, { useImperativeHandle, useEffect, useRef, useState } from 'react';
 import {
@@ -12,6 +12,7 @@ import {
   GestureResponderEvent,
   PanResponderGestureState,
   ViewStyle,
+  Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -22,10 +23,10 @@ import Animated, {
   runOnJS,
   cancelAnimation,
 } from 'react-native-reanimated';
-import Svg, { Path, G, Text as SvgText, Circle } from 'react-native-svg';
+import Svg, { Path, G, Circle } from 'react-native-svg';
 import { Colors, FontSizes, FontWeights } from '../../constants/theme';
 
-// Define props interface directly in this file to add font family support
+// Define props interface directly in this file for simplicity
 export interface SpinningWheelProps {
   items?: string[];
   onSpinEnd: (item: string, index: number) => void;
@@ -105,6 +106,11 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
   useEffect(() => {
     console.log('SpinningWheel mounted with', numberOfSlices, 'slices');
     console.log('Items:', safeItems);
+    console.log('Font values passed:', {
+      fontFamily,
+      sliceFontFamily,
+      winnerFontFamily,
+    });
 
     // Return cleanup function
     return () => {
@@ -122,18 +128,28 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
 
   // Function to handle the end of spinning
   const handleEnd = (finalRotation: number) => {
+    // Calculate which slice is at the top (pointer)
     const normalizedRotation = ((finalRotation % 360) + 360) % 360;
+
+    // The pointer is at the top (90° in SVG coordinate system)
+    // We need to adjust for the wheel's rotation to find which slice is under the pointer
     const winningAngle = (360 - normalizedRotation + 90) % 360;
     const winningIndex = Math.floor(winningAngle / sliceAngle);
 
+    console.log('Spin ended with rotation:', normalizedRotation);
+    console.log('Winning angle:', winningAngle);
+    console.log('Winning index:', winningIndex);
+
     if (safeItems[winningIndex] !== undefined) {
       const winner = safeItems[winningIndex];
+      console.log('Winner:', winner);
+
       setWinningItem(winner);
 
-      // Call onSpinEnd immediately
+      // Call onSpinEnd callback with the winner
       onSpinEnd(winner, winningIndex);
 
-      // But delay the text animation to let the wheel stay visible for a moment
+      // Reset overlay state to ensure clean animation
       setShowWinnerOverlay(false);
       setAnimatedText('');
 
@@ -147,6 +163,7 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
 
       // Start the text animation after a delay
       spinEndTimeout.current = setTimeout(() => {
+        console.log('Starting winner text animation');
         setShowWinnerOverlay(true);
 
         // Start text animation
@@ -164,7 +181,7 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
             }
           }
         }, 100);
-      }, 1000); // 1 second delay before showing text animation
+      }, 500); // 0.5 second delay before showing text animation
     }
 
     // Reset spinning state
@@ -178,6 +195,7 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
 
     // Clear any existing animations
     setShowWinnerOverlay(false);
+    setAnimatedText('');
 
     isSpinning.value = true;
     const randomSpins = 5 + Math.floor(Math.random() * 5);
@@ -196,11 +214,13 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
   // Expose the spin function to parent via spinTrigger
   useImperativeHandle(spinTrigger, () => buttonSpin);
 
-  // Track the last angle and recent movements for momentum calculation
-  const lastAngle = useRef(0);
-  const recentMovements = useRef<{ time: number; rotation: number }[]>([]);
+  // Track the last touch point and recent movements for momentum calculation
+  const lastTouchPoint = useRef({ x: 0, y: 0 });
+  const recentMovements = useRef<
+    { time: number; angle: number; speed: number }[]
+  >([]);
 
-  // Use PanResponder instead of GestureDetector for better compatibility
+  // Use PanResponder for gesture handling
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -214,27 +234,19 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
 
         // Clear any existing animations
         setShowWinnerOverlay(false);
+        setAnimatedText('');
 
         // Store initial touch position
-        const touchX = event.nativeEvent.locationX;
-        const touchY = event.nativeEvent.locationY;
+        const touchX = event.nativeEvent.locationX - radius; // Relative to center
+        const touchY = event.nativeEvent.locationY - radius; // Relative to center
 
-        // Calculate initial angle relative to center
-        const initialAngle = Math.atan2(touchY - radius, touchX - radius);
-        // Store this as the starting point for calculating rotation
-        lastAngle.current = initialAngle;
+        lastTouchPoint.current = { x: touchX, y: touchY };
 
         // Clear recent movements on new touch
         recentMovements.current = [];
 
         // Log initial position
-        console.log(
-          'Initial touch position:',
-          touchX,
-          touchY,
-          'Initial angle:',
-          initialAngle,
-        );
+        console.log('Initial touch position:', touchX, touchY);
       },
       onPanResponderMove: (
         event: GestureResponderEvent,
@@ -243,36 +255,39 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
         // Only handle if not currently spinning
         if (isSpinning.value) return;
 
-        // Calculate center relative to the touch location
-        const touchX = event.nativeEvent.locationX;
-        const touchY = event.nativeEvent.locationY;
+        // Calculate touch point relative to center
+        const touchX = event.nativeEvent.locationX - radius;
+        const touchY = event.nativeEvent.locationY - radius;
 
-        // Calculate current angle based on touch location relative to center
-        const currentAngle = Math.atan2(touchY - radius, touchX - radius);
+        // Calculate the angles (in radians)
+        const prevAngle = Math.atan2(
+          lastTouchPoint.current.y,
+          lastTouchPoint.current.x,
+        );
+        const newAngle = Math.atan2(touchY, touchX);
 
-        // Calculate the angle difference in radians
-        let angleDiff = currentAngle - lastAngle.current;
+        // Calculate angle difference (ensure we handle the -π to π transition)
+        let angleDiff = newAngle - prevAngle;
 
-        // Handle angle wrapping (when crossing from -π to π or vice versa)
+        // Fix angle wrapping
         if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
         if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
 
-        // Convert to degrees and update rotation
+        // Convert to degrees
         const angleDiffDegrees = (angleDiff * 180) / Math.PI;
 
-        // Apply a multiplier to increase sensitivity
-        // IMPORTANT: Invert the sign to make drag direction match wheel movement
-        const sensitivityMultiplier = -3.0; // Negative to invert direction
-        rotation.value += angleDiffDegrees * sensitivityMultiplier;
+        // Update rotation - negative to make the wheel move in the direction of the gesture
+        rotation.value += angleDiffDegrees;
 
-        // Update lastAngle for the next move event
-        lastAngle.current = currentAngle;
+        // Store the current point for next calculation
+        lastTouchPoint.current = { x: touchX, y: touchY };
 
-        // Track recent movements to calculate momentum
+        // Track movement for momentum calculation
         const now = Date.now();
         recentMovements.current.push({
           time: now,
-          rotation: angleDiffDegrees * sensitivityMultiplier, // Store with the inverted sign
+          angle: angleDiffDegrees,
+          speed: Math.abs(angleDiffDegrees), // Store speed for momentum calculation
         });
 
         // Only keep movements from the last 100ms for momentum calculation
@@ -287,68 +302,64 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
         // Only handle if not currently spinning
         if (isSpinning.value) return;
 
-        console.log('Pan responder released - starting spin');
-        isSpinning.value = true; // Set to spinning immediately on release
+        console.log('Pan responder released - calculating momentum');
+
+        // Set to spinning state
+        isSpinning.value = true;
 
         // Calculate momentum based on recent movements
         let momentum = 0;
         const now = Date.now();
 
         if (recentMovements.current.length > 0) {
-          // Calculate average angular velocity from recent movements
-          let totalRotation = 0;
-          let totalTime = now - recentMovements.current[0].time;
+          // Get the last few movements to determine direction and speed
+          const recentMoves = recentMovements.current.slice(-5);
 
-          recentMovements.current.forEach((movement) => {
-            totalRotation += movement.rotation;
+          // Calculate total angle change and direction
+          let totalAngle = 0;
+          recentMoves.forEach((move) => {
+            totalAngle += move.angle;
           });
 
-          // Determine direction of spin (positive = clockwise, negative = counterclockwise)
-          // This ensures we maintain the direction of the user's gesture
-          const direction = Math.sign(totalRotation) || 1; // Default to 1 if zero
+          // Determine direction of spin (sign of total angle)
+          const direction = Math.sign(totalAngle) || 1; // Default to 1 if zero
 
-          // Convert to angular velocity (degrees per millisecond)
-          // Apply an additional momentum multiplier to make it spin longer
-          const momentumMultiplier = 50.0; // Increase for longer spin
+          // Calculate average speed from recent movements
+          const avgSpeed =
+            recentMoves.reduce((sum, move) => sum + move.speed, 0) /
+            recentMoves.length;
 
-          // Calculate absolute momentum, then apply direction
-          const absMomentum =
-            totalTime > 0
-              ? Math.abs(totalRotation / totalTime) * momentumMultiplier
-              : 0;
+          // Apply multiplier for better feel
+          const multiplier = 30;
+          momentum = direction * avgSpeed * multiplier;
 
-          momentum = direction * absMomentum;
-
-          // Ensure a minimum momentum for better UX
-          const minMomentum = 300; // Minimum velocity
+          // Ensure minimum momentum for better UX
+          const minMomentum = 300;
           if (Math.abs(momentum) < minMomentum && Math.abs(momentum) > 5) {
             momentum = direction * minMomentum;
           }
 
-          console.log('Direction:', direction, 'Momentum:', momentum);
-        } else {
-          // If there's no movement data, do a default spin like the button
-          const randomSpins = 5 + Math.floor(Math.random() * 5);
-          const targetRotation =
-            rotation.value + 360 * randomSpins + Math.random() * 360;
-
-          rotation.value = withTiming(
-            targetRotation,
-            { duration: spinDuration, easing: Easing.out(Easing.cubic) },
-            (finished) => {
-              if (finished) runOnJS(handleEnd)(rotation.value);
-            },
+          console.log(
+            'Calculated momentum:',
+            momentum,
+            'Direction:',
+            direction,
+            'Avg Speed:',
+            avgSpeed,
           );
-          return;
         }
 
-        console.log('Calculated momentum:', momentum);
+        // If no meaningful momentum, do a default spin
+        if (Math.abs(momentum) < 50) {
+          buttonSpin(); // Use the button spin logic
+          return;
+        }
 
         // Apply decay animation with momentum
         rotation.value = withDecay(
           {
             velocity: momentum,
-            deceleration: 0.9985, // Lower value means longer spin (0.9985 - 0.9995)
+            deceleration: 0.998, // Lower value means longer spin
           },
           (finished) => {
             if (finished) {
@@ -357,11 +368,7 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
           },
         );
       },
-      // Reject all gestures while spinning
       onPanResponderTerminationRequest: () => !isSpinning.value,
-      onPanResponderReject: () => {
-        console.log('Pan gesture rejected - wheel is spinning');
-      },
     }),
   ).current;
 
@@ -426,44 +433,6 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
                 stroke='#fff'
                 strokeWidth={2}
               />
-
-              {/* Add text along a circular path */}
-              <G>
-                {/* Calculate the angle for the middle of this slice in degrees */}
-                {(() => {
-                  const midAngle = (index + 0.5) * sliceAngle;
-                  const angleRad = (midAngle * Math.PI) / 180;
-
-                  // Position for the text - radially from outer edge toward center
-                  const textX = radius + radius * 0.6 * Math.cos(angleRad);
-                  const textY = radius + radius * 0.6 * Math.sin(angleRad);
-
-                  // Set the rotation to make text go from border to center
-                  // Add 180 degrees to point from outer edge toward center
-                  const textRotation = midAngle + 180;
-
-                  // Shortened text if needed
-                  const displayText =
-                    item.length > 12 ? item.substring(0, 10) + '…' : item;
-
-                  return (
-                    <SvgText
-                      x={textX}
-                      y={textY}
-                      fill='#fff'
-                      fontSize={FontSizes.sm - 1}
-                      fontWeight='bold'
-                      textAnchor='middle'
-                      alignmentBaseline='middle'
-                      rotation={textRotation}
-                      origin={`${textX}, ${textY}`}
-                      fontFamily={sliceFontFamily || fontFamily}
-                    >
-                      {displayText}
-                    </SvgText>
-                  );
-                })()}
-              </G>
             </React.Fragment>
           ))}
 
@@ -477,6 +446,57 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
             strokeWidth={2}
           />
         </Svg>
+
+        {/* Text labels for slices - using regular Text components instead of SVG Text */}
+        {safeItems.map((item, index) => {
+          const midAngle = (index + 0.5) * sliceAngle;
+          const angleRad = (midAngle * Math.PI) / 180;
+
+          // Position for the text - radially from outer edge toward center
+          const textDistance = radius * 0.6; // Distance from center (60% of radius)
+          const textX = radius + textDistance * Math.cos(angleRad);
+          const textY = radius + textDistance * Math.sin(angleRad);
+
+          // Shortened text if needed
+          const displayText =
+            item.length > 12 ? item.substring(0, 10) + '…' : item;
+
+          return (
+            <View
+              key={`text-${index}`}
+              style={[
+                styles.sliceTextContainer,
+                {
+                  left: textX,
+                  top: textY,
+                  // Rotate text to align with slice
+                  transform: [
+                    { translateX: -40 }, // Adjusted for better centering
+                    { translateY: -12 }, // Adjusted for better centering
+                    { rotate: `${midAngle + 180}deg` }, // Matches previous orientation
+                  ],
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: '#fff',
+                  fontWeight: 'bold',
+                  fontSize: FontSizes.sm - 1,
+                  textAlign: 'center',
+                  textShadowColor: 'rgba(0, 0, 0, 0.75)',
+                  textShadowOffset: { width: 1, height: 1 },
+                  textShadowRadius: 2,
+                  // HARDCODED FONT
+                  fontFamily: 'PrimaryFont',
+                }}
+                numberOfLines={1}
+              >
+                {displayText}
+              </Text>
+            </View>
+          );
+        })}
       </Animated.View>
 
       {/* Winner text animation overlay */}
@@ -488,13 +508,14 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
           ]}
         >
           <Text
-            style={[
-              styles.winnerText,
-              {
-                fontFamily: winnerFontFamily || fontFamily,
-                fontSize: size / 10,
-              },
-            ]}
+            style={{
+              color: '#fff',
+              fontWeight: 'bold',
+              textAlign: 'center',
+              fontSize: size / 10,
+              // HARDCODED FONT
+              fontFamily: 'PrimaryFont',
+            }}
           >
             {animatedText}
           </Text>
@@ -517,7 +538,14 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
           />
         ) : (
           <View style={styles.spinButtonFallback}>
-            <Text style={[styles.spinButtonText, { fontFamily }]}>
+            <Text
+              style={{
+                color: '#fff',
+                fontWeight: 'bold',
+                // HARDCODED FONT
+                fontFamily: 'SecondaryFont-Bold',
+              }}
+            >
               {spinButtonText || 'SPIN'}
             </Text>
           </View>
@@ -543,6 +571,7 @@ const styles = StyleSheet.create({
     elevation: 10,
     backgroundColor: '#eee', // Light background for better visibility
     overflow: 'hidden',
+    zIndex: 3,
   },
   pointerContainer: {
     position: 'absolute',
@@ -594,9 +623,23 @@ const styles = StyleSheet.create({
   },
   winnerText: {
     color: '#fff',
-    fontWeight: 'bold',
     textAlign: 'center',
     fontSize: 20,
+  },
+  sliceTextContainer: {
+    position: 'absolute',
+    width: 80, // Widened to accommodate more text
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5, // Place above SVG but below other elements
+  },
+  sliceText: {
+    color: '#fff',
+    fontSize: FontSizes.sm - 1,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
 });
 

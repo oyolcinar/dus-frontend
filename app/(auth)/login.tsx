@@ -155,6 +155,11 @@ export default function LoginScreen() {
                   marginBottom: Spacing[4],
                   alignContent: 'center',
                 }}
+                contentContainerStyle={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  alignContent: 'center',
+                }}
                 animated={true}
                 floatingAnimation={true}
                 gradient='purple'

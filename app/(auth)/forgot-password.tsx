@@ -8,6 +8,8 @@ import {
   ScrollView,
   useColorScheme,
   Text,
+  Image,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
@@ -39,6 +41,8 @@ export default function ForgotPasswordScreen() {
   const [success, setSuccess] = useState(false);
   const colorScheme = useColorScheme();
   const router = useRouter();
+
+  const logoWhite = require('../../assets/images/logoWhite.jpg');
 
   const handleResetRequest = async () => {
     // Clear previous errors
@@ -120,15 +124,19 @@ export default function ForgotPasswordScreen() {
                   justifyContent: 'center',
                   marginBottom: Spacing[4],
                 }}
+                contentContainerStyle={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  alignContent: 'center',
+                }}
                 animated={true}
                 floatingAnimation={true}
                 gradient='warning'
               >
-                <FontAwesome
-                  name='lock'
-                  size={36}
-                  color={Colors.white}
-                  style={{ textAlign: 'center' }}
+                <Image
+                  source={logoWhite}
+                  style={styles.logoImage}
+                  resizeMode='cover'
                 />
               </PlayfulCard>
 
@@ -387,3 +395,11 @@ export default function ForgotPasswordScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  logoImage: {
+    borderRadius: 48,
+    width: 96,
+    height: 96,
+  },
+});

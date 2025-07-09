@@ -10,8 +10,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { courseService } from '../../src/api';
-import { Course } from '../../src/types/models';
+import { courseService } from '../../../src/api';
+import { Course } from '../../../src/types/models';
 import {
   PlayfulCard,
   EmptyState,
@@ -30,7 +30,7 @@ import {
   FloatingElement,
   SlideInElement,
   LinearGradient,
-} from '../../components/ui';
+} from '../../../components/ui';
 import {
   Colors,
   Spacing,
@@ -40,8 +40,9 @@ import {
   createVibrantStyle,
   createPlayfulShadow,
   getDifficultyColor,
-} from '../../components/ui';
-import { globalStyles } from '../../utils/styleUtils';
+} from '../../../components/ui';
+import { globalStyles } from '../../../utils/styleUtils';
+import { router } from 'expo-router';
 
 // Define interface to extend Course with additional fields we need
 interface CourseWithProgress extends Course {
@@ -370,7 +371,9 @@ export default function CoursesScreen() {
                             alignItems: 'center',
                           }}
                           onPress={() => {
-                            // Navigation would go here
+                            router.push(
+                              `/(tabs)/courses/${course.course_id}` as any,
+                            );
                             console.log('Course pressed:', course.course_id);
                           }}
                         >

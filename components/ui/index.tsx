@@ -204,6 +204,7 @@ export type {
   // NEW: Typography enhancement types
   PlayfulTitleProps,
   GradientTextProps,
+  SpinningWheelProps,
 } from './types';
 
 // NEW: Utility function exports

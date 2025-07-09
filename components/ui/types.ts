@@ -82,6 +82,7 @@ export interface CardProps {
   // NEW: Font options
   titleFontFamily?: string;
   contentFontFamily?: string;
+  contentContainerStyle?: StyleProp<ViewStyle>;
 }
 
 // Enhanced Badge component props
@@ -831,4 +832,7 @@ export interface SpinningWheelProps {
   spinButtonTextStyle?: StyleProp<TextStyle>;
   pointerColor?: string;
   testID?: string;
+  fontFamily?: string;
+  sliceFontFamily?: string;
+  winnerFontFamily?: string;
 }

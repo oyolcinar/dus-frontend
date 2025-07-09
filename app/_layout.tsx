@@ -184,18 +184,6 @@ function RootLayoutNav() {
             <Stack.Screen name='(auth)' options={{ headerShown: false }} />
             <Stack.Screen name='(tabs)' options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name='courses/[id]'
-              options={{
-                headerShown: true,
-                title: 'Kurs Detayı',
-                headerStyle: {
-                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-                },
-                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
-              }}
-            />
-
             {/* These screens are available regardless of authentication state */}
             <Stack.Screen
               name='study/[id]'
@@ -235,28 +223,6 @@ function RootLayoutNav() {
               options={{
                 headerShown: true,
                 title: 'Quiz',
-                headerStyle: {
-                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-                },
-                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
-              }}
-            />
-            <Stack.Screen
-              name='duel/[id]'
-              options={{
-                headerShown: true,
-                title: 'Duel',
-                headerStyle: {
-                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-                },
-                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
-              }}
-            />
-            <Stack.Screen
-              name='profile/[id]'
-              options={{
-                headerShown: true,
-                title: 'Profile',
                 headerStyle: {
                   backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
                 },

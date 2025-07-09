@@ -6,6 +6,8 @@ import {
   ScrollView,
   useColorScheme,
   Text,
+  Image,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -33,6 +35,8 @@ export default function RegisterScreen() {
   const colorScheme = useColorScheme();
   const { signUp, signInWithGoogle, signInWithApple, signInWithFacebook } =
     useAuth();
+
+  const logoWhite = require('../../assets/images/logoWhite.jpg');
 
   const handleRegister = async () => {
     setError(null);
@@ -149,22 +153,20 @@ export default function RegisterScreen() {
                   justifyContent: 'center',
                   marginBottom: Spacing[4],
                 }}
+                contentContainerStyle={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  alignContent: 'center',
+                }}
                 animated={true}
                 floatingAnimation={true}
                 pulseEffect={true}
               >
-                <Text
-                  style={[
-                    Typography.gameTitle,
-                    {
-                      fontSize: 36,
-                      color: Colors.white,
-                      textAlign: 'center',
-                    },
-                  ]}
-                >
-                  D
-                </Text>
+                <Image
+                  source={logoWhite}
+                  style={styles.logoImage}
+                  resizeMode='cover'
+                />
               </PlayfulCard>
 
               <Text
@@ -558,3 +560,11 @@ export default function RegisterScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  logoImage: {
+    borderRadius: 48,
+    width: 96,
+    height: 96,
+  },
+});

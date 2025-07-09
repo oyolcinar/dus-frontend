@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../context/AuthContext';
-import { duelService } from '../../src/api';
-import { checkAndRefreshSession } from '../../src/api/authService';
-import { Duel } from '../../src/types/models';
+import { useAuth } from '../../../context/AuthContext';
+import { duelService } from '../../../src/api';
+import { checkAndRefreshSession } from '../../../src/api/authService';
+import { Duel } from '../../../src/types/models';
 import {
   PlayfulCard,
   GameCard,
@@ -32,8 +32,8 @@ import {
   ScoreDisplay,
   SlideInElement,
   PlayfulTitle,
-} from '../../components/ui';
-import { Colors, Spacing, FontSizes } from '../../constants/theme';
+} from '../../../components/ui';
+import { Colors, Spacing, FontSizes } from '../../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function DuelsScreen() {
@@ -276,21 +276,21 @@ export default function DuelsScreen() {
         animated: true,
         pulseEffect: true,
         icon: 'sword' as any, // This will fallback to 'gamepad' in GameCard
-        onPlay: () => router.push(`/duel/${duel.duel_id}` as any),
+        onPlay: () => router.push(`/(tabs)/duels/${duel.duel_id}` as any),
       };
     } else if (status === 'completed') {
       return {
         status: 'completed' as const,
         animated: false,
         icon: 'check-circle' as any,
-        onPlay: () => router.push(`/duel/${duel.duel_id}` as any),
+        onPlay: () => router.push(`/(tabs)/duels/${duel.duel_id}` as any),
       };
     } else if (status === 'pending') {
       return {
         status: 'waiting' as const,
         animated: false,
         icon: 'clock' as any,
-        onPlay: () => router.push(`/duel/${duel.duel_id}` as any),
+        onPlay: () => router.push(`/(tabs)/duels/${duel.duel_id}` as any),
       };
     }
 
@@ -298,7 +298,7 @@ export default function DuelsScreen() {
       status: 'waiting' as const,
       animated: false,
       icon: 'gamepad' as any,
-      onPlay: () => router.push(`/duel/${duel.duel_id}` as any),
+      onPlay: () => router.push(`/(tabs)/duels/${duel.duel_id}` as any),
     };
   };
 
@@ -482,7 +482,7 @@ export default function DuelsScreen() {
             {/* Create New Duel Button */}
             <PlayfulButton
               title='Yeni Düello Başlat'
-              onPress={() => router.push('/duel/new' as any)}
+              onPress={() => router.push('/(tabs)/duels/new' as any)}
               variant='secondary'
               gradient='fire'
               animated
@@ -566,7 +566,7 @@ export default function DuelsScreen() {
                   message='Arkadaşlarını düelloya davet et ve rekabeti başlat.'
                   actionButton={{
                     title: 'Düello Başlat',
-                    onPress: () => router.push('/duel/new' as any),
+                    onPress: () => router.push('/(tabs)/duels/new' as any),
                     variant: 'secondary',
                   }}
                 />
@@ -584,7 +584,7 @@ export default function DuelsScreen() {
               <Row style={{ justifyContent: 'space-between' }}>
                 <PlayfulButton
                   title='Tüm Düellolar'
-                  onPress={() => router.push('/duels/all' as any)}
+                  onPress={() => router.push('/(tabs)/duels/all' as any)}
                   variant='outline'
                   style={{ flex: 1 }}
                   icon='list'
@@ -594,7 +594,7 @@ export default function DuelsScreen() {
                 />
                 <PlayfulButton
                   title='Düello Geçmişi'
-                  onPress={() => router.push('/duels/history' as any)}
+                  onPress={() => router.push('/(tabs)/duels/history' as any)}
                   variant='outline'
                   style={{ flex: 1 }}
                   icon='history'

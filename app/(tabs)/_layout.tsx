@@ -3,7 +3,6 @@ import { Tabs } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
-// Define tab bar icon function
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
   color: string;
@@ -17,7 +16,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colorScheme === 'dark' ? '#d9c5e9' : '#FF7675', // Primary color
+        tabBarActiveTintColor: colorScheme === 'dark' ? '#d9c5e9' : '#FF7675',
         headerShown: false,
         tabBarStyle: {
           backgroundColor: colorScheme === 'dark' ? '#111827' : '#FFFFFF',
@@ -34,7 +33,7 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name='courses'
+        name='courses/index'
         options={{
           title: 'Kurslar',
           tabBarIcon: ({ color }) => <TabBarIcon name='book' color={color} />,
@@ -52,7 +51,7 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name='duels'
+        name='duels/index'
         options={{
           title: 'Düellolar',
           tabBarIcon: ({ color }) => <TabBarIcon name='trophy' color={color} />,
@@ -64,6 +63,27 @@ export default function TabLayout() {
         options={{
           title: 'Profil',
           tabBarIcon: ({ color }) => <TabBarIcon name='user' color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name='duels/[id]'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name='duels/new'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name='courses/[id]'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
         }}
       />
     </Tabs>

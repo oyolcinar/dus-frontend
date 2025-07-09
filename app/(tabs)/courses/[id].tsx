@@ -3,9 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { Container, Title, Paragraph } from '../../components/ui';
-import { courseService } from '../../src/api';
-import { Course } from '../../src/types/models';
+import { Container, Title, Paragraph } from '../../../components/ui';
+import { courseService } from '../../../src/api';
+import { Course } from '../../../src/types/models';
 
 export default function CourseDetailScreen() {
   const { id } = useLocalSearchParams(); // Gets the course ID from the URL

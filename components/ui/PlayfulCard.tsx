@@ -39,6 +39,7 @@ const PlayfulCard: React.FC<CardProps> = ({
   borderGlow = false,
   titleFontFamily,
   contentFontFamily,
+  contentContainerStyle,
   ...props
 }) => {
   const colorScheme = useColorScheme();
@@ -368,7 +369,7 @@ const PlayfulCard: React.FC<CardProps> = ({
           </Text>
         </View>
       )}
-      <View style={styles.content}>{children}</View>
+      <View style={[styles.content, contentContainerStyle]}>{children}</View>
     </View>
   );
 
