@@ -268,16 +268,16 @@ const PlayfulButton: React.FC<EnhancedButtonProps> = ({
       case 'outline':
         return {
           backgroundColor: 'transparent',
-          textColor: isDark ? Colors.primary.dark : Colors.white,
-          borderColor: isDark ? Colors.primary.dark : Colors.white,
+          textColor: isDark ? Colors.white : Colors.white,
+          borderColor: isDark ? Colors.white : Colors.white,
           borderWidth: 2,
         };
       case 'ghost':
         return {
           backgroundColor: isDark
-            ? 'rgba(255, 255, 255, 0.1)'
+            ? Colors.neutral?.offWhite || Colors.gray[100]
             : Colors.neutral?.offWhite || Colors.gray[100],
-          textColor: isDark ? Colors.white : Colors.primary.DEFAULT,
+          textColor: isDark ? Colors.primary.DEFAULT : Colors.primary.DEFAULT,
         };
       default:
         return {

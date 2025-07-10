@@ -260,7 +260,7 @@ export default function TestsScreen() {
                   Testler 📝
                 </PlayfulTitle>
                 <Paragraph
-                  color={isDark ? Colors.gray[400] : Colors.gray[100]}
+                  color={isDark ? Colors.gray[100] : Colors.gray[100]}
                   style={{
                     fontFamily: 'SecondaryFont-Regular',
                   }}
@@ -289,7 +289,7 @@ export default function TestsScreen() {
             icon='file'
             title='Toplam Test'
             value={totalTests.toString()}
-            color={isDark ? Colors.vibrant.purple : Colors.vibrant.yellow}
+            color={isDark ? Colors.vibrant.yellow : Colors.vibrant.yellow}
             titleFontFamily='SecondaryFont-Bold'
           />
           <StatCard
@@ -335,7 +335,7 @@ export default function TestsScreen() {
                   filter === null
                     ? Colors.vibrant.purple
                     : isDark
-                    ? Colors.gray[700]
+                    ? Colors.white
                     : Colors.white,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -351,7 +351,7 @@ export default function TestsScreen() {
                     filter === null
                       ? Colors.white
                       : isDark
-                      ? Colors.white
+                      ? Colors.gray[700]
                       : Colors.gray[700],
                   textAlign: 'center',
                   fontFamily: 'SecondaryFont-Regular',
@@ -374,7 +374,7 @@ export default function TestsScreen() {
                   filter === 'Kolay'
                     ? Colors.vibrant.purple
                     : isDark
-                    ? Colors.gray[700]
+                    ? Colors.white
                     : Colors.white,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -390,7 +390,7 @@ export default function TestsScreen() {
                     filter === 'Kolay'
                       ? Colors.white
                       : isDark
-                      ? Colors.white
+                      ? Colors.gray[700]
                       : Colors.gray[700],
                   textAlign: 'center',
                   fontFamily: 'SecondaryFont-Regular',
@@ -413,7 +413,7 @@ export default function TestsScreen() {
                   filter === 'Orta'
                     ? Colors.vibrant.purple
                     : isDark
-                    ? Colors.gray[700]
+                    ? Colors.white
                     : Colors.white,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -429,7 +429,7 @@ export default function TestsScreen() {
                     filter === 'Orta'
                       ? Colors.white
                       : isDark
-                      ? Colors.white
+                      ? Colors.gray[700]
                       : Colors.gray[700],
                   textAlign: 'center',
                   fontFamily: 'SecondaryFont-Regular',
@@ -455,7 +455,7 @@ export default function TestsScreen() {
                   filter === 'Zor'
                     ? Colors.vibrant.purple
                     : isDark
-                    ? Colors.gray[700]
+                    ? Colors.white
                     : Colors.white,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -471,7 +471,7 @@ export default function TestsScreen() {
                     filter === 'Zor'
                       ? Colors.white
                       : isDark
-                      ? Colors.white
+                      ? Colors.gray[700]
                       : Colors.gray[700],
                   textAlign: 'center',
                   fontFamily: 'SecondaryFont-Regular',
@@ -494,7 +494,7 @@ export default function TestsScreen() {
                   filter === 'Çok Zor'
                     ? Colors.vibrant.purple
                     : isDark
-                    ? Colors.gray[700]
+                    ? Colors.white
                     : Colors.white,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -510,7 +510,7 @@ export default function TestsScreen() {
                     filter === 'Çok Zor'
                       ? Colors.white
                       : isDark
-                      ? Colors.white
+                      ? Colors.gray[700]
                       : Colors.gray[700],
                   textAlign: 'center',
                   fontFamily: 'SecondaryFont-Regular',
@@ -533,7 +533,7 @@ export default function TestsScreen() {
                   filter === 'Uzman'
                     ? Colors.vibrant.purple
                     : isDark
-                    ? Colors.gray[700]
+                    ? Colors.white
                     : Colors.white,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -549,7 +549,7 @@ export default function TestsScreen() {
                     filter === 'Uzman'
                       ? Colors.white
                       : isDark
-                      ? Colors.white
+                      ? Colors.gray[700]
                       : Colors.gray[700],
                   textAlign: 'center',
                   fontFamily: 'SecondaryFont-Regular',
@@ -573,12 +573,12 @@ export default function TestsScreen() {
           >
             <ActivityIndicator
               size='large'
-              color={isDark ? Colors.primary.DEFAULT : Colors.vibrant.coral}
+              color={isDark ? Colors.vibrant.coral : Colors.vibrant.coral}
             />
             <Text
               style={{
                 marginTop: Spacing[3],
-                color: isDark ? Colors.gray[400] : Colors.white,
+                color: isDark ? Colors.white : Colors.white,
                 fontFamily: 'SecondaryFont-Regular',
               }}
             >

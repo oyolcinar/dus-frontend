@@ -160,7 +160,7 @@ function RootLayoutNav() {
       // card: theme === 'dark' ? '#1f2937' : '#ffffff',
       background: 'transparent',
       card: 'transparent',
-      text: theme === 'dark' ? '#ffffff' : '#1f2937',
+      text: theme === 'dark' ? '#1f2937' : '#1f2937',
     },
   };
 
@@ -191,9 +191,9 @@ function RootLayoutNav() {
                 headerShown: true,
                 title: 'Study',
                 headerStyle: {
-                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                  backgroundColor: theme === 'dark' ? '#ffffff' : '#ffffff',
                 },
-                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
+                headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
               }}
             />
             <Stack.Screen
@@ -202,9 +202,9 @@ function RootLayoutNav() {
                 headerShown: true,
                 title: 'Topic',
                 headerStyle: {
-                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                  backgroundColor: theme === 'dark' ? '#ffffff' : '#ffffff',
                 },
-                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
+                headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
               }}
             />
             <Stack.Screen
@@ -213,9 +213,9 @@ function RootLayoutNav() {
                 headerShown: true,
                 title: 'Lesson',
                 headerStyle: {
-                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                  backgroundColor: theme === 'dark' ? '#ffffff' : '#ffffff',
                 },
-                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
+                headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
               }}
             />
             <Stack.Screen
@@ -224,9 +224,9 @@ function RootLayoutNav() {
                 headerShown: true,
                 title: 'Quiz',
                 headerStyle: {
-                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                  backgroundColor: theme === 'dark' ? '#ffffff' : '#ffffff',
                 },
-                headerTintColor: theme === 'dark' ? '#ffffff' : '#1f2937',
+                headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
               }}
             />
           </Stack>

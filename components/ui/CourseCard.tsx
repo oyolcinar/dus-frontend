@@ -164,7 +164,7 @@ const CourseCard: React.FC<CourseCardProps> = ({
               <FontAwesome
                 name='book'
                 size={12}
-                color={isDark ? Colors.gray[400] : Colors.gray[600]}
+                color={isDark ? Colors.gray[600] : Colors.gray[600]}
               />
               <Text
                 style={[
@@ -186,7 +186,7 @@ const CourseCard: React.FC<CourseCardProps> = ({
               <FontAwesome
                 name='clock-o'
                 size={12}
-                color={isDark ? Colors.gray[400] : Colors.gray[600]}
+                color={isDark ? Colors.gray[600] : Colors.gray[600]}
               />
               <Text
                 style={[
@@ -208,7 +208,7 @@ const CourseCard: React.FC<CourseCardProps> = ({
               <FontAwesome
                 name='user'
                 size={12}
-                color={isDark ? Colors.gray[400] : Colors.gray[600]}
+                color={isDark ? Colors.gray[600] : Colors.gray[600]}
               />
               <Text
                 style={[

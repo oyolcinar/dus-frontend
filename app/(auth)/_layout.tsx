@@ -11,12 +11,12 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerStyle: {
-          backgroundColor: isDark ? Colors.gray[900] : Colors.gray[50],
+          backgroundColor: isDark ? Colors.gray[50] : Colors.gray[50],
         },
-        headerTintColor: isDark ? Colors.white : Colors.gray[900],
+        headerTintColor: isDark ? Colors.gray[900] : Colors.gray[900],
         headerShadowVisible: false,
         contentStyle: {
-          backgroundColor: isDark ? Colors.gray[900] : Colors.gray[50],
+          backgroundColor: isDark ? Colors.gray[50] : Colors.gray[50],
         },
       }}
     />

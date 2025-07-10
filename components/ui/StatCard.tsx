@@ -178,7 +178,7 @@ const StatCard: React.FC<StatCardProps> = ({
       style={[
         styles.container,
         containerPadding,
-        isDark ? styles.containerDark : styles.containerLight,
+        isDark ? styles.containerLight : styles.containerLight,
         {
           width: cardWidth,
           minHeight: size === 'small' ? 80 : size === 'large' ? 120 : 100,
@@ -192,7 +192,7 @@ const StatCard: React.FC<StatCardProps> = ({
       <Text
         style={[
           styles.title,
-          isDark ? styles.titleDark : styles.titleLight,
+          isDark ? styles.titleLight : styles.titleLight,
           customTitleStyle,
           titleStyle,
         ]}
@@ -206,7 +206,7 @@ const StatCard: React.FC<StatCardProps> = ({
         style={[
           styles.value,
           valueTextStyle,
-          isDark ? styles.valueDark : styles.valueLight,
+          isDark ? styles.valueLight : styles.valueLight,
           customValueStyle,
           valueStyle,
         ]}

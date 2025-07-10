@@ -611,6 +611,10 @@ export interface OpponentListItemProps {
   showStats?: boolean;
   animated?: boolean;
   challengeButtonVariant?: 'primary' | 'vibrant' | 'gradient';
+  fontFamily?: string;
+  userFontFamily?: string;
+  buttonFontFamily?: string;
+  winrateFontFamily?: string;
 }
 
 // NEW: Additional playful component types for your trivia app
@@ -805,6 +809,7 @@ export interface PlayfulTitleProps extends Omit<TitleProps, 'variant'> {
   shadowColor?: string;
   outlineColor?: string;
   letterSpacing?: number;
+  fontFamily?: string;
 }
 
 export interface GradientTextProps {

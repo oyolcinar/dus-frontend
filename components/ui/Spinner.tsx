@@ -53,7 +53,7 @@ const Spinner: React.FC<SpinnerProps> = ({
 
   // Use provided color or theme default
   const spinnerColor =
-    color || (isDark ? Colors.primary.light : Colors.primary.DEFAULT);
+    color || (isDark ? Colors.primary.DEFAULT : Colors.primary.DEFAULT);
 
   // If fullScreen, render in a centered container
   if (fullScreen) {
@@ -62,7 +62,7 @@ const Spinner: React.FC<SpinnerProps> = ({
         style={[
           styles.fullScreenContainer,
           isDark
-            ? styles.fullScreenContainerDark
+            ? styles.fullScreenContainerLight
             : styles.fullScreenContainerLight,
           style,
         ]}

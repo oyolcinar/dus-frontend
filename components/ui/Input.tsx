@@ -192,13 +192,13 @@ const Input: React.FC<InputProps> = ({
   const baseInputContainerStyle = hasCustomContainer
     ? {} // Don't apply default styles if custom container is provided
     : isDark
-    ? styles.inputContainerDark
+    ? styles.inputContainerLight
     : styles.inputContainerLight;
 
   const baseLabelStyle = hasCustomContainer
     ? {} // Don't apply default label styles if custom styling is used
     : isDark
-    ? styles.labelDark
+    ? styles.labelLight
     : styles.labelLight;
 
   // Merge styles safely
@@ -232,7 +232,7 @@ const Input: React.FC<InputProps> = ({
 
   const finalInputStyle = mergeStyles(
     styles.input,
-    hasCustomContainer ? {} : isDark ? styles.inputDark : styles.inputLight,
+    hasCustomContainer ? {} : isDark ? styles.inputLight : styles.inputLight,
     getInputPadding(),
     leftIcon ? styles.inputWithLeftIcon : null,
     displayRightIcon ? styles.inputWithRightIcon : null,
@@ -246,7 +246,7 @@ const Input: React.FC<InputProps> = ({
   const placeholderTextColor = hasCustomContainer
     ? Colors.gray[400]
     : isDark
-    ? Colors.gray[500]
+    ? Colors.gray[400]
     : Colors.gray[400];
 
   return (
@@ -263,7 +263,7 @@ const Input: React.FC<InputProps> = ({
                 hasCustomContainer
                   ? Colors.gray[500]
                   : isDark
-                  ? Colors.gray[400]
+                  ? Colors.gray[500]
                   : Colors.gray[500]
               }
             />
@@ -309,7 +309,7 @@ const Input: React.FC<InputProps> = ({
                 hasCustomContainer
                   ? Colors.gray[500]
                   : isDark
-                  ? Colors.gray[400]
+                  ? Colors.gray[500]
                   : Colors.gray[500]
               }
             />
@@ -324,7 +324,7 @@ const Input: React.FC<InputProps> = ({
             error
               ? styles.errorText
               : isDark
-              ? styles.helperTextDark
+              ? styles.helperTextLight
               : styles.helperTextLight,
           ]}
         >

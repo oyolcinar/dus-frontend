@@ -16,11 +16,11 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colorScheme === 'dark' ? '#d9c5e9' : '#FF7675',
+        tabBarActiveTintColor: colorScheme === 'dark' ? '#FF7675' : '#FF7675',
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colorScheme === 'dark' ? '#111827' : '#FFFFFF',
-          borderTopColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+          backgroundColor: colorScheme === 'dark' ? '#FFFFFF' : '#FFFFFF',
+          borderTopColor: colorScheme === 'dark' ? '#E5E7EB' : '#E5E7EB',
         },
       }}
     >

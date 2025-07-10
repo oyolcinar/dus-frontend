@@ -119,7 +119,7 @@ const QuizCard: React.FC<QuizCardProps> = ({
     <TouchableOpacity
       style={[
         styles.container,
-        isDark ? styles.containerDark : styles.containerLight,
+        isDark ? styles.containerLight : styles.containerLight,
         style,
       ]}
       onPress={onPress}
@@ -133,7 +133,7 @@ const QuizCard: React.FC<QuizCardProps> = ({
           <Text
             style={[
               styles.title,
-              isDark ? styles.titleDark : styles.titleLight,
+              isDark ? styles.titleLight : styles.titleLight,
               titleStyle,
             ]}
             numberOfLines={2}
@@ -145,7 +145,7 @@ const QuizCard: React.FC<QuizCardProps> = ({
             <Text
               style={[
                 styles.description,
-                isDark ? styles.descriptionDark : styles.descriptionLight,
+                isDark ? styles.descriptionLight : styles.descriptionLight,
               ]}
               numberOfLines={2}
             >
@@ -161,13 +161,13 @@ const QuizCard: React.FC<QuizCardProps> = ({
           <FontAwesome
             name='question-circle'
             size={14}
-            color={isDark ? Colors.gray[400] : Colors.gray[600]}
+            color={isDark ? Colors.gray[600] : Colors.gray[600]}
             style={styles.metadataIcon}
           />
           <Text
             style={[
               styles.metadataText,
-              isDark ? styles.metadataTextDark : styles.metadataTextLight,
+              isDark ? styles.metadataTextLight : styles.metadataTextLight,
             ]}
           >
             {questionCount} Questions
@@ -179,13 +179,13 @@ const QuizCard: React.FC<QuizCardProps> = ({
             <FontAwesome
               name='clock-o'
               size={14}
-              color={isDark ? Colors.gray[400] : Colors.gray[600]}
+              color={isDark ? Colors.gray[600] : Colors.gray[600]}
               style={styles.metadataIcon}
             />
             <Text
               style={[
                 styles.metadataText,
-                isDark ? styles.metadataTextDark : styles.metadataTextLight,
+                isDark ? styles.metadataTextLight : styles.metadataTextLight,
               ]}
             >
               {estimatedTime} min
@@ -221,7 +221,7 @@ const QuizCard: React.FC<QuizCardProps> = ({
           <Text
             style={[
               styles.progressText,
-              isDark ? styles.progressTextDark : styles.progressTextLight,
+              isDark ? styles.progressTextLight : styles.progressTextLight,
             ]}
           >
             {Math.round(progress)}% Complete

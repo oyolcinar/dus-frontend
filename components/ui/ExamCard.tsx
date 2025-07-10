@@ -177,7 +177,7 @@ const ExamCard: React.FC<ExamCardProps> = ({
             <FontAwesome
               name='calendar'
               size={14}
-              color={isDark ? Colors.gray[400] : Colors.gray[600]}
+              color={isDark ? Colors.gray[600] : Colors.gray[600]}
             />
             <Text
               style={[
@@ -200,7 +200,7 @@ const ExamCard: React.FC<ExamCardProps> = ({
             <FontAwesome
               name='hourglass-o'
               size={14}
-              color={isDark ? Colors.gray[400] : Colors.gray[600]}
+              color={isDark ? Colors.gray[600] : Colors.gray[600]}
             />
             <Text
               style={[
@@ -223,7 +223,7 @@ const ExamCard: React.FC<ExamCardProps> = ({
             <FontAwesome
               name='list'
               size={14}
-              color={isDark ? Colors.gray[400] : Colors.gray[600]}
+              color={isDark ? Colors.gray[600] : Colors.gray[600]}
             />
             <Text
               style={[
@@ -246,7 +246,7 @@ const ExamCard: React.FC<ExamCardProps> = ({
             <FontAwesome
               name='clock-o'
               size={14}
-              color={isDark ? Colors.gray[400] : Colors.gray[600]}
+              color={isDark ? Colors.gray[600] : Colors.gray[600]}
             />
             <Text
               style={[

@@ -45,7 +45,7 @@ const Paragraph: React.FC<ParagraphProps> = ({
     {
       fontSize,
       textAlign: align,
-      color: color || (isDark ? Colors.gray[300] : Colors.gray[700]),
+      color: color || (isDark ? Colors.gray[700] : Colors.gray[700]),
     },
     style,
   ];

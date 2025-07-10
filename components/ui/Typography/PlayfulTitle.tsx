@@ -26,6 +26,7 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
   letterSpacing = 0,
   animated = false,
   wiggleOnMount = false,
+  fontFamily,
   ...props
 }) => {
   const colorScheme = useColorScheme();
@@ -141,7 +142,8 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
 
   const getVariantStyles = () => {
     // Default color based on theme if not provided
-    const defaultColor = color || (isDark ? Colors.white : Colors.gray[800]);
+    const defaultColor =
+      color || (isDark ? Colors.gray[800] : Colors.gray[800]);
 
     switch (variant) {
       case 'bouncy':
@@ -154,10 +156,10 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
       case 'gradient':
         return {
           color: isDark
-            ? Colors.white
+            ? Colors.vibrant?.blue || Colors.primary.DEFAULT
             : Colors.vibrant?.blue || Colors.primary.DEFAULT,
           textShadowColor: isDark
-            ? 'rgba(255, 255, 255, 0.3)'
+            ? 'rgba(55, 66, 250, 0.3)'
             : 'rgba(55, 66, 250, 0.3)',
           textShadowOffset: { width: 0, height: 2 },
           textShadowRadius: 6,
@@ -167,7 +169,7 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
           color: defaultColor,
           textShadowColor:
             shadowColor ||
-            (isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)'),
+            (isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.3)'),
           textShadowOffset: { width: 2, height: 2 },
           textShadowRadius: 4,
         };
@@ -175,7 +177,7 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
         return {
           color: defaultColor,
           textShadowColor:
-            outlineColor || (isDark ? Colors.gray[800] : Colors.white),
+            outlineColor || (isDark ? Colors.white : Colors.white),
           textShadowOffset: { width: 1, height: 1 },
           textShadowRadius: 0,
         };
@@ -198,7 +200,7 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
       case 'purple':
         return {
           color: isDark
-            ? Colors.vibrant?.purpleLight || Colors.vibrant?.purple || '#A855F7'
+            ? Colors.white || Colors.primary.DEFAULT
             : Colors.white || Colors.primary.DEFAULT,
           // textShadowColor: isDark
           //   ? 'rgba(168, 85, 247, 0.4)'
@@ -234,6 +236,7 @@ const PlayfulTitle: React.FC<PlayfulTitleProps> = ({
     levelStyles,
     variantStyles,
     {
+      fontFamily,
       textAlign: align,
       letterSpacing,
     },

@@ -244,7 +244,7 @@ export default function RegisterScreen() {
                 icon='apple'
                 onPress={() => handleOAuthSignUp('apple')}
                 variant='vibrant'
-                gradient={isDarkMode ? 'appleLight' : 'appleDark'}
+                gradient={isDarkMode ? 'appleDark' : 'appleDark'}
                 disabled={isOAuthLoading !== null || isLoading}
                 size='medium'
                 style={{ marginBottom: 12 }}

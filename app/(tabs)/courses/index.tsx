@@ -201,7 +201,7 @@ export default function CoursesScreen() {
           selectedFilter === filter
             ? VIBRANT_COLORS.purple
             : isDark
-            ? Colors.gray[700]
+            ? Colors.white
             : Colors.white,
         alignItems: 'center',
         justifyContent: 'center',
@@ -217,7 +217,7 @@ export default function CoursesScreen() {
             selectedFilter === filter
               ? Colors.white
               : isDark
-              ? Colors.white
+              ? Colors.gray[700]
               : Colors.gray[700],
           textAlign: 'center',
           fontFamily: 'SecondaryFont-Regular',
@@ -289,7 +289,7 @@ export default function CoursesScreen() {
                   Kurslar
                 </PlayfulTitle>
                 <Paragraph
-                  color={isDark ? Colors.gray[400] : Colors.gray[100]}
+                  color={isDark ? Colors.gray[100] : Colors.gray[100]}
                   style={{
                     fontFamily: 'SecondaryFont-Regular',
                   }}
@@ -329,12 +329,12 @@ export default function CoursesScreen() {
           >
             <ActivityIndicator
               size='large'
-              color={isDark ? Colors.primary.DEFAULT : Colors.vibrant.coral}
+              color={isDark ? Colors.vibrant.coral : Colors.vibrant.coral}
             />
             <Text
               style={{
                 marginTop: Spacing[3],
-                color: isDark ? Colors.gray[400] : Colors.white,
+                color: isDark ? Colors.white : Colors.white,
                 fontFamily: 'SecondaryFont-Regular',
               }}
             >
@@ -412,7 +412,7 @@ export default function CoursesScreen() {
                                   globalStyles.fontSemibold,
                                   {
                                     color: isDark
-                                      ? Colors.white
+                                      ? Colors.gray[800]
                                       : Colors.gray[800],
                                     flex: 1,
                                     marginRight: Spacing[2],
@@ -462,7 +462,7 @@ export default function CoursesScreen() {
                                   globalStyles.textPrimary,
                                   {
                                     color: isDark
-                                      ? Colors.gray[400]
+                                      ? Colors.gray[500]
                                       : Colors.gray[500],
 
                                     // marginBottom: 1,
@@ -479,9 +479,7 @@ export default function CoursesScreen() {
                               progress={course.progress}
                               height={6}
                               width='100%'
-                              trackColor={
-                                isDark ? Colors.gray[200] : Colors.white
-                              }
+                              trackColor={isDark ? Colors.white : Colors.white}
                               progressColor={getDifficultyColor(
                                 course.difficulty,
                               )}
@@ -504,7 +502,7 @@ export default function CoursesScreen() {
                                   name='users'
                                   size={12}
                                   color={
-                                    isDark ? Colors.gray[200] : Colors.gray[800]
+                                    isDark ? Colors.gray[800] : Colors.gray[800]
                                   }
                                   style={{ marginRight: Spacing[1] }}
                                 />
@@ -513,7 +511,7 @@ export default function CoursesScreen() {
                                     globalStyles.textXs,
                                     {
                                       color: isDark
-                                        ? Colors.gray[200]
+                                        ? Colors.gray[800]
                                         : Colors.gray[800],
                                     },
                                   ]}
@@ -526,7 +524,7 @@ export default function CoursesScreen() {
                                 name='chevron-right'
                                 size={16}
                                 color={
-                                  isDark ? Colors.gray[200] : Colors.gray[800]
+                                  isDark ? Colors.gray[800] : Colors.gray[800]
                                 }
                               />
                             </Row>

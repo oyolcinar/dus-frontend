@@ -38,7 +38,7 @@ const Container: React.FC<ContainerProps> = ({
     <View
       style={[
         styles.container,
-        isDark ? styles.containerDark : styles.containerLight,
+        isDark ? styles.containerLight : styles.containerLight,
         paddingStyle,
         center && styles.center,
         style,

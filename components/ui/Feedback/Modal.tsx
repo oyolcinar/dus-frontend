@@ -68,13 +68,43 @@ export interface ModalProps {
   style?: any;
 
   /**
+   * Font family for the modal title
+   */
+  titleFontFamily?: string;
+
+  /**
+   * Font family for the modal content
+   */
+  contentFontFamily?: string;
+
+  /**
+   * Font family for the modal footer
+   */
+  footerFontFamily?: string;
+
+  /**
+   * Custom style for the title text
+   */
+  titleStyle?: any;
+
+  /**
+   * Custom style for the content container
+   */
+  contentStyle?: any;
+
+  /**
+   * Custom style for the footer container
+   */
+  footerStyle?: any;
+
+  /**
    * Test ID for testing
    */
   testID?: string;
 }
 
 /**
- * Modal component for displaying content in an overlay
+ * Modal component for displaying content in an overlay with customizable font families
  */
 const Modal: React.FC<ModalProps> = ({
   visible,
@@ -86,6 +116,12 @@ const Modal: React.FC<ModalProps> = ({
   height,
   closeOnBackdropPress = true,
   style,
+  titleFontFamily = 'SecondaryFont-Bold',
+  contentFontFamily = 'SecondaryFont-Regular',
+  footerFontFamily = 'SecondaryFont-Regular',
+  titleStyle,
+  contentStyle,
+  footerStyle,
   testID,
 }) => {
   const colorScheme = useColorScheme();
@@ -125,7 +161,7 @@ const Modal: React.FC<ModalProps> = ({
                 styles.modalContainer,
                 applyDarkMode(
                   isDark,
-                  { backgroundColor: Colors.white },
+                  { backgroundColor: Colors.gray[800] },
                   { backgroundColor: Colors.gray[800] },
                 ),
                 { width: modalWidth, height: defaultHeight },
@@ -138,11 +174,15 @@ const Modal: React.FC<ModalProps> = ({
                   <Text
                     style={[
                       styles.title,
+                      {
+                        fontFamily: titleFontFamily,
+                      },
                       applyDarkMode(
                         isDark,
-                        { color: Colors.gray[900] },
+                        { color: Colors.gray[200] },
                         { color: Colors.white },
                       ),
+                      titleStyle,
                     ]}
                   >
                     {title}
@@ -154,17 +194,39 @@ const Modal: React.FC<ModalProps> = ({
                     <FontAwesome
                       name='times'
                       size={20}
-                      color={isDark ? Colors.gray[400] : Colors.gray[600]}
+                      color={isDark ? Colors.gray[200] : Colors.gray[200]}
                     />
                   </TouchableOpacity>
                 </View>
               )}
 
               {/* Modal Content */}
-              <View style={styles.content}>{children}</View>
+              <View
+                style={[
+                  styles.content,
+                  {
+                    fontFamily: contentFontFamily,
+                  },
+                  contentStyle,
+                ]}
+              >
+                {children}
+              </View>
 
               {/* Modal Footer */}
-              {footer && <View style={styles.footer}>{footer}</View>}
+              {footer && (
+                <View
+                  style={[
+                    styles.footer,
+                    {
+                      fontFamily: footerFontFamily,
+                    },
+                    footerStyle,
+                  ]}
+                >
+                  {footer}
+                </View>
+              )}
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -176,9 +238,11 @@ const Modal: React.FC<ModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start', // Changed from center
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingTop: 60, // Push modal down from top
+    paddingHorizontal: 20,
   },
   modalContainer: {
     borderRadius: BorderRadius.xl,
@@ -188,6 +252,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
     maxHeight: '85%',
+    width: '100%',
+    maxWidth: 500,
+    backgroundColor: Colors.vibrant.purple,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -196,18 +264,20 @@ const styles = StyleSheet.create({
     padding: Spacing[4],
     borderBottomWidth: 1,
     borderBottomColor: Colors.gray[200],
+    backgroundColor: Colors.vibrant.purple,
   },
   title: {
     fontSize: FontSizes.lg,
     fontWeight: '600',
     flex: 1,
+    color: Colors.gray[200],
   },
   closeButton: {
     padding: Spacing[2],
   },
   content: {
-    padding: Spacing[4],
-    flex: 1,
+    backgroundColor: Colors.white,
+    // Don't add padding here, let children handle it
   },
   footer: {
     padding: Spacing[4],
@@ -217,6 +287,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
     gap: Spacing[2],
+    backgroundColor: Colors.white,
   },
 });
 

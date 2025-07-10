@@ -249,7 +249,7 @@ export default function LoginScreen() {
                 icon='apple'
                 onPress={() => handleOAuthLogin('apple')}
                 variant='vibrant'
-                gradient={isDarkMode ? 'appleLight' : 'appleDark'}
+                gradient={isDarkMode ? 'appleDark' : 'appleDark'}
                 disabled={isOAuthLoading !== null || isLoading}
                 size='medium'
                 style={{ marginBottom: 12 }}

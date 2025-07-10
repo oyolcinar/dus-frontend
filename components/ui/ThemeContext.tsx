@@ -112,12 +112,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
 
   // Define colors based on current theme
   const colors = {
-    background: isDark ? Colors.gray[900] : Colors.white,
-    text: isDark ? Colors.white : Colors.gray[900],
+    background: isDark ? Colors.white : Colors.white,
+    text: isDark ? Colors.gray[900] : Colors.gray[900],
     primary: Colors.primary.DEFAULT,
     secondary: Colors.secondary.DEFAULT,
-    border: isDark ? Colors.gray[700] : Colors.gray[200],
-    card: isDark ? Colors.gray[800] : Colors.white,
+    border: isDark ? Colors.gray[200] : Colors.gray[200],
+    card: isDark ? Colors.white : Colors.white,
     error: Colors.error,
     success: Colors.success,
     warning: Colors.warning,

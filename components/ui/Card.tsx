@@ -16,11 +16,11 @@ export const Card: React.FC<CardProps> = ({ title, children, style }) => {
 
   return (
     <View
-      style={[styles.card, isDark ? styles.cardDark : styles.cardLight, style]}
+      style={[styles.card, isDark ? styles.cardLight : styles.cardLight, style]}
     >
       {title && (
         <Text
-          style={[styles.title, isDark ? styles.titleDark : styles.titleLight]}
+          style={[styles.title, isDark ? styles.titleLight : styles.titleLight]}
         >
           {title}
         </Text>

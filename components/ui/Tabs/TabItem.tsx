@@ -67,9 +67,9 @@ const TabItem: React.FC<TabItemProps> = ({
 
   // Determine the color scheme
   const activeColor = Colors.primary.DEFAULT;
-  const inactiveColor = isDark ? Colors.gray[400] : Colors.gray[600];
-  const activeTextColor = isDark ? Colors.white : Colors.gray[900];
-  const inactiveTextColor = isDark ? Colors.gray[400] : Colors.gray[600];
+  const inactiveColor = isDark ? Colors.gray[600] : Colors.gray[600];
+  const activeTextColor = isDark ? Colors.gray[900] : Colors.gray[900];
+  const inactiveTextColor = isDark ? Colors.gray[600] : Colors.gray[600];
   const activeIndicatorColor = activeColor;
 
   return (

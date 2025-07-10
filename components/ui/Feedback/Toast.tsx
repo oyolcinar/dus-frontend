@@ -85,35 +85,35 @@ const Toast: React.FC<ToastProps> = ({
   switch (type) {
     case 'success':
       backgroundColor = isDark
-        ? 'rgba(33, 185, 88, 0.9)'
+        ? 'rgba(33, 185, 88, 0.15)'
         : 'rgba(33, 185, 88, 0.15)';
       borderColor = Colors.success;
-      textColor = isDark ? Colors.white : Colors.gray[900];
+      textColor = isDark ? Colors.gray[900] : Colors.gray[900];
       iconName = 'check-circle';
       break;
     case 'warning':
       backgroundColor = isDark
-        ? 'rgba(251, 208, 0, 0.9)'
+        ? 'rgba(251, 208, 0, 0.15)'
         : 'rgba(251, 208, 0, 0.15)';
       borderColor = Colors.warning;
-      textColor = isDark ? Colors.white : Colors.gray[900];
+      textColor = isDark ? Colors.gray[900] : Colors.gray[900];
       iconName = 'exclamation-triangle';
       break;
     case 'error':
       backgroundColor = isDark
-        ? 'rgba(236, 28, 36, 0.9)'
+        ? 'rgba(236, 28, 36, 0.15)'
         : 'rgba(236, 28, 36, 0.15)';
       borderColor = Colors.error;
-      textColor = isDark ? Colors.white : Colors.gray[900];
+      textColor = isDark ? Colors.gray[900] : Colors.gray[900];
       iconName = 'exclamation-circle';
       break;
     case 'info':
     default:
       backgroundColor = isDark
-        ? 'rgba(0, 183, 239, 0.9)'
+        ? 'rgba(0, 183, 239, 0.15)'
         : 'rgba(0, 183, 239, 0.15)';
       borderColor = Colors.info;
-      textColor = isDark ? Colors.white : Colors.gray[900];
+      textColor = isDark ? Colors.gray[900] : Colors.gray[900];
       iconName = 'info-circle';
   }
 
@@ -192,7 +192,7 @@ const Toast: React.FC<ToastProps> = ({
         <FontAwesome
           name='times'
           size={16}
-          color={isDark ? Colors.gray[400] : Colors.gray[600]}
+          color={isDark ? Colors.gray[600] : Colors.gray[600]}
         />
       </TouchableOpacity>
     </Animated.View>

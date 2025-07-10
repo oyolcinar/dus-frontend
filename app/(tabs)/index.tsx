@@ -504,7 +504,7 @@ export default function HomeScreen() {
             style={{
               fontSize: 18,
               fontWeight: 'bold',
-              color: isDark ? Colors.white : Colors.gray[800],
+              color: isDark ? Colors.gray[800] : Colors.gray[800],
               textAlign: 'center',
               marginBottom: Spacing[2],
               fontFamily: 'SecondaryFont-Bold',
@@ -574,7 +574,7 @@ export default function HomeScreen() {
           tintColor={Colors.primary.DEFAULT}
           colors={[Colors.primary.DEFAULT]}
           title='Yenileniyor...'
-          titleColor={isDark ? Colors.white : Colors.gray[600]}
+          titleColor={isDark ? Colors.gray[600] : Colors.gray[600]}
         />
       }
     >
@@ -599,7 +599,7 @@ export default function HomeScreen() {
               Merhaba {userData?.username || 'Öğrenci'}!
             </PlayfulTitle>
             <Paragraph
-              color={isDark ? Colors.white : Colors.gray[100]}
+              color={isDark ? Colors.gray[100] : Colors.gray[100]}
               style={{
                 fontFamily: 'SecondaryFont-Regular',
               }}
@@ -616,7 +616,7 @@ export default function HomeScreen() {
                     flexDirection: 'row',
                     alignItems: 'center',
                     backgroundColor: isDark
-                      ? Colors.vibrant.purpleDark
+                      ? Colors.vibrant.orange
                       : Colors.vibrant.orange,
                     borderRadius: 999,
                     paddingHorizontal: Spacing[3],
@@ -629,14 +629,14 @@ export default function HomeScreen() {
                     name='fire'
                     size={16}
                     color={
-                      isDark ? Colors.secondary.DEFAULT : Colors.secondary.light
+                      isDark ? Colors.secondary.light : Colors.secondary.light
                     }
                   />
                   <Text
                     style={{
                       marginLeft: Spacing[2],
                       fontWeight: '500',
-                      color: isDark ? Colors.white : Colors.gray[800],
+                      color: isDark ? Colors.gray[800] : Colors.gray[800],
                       fontSize: 14,
                       fontFamily: 'SecondaryFont-Bold',
                     }}
@@ -660,12 +660,12 @@ export default function HomeScreen() {
         >
           <ActivityIndicator
             size='large'
-            color={isDark ? Colors.primary.DEFAULT : Colors.vibrant.coral}
+            color={isDark ? Colors.vibrant.coral : Colors.vibrant.coral}
           />
           <Text
             style={{
               marginTop: Spacing[4],
-              color: isDark ? Colors.gray[400] : Colors.white,
+              color: isDark ? Colors.white : Colors.white,
               fontFamily: 'SecondaryFont-Regular',
               fontSize: 16,
             }}
@@ -675,7 +675,7 @@ export default function HomeScreen() {
           <Text
             style={{
               marginTop: Spacing[2],
-              color: isDark ? Colors.gray[500] : Colors.gray[200],
+              color: isDark ? Colors.gray[200] : Colors.gray[200],
               fontFamily: 'SecondaryFont-Regular',
               fontSize: 14,
               textAlign: 'center',
@@ -705,14 +705,14 @@ export default function HomeScreen() {
                       }`
                     : '0/0'
                 }
-                color={isDark ? VIBRANT_COLORS.purple : VIBRANT_COLORS.yellow}
+                color={isDark ? VIBRANT_COLORS.yellow : VIBRANT_COLORS.yellow}
                 titleFontFamily='SecondaryFont-Bold'
               />
               <StatCard
                 icon='check-circle'
                 title='Çözülen Sorular'
                 value={(analyticsData?.totalQuestionsAnswered || 0).toString()}
-                color={isDark ? VIBRANT_COLORS.mint : VIBRANT_COLORS.green}
+                color={isDark ? VIBRANT_COLORS.green : VIBRANT_COLORS.green}
                 titleFontFamily='SecondaryFont-Bold'
               />
               <StatCard
@@ -739,7 +739,7 @@ export default function HomeScreen() {
                 courses.map((course) => (
                   <AppLink
                     key={course.course_id}
-                    href={`/courses/${course.course_id}`}
+                    href={`/(tabs)/courses/${course.course_id}`}
                   >
                     <BouncyButton
                       style={{ marginBottom: Spacing[3] }}
@@ -751,7 +751,7 @@ export default function HomeScreen() {
                           alignItems: 'center',
                           padding: Spacing[3],
                           backgroundColor: isDark
-                            ? Colors.vibrant.purpleDark
+                            ? Colors.vibrant.orangeLight
                             : Colors.vibrant.orangeLight,
                           borderRadius: 8,
                         }}
@@ -762,7 +762,7 @@ export default function HomeScreen() {
                             height: 40,
                             borderRadius: 20,
                             backgroundColor: isDark
-                              ? Colors.white
+                              ? VIBRANT_COLORS.purple
                               : VIBRANT_COLORS.purple,
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -772,16 +772,16 @@ export default function HomeScreen() {
                           <FontAwesome
                             name={course.iconName as any}
                             size={20}
-                            color={
-                              isDark ? Colors.vibrant.purpleDark : Colors.white
-                            }
+                            color={isDark ? Colors.white : Colors.white}
                           />
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text
                             style={{
                               fontWeight: '600',
-                              color: isDark ? Colors.white : Colors.gray[800],
+                              color: isDark
+                                ? Colors.gray[800]
+                                : Colors.gray[800],
                               marginBottom: Spacing[1],
                               fontFamily: 'SecondaryFont-Bold',
                             }}
@@ -798,7 +798,7 @@ export default function HomeScreen() {
                               style={{
                                 fontSize: 12,
                                 color: isDark
-                                  ? Colors.gray[200]
+                                  ? Colors.gray[700]
                                   : Colors.gray[700],
                                 marginBottom: Spacing[1],
                                 fontFamily: 'SecondaryFont-Regular',
@@ -811,9 +811,7 @@ export default function HomeScreen() {
                             progress={course.progress}
                             height={8}
                             width='100%'
-                            trackColor={
-                              isDark ? Colors.gray[200] : Colors.white
-                            }
+                            trackColor={isDark ? Colors.white : Colors.white}
                             progressColor={VIBRANT_COLORS.purple}
                             style={{ borderRadius: 4 }}
                             animated
@@ -822,7 +820,7 @@ export default function HomeScreen() {
                         <FontAwesome
                           name='chevron-right'
                           size={16}
-                          color={isDark ? Colors.gray[200] : Colors.gray[800]}
+                          color={isDark ? Colors.gray[800] : Colors.gray[800]}
                         />
                       </TouchableOpacity>
                     </BouncyButton>
@@ -841,9 +839,7 @@ export default function HomeScreen() {
                   }}
                   buttonFontFamily='PrimaryFont'
                   style={{
-                    backgroundColor: isDark
-                      ? Colors.primary.dark
-                      : Colors.white,
+                    backgroundColor: isDark ? Colors.white : Colors.white,
                   }}
                 />
               )}
@@ -882,9 +878,7 @@ export default function HomeScreen() {
                           flexDirection: 'row',
                           alignItems: 'center',
                           padding: Spacing[3],
-                          backgroundColor: isDark
-                            ? Colors.vibrant.purpleDark
-                            : Colors.white,
+                          backgroundColor: isDark ? Colors.white : Colors.white,
                           borderRadius: 8,
                         }}
                       >
@@ -894,7 +888,7 @@ export default function HomeScreen() {
                             height: 40,
                             borderRadius: 20,
                             backgroundColor: isDark
-                              ? Colors.white
+                              ? VIBRANT_COLORS.blue
                               : VIBRANT_COLORS.blue,
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -904,7 +898,7 @@ export default function HomeScreen() {
                           <FontAwesome
                             name='question-circle'
                             size={20}
-                            color={isDark ? VIBRANT_COLORS.blue : Colors.white}
+                            color={isDark ? Colors.white : Colors.white}
                           />
                         </View>
                         <View style={{ flex: 1 }}>
@@ -912,7 +906,7 @@ export default function HomeScreen() {
                             style={{
                               fontWeight: '600',
                               color: isDark
-                                ? Colors.white
+                                ? Colors.vibrant.purpleDark
                                 : Colors.vibrant.purpleDark,
                               marginBottom: Spacing[1],
                               fontFamily: 'SecondaryFont-Bold',
@@ -930,7 +924,7 @@ export default function HomeScreen() {
                               style={{
                                 fontSize: 12,
                                 color: isDark
-                                  ? Colors.gray[200]
+                                  ? Colors.gray[500]
                                   : Colors.gray[500],
                                 fontFamily: 'SecondaryFont-Regular',
                               }}
@@ -960,7 +954,7 @@ export default function HomeScreen() {
                           size={16}
                           color={
                             isDark
-                              ? Colors.gray[200]
+                              ? Colors.vibrant.purpleLight
                               : Colors.vibrant.purpleLight
                           }
                         />
@@ -976,9 +970,7 @@ export default function HomeScreen() {
                   buttonFontFamily='PrimaryFont'
                   message='Testler sekmesinden testlere erişebilirsiniz.'
                   style={{
-                    backgroundColor: isDark
-                      ? Colors.vibrant.purpleDark
-                      : Colors.white,
+                    backgroundColor: isDark ? Colors.white : Colors.white,
                   }}
                 />
               )}
@@ -1007,7 +999,10 @@ export default function HomeScreen() {
             >
               {activeDuels.length > 0 ? (
                 activeDuels.map((duel) => (
-                  <AppLink key={duel.duel_id} href={`/duels/${duel.duel_id}`}>
+                  <AppLink
+                    key={duel.duel_id}
+                    href={`/(tabs)/duels/${duel.duel_id}`}
+                  >
                     <BouncyButton
                       style={{ marginBottom: Spacing[3] }}
                       onPress={() => {}}
@@ -1017,9 +1012,7 @@ export default function HomeScreen() {
                           flexDirection: 'row',
                           alignItems: 'center',
                           padding: Spacing[3],
-                          backgroundColor: isDark
-                            ? Colors.vibrant.purpleDark
-                            : Colors.white,
+                          backgroundColor: isDark ? Colors.white : Colors.white,
                           borderRadius: 8,
                         }}
                       >
@@ -1027,7 +1020,9 @@ export default function HomeScreen() {
                           name={getOpponentAvatarInitial(duel)}
                           size='md'
                           bgColor={
-                            isDark ? Colors.white : VIBRANT_COLORS.orange
+                            isDark
+                              ? VIBRANT_COLORS.orange
+                              : VIBRANT_COLORS.orange
                           }
                           borderGlow
                           animated
@@ -1037,7 +1032,7 @@ export default function HomeScreen() {
                             style={{
                               fontWeight: '600',
                               color: isDark
-                                ? Colors.white
+                                ? Colors.vibrant.purpleDark
                                 : Colors.vibrant.purpleDark,
                               marginBottom: Spacing[1],
                               fontFamily: 'SecondaryFont-Bold',
@@ -1060,7 +1055,7 @@ export default function HomeScreen() {
                           size={16}
                           color={
                             isDark
-                              ? Colors.gray[200]
+                              ? Colors.vibrant.purpleLight
                               : Colors.vibrant.purpleLight
                           }
                         />
@@ -1077,13 +1072,11 @@ export default function HomeScreen() {
                   message='Arkadaşlarınızı düelloya davet edin ve rekabeti başlatın.'
                   actionButton={{
                     title: 'Düello Başlat',
-                    onPress: () => router.push('/duel/new' as any),
+                    onPress: () => router.push('/(tabs)/duels/new' as any),
                     variant: 'secondary',
                   }}
                   style={{
-                    backgroundColor: isDark
-                      ? Colors.vibrant.purpleDark
-                      : Colors.white,
+                    backgroundColor: isDark ? Colors.white : Colors.white,
                   }}
                 />
               )}
@@ -1128,7 +1121,7 @@ export default function HomeScreen() {
                             height: 48,
                             borderRadius: 24,
                             backgroundColor: isDark
-                              ? Colors.white
+                              ? VIBRANT_COLORS.yellow
                               : VIBRANT_COLORS.yellow,
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -1138,9 +1131,7 @@ export default function HomeScreen() {
                           <FontAwesome
                             name={getAchievementIcon(achievement)}
                             size={24}
-                            color={
-                              isDark ? VIBRANT_COLORS.yellow : Colors.white
-                            }
+                            color={isDark ? Colors.white : Colors.white}
                           />
                         </View>
                       </FloatingElement>
@@ -1149,7 +1140,7 @@ export default function HomeScreen() {
                           fontSize: 12,
                           textAlign: 'center',
                           color: isDark
-                            ? Colors.white
+                            ? Colors.vibrant.purpleDark
                             : Colors.vibrant.purpleDark,
                           fontFamily: 'SecondaryFont-Regular',
                         }}
@@ -1166,9 +1157,7 @@ export default function HomeScreen() {
                     buttonFontFamily='PrimaryFont'
                     message='Daha fazla çalışıkça başarılar kazanacaksınız.'
                     style={{
-                      backgroundColor: isDark
-                        ? Colors.vibrant.purpleDark
-                        : Colors.white,
+                      backgroundColor: isDark ? Colors.white : Colors.white,
                     }}
                   />
                 )}
@@ -1212,7 +1201,7 @@ export default function HomeScreen() {
                   alignItems: 'center',
                   padding: Spacing[6],
                   backgroundColor: isDark
-                    ? 'rgba(255,255,255,0.05)'
+                    ? 'rgba(0,0,0,0.05)'
                     : 'rgba(0,0,0,0.05)',
                   borderRadius: 12,
                   marginTop: Spacing[4],
@@ -1226,7 +1215,7 @@ export default function HomeScreen() {
                 />
                 <Text
                   style={{
-                    color: isDark ? Colors.gray[300] : Colors.gray[600],
+                    color: isDark ? Colors.gray[600] : Colors.gray[600],
                     fontFamily: 'SecondaryFont-Regular',
                     textAlign: 'center',
                     marginBottom: Spacing[4],

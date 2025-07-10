@@ -202,12 +202,12 @@ const PlayfulCard: React.FC<CardProps> = ({
     const baseBackgroundColor = isDark
       ? Colors.white
       : Colors.vibrant?.purpleDark;
-    const baseBorderColor = isDark ? Colors.gray[700] : Colors.gray[200];
+    const baseBorderColor = isDark ? Colors.gray[200] : Colors.gray[200];
     const glassBg = isDark
-      ? 'rgba(255, 255, 255, 0.1)'
+      ? 'rgba(255, 255, 255, 0.15)'
       : 'rgba(255, 255, 255, 0.15)';
     const glassBorder = isDark
-      ? 'rgba(255, 255, 255, 0.2)'
+      ? 'rgba(255, 255, 255, 0.3)'
       : 'rgba(255, 255, 255, 0.3)';
 
     switch (variant) {
@@ -220,7 +220,7 @@ const PlayfulCard: React.FC<CardProps> = ({
       case 'outlined':
         return {
           backgroundColor: baseBackgroundColor,
-          borderColor: isDark ? Colors.gray[600] : Colors.gray[300],
+          borderColor: isDark ? Colors.gray[300] : Colors.gray[300],
           borderWidth: 1,
           gradient: null,
         };

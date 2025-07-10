@@ -80,7 +80,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
   const isDark = colorScheme === 'dark';
 
   const iconColorValue =
-    iconColor || (isDark ? Colors.white : Colors.gray[400]);
+    iconColor || (isDark ? Colors.gray[400] : Colors.gray[400]);
 
   const primaryButtonStyle = [
     styles.primaryButton,
@@ -94,7 +94,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
     <View
       style={[
         styles.container,
-        isDark ? styles.containerDark : styles.containerLight,
+        isDark ? styles.containerLight : styles.containerLight,
         style,
       ]}
       testID={testID}
@@ -109,7 +109,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
       <Text
         style={[
           styles.title,
-          isDark ? styles.titleDark : styles.titleLight,
+          isDark ? styles.titleLight : styles.titleLight,
           titleFont && { fontFamily: titleFont },
           titleStyle,
         ]}
@@ -120,7 +120,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
       <Text
         style={[
           styles.message,
-          isDark ? styles.messageDark : styles.messageLight,
+          isDark ? styles.messageLight : styles.messageLight,
           messageFont && { fontFamily: messageFont },
           messageStyle,
         ]}

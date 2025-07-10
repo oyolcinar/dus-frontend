@@ -406,8 +406,8 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
         <Svg height='40' width='40' viewBox='0 0 100 100'>
           <Path
             d='M 50 0 L 20 50 L 80 50 Z'
-            fill={pointerColor || (isDark ? '#ffeb3b' : '#9c27b0')}
-            stroke={isDark ? '#333' : '#fff'}
+            fill={pointerColor || (isDark ? '#9c27b0' : '#9c27b0')}
+            stroke={isDark ? '#fff' : '#fff'}
             strokeWidth='5'
           />
         </Svg>

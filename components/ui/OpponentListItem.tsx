@@ -22,6 +22,10 @@ export default function OpponentListItem({
   onChallenge,
   style,
   testID,
+  fontFamily,
+  userFontFamily,
+  winrateFontFamily,
+  buttonFontFamily,
 }: OpponentListItemProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -64,6 +68,7 @@ export default function OpponentListItem({
         title='Meydan Oku'
         variant='outline'
         size='small'
+        textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
         onPress={() => onChallenge(user)}
       />
     </View>
@@ -91,6 +96,7 @@ const styles = StyleSheet.create({
   username: {
     fontWeight: '600',
     fontSize: 16,
+    fontFamily: 'SecondaryFont-Bold',
   },
   textLight: {
     color: Colors.gray[800],

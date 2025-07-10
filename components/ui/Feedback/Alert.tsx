@@ -87,7 +87,7 @@ const Alert: React.FC<AlertProps> = ({
         ? 'rgba(33, 185, 88, 0.1)'
         : 'rgba(33, 185, 88, 0.1)';
       borderColor = Colors.success;
-      textColor = isDark ? Colors.white : Colors.gray[900];
+      textColor = isDark ? Colors.gray[900] : Colors.gray[900];
       iconName = icon || 'check-circle';
       break;
     case 'warning':
@@ -95,7 +95,7 @@ const Alert: React.FC<AlertProps> = ({
         ? 'rgba(251, 208, 0, 0.1)'
         : 'rgba(251, 208, 0, 0.1)';
       borderColor = Colors.warning;
-      textColor = isDark ? Colors.white : Colors.gray[900];
+      textColor = isDark ? Colors.gray[900] : Colors.gray[900];
       iconName = icon || 'exclamation-triangle';
       break;
     case 'error':
@@ -103,7 +103,7 @@ const Alert: React.FC<AlertProps> = ({
         ? 'rgba(236, 28, 36, 0.1)'
         : 'rgba(236, 28, 36, 0.1)';
       borderColor = Colors.error;
-      textColor = isDark ? Colors.white : Colors.gray[900];
+      textColor = isDark ? Colors.gray[900] : Colors.gray[900];
       iconName = icon || 'exclamation-circle';
       break;
     case 'info':
@@ -112,7 +112,7 @@ const Alert: React.FC<AlertProps> = ({
         ? 'rgba(0, 183, 239, 0.1)'
         : 'rgba(0, 183, 239, 0.1)';
       borderColor = Colors.info;
-      textColor = isDark ? Colors.white : Colors.gray[900];
+      textColor = isDark ? Colors.gray[900] : Colors.gray[900];
       iconName = icon || 'info-circle';
   }
 
@@ -148,7 +148,7 @@ const Alert: React.FC<AlertProps> = ({
           <FontAwesome
             name='times'
             size={16}
-            color={isDark ? Colors.gray[400] : Colors.gray[600]}
+            color={isDark ? Colors.gray[600] : Colors.gray[600]}
           />
         </TouchableOpacity>
       )}

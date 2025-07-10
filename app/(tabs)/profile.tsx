@@ -345,7 +345,7 @@ export default function ProfileScreen() {
             style={{
               fontSize: 18,
               fontWeight: 'bold',
-              color: isDark ? Colors.white : Colors.gray[800],
+              color: isDark ? Colors.gray[800] : Colors.gray[800],
               textAlign: 'center',
               marginBottom: Spacing[2],
               fontFamily: 'SecondaryFont-Bold',
@@ -396,7 +396,7 @@ export default function ProfileScreen() {
             tintColor={Colors.primary.DEFAULT}
             colors={[Colors.primary.DEFAULT]}
             title='Yenileniyor...'
-            titleColor={isDark ? Colors.white : Colors.gray[600]}
+            titleColor={isDark ? Colors.gray[600] : Colors.gray[600]}
           />
         }
       >
@@ -469,12 +469,12 @@ export default function ProfileScreen() {
             >
               <ActivityIndicator
                 size='large'
-                color={isDark ? Colors.primary.DEFAULT : Colors.vibrant.coral}
+                color={isDark ? Colors.vibrant.coral : Colors.vibrant.coral}
               />
               <Text
                 style={{
                   marginTop: Spacing[4],
-                  color: isDark ? Colors.gray[400] : Colors.white,
+                  color: isDark ? Colors.white : Colors.white,
                   fontFamily: 'SecondaryFont-Regular',
                   fontSize: 16,
                 }}
@@ -484,7 +484,7 @@ export default function ProfileScreen() {
               <Text
                 style={{
                   marginTop: Spacing[2],
-                  color: isDark ? Colors.gray[500] : Colors.gray[200],
+                  color: isDark ? Colors.gray[200] : Colors.gray[200],
                   fontFamily: 'SecondaryFont-Regular',
                   fontSize: 14,
                   textAlign: 'center',
@@ -649,7 +649,7 @@ export default function ProfileScreen() {
                                 fontSize: 10,
                                 textAlign: 'center',
                                 color: isDark
-                                  ? Colors.gray[300]
+                                  ? Colors.gray[700]
                                   : Colors.gray[700],
                               }}
                               numberOfLines={2}
@@ -689,9 +689,7 @@ export default function ProfileScreen() {
                       }}
                       buttonFontFamily='PrimaryFont'
                       style={{
-                        backgroundColor: isDark
-                          ? Colors.vibrant.purpleDark
-                          : Colors.white,
+                        backgroundColor: isDark ? Colors.white : Colors.white,
                       }}
                     />
                   )}
@@ -787,7 +785,7 @@ export default function ProfileScreen() {
                     >
                       <Text
                         style={{
-                          color: isDark ? Colors.gray[400] : Colors.gray[100],
+                          color: isDark ? Colors.gray[100] : Colors.gray[100],
                           fontFamily: 'SecondaryFont-Regular',
                         }}
                       >
@@ -834,7 +832,7 @@ export default function ProfileScreen() {
                       alignItems: 'center',
                       padding: Spacing[6],
                       backgroundColor: isDark
-                        ? 'rgba(255,255,255,0.05)'
+                        ? 'rgba(0,0,0,0.05)'
                         : 'rgba(0,0,0,0.05)',
                       borderRadius: 12,
                       marginTop: Spacing[4],
@@ -848,7 +846,7 @@ export default function ProfileScreen() {
                     />
                     <Text
                       style={{
-                        color: isDark ? Colors.gray[300] : Colors.gray[600],
+                        color: isDark ? Colors.gray[600] : Colors.gray[600],
                         fontFamily: 'SecondaryFont-Regular',
                         textAlign: 'center',
                         marginBottom: Spacing[4],

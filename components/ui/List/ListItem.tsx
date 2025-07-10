@@ -69,9 +69,9 @@ const ListItem: React.FC<ListItemProps> = ({
   const isDark = colorScheme === 'dark';
 
   // Determine text and icon colors based on color scheme
-  const titleColor = isDark ? Colors.white : Colors.gray[900];
-  const subtitleColor = isDark ? Colors.gray[400] : Colors.gray[600];
-  const iconColor = isDark ? Colors.gray[400] : Colors.gray[600];
+  const titleColor = isDark ? Colors.gray[900] : Colors.gray[900];
+  const subtitleColor = isDark ? Colors.gray[600] : Colors.gray[600];
+  const iconColor = isDark ? Colors.gray[600] : Colors.gray[600];
 
   // Wrapper component - TouchableOpacity if onPress is provided, View otherwise
   const Wrapper: any = onPress ? TouchableOpacity : View;
@@ -86,7 +86,7 @@ const ListItem: React.FC<ListItemProps> = ({
         styles.container,
         applyDarkMode(
           isDark,
-          { borderBottomColor: Colors.gray[200] },
+          { borderBottomColor: Colors.gray[700] },
           { borderBottomColor: Colors.gray[700] },
         ),
         style,

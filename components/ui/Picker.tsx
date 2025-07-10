@@ -11,11 +11,72 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Colors, BorderRadius } from '../../constants/theme';
-import { PickerProps } from './types'; // Import props from your central types file
+
+export interface PickerProps {
+  /**
+   * Array of items to display in the picker
+   */
+  items: Array<{ label: string; value: any }>;
+
+  /**
+   * Currently selected value
+   */
+  selectedValue: any;
+
+  /**
+   * Callback when selection changes
+   */
+  onValueChange: (itemValue: any, itemIndex: number) => void;
+
+  /**
+   * Placeholder text when no selection is made
+   */
+  placeholder?: string;
+
+  /**
+   * Whether the picker is enabled
+   */
+  enabled?: boolean;
+
+  /**
+   * Custom style for the container
+   */
+  style?: StyleProp<ViewStyle>;
+
+  /**
+   * Font family for the picker items
+   */
+  fontFamily?: string;
+
+  /**
+   * Font family for the placeholder text
+   */
+  placeholderFontFamily?: string;
+
+  /**
+   * Custom style for the picker text
+   */
+  textStyle?: StyleProp<TextStyle>;
+
+  /**
+   * Custom style for the placeholder text
+   */
+  placeholderStyle?: StyleProp<TextStyle>;
+
+  /**
+   * Force light mode (useful for modals)
+   */
+  forceLight?: boolean;
+
+  /**
+   * Test ID for testing
+   */
+  testID?: string;
+}
 
 /**
  * A custom Picker component for selecting from a list of options,
- * styled to match the application's theme.
+ * styled to match the application's theme with customizable font families.
  */
 const CustomPicker: React.FC<PickerProps> = ({
   items,
@@ -24,13 +85,17 @@ const CustomPicker: React.FC<PickerProps> = ({
   placeholder = 'Seçim yapınız...',
   enabled = true,
   style,
+  fontFamily = 'SecondaryFont-Regular',
+  placeholderFontFamily = 'SecondaryFont-Regular',
+  textStyle,
+  placeholderStyle,
+  forceLight = false,
   testID,
 }) => {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const isDark = colorScheme === 'dark' && !forceLight;
 
   // The underlying Picker library requires 'undefined' for the empty/placeholder state, not 'null'.
-  // This conversion makes our component flexible (accepting null) while satisfying the library.
   const pickerSelectedValue =
     selectedValue === null ? undefined : selectedValue;
 
@@ -48,29 +113,39 @@ const CustomPicker: React.FC<PickerProps> = ({
         selectedValue={pickerSelectedValue}
         onValueChange={onValueChange}
         enabled={enabled}
-        style={isDark ? styles.pickerDark : styles.pickerLight}
+        style={[isDark ? styles.pickerDark : styles.pickerLight, textStyle]}
         dropdownIconColor={isDark ? Colors.gray[400] : Colors.gray[600]}
+        itemStyle={{
+          fontFamily: fontFamily,
+        }}
       >
         <Picker.Item
           label={placeholder}
-          value={undefined} // The placeholder value MUST be 'undefined'
-          style={styles.placeholderItem}
+          value={undefined}
+          style={[styles.placeholderItem, placeholderStyle]}
         />
         {items.map((item) => (
-          <Picker.Item key={item.value} label={item.label} value={item.value} />
+          <Picker.Item
+            key={String(item.value)}
+            label={item.label}
+            value={item.value}
+            style={[isDark ? styles.itemDark : styles.itemLight]}
+          />
         ))}
       </Picker>
     </View>
   );
 };
 
-// Define specific types for the styles to ensure consistency
+// Define specific types for the styles
 type PickerComponentStyles = {
   container: ViewStyle;
   containerLight: ViewStyle;
   containerDark: ViewStyle;
-  pickerLight: TextStyle; // The picker's internal style is a TextStyle
+  pickerLight: TextStyle;
   pickerDark: TextStyle;
+  itemLight: TextStyle;
+  itemDark: TextStyle;
   disabled: ViewStyle;
   placeholderItem: TextStyle;
 };
@@ -84,7 +159,7 @@ const styles = StyleSheet.create<PickerComponentStyles>({
     overflow: 'hidden',
   },
   containerLight: {
-    backgroundColor: Colors.gray[100],
+    backgroundColor: Colors.white,
     borderColor: Colors.gray[300],
   },
   containerDark: {
@@ -93,15 +168,26 @@ const styles = StyleSheet.create<PickerComponentStyles>({
   },
   pickerLight: {
     color: Colors.gray[900],
+    backgroundColor: Colors.white,
   },
   pickerDark: {
     color: Colors.white,
+    backgroundColor: Colors.gray[700],
+  },
+  itemLight: {
+    color: Colors.gray[900],
+    backgroundColor: Colors.white,
+  },
+  itemDark: {
+    color: Colors.white,
+    backgroundColor: Colors.gray[700],
   },
   disabled: {
     opacity: 0.5,
   },
   placeholderItem: {
     color: Colors.gray[500],
+    backgroundColor: Colors.white,
   },
 });
 

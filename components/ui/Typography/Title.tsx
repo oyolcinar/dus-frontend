@@ -71,7 +71,7 @@ const Title: React.FC<TitleProps> = ({
       fontWeight,
       marginBottom,
       textAlign: align,
-      color: color || (isDark ? Colors.white : Colors.gray[900]),
+      color: color || (isDark ? Colors.gray[900] : Colors.gray[900]),
     },
     style,
   ];

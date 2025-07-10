@@ -74,9 +74,9 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   const defaultAvatar = 'https://via.placeholder.com/100';
 
   // Determine background color based on color scheme
-  const bgColor = isDark ? Colors.gray[800] : Colors.primary.light;
-  const textColor = isDark ? Colors.white : Colors.gray[900];
-  const secondaryTextColor = isDark ? Colors.gray[400] : Colors.gray[600];
+  const bgColor = isDark ? Colors.primary.light : Colors.primary.light;
+  const textColor = isDark ? Colors.gray[900] : Colors.gray[900];
+  const secondaryTextColor = isDark ? Colors.gray[600] : Colors.gray[600];
 
   return (
     <View
@@ -111,12 +111,16 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               <FontAwesome
                 name='pencil'
                 size={12}
-                color={isDark ? Colors.white : Colors.primary.DEFAULT}
+                color={isDark ? Colors.primary.DEFAULT : Colors.primary.DEFAULT}
               />
               <Text
                 style={[
                   styles.editButtonText,
-                  { color: isDark ? Colors.white : Colors.primary.DEFAULT },
+                  {
+                    color: isDark
+                      ? Colors.primary.DEFAULT
+                      : Colors.primary.DEFAULT,
+                  },
                 ]}
               >
                 Düzenle

@@ -324,7 +324,7 @@ export default function DuelsScreen() {
             style={{
               fontSize: 18,
               fontWeight: 'bold',
-              color: isDark ? Colors.white : Colors.gray[800],
+              color: isDark ? Colors.gray[800] : Colors.gray[800],
               textAlign: 'center',
               marginBottom: Spacing[2],
               fontFamily: 'SecondaryFont-Bold',
@@ -375,7 +375,7 @@ export default function DuelsScreen() {
             tintColor={Colors.primary.DEFAULT}
             colors={[Colors.primary.DEFAULT]}
             title='Yenileniyor...'
-            titleColor={isDark ? Colors.white : Colors.gray[600]}
+            titleColor={isDark ? Colors.gray[600] : Colors.gray[600]}
           />
         }
       >
@@ -396,7 +396,7 @@ export default function DuelsScreen() {
                   Düellolar ⚔️
                 </PlayfulTitle>
                 <Paragraph
-                  color={isDark ? Colors.gray[400] : Colors.gray[100]}
+                  color={isDark ? Colors.gray[100] : Colors.gray[100]}
                   style={{
                     fontFamily: 'SecondaryFont-Regular',
                   }}
@@ -418,12 +418,12 @@ export default function DuelsScreen() {
           >
             <ActivityIndicator
               size='large'
-              color={isDark ? Colors.primary.DEFAULT : Colors.vibrant.coral}
+              color={isDark ? Colors.vibrant.coral : Colors.vibrant.coral}
             />
             <Text
               style={{
                 marginTop: Spacing[4],
-                color: isDark ? Colors.gray[400] : Colors.white,
+                color: isDark ? Colors.white : Colors.white,
                 fontFamily: 'SecondaryFont-Regular',
                 fontSize: 16,
               }}
@@ -433,7 +433,7 @@ export default function DuelsScreen() {
             <Text
               style={{
                 marginTop: Spacing[2],
-                color: isDark ? Colors.gray[500] : Colors.gray[200],
+                color: isDark ? Colors.gray[200] : Colors.gray[200],
                 fontFamily: 'SecondaryFont-Regular',
                 fontSize: 14,
                 textAlign: 'center',
@@ -465,7 +465,7 @@ export default function DuelsScreen() {
                 value={activeDuels
                   .filter((d) => d.status === 'completed')
                   .length.toString()}
-                color={isDark ? Colors.vibrant.purple : Colors.vibrant.yellow}
+                color={isDark ? Colors.vibrant.yellow : Colors.vibrant.yellow}
                 titleFontFamily='SecondaryFont-Bold'
               />
               <StatCard
@@ -621,7 +621,7 @@ export default function DuelsScreen() {
                   alignItems: 'center',
                   padding: Spacing[6],
                   backgroundColor: isDark
-                    ? 'rgba(255,255,255,0.05)'
+                    ? 'rgba(0,0,0,0.05)'
                     : 'rgba(0,0,0,0.05)',
                   borderRadius: 12,
                   marginTop: Spacing[4],
@@ -635,7 +635,7 @@ export default function DuelsScreen() {
                 />
                 <Text
                   style={{
-                    color: isDark ? Colors.gray[300] : Colors.gray[600],
+                    color: isDark ? Colors.gray[600] : Colors.gray[600],
                     fontFamily: 'SecondaryFont-Regular',
                     textAlign: 'center',
                     marginBottom: Spacing[4],
