@@ -86,6 +86,41 @@ export default function TabLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name='profile/achievements'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name='profile/friends'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name='profile/settings'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name='notifications'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name='notifications/settings'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

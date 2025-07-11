@@ -213,3 +213,91 @@ export interface ApiError {
   status: number;
   code?: string;
 }
+
+export interface Notification {
+  notification_id: number;
+  user_id: number;
+  notification_type: NotificationType;
+  title: string;
+  body: string;
+  action_url?: string;
+  icon_name?: string;
+  status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+  is_read: boolean;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  sent_at?: string;
+  read_at?: string;
+}
+
+export type NotificationType =
+  | 'study_reminder'
+  | 'achievement_unlock'
+  | 'duel_invitation'
+  | 'duel_result'
+  | 'friend_request'
+  | 'friend_activity'
+  | 'content_update'
+  | 'streak_reminder'
+  | 'plan_reminder'
+  | 'coaching_note'
+  | 'motivational_message'
+  | 'system_announcement';
+
+export interface NotificationPreferences {
+  notification_type: NotificationType;
+  in_app_enabled: boolean;
+  push_enabled: boolean;
+  email_enabled: boolean;
+  frequency_hours: number;
+  quiet_hours_start?: string;
+  quiet_hours_end?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeviceToken {
+  user_id: number;
+  device_token: string;
+  platform: 'ios' | 'android' | 'web';
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationStats {
+  total_notifications: number;
+  read_count: number;
+  unread_count: number;
+  type_counts: Record<NotificationType, number>;
+}
+
+export interface NotificationResponse {
+  notifications: Notification[];
+  unread_count: number;
+  total_count: number;
+}
+
+export interface NotificationTemplate {
+  template_name: string;
+  notification_type: NotificationType;
+  title_template: string;
+  body_template: string;
+  action_url_template?: string;
+  icon_name?: string;
+  is_active: boolean;
+}
+
+export interface BulkNotificationRequest {
+  userId: number;
+  notificationType: NotificationType;
+  templateName: string;
+  variables?: Record<string, any>;
+}
+
+export interface TestNotificationRequest {
+  template_name: string;
+  notification_type: NotificationType;
+  variables?: Record<string, any>;
+}

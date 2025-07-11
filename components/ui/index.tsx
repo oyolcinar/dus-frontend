@@ -94,6 +94,7 @@ export { default as QuizCard } from './QuizCard';
 export { default as ExamCard } from './ExamCard';
 export { default as ProfileHeader } from './ProfileHeader';
 export { default as NotificationBadge } from './NotificationBadge';
+export { default as NotificationItem } from './NotificationItem';
 
 // NEW: Game-Specific Components
 export { default as QuestionDisplay } from './Game/QuestionDisplay';

@@ -10,9 +10,9 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../context/AuthContext';
-import { authService, achievementService, duelService } from '../../src/api';
-import { checkAndRefreshSession } from '../../src/api/authService';
+import { useAuth } from '../../../context/AuthContext';
+import { authService, achievementService, duelService } from '../../../src/api';
+import { checkAndRefreshSession } from '../../../src/api/authService';
 import {
   PlayfulCard,
   ProfileHeader,
@@ -32,8 +32,8 @@ import {
   SlideInElement,
   PlayfulTitle,
   EmptyState,
-} from '../../components/ui';
-import { Colors, Spacing, FontSizes } from '../../constants/theme';
+} from '../../../components/ui';
+import { Colors, Spacing, FontSizes } from '../../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Define interface for Achievement since it's not exported from models

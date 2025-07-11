@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { FlexibleViewStyle, FlexibleTextStyle } from '../../utils/styleTypes';
 import { FontAwesome } from '@expo/vector-icons';
-
+import { Notification } from '../../src/types/models';
 // NEW: Enhanced gradient type
 export interface GradientStyle {
   colors: string[];
@@ -840,4 +840,12 @@ export interface SpinningWheelProps {
   fontFamily?: string;
   sliceFontFamily?: string;
   winnerFontFamily?: string;
+}
+
+export interface NotificationItemProps {
+  notification: Notification;
+  onPress?: (notification: Notification) => void;
+  onMarkAsRead?: (notificationId: number) => void;
+  onDelete?: (notificationId: number) => void;
+  style?: ViewStyle;
 }
