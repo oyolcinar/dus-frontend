@@ -663,7 +663,9 @@ export default function ProfileScreen() {
                       <Row style={{ gap: Spacing[3] }}>
                         <PlayfulButton
                           title='Tüm Başarılar'
-                          onPress={() => router.push('/achievements' as any)}
+                          onPress={() =>
+                            router.push('/(tabs)/profile/achievements' as any)
+                          }
                           variant='outline'
                           style={{ flex: 1 }}
                           icon='trophy'
@@ -684,7 +686,8 @@ export default function ProfileScreen() {
                       message='Daha fazla çalışıkça başarılar kazanacaksınız.'
                       actionButton={{
                         title: 'Başarıları Keşfet',
-                        onPress: () => router.push('/achievements' as any),
+                        onPress: () =>
+                          router.push('/(tabs)/profile/achievements' as any),
                         variant: 'secondary',
                       }}
                       buttonFontFamily='PrimaryFont'

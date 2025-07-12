@@ -2,132 +2,161 @@ import { useCallback } from 'react';
 import { router } from 'expo-router';
 import { Notification, NotificationType } from '../types/models';
 
-/**
- * Hook for handling notification navigation
- * This centralizes the logic for navigating to different screens based on notification types
- * Uses Expo Router for navigation
- */
 export const useNotificationNavigation = () => {
-  const navigateFromNotification = useCallback((notification: Notification) => {
-    const { notification_type, action_url, metadata } = notification;
+  // Route mapping for backend routes to actual app routes
+  const ROUTE_MAPPING: Record<string, string> = {
+    '/achievements': '/(tabs)/profile/achievements',
+    '/friends': '/(tabs)/profile/friends',
+    '/profile': '/(tabs)/profile',
+    '/duels': '/(tabs)/duels',
+    '/courses': '/(tabs)/courses',
+    '/study': '/study',
+    '/settings': '/settings',
+    // Add more mappings as needed
+  };
 
-    // If there's a specific action URL, parse it and navigate
-    if (action_url) {
-      handleActionUrl(action_url, metadata);
-      return;
+  const mapRoute = useCallback((route: string): string => {
+    // If it's already a tab route, return as is
+    if (route.includes('(tabs)')) {
+      return route;
     }
 
-    // Default navigation based on notification type
-    switch (notification_type) {
-      case 'study_reminder':
-        // Navigate to study screen or dashboard
-        router.push('/(tabs)/courses' as any);
-        break;
-
-      case 'achievement_unlock':
-        // Navigate to achievements screen
-        router.push('/(tabs)/profile/achievements' as any);
-        break;
-
-      case 'duel_invitation':
-        // Navigate to duel detail or pending duels
-        if (metadata?.duel_id) {
-          router.push(`/duels/${metadata.duel_id}` as any);
-        } else {
-          router.push('/duels' as any);
-        }
-        break;
-
-      case 'duel_result':
-        // Navigate to duel result screen
-        if (metadata?.duel_id) {
-          router.push(`/(tabs)/duels/${metadata.duel_id}/result` as any);
-        } else {
-          router.push('/(tabs)/duels' as any);
-        }
-        break;
-
-      case 'friend_request':
-        // Navigate to friends screen
-        router.push('/(tabs)/profile/friends' as any);
-        break;
-
-      case 'friend_activity':
-        // Navigate to friends screen or specific friend profile
-        if (metadata?.friend_id) {
-          router.push(`/(tabs)/profile/friends/${metadata.friend_id}` as any);
-        } else {
-          router.push('/(tabs)/profile/friends' as any);
-        }
-        break;
-
-      case 'content_update':
-        // Navigate to what's new or specific content
-        if (metadata?.content_id) {
-          router.push(`/content/${metadata.content_id}` as any);
-        } else {
-          router.push('/' as any);
-        }
-        break;
-
-      case 'streak_reminder':
-        // Navigate to study screen to continue streak
-        router.push('/study' as any);
-        break;
-
-      case 'plan_reminder':
-        // Navigate to study plan
-        if (metadata?.plan_id) {
-          router.push(`/study/plan/${metadata.plan_id}` as any);
-        } else {
-          router.push('/study/plan' as any);
-        }
-        break;
-
-      case 'coaching_note':
-        // Navigate to coaching notes
-        if (metadata?.note_id) {
-          router.push(`/coaching/${metadata.note_id}` as any);
-        } else {
-          router.push('/coaching' as any);
-        }
-        break;
-
-      case 'motivational_message':
-        // Navigate to motivational content or dashboard
-        router.push('/' as any);
-        break;
-
-      case 'system_announcement':
-        // Navigate to announcements or settings
-        router.push('/settings' as any);
-        break;
-
-      default:
-        // Default to home screen
-        router.push('/' as any);
-        break;
+    // Check if we have a mapping for this route
+    const mappedRoute = ROUTE_MAPPING[route];
+    if (mappedRoute) {
+      console.log(`🗺️ Mapped route: ${route} → ${mappedRoute}`);
+      return mappedRoute;
     }
+
+    // If no mapping found, return original route
+    console.log(`⚠️ No mapping found for route: ${route}`);
+    return route;
   }, []);
+
+  const navigateFromNotification = useCallback(
+    (notification: Notification) => {
+      console.log('🚀 Navigation Debug - Full notification:', notification);
+
+      const { notification_type, action_url, metadata } = notification;
+
+      console.log('🚀 Navigation Debug:', {
+        notification_type,
+        action_url,
+        metadata,
+      });
+
+      // If there's a specific action URL, parse it and navigate
+      if (action_url) {
+        console.log('🚀 Using action_url:', action_url);
+        const mappedUrl = mapRoute(action_url);
+        handleActionUrl(mappedUrl, metadata);
+        return;
+      }
+
+      console.log('🚀 Using default navigation for type:', notification_type);
+
+      // Default navigation based on notification type
+      switch (notification_type) {
+        case 'study_reminder':
+          router.push('/(tabs)/courses' as any);
+          break;
+
+        case 'achievement_unlock':
+          console.log('🚀 Navigating to achievements (default)');
+          router.push('/(tabs)/profile/achievements' as any);
+          break;
+
+        case 'duel_invitation':
+          if (metadata?.duel_id) {
+            router.push(`/duels/${metadata.duel_id}` as any);
+          } else {
+            router.push('/(tabs)/duels' as any);
+          }
+          break;
+
+        case 'duel_result':
+          if (metadata?.duel_id) {
+            router.push(`/(tabs)/duels/${metadata.duel_id}/result` as any);
+          } else {
+            router.push('/(tabs)/duels' as any);
+          }
+          break;
+
+        case 'friend_request':
+          router.push('/(tabs)/profile/friends' as any);
+          break;
+
+        case 'friend_activity':
+          if (metadata?.friend_id) {
+            router.push(`/(tabs)/profile/friends/${metadata.friend_id}` as any);
+          } else {
+            router.push('/(tabs)/profile/friends' as any);
+          }
+          break;
+
+        case 'content_update':
+          if (metadata?.content_id) {
+            router.push(`/content/${metadata.content_id}` as any);
+          } else {
+            router.push('/(tabs)/courses' as any);
+          }
+          break;
+
+        case 'streak_reminder':
+          router.push('/study' as any);
+          break;
+
+        case 'plan_reminder':
+          if (metadata?.plan_id) {
+            router.push(`/study/plan/${metadata.plan_id}` as any);
+          } else {
+            router.push('/study/plan' as any);
+          }
+          break;
+
+        case 'coaching_note':
+          if (metadata?.note_id) {
+            router.push(`/coaching/${metadata.note_id}` as any);
+          } else {
+            router.push('/coaching' as any);
+          }
+          break;
+
+        case 'motivational_message':
+          router.push('/' as any);
+          break;
+
+        case 'system_announcement':
+          router.push('/settings' as any);
+          break;
+
+        default:
+          router.push('/' as any);
+          break;
+      }
+    },
+    [mapRoute],
+  );
 
   const handleActionUrl = useCallback(
     (actionUrl: string, metadata?: Record<string, any>) => {
-      // Parse action URL and navigate accordingly
-      // Example action URLs:
-      // "/duel/123" -> Navigate to /duel/123
-      // "/achievement/unlock" -> Navigate to /achievements
-      // "/study/plan/456" -> Navigate to /study/plan/456
+      console.log('🚀 handleActionUrl called with:', { actionUrl, metadata });
 
       try {
-        // Clean the URL and ensure it starts with /
         const cleanUrl = actionUrl.startsWith('/')
           ? actionUrl
           : `/${actionUrl}`;
 
-        // Use router.push to navigate to the URL
+        console.log('🚀 Clean URL:', cleanUrl);
+        console.log('🚀 About to navigate with router.push...');
+
+        // Try the navigation
         router.push(cleanUrl as any);
+
+        console.log('🚀 Navigation completed successfully');
       } catch (error) {
-        console.error('Error parsing action URL:', error);
+        console.error('🚨 Error parsing action URL:', error);
+        console.log('🚀 Falling back to home screen');
         router.push('/' as any);
       }
     },
@@ -136,7 +165,6 @@ export const useNotificationNavigation = () => {
 
   const getNotificationDeepLink = useCallback(
     (notification: Notification): string => {
-      // Generate deep link for sharing or external access
       const { notification_type, metadata } = notification;
 
       switch (notification_type) {
@@ -144,16 +172,16 @@ export const useNotificationNavigation = () => {
         case 'duel_result':
           return metadata?.duel_id
             ? `/(tabs)/duels/${metadata.duel_id}`
-            : '/duels';
+            : '/(tabs)/duels';
 
         case 'achievement_unlock':
-          return '/achievements';
+          return '/(tabs)/profile/achievements';
 
         case 'friend_request':
         case 'friend_activity':
           return metadata?.friend_id
-            ? `/friends/${metadata.friend_id}`
-            : '/friends';
+            ? `/(tabs)/profile/friends/${metadata.friend_id}`
+            : '/(tabs)/profile/friends';
 
         case 'plan_reminder':
           return metadata?.plan_id
@@ -166,11 +194,13 @@ export const useNotificationNavigation = () => {
             : '/coaching';
 
         case 'content_update':
-          return metadata?.content_id ? `/content/${metadata.content_id}` : '/';
+          return metadata?.content_id
+            ? `/content/${metadata.content_id}`
+            : '/(tabs)/courses';
 
         case 'study_reminder':
         case 'streak_reminder':
-          return '/study';
+          return '/(tabs)/courses';
 
         case 'motivational_message':
           return '/';
@@ -185,7 +215,6 @@ export const useNotificationNavigation = () => {
     [],
   );
 
-  // Additional helper for programmatic navigation with parameters
   const navigateWithParams = useCallback(
     (path: string, params?: Record<string, any>) => {
       try {
@@ -206,7 +235,6 @@ export const useNotificationNavigation = () => {
     [],
   );
 
-  // Safe navigation helper that checks if route exists before navigating
   const safeNavigate = useCallback((route: string, fallback: string = '/') => {
     try {
       router.push(route as any);
@@ -222,5 +250,6 @@ export const useNotificationNavigation = () => {
     getNotificationDeepLink,
     navigateWithParams,
     safeNavigate,
+    mapRoute, // Export for testing
   };
 };

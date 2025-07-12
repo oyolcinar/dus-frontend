@@ -220,7 +220,7 @@ export interface Notification {
   notification_type: NotificationType;
   title: string;
   body: string;
-  action_url?: string;
+  action_url?: string | null;
   icon_name?: string;
   status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
   is_read: boolean;
@@ -228,7 +228,7 @@ export interface Notification {
   created_at: string;
   updated_at: string;
   sent_at?: string;
-  read_at?: string;
+  read_at?: string | null;
 }
 
 export type NotificationType =

@@ -51,7 +51,7 @@ function normalizeUser(apiUser: any): User {
   };
 }
 
-// Enhanced token validation
+// Enhanced token validation using your actual /me endpoint
 export async function isTokenValid(): Promise<boolean> {
   try {
     const token = await AsyncStorage.getItem('userToken');
@@ -60,30 +60,32 @@ export async function isTokenValid(): Promise<boolean> {
       return false;
     }
 
-    // Try to decode the token to check expiration
+    // First try to decode the token to check expiration (quick check)
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1]));
+        const currentTime = Math.floor(Date.now() / 1000);
 
-      // Check if token expires within the next 5 minutes
-      if (payload.exp && payload.exp < currentTime + 300) {
-        console.log('Token is expired or expiring soon');
-        return false;
+        // If token expires within the next 5 minutes, consider it invalid
+        if (payload.exp && payload.exp < currentTime + 300) {
+          console.log('Token is expired or expiring soon');
+          return false;
+        }
       }
-
-      console.log('Token is valid');
-      return true;
     } catch (e) {
-      // If we can't decode the token, test it with a simple API call
-      console.log('Could not decode token, testing with API call');
-      try {
-        await apiRequest('/auth/verify', 'GET');
-        console.log('Token validated via API call');
-        return true;
-      } catch (apiError) {
-        console.warn('Token validation failed:', apiError);
-        return false;
-      }
+      // If we can't decode JWT, we'll test with API call below
+      console.log('Could not decode token, will test with API call');
+    }
+
+    // Test token with your actual /me endpoint
+    try {
+      await apiRequest('/auth/me', 'GET');
+      console.log('Token validated successfully via /auth/me');
+      return true;
+    } catch (apiError) {
+      console.log('Token validation failed via /auth/me:', apiError);
+      return false;
     }
   } catch (error) {
     console.error('Error checking token validity:', error);
@@ -91,7 +93,7 @@ export async function isTokenValid(): Promise<boolean> {
   }
 }
 
-// Enhanced session check that works with your existing API client
+// FIXED session check that doesn't create loops
 export async function checkAndRefreshSession(): Promise<boolean> {
   try {
     const token = await AsyncStorage.getItem('userToken');
@@ -107,15 +109,17 @@ export async function checkAndRefreshSession(): Promise<boolean> {
       return true;
     }
 
-    console.log('Token invalid, will be refreshed by apiClient automatically');
+    console.log('Token invalid, attempting refresh...');
 
-    // Make a test request to trigger automatic token refresh in apiClient
+    // Try to refresh the token
     try {
-      await apiRequest('/auth/verify', 'GET');
-      console.log('Session refreshed successfully via apiClient');
+      await refreshAuthToken();
+      console.log('Session refreshed successfully');
       return true;
     } catch (error) {
       console.error('Session refresh failed:', error);
+      // Clear invalid tokens
+      await logout();
       return false;
     }
   } catch (error) {
@@ -249,6 +253,7 @@ export async function logout(): Promise<void> {
   try {
     const token = await AsyncStorage.getItem('userToken');
     if (token) {
+      // Try to call logout endpoint, but don't fail if it doesn't work
       await apiRequest('/auth/signout', 'POST').catch((apiError) =>
         console.warn(
           'Logout API call failed, proceeding with local logout:',
@@ -308,7 +313,7 @@ export async function requestPasswordReset(
   }
 }
 
-// Enhanced refresh token function with better error handling
+// FIXED refresh token function with better error handling and loop prevention
 export async function refreshAuthToken(): Promise<{
   token: string;
   refreshToken: string | null;
@@ -326,6 +331,11 @@ export async function refreshAuthToken(): Promise<{
     const result = await refreshPromise;
     console.log('Token refresh completed successfully');
     return result;
+  } catch (error) {
+    console.error('Token refresh failed, clearing tokens:', error);
+    // Clear tokens on refresh failure to prevent loops
+    await AsyncStorage.multiRemove(['userToken', 'refreshToken', 'userData']);
+    throw error;
   } finally {
     isRefreshing = false;
     refreshPromise = null;
@@ -340,7 +350,6 @@ async function performTokenRefresh(): Promise<{
     const currentRefreshToken = await AsyncStorage.getItem('refreshToken');
     if (!currentRefreshToken) {
       console.error('No refresh token available for refresh.');
-      await logout();
       throw new Error('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
     }
 
@@ -349,7 +358,7 @@ async function performTokenRefresh(): Promise<{
       '/auth/refresh-token',
       'POST',
       {
-        refreshToken: currentRefreshToken,
+        refreshToken: currentRefreshToken, // This matches your backend expectation
       },
     );
 
@@ -362,7 +371,6 @@ async function performTokenRefresh(): Promise<{
       !apiData.session.access_token
     ) {
       console.error('Invalid refresh token response structure:', apiData);
-      await logout();
       throw new Error(
         'Geçersiz token yenileme yanıtı. Lütfen tekrar giriş yapın.',
       );
@@ -380,15 +388,10 @@ async function performTokenRefresh(): Promise<{
     };
   } catch (error) {
     console.error('Token refresh failed:', error);
-    await logout();
 
     if (error instanceof ApiError) {
-      if (error.status === 401) {
+      if (error.status === 401 || error.status === 403) {
         throw new Error('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
-      } else if (error.status === 403) {
-        throw new Error(
-          'Token yenileme yetkisi yok. Lütfen tekrar giriş yapın.',
-        );
       }
     }
 
@@ -398,7 +401,7 @@ async function performTokenRefresh(): Promise<{
   }
 }
 
-// Enhanced API request wrapper with automatic token refresh
+// FIXED API request wrapper with automatic token refresh - no loops
 export async function authenticatedRequest<T>(
   endpoint: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
@@ -406,13 +409,6 @@ export async function authenticatedRequest<T>(
   retryCount = 0,
 ): Promise<ApiResponse<T>> {
   try {
-    // Check if token is valid before making request
-    const tokenValid = await isTokenValid();
-    if (!tokenValid && retryCount === 0) {
-      console.log('Token invalid, attempting refresh...');
-      await refreshAuthToken();
-    }
-
     return await apiRequest<T>(endpoint, method, data);
   } catch (error) {
     // If we get a 401 and haven't retried yet, try refreshing the token
@@ -422,8 +418,7 @@ export async function authenticatedRequest<T>(
         await refreshAuthToken();
         return await authenticatedRequest<T>(endpoint, method, data, 1);
       } catch (refreshError) {
-        console.error('Token refresh failed, logging out:', refreshError);
-        await logout();
+        console.error('Token refresh failed during API request:', refreshError);
         throw new Error('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
       }
     }
@@ -432,7 +427,7 @@ export async function authenticatedRequest<T>(
   }
 }
 
-// Utility function to validate session and provide user feedback
+// FIXED utility function to validate session without loops
 export async function validateSession(): Promise<{
   isValid: boolean;
   message?: string;
@@ -449,7 +444,7 @@ export async function validateSession(): Promise<{
 
     const tokenValid = await isTokenValid();
     if (!tokenValid) {
-      // Try to refresh
+      // Try to refresh only once
       try {
         await refreshAuthToken();
         return {

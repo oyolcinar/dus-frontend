@@ -59,7 +59,15 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name='profile'
+        name='notifications/index'
+        options={{
+          title: 'Bildirimler',
+          tabBarIcon: ({ color }) => <TabBarIcon name='bell' color={color} />,
+        }}
+      />
+
+      <Tabs.Screen
+        name='profile/index'
         options={{
           title: 'Profil',
           tabBarIcon: ({ color }) => <TabBarIcon name='user' color={color} />,
@@ -107,13 +115,13 @@ export default function TabLayout() {
           href: null,
         }}
       />
-      <Tabs.Screen
-        name='notifications'
+      {/* <Tabs.Screen
+        name='notifications/index'
         options={{
           // This screen is part of the tabs navigator but has no tab button
           href: null,
         }}
-      />
+      /> */}
       <Tabs.Screen
         name='notifications/settings'
         options={{

@@ -8,13 +8,31 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  useColorScheme,
+  ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useNotifications } from '../../../context/NotificationContext';
 import { useNotificationNavigation } from '../../../src/hooks/useNotificationNavigation';
 import { NotificationItem } from '../../../components/ui';
 import { Notification } from '../../../src/types/models';
+import {
+  PlayfulCard,
+  PlayfulButton,
+  EmptyState,
+  Badge,
+  Container,
+  PlayfulTitle,
+  Paragraph,
+  Row,
+  Column,
+  SlideInElement,
+  FloatingElement,
+  NotificationBadge,
+} from '../../../components/ui';
+import { Colors, Spacing, BorderRadius } from '../../../constants/theme';
 
 const NotificationsScreen: React.FC = () => {
   const {
@@ -31,6 +49,9 @@ const NotificationsScreen: React.FC = () => {
   } = useNotifications();
 
   const { navigateFromNotification } = useNotificationNavigation();
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
@@ -78,6 +99,45 @@ const NotificationsScreen: React.FC = () => {
     );
   }, [unreadCount, markAllAsRead]);
 
+  const handleNavigateToSettings = useCallback(() => {
+    router.push('/(tabs)/notifications/settings' as any);
+  }, [router]);
+
+  const FilterButton = ({
+    filterType,
+    title,
+    isActive,
+  }: {
+    filterType: 'all' | 'unread';
+    title: string;
+    isActive: boolean;
+  }) => (
+    <TouchableOpacity
+      style={[styles.filterButton, isActive && styles.activeFilterButton]}
+      onPress={() => setFilter(filterType)}
+    >
+      <Text
+        style={[
+          styles.filterButtonText,
+          isActive && styles.activeFilterButtonText,
+        ]}
+      >
+        {title}
+      </Text>
+      {filterType === 'unread' && unreadCount > 0 && (
+        <NotificationBadge
+          count={unreadCount}
+          style={{
+            position: 'relative',
+            top: 0,
+            right: 0,
+            marginLeft: Spacing[1],
+          }}
+        />
+      )}
+    </TouchableOpacity>
+  );
+
   const renderNotificationItem = ({ item }: { item: Notification }) => (
     <NotificationItem
       notification={item}
@@ -87,88 +147,11 @@ const NotificationsScreen: React.FC = () => {
     />
   );
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Feather name='bell-off' size={64} color='#D1D5DB' />
-      <Text style={styles.emptyTitle}>
-        {filter === 'unread' ? 'Okunmamış bildirim yok' : 'Bildirim yok'}
-      </Text>
-      <Text style={styles.emptySubtitle}>
-        {filter === 'unread'
-          ? 'Tüm bildirimlerinizi okumuşsunuz!'
-          : 'Henüz bildiriminiz bulunmuyor.'}
-      </Text>
-    </View>
-  );
-
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <View style={styles.titleContainer}>
-        <Text style={styles.screenTitle}>Bildirimler</Text>
-        {unreadCount > 0 && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.headerActions}>
-        {/* Filter buttons */}
-        <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              filter === 'all' && styles.activeFilterButton,
-            ]}
-            onPress={() => setFilter('all')}
-          >
-            <Text
-              style={[
-                styles.filterButtonText,
-                filter === 'all' && styles.activeFilterButtonText,
-              ]}
-            >
-              Tümü
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              filter === 'unread' && styles.activeFilterButton,
-            ]}
-            onPress={() => setFilter('unread')}
-          >
-            <Text
-              style={[
-                styles.filterButtonText,
-                filter === 'unread' && styles.activeFilterButtonText,
-              ]}
-            >
-              Okunmamış ({unreadCount})
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Mark all as read button */}
-        {unreadCount > 0 && (
-          <TouchableOpacity
-            style={styles.markAllButton}
-            onPress={handleMarkAllAsRead}
-          >
-            <Feather name='check-circle' size={16} color='#10B981' />
-            <Text style={styles.markAllButtonText}>Tümünü Okundu İşaretle</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
-
   const renderFooter = () => {
     if (!isLoading) return null;
-
     return (
       <View style={styles.loadingFooter}>
-        <ActivityIndicator size='small' color='#3B82F6' />
+        <ActivityIndicator size='small' color={Colors.primary.DEFAULT} />
       </View>
     );
   };
@@ -192,92 +175,276 @@ const NotificationsScreen: React.FC = () => {
     }
   }, [error, clearError]);
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {renderHeader()}
+  if (error && !isLoading) {
+    return (
+      <GestureHandlerRootView style={styles.container}>
+        <View style={styles.container}>
+          <View style={styles.errorContainer}>
+            <Feather
+              name='alert-triangle'
+              size={64}
+              color={Colors.vibrant?.orange || Colors.warning}
+              style={{ marginBottom: Spacing[4] }}
+            />
+            <Text style={styles.errorTitle}>Bir Sorun Oluştu</Text>
+            <Text style={styles.errorMessage}>{error}</Text>
+            <PlayfulButton
+              title='Yeniden Dene'
+              onPress={() => loadNotifications(true)}
+              variant='primary'
+              animated
+              icon='refresh'
+              size='medium'
+              style={{ marginTop: Spacing[4] }}
+            />
+          </View>
+        </View>
+      </GestureHandlerRootView>
+    );
+  }
 
-      <FlatList
-        data={filteredNotifications}
-        renderItem={renderNotificationItem}
-        keyExtractor={(item) => item.notification_id.toString()}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#3B82F6']}
-            tintColor='#3B82F6'
-          />
-        }
-        onEndReached={loadMoreNotifications}
-        onEndReachedThreshold={0.5}
-        ListEmptyComponent={!isLoading ? renderEmptyState : null}
-        ListFooterComponent={renderFooter}
-        showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={10}
-        windowSize={10}
-        initialNumToRender={15}
-      />
-    </SafeAreaView>
+  return (
+    <GestureHandlerRootView style={styles.container}>
+      <View style={styles.container}>
+        <FlatList
+          data={filteredNotifications}
+          renderItem={renderNotificationItem}
+          keyExtractor={(item) => item.notification_id.toString()}
+          contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary.DEFAULT]}
+              tintColor={Colors.primary.DEFAULT}
+            />
+          }
+          onEndReached={loadMoreNotifications}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          initialNumToRender={15}
+          ListHeaderComponent={
+            <SlideInElement delay={0}>
+              <PlayfulCard
+                style={styles.headerCard}
+                variant='elevated'
+                animated
+                floatingAnimation
+              >
+                {/* Title Row */}
+                <Row style={styles.headerRow}>
+                  <Column style={{ flex: 1 }}>
+                    <PlayfulTitle
+                      level={1}
+                      gradient='primary'
+                      style={{ fontFamily: 'PrimaryFont', color: 'white' }}
+                    >
+                      Bildirimler
+                    </PlayfulTitle>
+                    <Paragraph
+                      color={isDark ? Colors.gray[100] : Colors.gray[100]}
+                      style={{
+                        fontFamily: 'SecondaryFont-Regular',
+                      }}
+                    >
+                      Tüm bildirimlerinizi yönetin
+                    </Paragraph>
+                    {unreadCount > 0 && (
+                      <Row
+                        style={{ alignItems: 'center', marginTop: Spacing[1] }}
+                      >
+                        <Feather name='bell' size={16} color={Colors.white} />
+                        <Text style={styles.unreadText}>
+                          {unreadCount} yeni bildirim
+                        </Text>
+                      </Row>
+                    )}
+                  </Column>
+
+                  {/* Settings Button */}
+                  <TouchableOpacity
+                    style={styles.settingsButton}
+                    onPress={handleNavigateToSettings}
+                  >
+                    <Feather name='settings' size={24} color={Colors.white} />
+                  </TouchableOpacity>
+                </Row>
+
+                {/* Filter Buttons */}
+                <Row style={{ marginBottom: Spacing[4] }}>
+                  <View style={styles.filterContainer}>
+                    <FilterButton
+                      filterType='all'
+                      title='Tümü'
+                      isActive={filter === 'all'}
+                    />
+                    <FilterButton
+                      filterType='unread'
+                      title='Okunmamış'
+                      isActive={filter === 'unread'}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.quickSettingsButton}
+                    onPress={handleNavigateToSettings}
+                  >
+                    <Feather
+                      name='sliders'
+                      size={18}
+                      color={Colors.gray[600]}
+                    />
+                  </TouchableOpacity>
+                </Row>
+
+                {/* Action Buttons */}
+                <Row style={styles.actionButtonsRow}>
+                  {unreadCount > 0 && (
+                    <PlayfulButton
+                      title='Tümünü Okundu İşaretle'
+                      onPress={handleMarkAllAsRead}
+                      variant='secondary'
+                      size='medium'
+                      icon='check-circle'
+                      fontFamily='SecondaryFont-Bold'
+                      animated
+                      style={{
+                        flex: 1,
+                        marginRight: unreadCount > 0 ? Spacing[2] : 0,
+                      }}
+                    />
+                  )}
+
+                  <PlayfulButton
+                    title='Ayarlar'
+                    onPress={handleNavigateToSettings}
+                    variant='outline'
+                    size='medium'
+                    icon='gear'
+                    fontFamily='SecondaryFont-Bold'
+                    animated
+                    style={{
+                      flex: unreadCount > 0 ? 0 : 1,
+                      marginLeft: unreadCount > 0 ? Spacing[2] : 0,
+                      minWidth: unreadCount > 0 ? 100 : 'auto',
+                    }}
+                  />
+                </Row>
+              </PlayfulCard>
+            </SlideInElement>
+          }
+          ListEmptyComponent={
+            !isLoading ? (
+              <SlideInElement delay={200}>
+                <EmptyState
+                  icon='bell-o'
+                  title={
+                    filter === 'unread'
+                      ? 'Okunmamış bildirim yok'
+                      : 'Bildirim yok'
+                  }
+                  message={
+                    filter === 'unread'
+                      ? 'Tüm bildirimlerinizi okumuşsunuz!'
+                      : 'Henüz bildiriminiz bulunmuyor.'
+                  }
+                  fontFamily='SecondaryFont-Regular'
+                  titleFontFamily='PrimaryFont'
+                  actionButton={
+                    filter !== 'unread'
+                      ? {
+                          title: 'Bildirim Ayarları',
+                          onPress: handleNavigateToSettings,
+                          variant: 'primary',
+                        }
+                      : undefined
+                  }
+                  buttonFontFamily='SecondaryFont-Bold'
+                  style={{
+                    backgroundColor: Colors.white,
+                    marginHorizontal: Spacing[4],
+                    marginTop: Spacing[6],
+                  }}
+                />
+              </SlideInElement>
+            ) : null
+          }
+        />
+
+        {/* Loading state overlay */}
+        {isLoading && filteredNotifications.length === 0 && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator
+              size='large'
+              color={Colors.vibrant?.coral || Colors.primary.DEFAULT}
+            />
+            <Text style={styles.loadingText}>Bildirimler yükleniyor...</Text>
+          </View>
+        )}
+
+        {/* Floating Action Button */}
+        <SlideInElement delay={1000}>
+          <FloatingElement>
+            <TouchableOpacity
+              style={styles.floatingSettingsButton}
+              onPress={handleNavigateToSettings}
+            >
+              <Feather name='settings' size={24} color={Colors.white} />
+            </TouchableOpacity>
+          </FloatingElement>
+        </SlideInElement>
+      </View>
+    </GestureHandlerRootView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    // backgroundColor: Colors.vibrant?.purpleDark || Colors.primary.dark,
   },
-  header: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+  contentContainer: {
+    padding: Spacing[4],
+    flexGrow: 1,
   },
-  titleContainer: {
-    flexDirection: 'row',
+  headerCard: {
+    marginBottom: Spacing[6],
+    backgroundColor: 'transparent',
+  },
+  headerRow: {
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    marginBottom: Spacing[4],
   },
-  screenTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginRight: 8,
-  },
-  unreadBadge: {
-    backgroundColor: '#EF4444',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    minWidth: 20,
+  settingsButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
-  },
-  unreadBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  headerActions: {
-    gap: 12,
+    justifyContent: 'center',
+    marginLeft: Spacing[3],
   },
   filterContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    padding: 2,
-  },
-  filterButton: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[1],
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    alignItems: 'center',
   },
-  activeFilterButton: {
-    backgroundColor: '#fff',
-    shadowColor: '#000',
+  quickSettingsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: Spacing[2],
+    shadowColor: Colors.black,
     shadowOffset: {
       width: 0,
       height: 1,
@@ -286,58 +453,104 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  filterButton: {
+    flex: 1,
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  activeFilterButton: {
+    backgroundColor: Colors.vibrant?.purple || Colors.primary.DEFAULT,
+    shadowColor: Colors.black,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
   filterButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#6B7280',
+    color: Colors.gray[600],
+    fontFamily: 'SecondaryFont-Regular',
   },
   activeFilterButtonText: {
-    color: '#1F2937',
+    color: Colors.white,
     fontWeight: '600',
+    fontFamily: 'SecondaryFont-Bold',
   },
-  markAllButton: {
-    flexDirection: 'row',
+  unreadText: {
+    color: Colors.white,
+    fontSize: 14,
+    fontFamily: 'SecondaryFont-Regular',
+    marginLeft: Spacing[1],
+  },
+  actionButtonsRow: {
+    marginTop: Spacing[2],
+  },
+  loadingFooter: {
+    paddingVertical: Spacing[4],
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#F0FDF4',
-    borderRadius: 8,
-    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.1)',
   },
-  markAllButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#10B981',
+  loadingText: {
+    marginTop: Spacing[3],
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Regular',
+    fontSize: 16,
   },
-  listContainer: {
-    paddingVertical: 8,
-    flexGrow: 1,
+  floatingSettingsButton: {
+    position: 'absolute',
+    bottom: Spacing[6],
+    right: Spacing[4],
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.vibrant?.purple || Colors.primary.DEFAULT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.black,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  emptyContainer: {
+  errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 64,
+    padding: Spacing[4],
   },
-  emptyTitle: {
+  errorTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginTop: 16,
-    marginBottom: 8,
+    fontWeight: 'bold',
+    color: Colors.white,
     textAlign: 'center',
+    marginBottom: Spacing[2],
+    fontFamily: 'SecondaryFont-Bold',
   },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#9CA3AF',
+  errorMessage: {
+    fontSize: 16,
+    color: Colors.white,
     textAlign: 'center',
-    lineHeight: 20,
-  },
-  loadingFooter: {
-    paddingVertical: 16,
-    alignItems: 'center',
+    fontFamily: 'SecondaryFont-Regular',
   },
 });
 

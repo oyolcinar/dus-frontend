@@ -1,3 +1,4 @@
+// context/NotificationContext.tsx - Updated for Expo Go compatibility
 import React, {
   createContext,
   useContext,
@@ -6,7 +7,6 @@ import React, {
   useCallback,
 } from 'react';
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -17,16 +17,11 @@ import {
 } from '../src/types/models';
 import * as notificationService from '../src/api/notificationService';
 
-// Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Detect Expo Go environment - Manual override for testing
+const FORCE_EXPO_GO_MODE = true; // Set to true for Expo Go testing, false for production
+const isExpoGo = FORCE_EXPO_GO_MODE && __DEV__;
+
+console.log('🚀 Expo Go Mode:', { FORCE_EXPO_GO_MODE, __DEV__, isExpoGo });
 
 interface NotificationContextType {
   // State
@@ -36,6 +31,8 @@ interface NotificationContextType {
   stats: NotificationStats | null;
   isLoading: boolean;
   error: string | null;
+  notificationsSupported: boolean;
+  isDevelopmentMode: boolean;
 
   // Actions
   loadNotifications: (refresh?: boolean) => Promise<void>;
@@ -88,10 +85,24 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const [hasMore, setHasMore] = useState(true);
 
   const NOTIFICATIONS_PER_PAGE = 20;
+  const notificationsSupported = !isExpoGo && Device.isDevice;
+  const isDevelopmentMode = isExpoGo;
 
-  // Error handling
+  // Error handling - more lenient for development
   const handleError = useCallback((err: any, action: string) => {
     console.error(`Notification ${action} error:`, err);
+
+    // Don't set error state for expected Expo Go failures
+    if (
+      isExpoGo &&
+      (err.message?.includes('device token') ||
+        err.message?.includes('Internal server error') ||
+        err.message?.includes('expo-notifications'))
+    ) {
+      console.warn(`🚀 Expo Go: ${action} failed (expected in development)`);
+      return;
+    }
+
     setError(err?.message || `${action} başarısız oldu`);
   }, []);
 
@@ -99,12 +110,21 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     setError(null);
   }, []);
 
-  // Load notifications
+  // Load notifications - with fallback data for Expo Go
   const loadNotifications = useCallback(
     async (refresh: boolean = false) => {
       try {
         setIsLoading(true);
         clearError();
+
+        if (isExpoGo) {
+          // Load mock data for Expo Go
+          const mockNotifications = await loadMockNotifications();
+          setNotifications(mockNotifications);
+          setUnreadCount(mockNotifications.filter((n) => !n.is_read).length);
+          setHasMore(false);
+          return;
+        }
 
         const currentPage = refresh ? 0 : page;
         const response = await notificationService.getNotifications(
@@ -131,18 +151,102 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     [page, handleError, clearError],
   );
 
-  // Load more notifications (pagination)
-  const loadMoreNotifications = useCallback(async () => {
-    if (!hasMore || isLoading) return;
-    await loadNotifications(false);
-  }, [hasMore, isLoading, loadNotifications]);
+  // Mock data for Expo Go development - matching your backend structure
+  const loadMockNotifications = useCallback(async (): Promise<
+    Notification[]
+  > => {
+    const stored = await AsyncStorage.getItem('mockNotifications');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+
+    // Generate some mock notifications for development - matching your backend structure
+    const mockData: Notification[] = [
+      {
+        notification_id: 1,
+        user_id: 1,
+        notification_type: 'study_reminder',
+        title: 'Çalışma Zamanı! 📚',
+        body: 'Günlük çalışma hedefinizi tamamlamak için harika bir zaman!',
+        is_read: false,
+        status: 'sent',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metadata: {},
+      },
+      {
+        notification_id: 2,
+        user_id: 1,
+        notification_type: 'achievement_unlock',
+        title: 'Yeni Başarı! 🏆',
+        body: '7 gün üst üste çalışma başarısını kazandınız!',
+        is_read: false,
+        status: 'sent',
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+        updated_at: new Date(Date.now() - 3600000).toISOString(),
+        metadata: { achievement_id: 'streak_7_days' },
+        action_url: '/(tabs)/profile/achievements',
+      },
+      {
+        notification_id: 3,
+        user_id: 1,
+        notification_type: 'duel_invitation',
+        title: 'Düello Daveti! ⚔️',
+        body: 'Ali sizi matematik düellosuna davet etti!',
+        is_read: true,
+        status: 'read',
+        created_at: new Date(Date.now() - 7200000).toISOString(),
+        updated_at: new Date(Date.now() - 3600000).toISOString(),
+        read_at: new Date(Date.now() - 3600000).toISOString(),
+        metadata: { duel_id: 123, opponent: 'Ali' },
+        action_url: '/duels/123',
+      },
+    ];
+
+    await AsyncStorage.setItem('mockNotifications', JSON.stringify(mockData));
+    return mockData;
+  }, []);
+
+  // Register for push notifications - with Expo Go handling
+  const registerForPushNotifications = useCallback(async () => {
+    try {
+      if (isExpoGo) {
+        console.log(
+          '🚀 Expo Go detected - skipping push notification registration',
+        );
+        console.log('✅ Mock registration completed');
+        return;
+      }
+
+      // Use the notification service setupPushNotifications function
+      const result = await notificationService.setupPushNotifications();
+      console.log('✅ Push notifications registered successfully:', result);
+    } catch (err) {
+      // Don't throw error for Expo Go
+      if (!isExpoGo) {
+        handleError(err, 'push bildirim kayıt');
+      }
+    }
+  }, [handleError]);
 
   // Mark notification as read
   const markAsRead = useCallback(
     async (notificationId: number) => {
       try {
-        await notificationService.markAsRead(notificationId);
+        if (isExpoGo) {
+          // Update mock data
+          setNotifications((prev) =>
+            prev.map((notif) =>
+              notif.notification_id === notificationId
+                ? { ...notif, is_read: true, read_at: new Date().toISOString() }
+                : notif,
+            ),
+          );
+          setUnreadCount((prev) => Math.max(0, prev - 1));
+          return;
+        }
 
+        await notificationService.markAsRead(notificationId);
         setNotifications((prev) =>
           prev.map((notif) =>
             notif.notification_id === notificationId
@@ -150,7 +254,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
               : notif,
           ),
         );
-
         setUnreadCount((prev) => Math.max(0, prev - 1));
       } catch (err) {
         handleError(err, 'bildirim okundu işaretleme');
@@ -159,12 +262,28 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     [handleError],
   );
 
-  // Mark all notifications as read
+  const loadMoreNotifications = useCallback(async () => {
+    if (!hasMore || isLoading || isExpoGo) return;
+    await loadNotifications(false);
+  }, [hasMore, isLoading, loadNotifications]);
+
   const markAllAsRead = useCallback(async () => {
     try {
       setIsLoading(true);
-      await notificationService.markAllAsRead();
 
+      if (isExpoGo) {
+        setNotifications((prev) =>
+          prev.map((notif) => ({
+            ...notif,
+            is_read: true,
+            read_at: notif.read_at || new Date().toISOString(),
+          })),
+        );
+        setUnreadCount(0);
+        return;
+      }
+
+      await notificationService.markAllAsRead();
       setNotifications((prev) =>
         prev.map((notif) => ({
           ...notif,
@@ -172,7 +291,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           read_at: notif.read_at || new Date().toISOString(),
         })),
       );
-
       setUnreadCount(0);
     } catch (err) {
       handleError(err, 'tüm bildirimleri okundu işaretleme');
@@ -181,20 +299,29 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     }
   }, [handleError]);
 
-  // Delete notification
   const deleteNotification = useCallback(
     async (notificationId: number) => {
       try {
-        await notificationService.deleteNotification(notificationId);
+        if (isExpoGo) {
+          const deletedNotification = notifications.find(
+            (n) => n.notification_id === notificationId,
+          );
+          setNotifications((prev) =>
+            prev.filter((notif) => notif.notification_id !== notificationId),
+          );
+          if (deletedNotification && !deletedNotification.is_read) {
+            setUnreadCount((prev) => Math.max(0, prev - 1));
+          }
+          return;
+        }
 
+        await notificationService.deleteNotification(notificationId);
         const deletedNotification = notifications.find(
           (n) => n.notification_id === notificationId,
         );
-
         setNotifications((prev) =>
           prev.filter((notif) => notif.notification_id !== notificationId),
         );
-
         if (deletedNotification && !deletedNotification.is_read) {
           setUnreadCount((prev) => Math.max(0, prev - 1));
         }
@@ -205,9 +332,15 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     [notifications, handleError],
   );
 
-  // Load preferences
   const loadPreferences = useCallback(async () => {
     try {
+      if (isExpoGo) {
+        // Load mock preferences
+        const mockPrefs = await loadMockPreferences();
+        setPreferences(mockPrefs);
+        return;
+      }
+
       const prefs = await notificationService.getPreferences();
       setPreferences(prefs);
     } catch (err) {
@@ -215,15 +348,55 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     }
   }, [handleError]);
 
-  // Update preferences
+  const loadMockPreferences = useCallback(async () => {
+    // Return mock preferences for all notification types - matching your backend structure
+    const mockPreferences: NotificationPreferences[] = [
+      'study_reminder',
+      'achievement_unlock',
+      'duel_invitation',
+      'duel_result',
+      'friend_request',
+      'friend_activity',
+      'content_update',
+      'streak_reminder',
+      'plan_reminder',
+      'coaching_note',
+      'motivational_message',
+      'system_announcement',
+    ].map((type) => ({
+      notification_type: type as NotificationType,
+      in_app_enabled: true,
+      push_enabled: false, // Disabled in Expo Go
+      email_enabled: false,
+      frequency_hours: 24,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+
+    return mockPreferences;
+  }, []);
+
   const updatePreferences = useCallback(
     async (type: NotificationType, prefs: Partial<NotificationPreferences>) => {
       try {
+        if (isExpoGo) {
+          // Update mock preferences
+          setPreferences((prev) => {
+            const index = prev.findIndex((p) => p.notification_type === type);
+            if (index >= 0) {
+              const newPrefs = [...prev];
+              newPrefs[index] = { ...newPrefs[index], ...prefs };
+              return newPrefs;
+            }
+            return prev;
+          });
+          return;
+        }
+
         const updatedPref = await notificationService.updatePreferences(
           type,
           prefs,
         );
-
         setPreferences((prev) => {
           const index = prev.findIndex((p) => p.notification_type === type);
           if (index >= 0) {
@@ -240,9 +413,33 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     [handleError],
   );
 
-  // Load stats
   const loadStats = useCallback(async () => {
     try {
+      if (isExpoGo) {
+        // Fixed mock stats with proper type_counts structure
+        const mockStats: NotificationStats = {
+          total_notifications: 15,
+          read_count: 12,
+          unread_count: 3,
+          type_counts: {
+            study_reminder: 4,
+            achievement_unlock: 2,
+            duel_invitation: 3,
+            duel_result: 2,
+            friend_request: 1,
+            friend_activity: 2,
+            content_update: 1,
+            streak_reminder: 0,
+            plan_reminder: 0,
+            coaching_note: 0,
+            motivational_message: 0,
+            system_announcement: 0,
+          },
+        };
+        setStats(mockStats);
+        return;
+      }
+
       const statsData = await notificationService.getStats();
       setStats(statsData);
     } catch (err) {
@@ -250,96 +447,20 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     }
   }, [handleError]);
 
-  // Refresh unread count
   const refreshUnreadCount = useCallback(async () => {
     try {
+      if (isExpoGo) {
+        const unread = notifications.filter((n) => !n.is_read).length;
+        setUnreadCount(unread);
+        return;
+      }
+
       const { unread_count } = await notificationService.getUnreadCount();
       setUnreadCount(unread_count);
     } catch (err) {
       console.warn('Failed to refresh unread count:', err);
     }
-  }, []);
-
-  // Register for push notifications
-  const registerForPushNotifications = useCallback(async () => {
-    try {
-      if (!Device.isDevice) {
-        console.warn('Push notifications require a physical device');
-        return;
-      }
-
-      // Check if already registered
-      const storedToken = await AsyncStorage.getItem('pushToken');
-      if (storedToken) {
-        console.log('Push token already exists:', storedToken);
-        return;
-      }
-
-      // Request permissions
-      const { status: existingStatus } =
-        await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus !== 'granted') {
-        console.warn('Push notification permissions not granted');
-        return;
-      }
-
-      // Get push token
-      const token = (await Notifications.getExpoPushTokenAsync()).data;
-      console.log('Push token obtained:', token);
-
-      // Register with backend
-      const platform = Platform.OS as 'ios' | 'android';
-      await notificationService.registerDeviceToken(token, platform);
-
-      // Store token locally
-      await AsyncStorage.setItem('pushToken', token);
-
-      console.log('Push notifications registered successfully');
-    } catch (err) {
-      console.error('Failed to register for push notifications:', err);
-    }
-  }, []);
-
-  // Set up notification listeners
-  useEffect(() => {
-    let isMounted = true;
-
-    // Listen for notifications received while app is running
-    const notificationListener = Notifications.addNotificationReceivedListener(
-      (notification) => {
-        console.log('Notification received:', notification);
-        if (isMounted) {
-          refreshUnreadCount();
-        }
-      },
-    );
-
-    // Listen for notification responses (when user taps notification)
-    const responseListener =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log('Notification response:', response);
-        if (isMounted) {
-          // Handle notification tap - you can navigate to specific screens here
-          const data = response.notification.request.content.data;
-          if (data?.notification_id) {
-            markAsRead(Number(data.notification_id));
-          }
-        }
-      });
-
-    return () => {
-      isMounted = false;
-      Notifications.removeNotificationSubscription(notificationListener);
-      Notifications.removeNotificationSubscription(responseListener);
-    };
-  }, [refreshUnreadCount, markAsRead]);
+  }, [notifications]);
 
   // Initialize
   useEffect(() => {
@@ -350,7 +471,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     };
 
     initialize();
-  }, []); // Only run on mount
+  }, [loadNotifications, loadPreferences, registerForPushNotifications]);
 
   const value: NotificationContextType = {
     // State
@@ -360,6 +481,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     stats,
     isLoading,
     error,
+    notificationsSupported,
+    isDevelopmentMode,
 
     // Actions
     loadNotifications,

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,27 +8,53 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  useColorScheme,
+  Platform,
+  RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { useNotifications } from '../../../context/NotificationContext';
+import * as Notifications from 'expo-notifications';
 import {
   NotificationType,
   NotificationPreferences,
+  TestNotificationRequest,
 } from '../../../src/types/models';
-import { sendTestNotification } from '../../../src/api/notificationService';
+import {
+  getPreferences,
+  updatePreferences,
+  sendTestNotification,
+  registerDeviceToken,
+  isNotificationTypeEnabled,
+  getNotificationIcon,
+  getNotificationColor,
+} from '../../../src/api/notificationService';
+import {
+  PlayfulCard,
+  PlayfulButton,
+  Container,
+  PlayfulTitle,
+  Paragraph,
+  Row,
+  Column,
+  SlideInElement,
+  FloatingElement,
+} from '../../../components/ui';
+import { Colors, Spacing, BorderRadius } from '../../../constants/theme';
+
+type FilterType = 'all' | 'study' | 'social' | 'system';
 
 const NotificationSettingsScreen: React.FC = () => {
-  const {
-    preferences,
-    isLoading,
-    loadPreferences,
-    updatePreferences,
-    error,
-    clearError,
-  } = useNotifications();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
+  // State
+  const [preferences, setPreferences] = useState<NotificationPreferences[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [deviceToken, setDeviceToken] = useState<string | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState<FilterType>('all');
 
   // Notification type display names
   const notificationTypeNames: Record<NotificationType, string> = {
@@ -62,6 +88,100 @@ const NotificationSettingsScreen: React.FC = () => {
     system_announcement: 'Önemli sistem duyuruları',
   };
 
+  // Categorize notification types
+  const notificationCategories: Record<FilterType, NotificationType[]> = {
+    all: Object.keys(notificationTypeNames) as NotificationType[],
+    study: [
+      'study_reminder',
+      'streak_reminder',
+      'plan_reminder',
+      'coaching_note',
+    ],
+    social: [
+      'duel_invitation',
+      'duel_result',
+      'friend_request',
+      'friend_activity',
+    ],
+    system: [
+      'achievement_unlock',
+      'content_update',
+      'motivational_message',
+      'system_announcement',
+    ],
+  };
+
+  // Load user preferences and setup push notifications
+  const loadPreferences = useCallback(async () => {
+    try {
+      setError(null);
+
+      // Load preferences from API
+      const userPreferences = await getPreferences();
+      setPreferences(userPreferences);
+
+      // Setup push notifications
+      await setupPushNotifications();
+    } catch (err: any) {
+      console.error('Error loading preferences:', err);
+      setError('Ayarlar yüklenirken bir hata oluştu');
+    }
+  }, []);
+
+  // Handle refresh
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadPreferences();
+    setRefreshing(false);
+  }, [loadPreferences]);
+
+  // Handle retry
+  const handleRetry = useCallback(async () => {
+    setIsLoading(true);
+    await loadPreferences();
+    setIsLoading(false);
+  }, [loadPreferences]);
+
+  // Setup push notifications and register device token
+  const setupPushNotifications = useCallback(async () => {
+    try {
+      // Request permission for notifications
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        Alert.alert(
+          'Bildirim İzni',
+          'Push bildirimleri için izin vermeniz gerekiyor.',
+          [{ text: 'Tamam' }],
+        );
+        return;
+      }
+
+      // Get push token
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: process.env.EXPO_PROJECT_ID,
+      });
+
+      setDeviceToken(tokenData.data);
+
+      // Register token with backend
+      await registerDeviceToken(
+        tokenData.data,
+        Platform.OS === 'ios' ? 'ios' : 'android',
+      );
+    } catch (err) {
+      console.error('Error setting up push notifications:', err);
+    }
+  }, []);
+
+  // Get preference for specific notification type
   const getPreferenceForType = useCallback(
     (type: NotificationType): NotificationPreferences | null => {
       return preferences.find((p) => p.notification_type === type) || null;
@@ -69,6 +189,7 @@ const NotificationSettingsScreen: React.FC = () => {
     [preferences],
   );
 
+  // Handle toggle switches
   const handleToggle = useCallback(
     async (
       type: NotificationType,
@@ -77,31 +198,81 @@ const NotificationSettingsScreen: React.FC = () => {
     ) => {
       try {
         setSaving(`${type}-${setting}`);
-        await updatePreferences(type, { [setting]: value });
-      } catch (err) {
-        Alert.alert('Hata', 'Ayar güncellenirken bir hata oluştu.');
+
+        // Update preference via API
+        const updatedPreference = await updatePreferences(type, {
+          [setting]: value,
+        });
+
+        // Update local state
+        setPreferences((prev) => {
+          const existingIndex = prev.findIndex(
+            (p) => p.notification_type === type,
+          );
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = updatedPreference;
+            return updated;
+          } else {
+            return [...prev, updatedPreference];
+          }
+        });
+
+        // Show success message for important changes
+        if (setting === 'push_enabled' && value) {
+          Alert.alert(
+            'Push Bildirimleri Açıldı',
+            'Push bildirimleri için cihazınızın bildirim ayarlarını da kontrol edin.',
+            [{ text: 'Tamam' }],
+          );
+        }
+      } catch (err: any) {
+        console.error('Error updating preference:', err);
+        Alert.alert(
+          'Hata',
+          'Ayar güncellenirken bir hata oluştu. Lütfen tekrar deneyin.',
+        );
       } finally {
         setSaving(null);
       }
     },
-    [updatePreferences],
+    [preferences],
   );
 
-  // Separate handler for frequency updates
+  // Handle frequency updates
   const handleFrequencyUpdate = useCallback(
     async (type: NotificationType, frequency: number) => {
       try {
         setSaving(`${type}-frequency`);
-        await updatePreferences(type, { frequency_hours: frequency });
-      } catch (err) {
+
+        const updatedPreference = await updatePreferences(type, {
+          frequency_hours: frequency,
+        });
+
+        // Update local state
+        setPreferences((prev) => {
+          const existingIndex = prev.findIndex(
+            (p) => p.notification_type === type,
+          );
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = updatedPreference;
+            return updated;
+          } else {
+            return [...prev, updatedPreference];
+          }
+        });
+      } catch (err: any) {
+        console.error('Error updating frequency:', err);
         Alert.alert('Hata', 'Sıklık ayarı güncellenirken bir hata oluştu.');
       } finally {
         setSaving(null);
       }
     },
-    [updatePreferences],
+    [],
   );
 
+  // Handle frequency change dialog
   const handleFrequencyChange = useCallback(
     async (type: NotificationType) => {
       const currentPref = getPreferenceForType(type);
@@ -129,391 +300,617 @@ const NotificationSettingsScreen: React.FC = () => {
     [getPreferenceForType, handleFrequencyUpdate],
   );
 
+  // Handle test notification
   const handleTestNotification = useCallback(async () => {
     try {
-      await sendTestNotification({
+      const testRequest: TestNotificationRequest = {
         template_name: 'test_notification',
         notification_type: 'system_announcement',
         variables: {
-          message: 'Bu bir test bildirimidir!',
+          message: 'Bu bir test bildirimidir! 🎉',
+          title: 'Test Bildirimi',
         },
-      });
-      Alert.alert('Başarılı', 'Test bildirimi gönderildi!');
-    } catch (error) {
-      Alert.alert('Hata', 'Test bildirimi gönderilemedi.');
+      };
+
+      await sendTestNotification(testRequest);
+
+      Alert.alert(
+        'Test Bildirimi Gönderildi',
+        'Test bildirimi başarıyla gönderildi. Birkaç saniye içinde almanız gerekiyor.',
+        [{ text: 'Tamam' }],
+      );
+    } catch (error: any) {
+      console.error('Error sending test notification:', error);
+      Alert.alert(
+        'Hata',
+        'Test bildirimi gönderilemedi. İnternet bağlantınızı kontrol edin.',
+      );
     }
   }, []);
 
-  const renderNotificationTypeSettings = (type: NotificationType) => {
+  // Handle bulk actions (enable/disable all)
+  const handleBulkAction = useCallback(
+    async (enabled: boolean) => {
+      try {
+        setSaving('bulk-action');
+
+        const types =
+          selectedFilter === 'all'
+            ? Object.keys(notificationTypeNames)
+            : notificationCategories[selectedFilter];
+
+        const promises = types.map(async (type) => {
+          const notificationType = type as NotificationType;
+
+          // Update each preference type
+          await Promise.all([
+            updatePreferences(notificationType, { in_app_enabled: enabled }),
+            updatePreferences(notificationType, { push_enabled: enabled }),
+            updatePreferences(notificationType, {
+              email_enabled: enabled && false,
+            }),
+          ]);
+        });
+
+        await Promise.all(promises);
+
+        // Reload preferences to get updated state
+        await loadPreferences();
+
+        Alert.alert(
+          'Ayarlar Güncellendi',
+          `${selectedFilter === 'all' ? 'Tüm' : 'Seçili'} bildirimler ${
+            enabled ? 'açıldı' : 'kapatıldı'
+          }.`,
+          [{ text: 'Tamam' }],
+        );
+      } catch (error: any) {
+        console.error('Error updating bulk preferences:', error);
+        Alert.alert('Hata', 'Toplu işlem sırasında bir hata oluştu.');
+      } finally {
+        setSaving(null);
+      }
+    },
+    [selectedFilter, notificationCategories, loadPreferences],
+  );
+
+  // Get filtered notification types
+  const getFilteredNotificationTypes = () => {
+    return notificationCategories[selectedFilter];
+  };
+
+  // Filter Button Component
+  const FilterButton = ({
+    filter,
+    title,
+  }: {
+    filter: FilterType;
+    title: string;
+  }) => (
+    <TouchableOpacity
+      style={{
+        flex: 1,
+        marginHorizontal: Spacing[1],
+        paddingVertical: Spacing[2],
+        paddingHorizontal: Spacing[2],
+        borderRadius: BorderRadius.button,
+        backgroundColor:
+          selectedFilter === filter
+            ? Colors.vibrant.purple
+            : isDark
+            ? Colors.white
+            : Colors.white,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 36,
+      }}
+      onPress={() => setSelectedFilter(filter)}
+    >
+      <Text
+        style={{
+          fontSize: 12,
+          fontWeight: selectedFilter === filter ? '600' : '500',
+          color:
+            selectedFilter === filter
+              ? Colors.white
+              : isDark
+              ? Colors.gray[700]
+              : Colors.gray[700],
+          textAlign: 'center',
+          fontFamily: 'SecondaryFont-Regular',
+        }}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+      >
+        {title}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  // Render notification type settings
+  const renderNotificationTypeSettings = (
+    type: NotificationType,
+    index: number,
+  ) => {
     const pref = getPreferenceForType(type);
-    const isLoading = saving?.startsWith(type);
+    const isLoadingThis = saving?.startsWith(type);
+    const icon = getNotificationIcon(type);
+    const color = getNotificationColor(type);
 
     return (
-      <View key={type} style={styles.settingGroup}>
-        <View style={styles.settingHeader}>
-          <View style={styles.settingTitleContainer}>
-            <Text style={styles.settingTitle}>
-              {notificationTypeNames[type]}
-            </Text>
-            <Text style={styles.settingDescription}>
-              {notificationTypeDescriptions[type]}
-            </Text>
-          </View>
-          {isLoading && <ActivityIndicator size='small' color='#3B82F6' />}
-        </View>
-
-        <View style={styles.settingOptions}>
-          {/* In-App Notifications */}
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Feather name='smartphone' size={16} color='#6B7280' />
-              <Text style={styles.settingLabel}>Uygulama İçi</Text>
-            </View>
-            <Switch
-              value={pref?.in_app_enabled ?? true}
-              onValueChange={(value) =>
-                handleToggle(type, 'in_app_enabled', value)
-              }
-              trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
-              thumbColor={pref?.in_app_enabled ? '#3B82F6' : '#F3F4F6'}
-              disabled={isLoading}
-            />
-          </View>
-
-          {/* Push Notifications */}
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Feather name='bell' size={16} color='#6B7280' />
-              <Text style={styles.settingLabel}>Push Bildirimi</Text>
-            </View>
-            <Switch
-              value={pref?.push_enabled ?? true}
-              onValueChange={(value) =>
-                handleToggle(type, 'push_enabled', value)
-              }
-              trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
-              thumbColor={pref?.push_enabled ? '#3B82F6' : '#F3F4F6'}
-              disabled={isLoading}
-            />
-          </View>
-
-          {/* Email Notifications */}
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Feather name='mail' size={16} color='#6B7280' />
-              <Text style={styles.settingLabel}>E-posta</Text>
-            </View>
-            <Switch
-              value={pref?.email_enabled ?? false}
-              onValueChange={(value) =>
-                handleToggle(type, 'email_enabled', value)
-              }
-              trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
-              thumbColor={pref?.email_enabled ? '#3B82F6' : '#F3F4F6'}
-              disabled={isLoading}
-            />
-          </View>
-
-          {/* Frequency Setting */}
-          {(pref?.in_app_enabled ||
-            pref?.push_enabled ||
-            pref?.email_enabled) && (
-            <TouchableOpacity
-              style={styles.frequencyButton}
-              onPress={() => handleFrequencyChange(type)}
-              disabled={isLoading}
-            >
-              <View style={styles.settingInfo}>
-                <Feather name='clock' size={16} color='#6B7280' />
-                <Text style={styles.settingLabel}>Sıklık</Text>
+      <SlideInElement key={type} delay={400 + index * 100}>
+        <PlayfulCard
+          style={styles.settingCard}
+          variant='elevated'
+          animated
+          floatingAnimation={index % 2 === 0}
+        >
+          <View style={styles.settingHeader}>
+            <Row style={{ flex: 1, alignItems: 'flex-start' }}>
+              <View
+                style={[styles.typeIconWrapper, { backgroundColor: color }]}
+              >
+                <Feather name={icon as any} size={20} color={Colors.white} />
               </View>
-              <View style={styles.frequencyInfo}>
-                <Text style={styles.frequencyText}>
-                  {pref?.frequency_hours === 1
-                    ? 'Saatte bir'
-                    : pref?.frequency_hours === 24
-                    ? 'Günde bir'
-                    : pref?.frequency_hours === 168
-                    ? 'Haftada bir'
-                    : `${pref?.frequency_hours || 24} saatte bir`}
+              <Column style={{ flex: 1 }}>
+                <Text style={styles.settingTitle}>
+                  {notificationTypeNames[type]}
                 </Text>
-                <Feather name='chevron-right' size={16} color='#9CA3AF' />
-              </View>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+                <Text style={styles.settingDescription}>
+                  {notificationTypeDescriptions[type]}
+                </Text>
+              </Column>
+            </Row>
+            {isLoadingThis && (
+              <ActivityIndicator size='small' color={Colors.primary.DEFAULT} />
+            )}
+          </View>
+
+          <View style={styles.settingOptions}>
+            {/* In-App Notifications */}
+            <Row style={styles.settingRow}>
+              <Row style={styles.settingInfo}>
+                <View
+                  style={[
+                    styles.iconWrapper,
+                    {
+                      backgroundColor:
+                        Colors.vibrant?.blue || Colors.primary.DEFAULT,
+                    },
+                  ]}
+                >
+                  <Feather name='smartphone' size={16} color={Colors.white} />
+                </View>
+                <Text style={styles.settingLabel}>Uygulama İçi</Text>
+              </Row>
+              <Switch
+                value={pref?.in_app_enabled ?? true}
+                onValueChange={(value) =>
+                  handleToggle(type, 'in_app_enabled', value)
+                }
+                trackColor={{
+                  false: Colors.gray[300],
+                  true: Colors.primary.light,
+                }}
+                thumbColor={
+                  pref?.in_app_enabled
+                    ? Colors.primary.DEFAULT
+                    : Colors.gray[100]
+                }
+                disabled={isLoadingThis}
+              />
+            </Row>
+
+            {/* Push Notifications */}
+            <Row style={styles.settingRow}>
+              <Row style={styles.settingInfo}>
+                <View
+                  style={[
+                    styles.iconWrapper,
+                    {
+                      backgroundColor:
+                        Colors.vibrant?.orange || Colors.secondary.DEFAULT,
+                    },
+                  ]}
+                >
+                  <Feather name='bell' size={16} color={Colors.white} />
+                </View>
+                <Text style={styles.settingLabel}>Push Bildirimi</Text>
+              </Row>
+              <Switch
+                value={pref?.push_enabled ?? true}
+                onValueChange={(value) =>
+                  handleToggle(type, 'push_enabled', value)
+                }
+                trackColor={{
+                  false: Colors.gray[300],
+                  true: Colors.primary.light,
+                }}
+                thumbColor={
+                  pref?.push_enabled ? Colors.primary.DEFAULT : Colors.gray[100]
+                }
+                disabled={isLoadingThis}
+              />
+            </Row>
+
+            {/* Email Notifications */}
+            <Row style={styles.settingRow}>
+              <Row style={styles.settingInfo}>
+                <View
+                  style={[
+                    styles.iconWrapper,
+                    {
+                      backgroundColor: Colors.vibrant?.green || Colors.success,
+                    },
+                  ]}
+                >
+                  <Feather name='mail' size={16} color={Colors.white} />
+                </View>
+                <Text style={styles.settingLabel}>E-posta</Text>
+              </Row>
+              <Switch
+                value={pref?.email_enabled ?? false}
+                onValueChange={(value) =>
+                  handleToggle(type, 'email_enabled', value)
+                }
+                trackColor={{
+                  false: Colors.gray[300],
+                  true: Colors.primary.light,
+                }}
+                thumbColor={
+                  pref?.email_enabled
+                    ? Colors.primary.DEFAULT
+                    : Colors.gray[100]
+                }
+                disabled={isLoadingThis}
+              />
+            </Row>
+
+            {/* Frequency Setting */}
+            {(pref?.in_app_enabled ||
+              pref?.push_enabled ||
+              pref?.email_enabled) && (
+              <TouchableOpacity
+                style={styles.frequencyButton}
+                onPress={() => handleFrequencyChange(type)}
+                disabled={isLoadingThis}
+              >
+                <Row style={styles.settingInfo}>
+                  <View
+                    style={[
+                      styles.iconWrapper,
+                      {
+                        backgroundColor:
+                          Colors.vibrant?.purple || Colors.primary.dark,
+                      },
+                    ]}
+                  >
+                    <Feather name='clock' size={16} color={Colors.white} />
+                  </View>
+                  <Text style={styles.frequencyText}>Sıklık</Text>
+                </Row>
+                <Row style={styles.frequencyInfo}>
+                  <Text style={styles.frequencyText}>
+                    {pref?.frequency_hours === 1
+                      ? 'Saatte bir'
+                      : pref?.frequency_hours === 24
+                      ? 'Günde bir'
+                      : pref?.frequency_hours === 168
+                      ? 'Haftada bir'
+                      : `${pref?.frequency_hours || 24} saatte bir`}
+                  </Text>
+                  <Feather
+                    name='chevron-right'
+                    size={16}
+                    color={Colors.gray[700]}
+                  />
+                </Row>
+              </TouchableOpacity>
+            )}
+          </View>
+        </PlayfulCard>
+      </SlideInElement>
     );
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.screenTitle}>Bildirim Ayarları</Text>
-        <Text style={styles.screenSubtitle}>
-          Hangi bildirimleri almak istediğinizi seçin
-        </Text>
+  // Load preferences on component mount
+  useEffect(() => {
+    async function initialLoad() {
+      setIsLoading(true);
+      await loadPreferences();
+      setIsLoading(false);
+    }
+
+    initialLoad();
+  }, [loadPreferences]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator
+          size='large'
+          color={Colors.vibrant?.coral || Colors.primary.DEFAULT}
+        />
+        <Text style={styles.loadingText}>Bildirim ayarları yükleniyor...</Text>
       </View>
+    );
+  }
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => {
-              // Enable all notifications
-              Object.keys(notificationTypeNames).forEach((type) => {
-                handleToggle(type as NotificationType, 'in_app_enabled', true);
-                handleToggle(type as NotificationType, 'push_enabled', true);
-              });
-            }}
+  // Error state
+  if (error) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Feather
+          name='alert-triangle'
+          size={48}
+          color={Colors.vibrant?.orange}
+        />
+        <Text style={styles.errorText}>{error}</Text>
+        <PlayfulButton
+          title='Tekrar Dene'
+          onPress={handleRetry}
+          variant='primary'
+          size='medium'
+          style={{ marginTop: Spacing[4] }}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: Spacing[4] }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.primary.DEFAULT}
+            colors={[Colors.primary.DEFAULT]}
+          />
+        }
+      >
+        {/* Header Section */}
+        <SlideInElement delay={0}>
+          <PlayfulCard
+            style={{ marginBottom: Spacing[6], backgroundColor: 'transparent' }}
           >
-            <Feather name='check-circle' size={20} color='#10B981' />
-            <Text style={[styles.quickActionText, { color: '#10B981' }]}>
-              Tümünü Aç
-            </Text>
-          </TouchableOpacity>
+            <Row
+              style={{ alignItems: 'center', justifyContent: 'space-between' }}
+            >
+              <Column style={{ flex: 1 }}>
+                <PlayfulTitle
+                  level={1}
+                  gradient='primary'
+                  style={{ fontFamily: 'PrimaryFont', color: 'white' }}
+                >
+                  Bildirim Ayarları
+                </PlayfulTitle>
+                <Paragraph
+                  color={isDark ? Colors.gray[100] : Colors.gray[100]}
+                  style={{
+                    fontFamily: 'SecondaryFont-Regular',
+                  }}
+                >
+                  Hangi bildirimleri almak istediğinizi seçin
+                </Paragraph>
+                {deviceToken && (
+                  <Text style={styles.deviceTokenText}>
+                    Push bildirimleri etkin ✓
+                  </Text>
+                )}
+              </Column>
+            </Row>
+          </PlayfulCard>
+        </SlideInElement>
 
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => {
-              // Disable all notifications
-              Object.keys(notificationTypeNames).forEach((type) => {
-                handleToggle(type as NotificationType, 'in_app_enabled', false);
-                handleToggle(type as NotificationType, 'push_enabled', false);
-                handleToggle(type as NotificationType, 'email_enabled', false);
-              });
-            }}
-          >
-            <Feather name='x-circle' size={20} color='#EF4444' />
-            <Text style={[styles.quickActionText, { color: '#EF4444' }]}>
-              Tümünü Kapat
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Notification Categories */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Bildirim Türleri</Text>
-          {Object.keys(notificationTypeNames).map((type) =>
-            renderNotificationTypeSettings(type as NotificationType),
-          )}
-        </View>
-
-        {/* General Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Genel Ayarlar</Text>
-
-          <View style={styles.settingGroup}>
-            <TouchableOpacity
-              style={styles.generalSettingRow}
-              onPress={() => {
-                Alert.alert('Sessiz Saatler', 'Bu özellik yakında eklenecek!', [
-                  { text: 'Tamam' },
-                ]);
+        {/* Filter Buttons */}
+        <SlideInElement delay={100}>
+          <View style={{ marginBottom: Spacing[6] }}>
+            <Row
+              style={{
+                marginBottom: Spacing[3],
+                justifyContent: 'space-between',
+                alignItems: 'center',
               }}
             >
-              <View style={styles.settingInfo}>
-                <Feather name='moon' size={20} color='#6B7280' />
-                <View>
-                  <Text style={styles.settingLabel}>Sessiz Saatler</Text>
-                  <Text style={styles.settingDescription}>
-                    Belirli saatlerde bildirim alma
-                  </Text>
-                </View>
-              </View>
-              <Feather name='chevron-right' size={20} color='#9CA3AF' />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.generalSettingRow}
-              onPress={handleTestNotification}
-            >
-              <View style={styles.settingInfo}>
-                <Feather name='send' size={20} color='#6B7280' />
-                <View>
-                  <Text style={styles.settingLabel}>Test Bildirimi</Text>
-                  <Text style={styles.settingDescription}>
-                    Bildirimlerinizin çalıştığını test edin
-                  </Text>
-                </View>
-              </View>
-              <Feather name='chevron-right' size={20} color='#9CA3AF' />
-            </TouchableOpacity>
+              <FilterButton filter='all' title='Tümü' />
+              <FilterButton filter='study' title='Çalışma' />
+              <FilterButton filter='social' title='Sosyal' />
+              <FilterButton filter='system' title='Sistem' />
+            </Row>
           </View>
-        </View>
+        </SlideInElement>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Bildirim ayarlarınız tüm cihazlarınızda senkronize edilir.
-          </Text>
-        </View>
+        {/* Quick Actions */}
+        <SlideInElement delay={200}>
+          <PlayfulCard
+            title='Hızlı İşlemler'
+            titleFontFamily='PrimaryFont'
+            style={styles.quickActionsCard}
+            variant='playful'
+            animated
+          >
+            <Row style={styles.quickActions}>
+              <PlayfulButton
+                title={selectedFilter === 'all' ? 'Tümünü Aç' : 'Seçilileri Aç'}
+                onPress={() => handleBulkAction(true)}
+                variant='outline'
+                style={{ flex: 1 }}
+                icon='check'
+                animated
+                size='xs'
+                fontFamily='PrimaryFont'
+                disabled={saving === 'bulk-action'}
+              />
+              <PlayfulButton
+                title={
+                  selectedFilter === 'all' ? 'Tümünü Kapat' : 'Seçilileri Kapat'
+                }
+                onPress={() => handleBulkAction(false)}
+                variant='outline'
+                style={{ flex: 1 }}
+                icon='close'
+                animated
+                size='xs'
+                fontFamily='PrimaryFont'
+                disabled={saving === 'bulk-action'}
+              />
+            </Row>
+            <Row
+              style={{ justifyContent: 'space-between', marginTop: Spacing[3] }}
+            >
+              <PlayfulButton
+                title='Test Bildirimi'
+                onPress={handleTestNotification}
+                variant='outline'
+                style={{ flex: 1 }}
+                icon='send'
+                animated
+                size='xs'
+                fontFamily='PrimaryFont'
+              />
+              <PlayfulButton
+                title='Ayarları Yenile'
+                onPress={loadPreferences}
+                variant='outline'
+                style={{ flex: 1 }}
+                icon='refresh'
+                animated
+                size='xs'
+                fontFamily='PrimaryFont'
+              />
+            </Row>
+          </PlayfulCard>
+        </SlideInElement>
+
+        {/* Notification Types */}
+        {getFilteredNotificationTypes().map((type, index) =>
+          renderNotificationTypeSettings(type, index),
+        )}
+
+        {/* Bottom spacing */}
+        <View style={{ height: Spacing[8] }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    // backgroundColor: Colors.vibrant?.purpleDark || Colors.primary.dark,
   },
-  header: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing[4],
   },
-  screenTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
+  loadingText: {
+    marginTop: Spacing[3],
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Regular',
+    fontSize: 16,
+    textAlign: 'center',
   },
-  screenSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
+  errorText: {
+    marginTop: Spacing[3],
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Regular',
+    fontSize: 16,
+    textAlign: 'center',
   },
-  content: {
-    flex: 1,
+  deviceTokenText: {
+    marginTop: Spacing[2],
+    color: Colors.white,
+    fontSize: 12,
+    fontFamily: 'SecondaryFont-Regular',
+    opacity: 0.8,
+  },
+  quickActionsCard: {
+    marginBottom: Spacing[4],
   },
   quickActions: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
+    justifyContent: 'space-between',
   },
-  quickActionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  quickActionText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  section: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  settingGroup: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+  settingCard: {
+    marginBottom: Spacing[4],
   },
   settingHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    marginBottom: Spacing[4],
   },
-  settingTitleContainer: {
-    flex: 1,
+  typeIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing[3],
   },
   settingTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
+    color: Colors.gray[100],
+    marginBottom: Spacing[1],
+    fontFamily: 'SecondaryFont-Bold',
   },
   settingDescription: {
     fontSize: 13,
-    color: '#6B7280',
+    color: Colors.gray[300],
     lineHeight: 18,
+    fontFamily: 'SecondaryFont-Regular',
   },
   settingOptions: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    gap: Spacing[3],
   },
   settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    alignItems: 'center',
+    paddingVertical: Spacing[2],
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.gray[100],
   },
   settingInfo: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Spacing[3],
+  },
+  iconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   settingLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#374151',
+    color: Colors.gray[100],
+    fontFamily: 'SecondaryFont-Regular',
   },
   frequencyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    marginTop: 8,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingVertical: Spacing[3],
+    paddingHorizontal: Spacing[3],
+    backgroundColor: Colors.vibrant.coral,
+    borderRadius: BorderRadius.lg,
+    marginTop: Spacing[2],
   },
   frequencyInfo: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing[2],
   },
   frequencyText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors.gray[700],
     fontWeight: '500',
-  },
-  generalSettingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  footer: {
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 18,
+    fontFamily: 'SecondaryFont-Regular',
   },
 });
 
