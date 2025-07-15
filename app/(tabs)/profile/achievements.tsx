@@ -135,8 +135,28 @@ export default function AchievementScreen() {
       setLoading(true);
       setError(null);
 
+      // Validate ID parameter
+      if (!id) {
+        setError("Başarı ID'si bulunamadı");
+        return;
+      }
+
+      // Handle array case (if multiple params with same key)
+      const achievementIdString = Array.isArray(id) ? id[0] : id;
+
+      // Validate that ID is a valid number
+      const achievementId = Number(achievementIdString);
+      if (
+        isNaN(achievementId) ||
+        !Number.isInteger(achievementId) ||
+        achievementId <= 0
+      ) {
+        setError("Geçersiz başarı ID'si");
+        return;
+      }
+
       // Get the specific achievement
-      const achievementData = await getAchievementById(Number(id));
+      const achievementData = await getAchievementById(achievementId);
       if (!achievementData) {
         setError('Başarı bulunamadı');
         return;
@@ -183,7 +203,19 @@ export default function AchievementScreen() {
       }
     } catch (err) {
       console.error('Error fetching achievement:', err);
-      setError('Başarı bilgileri yüklenirken hata oluştu');
+
+      // Handle specific API errors
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to retrieve achievement')) {
+          setError('Başarı bilgileri alınamadı');
+        } else if (err.message.includes('404')) {
+          setError('Başarı bulunamadı');
+        } else {
+          setError('Başarı bilgileri yüklenirken hata oluştu');
+        }
+      } else {
+        setError('Başarı bilgileri yüklenirken hata oluştu');
+      }
     } finally {
       setLoading(false);
     }
@@ -544,7 +576,8 @@ export default function AchievementScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.vibrant?.purpleDark || Colors.primary.dark,
+    // backgroundColor: Colors.vibrant?.purpleDark || Colors.primary.dark,
+    marginTop: Spacing[3],
   },
   centerContent: {
     flex: 1,

@@ -200,7 +200,7 @@ const PlayfulCard: React.FC<CardProps> = ({
 
     // Base colors based on theme
     const baseBackgroundColor = isDark
-      ? Colors.white
+      ? Colors.vibrant?.purpleDark
       : Colors.vibrant?.purpleDark;
     const baseBorderColor = isDark ? Colors.gray[200] : Colors.gray[200];
     const glassBg = isDark
@@ -326,7 +326,7 @@ const PlayfulCard: React.FC<CardProps> = ({
     // Remove fontWeight if custom font is provided
     ...(titleFontFamily ? {} : { fontWeight: FontWeights.bold as any }),
     // Theme-aware text color
-    color: isDark ? Colors.primary.dark : Colors.white,
+    color: isDark ? Colors.white : Colors.white,
   };
 
   // Separate complex animated styles into variables
@@ -360,7 +360,7 @@ const PlayfulCard: React.FC<CardProps> = ({
           style={[
             styles.header,
             {
-              borderBottomColor: isDark ? Colors.primary.dark : Colors.white,
+              borderBottomColor: isDark ? Colors.white : Colors.white,
             },
           ]}
         >
