@@ -13,3 +13,4 @@ export * as answerService from './answerService';
 export * as duelResultService from './duelResultService';
 export * as userService from './userService';
 export * as notificationService from './notificationService';
+export * as socketService from './socketService';
