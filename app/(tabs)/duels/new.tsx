@@ -503,7 +503,7 @@ export default function NewDuelScreen() {
                 {selectedOpponent?.username}
               </Text>
               {
-                ' adlı kullanıcıya meydan okumak için bir konu seçin veya şansınızı deneyin!'
+                ' adlı kullanıcıya meydan okumak için bir ders seçin veya şansınızı deneyin!'
               }
             </Text>
           </View>
@@ -539,7 +539,7 @@ export default function NewDuelScreen() {
                   }))}
                   selectedValue={selectedTestId}
                   onValueChange={(val) => setSelectedTestId(val as number)}
-                  placeholder='Bir Konu Seçin...'
+                  placeholder='Bir Ders Seçin...'
                   enabled={true}
                   forceLight={true}
                   style={{
@@ -554,7 +554,7 @@ export default function NewDuelScreen() {
 
               {/* Spin Button */}
               <Button
-                title='Konu İçin Çevir'
+                title='Ders İçin Çevir'
                 onPress={() => setShowWheelForTest(true)}
                 variant='secondary'
                 icon='random'

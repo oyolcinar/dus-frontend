@@ -35,7 +35,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name='courses/index'
         options={{
-          title: 'Kurslar',
+          title: 'Dersler',
           tabBarIcon: ({ color }) => <TabBarIcon name='book' color={color} />,
         }}
       />

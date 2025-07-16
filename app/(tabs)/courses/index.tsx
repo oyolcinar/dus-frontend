@@ -107,7 +107,7 @@ export default function CoursesScreen() {
       setCourses(coursesWithProgress);
     } catch (error) {
       console.error('Error fetching courses:', error);
-      setError('Kurslar yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+      setError('Dersler yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
     }
   }, []);
 
@@ -286,7 +286,7 @@ export default function CoursesScreen() {
                   gradient='primary'
                   style={{ fontFamily: 'PrimaryFont', color: 'white' }}
                 >
-                  Kurslar
+                  Dersler
                 </PlayfulTitle>
                 <Paragraph
                   color={isDark ? Colors.gray[100] : Colors.gray[100]}
@@ -294,7 +294,7 @@ export default function CoursesScreen() {
                     fontFamily: 'SecondaryFont-Regular',
                   }}
                 >
-                  Tüm kursları görüntüleyin ve çalışmaya devam edin
+                  Tüm dersleri görüntüleyin ve çalışmaya devam edin
                 </Paragraph>
               </Column>
               <Avatar size='md' name='📚' bgColor={VIBRANT_COLORS.purple} />
@@ -338,7 +338,7 @@ export default function CoursesScreen() {
                 fontFamily: 'SecondaryFont-Regular',
               }}
             >
-              Kurslar yükleniyor...
+              Dersler yükleniyor...
             </Text>
           </View>
         ) : (
@@ -541,12 +541,12 @@ export default function CoursesScreen() {
                   icon='book'
                   title={
                     selectedFilter === 'all'
-                      ? 'Henüz kurs yok'
-                      : 'Bu kategoride kurs yok'
+                      ? 'Henüz ders yok'
+                      : 'Bu kategoride ders yok'
                   }
                   message={
                     selectedFilter === 'all'
-                      ? 'Yeni kurslar yakında eklenecektir.'
+                      ? 'Yeni dersler yakında eklenecektir.'
                       : 'Farklı bir filtre seçmeyi deneyin.'
                   }
                   fontFamily='SecondaryFont-Regular'

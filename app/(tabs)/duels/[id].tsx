@@ -1,4 +1,4 @@
-// app/(tabs)/duels/[id].tsx - Real-time Duel Room Screen
+// app/(tabs)/duels/[id].tsx - Gerçek Zamanlı Düello Odası Ekranı
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -11,6 +11,8 @@ import {
   useColorScheme,
   Animated,
   Dimensions,
+  ViewStyle,
+  TextStyle,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
@@ -40,6 +42,7 @@ import {
 } from '../../../components/ui';
 import { Colors, Spacing, BorderRadius } from '../../../constants/theme';
 import { duelService } from '../../../src/api';
+import API_URL from '@/src/config/api.config';
 
 const { width, height } = Dimensions.get('window');
 
@@ -126,7 +129,7 @@ export default function DuelRoomScreen() {
 
   // Refs
   const socket = useRef<Socket | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<number | null>(null);
   const answerStartTime = useRef<number>(0);
 
   // Animations
@@ -200,17 +203,14 @@ export default function DuelRoomScreen() {
     try {
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
-        setError('Authentication token not found');
+        setError("Kimlik doğrulama token'ı bulunamadı");
         return;
       }
 
       // Initialize socket connection
-      socket.current = io(
-        process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001',
-        {
-          auth: { token },
-        },
-      );
+      socket.current = io(API_URL || 'http://localhost:3001', {
+        auth: { token },
+      });
 
       // Socket event listeners
       socket.current.on('connect', () => {
@@ -233,12 +233,12 @@ export default function DuelRoomScreen() {
       socket.current.on('disconnect', () => {
         console.log('Disconnected from socket server');
         if (phase !== 'final') {
-          setError('Connection lost. Attempting to reconnect...');
+          setError('Bağlantı kesildi. Tekrar bağlanmaya çalışılıyor...');
         }
       });
     } catch (error) {
       console.error('Error initializing connection:', error);
-      setError('Failed to connect to game server');
+      setError('Oyun sunucusuna bağlanılamadı');
     }
   };
 
@@ -391,9 +391,9 @@ export default function DuelRoomScreen() {
     username: string;
   }) => {
     Alert.alert(
-      'Opponent Disconnected',
-      'Your opponent has left the duel. You win by default!',
-      [{ text: 'OK', onPress: () => router.back() }],
+      'Rakip Bağlantısı Kesildi',
+      'Rakibiniz düellodan ayrıldı. Varsayılan olarak kazandınız!',
+      [{ text: 'Tamam', onPress: () => router.back() }],
     );
   };
 
@@ -404,12 +404,12 @@ export default function DuelRoomScreen() {
 
   const handleExitDuel = () => {
     Alert.alert(
-      'Exit Duel',
-      'Are you sure you want to leave? This will count as a loss.',
+      'Düellodan Çık',
+      'Ayrılmak istediğinizden emin misiniz? Bu yenilgi sayılacak.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'İptal', style: 'cancel' },
         {
-          text: 'Exit',
+          text: 'Çık',
           style: 'destructive',
           onPress: () => {
             if (socket.current) {
@@ -428,12 +428,12 @@ export default function DuelRoomScreen() {
         <Avatar
           size='xl'
           name='🔥'
-          bgColor={VIBRANT_COLORS.orange}
+          bgColor={Colors.vibrant.orange}
           style={{ marginBottom: Spacing[4] }}
         />
       </Animated.View>
       <PlayfulTitle level={2} style={styles.whiteText}>
-        Connecting to Duel...
+        Düelloya Bağlanıyor...
       </PlayfulTitle>
       <ActivityIndicator
         size='large'
@@ -446,28 +446,30 @@ export default function DuelRoomScreen() {
   const renderLobby = () => (
     <Container style={styles.centerContainer}>
       <PlayfulCard variant='glass' style={styles.lobbyCard}>
-        <Column style={{ alignItems: 'center' }}>
-          <Row style={{ alignItems: 'center', marginBottom: Spacing[6] }}>
+        <Column style={{ alignItems: 'center' as const }}>
+          <Row
+            style={{ alignItems: 'center' as const, marginBottom: Spacing[6] }}
+          >
             <Avatar
               size='lg'
-              name={userData?.username?.charAt(0) || 'U'}
-              bgColor={VIBRANT_COLORS.purple}
+              name={userData?.username?.charAt(0) || 'K'}
+              bgColor={Colors.vibrant.purple}
             />
-            <Text style={styles.vsText}>VS</Text>
-            <Avatar size='lg' name='?' bgColor={VIBRANT_COLORS.orange} />
+            <Text style={styles.vsText}>KARŞı</Text>
+            <Avatar size='lg' name='?' bgColor={Colors.vibrant.orange} />
           </Row>
 
           <PlayfulTitle level={3} style={styles.whiteText}>
-            Duel Lobby
+            Düello Lobisi
           </PlayfulTitle>
 
           <Paragraph style={styles.lightText}>
-            Waiting for both players to be ready...
+            Her iki oyuncunun hazır olması bekleniyor...
           </Paragraph>
 
           <Row style={{ marginTop: Spacing[4] }}>
-            <Badge text='Ready ✓' variant='success' />
-            <Badge text='Waiting...' variant='warning' />
+            <Badge text='Hazır ✓' variant='success' />
+            <Badge text='Bekliyor...' variant='warning' />
           </Row>
         </Column>
       </PlayfulCard>
@@ -480,7 +482,7 @@ export default function DuelRoomScreen() {
         <Text style={styles.countdownText}>{countdown}</Text>
       </Animated.View>
       <PlayfulTitle level={2} style={styles.whiteText}>
-        Get Ready!
+        Hazır Olun!
       </PlayfulTitle>
     </Container>
   );
@@ -491,20 +493,20 @@ export default function DuelRoomScreen() {
       <Row style={styles.questionHeader}>
         <Column>
           <Text style={styles.questionCounter}>
-            Question {questionIndex + 1} of {totalQuestions}
+            Soru {questionIndex + 1} / {totalQuestions}
           </Text>
           <ProgressBar
             progress={(questionIndex + 1) / totalQuestions}
-            color={VIBRANT_COLORS.mint}
+            progressColor={Colors.vibrant.mint}
             style={{ width: 120 }}
           />
         </Column>
-        <Column style={{ alignItems: 'flex-end' }}>
+        <Column style={{ alignItems: 'flex-end' as const }}>
           <Text style={[styles.timer, timeLeft <= 10 && styles.timerDanger]}>
             {timeLeft}s
           </Text>
           <Text style={styles.opponentStatus}>
-            {opponentAnswered ? 'Opponent: Done ✓' : 'Opponent: Thinking...'}
+            {opponentAnswered ? 'Rakip: Tamamladı ✓' : 'Rakip: Düşünüyor...'}
           </Text>
         </Column>
       </Row>
@@ -514,14 +516,14 @@ export default function DuelRoomScreen() {
         <ScoreDisplay
           score={userScore}
           maxScore={totalQuestions}
-          label='You'
+          label='Siz'
           variant='gradient'
           size='small'
         />
         <ScoreDisplay
           score={opponentScore}
           maxScore={totalQuestions}
-          label='Opponent'
+          label='Rakip'
           variant='gradient'
           size='small'
         />
@@ -576,10 +578,8 @@ export default function DuelRoomScreen() {
       {/* Answer Status */}
       {hasAnswered && (
         <View style={styles.answerStatus}>
-          <Badge text='Answer Submitted ✓' variant='success' size='lg' />
-          <Paragraph style={styles.lightText}>
-            Waiting for opponent...
-          </Paragraph>
+          <Badge text='Cevap Gönderildi ✓' variant='success' size='md' />
+          <Paragraph style={styles.lightText}>Rakip bekleniyor...</Paragraph>
         </View>
       )}
     </Container>
@@ -588,15 +588,15 @@ export default function DuelRoomScreen() {
   const renderResults = () => (
     <Container style={styles.centerContainer}>
       <PlayfulCard variant='glass' style={styles.resultsCard}>
-        <Column style={{ alignItems: 'center' }}>
+        <Column style={{ alignItems: 'center' as const }}>
           <PlayfulTitle level={2} style={styles.whiteText}>
-            Round {questionIndex + 1} Results
+            {questionIndex + 1}. Tur Sonuçları
           </PlayfulTitle>
 
           {roundResult && (
             <>
               <Text style={styles.correctAnswer}>
-                Correct Answer: {roundResult.question.correctAnswer}){' '}
+                Doğru Cevap: {roundResult.question.correctAnswer}){' '}
                 {
                   roundResult.question.options[
                     roundResult.question.correctAnswer
@@ -610,10 +610,10 @@ export default function DuelRoomScreen() {
                   return (
                     <Column key={idx} style={styles.playerResult}>
                       <Text style={styles.playerName}>
-                        {isUser ? 'You' : 'Opponent'}
+                        {isUser ? 'Siz' : 'Rakip'}
                       </Text>
                       <Badge
-                        text={answer.isCorrect ? 'Correct ✓' : 'Wrong ✗'}
+                        text={answer.isCorrect ? 'Doğru ✓' : 'Yanlış ✗'}
                         variant={answer.isCorrect ? 'success' : 'error'}
                       />
                       <Text style={styles.timeText}>
@@ -625,23 +625,27 @@ export default function DuelRoomScreen() {
               </Row>
 
               <Row style={styles.currentScore}>
-                <AnimatedCounter
-                  value={userScore}
-                  label='Your Score'
-                  color={VIBRANT_COLORS.mint}
-                />
+                <Column style={{ alignItems: 'center' as const }}>
+                  <AnimatedCounter
+                    value={userScore}
+                    style={{ color: Colors.vibrant.mint }}
+                  />
+                  <Text style={styles.scoreLabel}>Puanınız</Text>
+                </Column>
                 <Text style={styles.scoreVs}>-</Text>
-                <AnimatedCounter
-                  value={opponentScore}
-                  label='Opponent'
-                  color={VIBRANT_COLORS.coral}
-                />
+                <Column style={{ alignItems: 'center' as const }}>
+                  <AnimatedCounter
+                    value={opponentScore}
+                    style={{ color: Colors.vibrant.coral }}
+                  />
+                  <Text style={styles.scoreLabel}>Rakip</Text>
+                </Column>
               </Row>
             </>
           )}
 
           <Paragraph style={styles.lightText}>
-            Next question in 3 seconds...
+            Sonraki soru 3 saniye içinde...
           </Paragraph>
         </Column>
       </PlayfulCard>
@@ -651,7 +655,7 @@ export default function DuelRoomScreen() {
   const renderFinal = () => (
     <Container style={styles.centerContainer}>
       <PlayfulCard variant='glass' style={styles.finalCard}>
-        <Column style={{ alignItems: 'center' }}>
+        <Column style={{ alignItems: 'center' as const }}>
           {finalResults && (
             <>
               {/* Winner Display */}
@@ -664,21 +668,21 @@ export default function DuelRoomScreen() {
                       gradient='primary'
                       style={styles.winnerText}
                     >
-                      VICTORY!
+                      ZAFER!
                     </PlayfulTitle>
                   </>
                 ) : finalResults.winnerId ? (
                   <>
                     <Text style={styles.winnerEmoji}>😔</Text>
                     <PlayfulTitle level={1} style={styles.loserText}>
-                      Defeat
+                      Yenilgi
                     </PlayfulTitle>
                   </>
                 ) : (
                   <>
                     <Text style={styles.winnerEmoji}>🤝</Text>
                     <PlayfulTitle level={1} style={styles.drawText}>
-                      Draw!
+                      Beraberlik!
                     </PlayfulTitle>
                   </>
                 )}
@@ -693,7 +697,7 @@ export default function DuelRoomScreen() {
                       : finalResults.user2.score
                   }
                   maxScore={totalQuestions}
-                  label='You'
+                  label='Siz'
                   variant='gradient'
                   size='large'
                 />
@@ -704,7 +708,7 @@ export default function DuelRoomScreen() {
                       : finalResults.user1.score
                   }
                   maxScore={totalQuestions}
-                  label='Opponent'
+                  label='Rakip'
                   variant='gradient'
                   size='large'
                 />
@@ -714,7 +718,7 @@ export default function DuelRoomScreen() {
               <View style={styles.statsSection}>
                 <Row>
                   <Text style={styles.statText}>
-                    Accuracy:{' '}
+                    Doğruluk:{' '}
                     {(finalResults.user1.userId === userData?.userId
                       ? finalResults.user1.accuracy
                       : finalResults.user2.accuracy * 100
@@ -722,7 +726,7 @@ export default function DuelRoomScreen() {
                     %
                   </Text>
                   <Text style={styles.statText}>
-                    Avg Time:{' '}
+                    Ort. Süre:{' '}
                     {(finalResults.user1.userId === userData?.userId
                       ? finalResults.user1.totalTime
                       : finalResults.user2.totalTime / 1000 / totalQuestions
@@ -735,13 +739,13 @@ export default function DuelRoomScreen() {
               {/* Action Buttons */}
               <Row style={styles.actionButtons}>
                 <Button
-                  title='New Duel'
+                  title='Yeni Düello'
                   variant='primary'
                   onPress={() => router.push('/(tabs)/duels/new')}
                   style={{ flex: 1, marginRight: Spacing[2] }}
                 />
                 <Button
-                  title='Exit'
+                  title='Çık'
                   variant='outline'
                   onPress={() => router.back()}
                   style={{ flex: 1, marginLeft: Spacing[2] }}
@@ -758,12 +762,12 @@ export default function DuelRoomScreen() {
     <Container style={styles.centerContainer}>
       <UIAlert
         type='error'
-        title='Connection Error'
-        message={error || 'Something went wrong'}
+        title='Bağlantı Hatası'
+        message={error || 'Bir şeyler ters gitti'}
         style={{ marginBottom: Spacing[4] }}
       />
       <Button
-        title='Try Again'
+        title='Tekrar Dene'
         variant='primary'
         onPress={() => {
           setError(null);
@@ -798,197 +802,203 @@ export default function DuelRoomScreen() {
 const styles = {
   centerContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
     padding: Spacing[4],
-  },
+  } as ViewStyle,
   questionContainer: {
     flex: 1,
     padding: Spacing[4],
-  },
+  } as ViewStyle,
   questionHeader: {
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
     marginBottom: Spacing[4],
-  },
+  } as ViewStyle,
   questionCounter: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     color: Colors.white,
     fontFamily: 'SecondaryFont-Bold',
-  },
+  } as TextStyle,
   timer: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     color: Colors.white,
     fontFamily: 'PrimaryFont',
-  },
+  } as TextStyle,
   timerDanger: {
-    color: VIBRANT_COLORS.coral,
-  },
+    color: Colors.vibrant.coral,
+  } as TextStyle,
   opponentStatus: {
     fontSize: 12,
     color: Colors.gray[300],
     fontFamily: 'SecondaryFont-Regular',
-  },
+  } as TextStyle,
   scoreRow: {
-    justifyContent: 'space-between',
+    justifyContent: 'space-between' as const,
     marginBottom: Spacing[6],
-  },
+  } as ViewStyle,
   questionCard: {
     flex: 1,
-    justifyContent: 'center',
-  },
+    justifyContent: 'center' as const,
+  } as ViewStyle,
   questionContent: {
     padding: Spacing[6],
-  },
+  } as ViewStyle,
   questionText: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     color: Colors.white,
-    textAlign: 'center',
+    textAlign: 'center' as const,
     marginBottom: Spacing[6],
     fontFamily: 'PrimaryFont',
     lineHeight: 28,
-  },
+  } as TextStyle,
   optionsContainer: {
     gap: Spacing[3],
-  },
+  } as ViewStyle,
   optionButton: {
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: BorderRadius.lg,
     padding: Spacing[4],
     borderWidth: 2,
     borderColor: 'transparent',
-  },
+  } as ViewStyle,
   selectedOption: {
-    backgroundColor: VIBRANT_COLORS.purple,
+    backgroundColor: Colors.vibrant.purple,
     borderColor: Colors.white,
-  },
+  } as ViewStyle,
   disabledOption: {
     opacity: 0.6,
-  },
+  } as ViewStyle,
   optionText: {
     fontSize: 16,
     color: Colors.white,
     fontFamily: 'SecondaryFont-Regular',
-  },
+  } as TextStyle,
   selectedOptionText: {
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     fontFamily: 'SecondaryFont-Bold',
-  },
+  } as TextStyle,
   answerStatus: {
-    alignItems: 'center',
+    alignItems: 'center' as const,
     marginTop: Spacing[4],
-  },
+  } as ViewStyle,
   lobbyCard: {
     padding: Spacing[6],
     width: width * 0.9,
-  },
+  } as ViewStyle,
   resultsCard: {
     padding: Spacing[6],
     width: width * 0.9,
-  },
+  } as ViewStyle,
   finalCard: {
     padding: Spacing[6],
     width: width * 0.9,
-  },
+  } as ViewStyle,
   vsText: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     color: Colors.white,
     marginHorizontal: Spacing[4],
     fontFamily: 'PrimaryFont',
-  },
+  } as TextStyle,
   whiteText: {
     color: Colors.white,
-  },
+  } as TextStyle,
   lightText: {
     color: Colors.gray[300],
-    textAlign: 'center',
+    textAlign: 'center' as const,
     fontFamily: 'SecondaryFont-Regular',
-  },
+  } as TextStyle,
   countdownText: {
     fontSize: 120,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     color: Colors.white,
     fontFamily: 'PrimaryFont',
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 4,
-  },
+  } as TextStyle,
   correctAnswer: {
     fontSize: 16,
-    color: VIBRANT_COLORS.mint,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    color: Colors.vibrant.mint,
+    fontWeight: 'bold' as const,
+    textAlign: 'center' as const,
     marginBottom: Spacing[4],
     fontFamily: 'SecondaryFont-Bold',
-  },
+  } as TextStyle,
   resultRow: {
-    justifyContent: 'space-around',
+    justifyContent: 'space-around' as const,
     width: '100%',
     marginVertical: Spacing[4],
-  },
+  } as ViewStyle,
   playerResult: {
-    alignItems: 'center',
+    alignItems: 'center' as const,
     gap: Spacing[2],
-  },
+  } as ViewStyle,
   playerName: {
     fontSize: 14,
     color: Colors.white,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     fontFamily: 'SecondaryFont-Bold',
-  },
+  } as TextStyle,
   timeText: {
     fontSize: 12,
     color: Colors.gray[300],
     fontFamily: 'SecondaryFont-Regular',
-  },
+  } as TextStyle,
   currentScore: {
-    alignItems: 'center',
+    alignItems: 'center' as const,
     gap: Spacing[4],
     marginTop: Spacing[4],
-  },
+  } as ViewStyle,
   scoreVs: {
     fontSize: 24,
     color: Colors.white,
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     fontFamily: 'PrimaryFont',
-  },
+  } as TextStyle,
+  scoreLabel: {
+    fontSize: 12,
+    color: Colors.gray[300],
+    fontFamily: 'SecondaryFont-Regular',
+    marginTop: 4,
+  } as TextStyle,
   winnerSection: {
-    alignItems: 'center',
+    alignItems: 'center' as const,
     marginBottom: Spacing[6],
-  },
+  } as ViewStyle,
   winnerEmoji: {
     fontSize: 64,
     marginBottom: Spacing[2],
-  },
+  } as TextStyle,
   winnerText: {
-    color: VIBRANT_COLORS.mint,
-  },
+    color: Colors.vibrant.mint,
+  } as TextStyle,
   loserText: {
-    color: VIBRANT_COLORS.coral,
-  },
+    color: Colors.vibrant.coral,
+  } as TextStyle,
   drawText: {
-    color: VIBRANT_COLORS.yellow,
-  },
+    color: Colors.vibrant.yellow,
+  } as TextStyle,
   finalScore: {
-    justifyContent: 'space-around',
+    justifyContent: 'space-around' as const,
     width: '100%',
     marginBottom: Spacing[6],
-  },
+  } as ViewStyle,
   statsSection: {
     width: '100%',
     marginBottom: Spacing[6],
-  },
+  } as ViewStyle,
   statText: {
     fontSize: 14,
     color: Colors.gray[300],
     fontFamily: 'SecondaryFont-Regular',
-  },
+  } as TextStyle,
   actionButtons: {
     gap: Spacing[4],
     width: '100%',
-  },
+  } as ViewStyle,
 };

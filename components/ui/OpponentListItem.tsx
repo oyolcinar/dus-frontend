@@ -46,7 +46,10 @@ export default function OpponentListItem({
 
       <View style={styles.userInfo}>
         <Text
-          style={[styles.username, isDark ? styles.textDark : styles.textLight]}
+          style={[
+            styles.username,
+            isDark ? styles.textLight : styles.textLight,
+          ]}
         >
           {user.username}
         </Text>
@@ -56,7 +59,7 @@ export default function OpponentListItem({
           <Text
             style={[
               styles.stats,
-              isDark ? styles.statsDark : styles.statsLight,
+              isDark ? styles.statsLight : styles.statsLight,
             ]}
           >
             Kazanma Oranı: {Math.round(user.winRate * 100)}%
@@ -87,7 +90,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.gray[200],
   },
   containerDark: {
-    borderBottomColor: Colors.gray[700],
+    borderBottomColor: Colors.gray[200],
   },
   userInfo: {
     flex: 1,
@@ -102,14 +105,14 @@ const styles = StyleSheet.create({
     color: Colors.gray[800],
   },
   textDark: {
-    color: Colors.white,
+    color: Colors.gray[800],
   },
   stats: {
     fontSize: 12,
     marginTop: Spacing[1],
   },
   statsLight: {
-    color: Colors.gray[600],
+    color: Colors.gray[400],
   },
   statsDark: {
     color: Colors.gray[400],

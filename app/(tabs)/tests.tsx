@@ -758,7 +758,10 @@ export default function TestsScreen() {
               }, // Green for restorative
               { name: 'Endodonti', bgColor: Colors.vibrant.yellow }, // Yellow for endodontics
               { name: 'Pedodonti', bgColor: Colors.vibrant.pink }, // Pink for pediatrics
-              { name: 'Protetik Diş Tedavisi', bgColor: Colors.vibrant.purple }, // Purple for prosthetics
+              {
+                name: 'Prostetik Diş Tedavisi',
+                bgColor: Colors.vibrant.purple,
+              }, // Purple for prosthetics
               { name: 'Periodontoloji', bgColor: Colors.vibrant.mint }, // Mint for periodontics
               {
                 name: 'Ağız, Diş ve Çene Radyolojisi',
