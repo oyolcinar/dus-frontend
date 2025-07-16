@@ -103,8 +103,33 @@ const API_ENDPOINTS = {
     { name: 'Delete Question', method: 'DELETE', path: 'api/questions/1' },
   ],
   Answers: [
-    { name: 'Submit Answer', method: 'POST', path: 'api/answers' },
-    { name: 'Get Answers', method: 'GET', path: 'api/answers?resultId=1' },
+    { name: 'Submit Answer', method: 'POST', path: '/api/answers' },
+    {
+      name: 'Submit Batch Answers',
+      method: 'POST',
+      path: '/api/answers/batch',
+    },
+    {
+      name: 'Get Answers by Result',
+      method: 'GET',
+      path: '/api/answers/result/1',
+    },
+    // NEW: Answer explanation endpoints
+    {
+      name: 'Get Incorrect Answers with Explanations',
+      method: 'GET',
+      path: '/api/answers/incorrect-with-explanations?limit=10',
+    },
+    {
+      name: 'Update Answer Definition',
+      method: 'PUT',
+      path: '/api/answers/1/definition',
+    },
+    {
+      name: 'Get Answer Explanation Stats',
+      method: 'GET',
+      path: '/api/answers/explanation-stats',
+    },
   ],
   Results: [
     { name: 'List Results', method: 'GET', path: 'api/results' },
@@ -155,14 +180,63 @@ const API_ENDPOINTS = {
     { name: 'Delete Plan', method: 'DELETE', path: 'api/studyPlans/1' },
   ],
   Analytics: [
-    { name: 'Get User Analytics', method: 'GET', path: 'api/analytics/user' },
     {
-      name: 'Get Error Analytics',
+      name: 'Get User Dashboard Analytics',
       method: 'GET',
-      path: 'api/analytics/errors',
+      path: '/api/analytics/dashboard',
     },
-    { name: 'Get Study Analytics', method: 'GET', path: 'api/analytics/study' },
-    { name: 'Get Duel Analytics', method: 'GET', path: 'api/analytics/duels' },
+    {
+      name: 'Get Weekly Progress',
+      method: 'GET',
+      path: '/api/analytics/weekly-progress',
+    },
+    {
+      name: 'Get Topic Analytics',
+      method: 'GET',
+      path: '/api/analytics/topics',
+    },
+    {
+      name: 'Get User Performance',
+      method: 'GET',
+      path: '/api/analytics/user-performance',
+    },
+    {
+      name: 'Get Activity Timeline',
+      method: 'GET',
+      path: '/api/analytics/activity?days=7',
+    },
+    {
+      name: 'Get Weakest Topics',
+      method: 'GET',
+      path: '/api/analytics/weakest-topics?limit=5',
+    },
+    {
+      name: 'Get Improvement Metrics',
+      method: 'GET',
+      path: '/api/analytics/improvement',
+    },
+    {
+      name: 'Get Study Time Distribution',
+      method: 'GET',
+      path: '/api/analytics/study-time-distribution',
+    },
+    // NEW: Answer explanations endpoint
+    {
+      name: 'Get Answer Explanations',
+      method: 'GET',
+      path: '/api/analytics/answer-explanations?limit=10',
+    },
+    // Admin analytics
+    {
+      name: 'Get Admin Overview',
+      method: 'GET',
+      path: '/api/analytics/admin/overview',
+    },
+    {
+      name: 'Get Admin User Performance',
+      method: 'GET',
+      path: '/api/analytics/admin/user-performance',
+    },
   ],
   // NEW: User Question History endpoints
   'User History': [

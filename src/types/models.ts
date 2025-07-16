@@ -73,12 +73,14 @@ export interface Question {
   created_at: string;
 }
 
+// UPDATED: Answer interface with answer_definition field
 export interface Answer {
   answer_id: number;
   result_id: number;
   question_id: number;
   user_answer: string;
   is_correct: boolean;
+  answer_definition?: string; // NEW: Optional explanation field
   created_at: string;
 }
 
@@ -128,6 +130,7 @@ export interface UserQuestionHistory {
   is_correct: boolean;
   answered_at: string;
   time_taken?: number;
+  answer_definition?: string; // NEW: Optional explanation field
 }
 
 export interface UserCourseStats {
@@ -191,6 +194,7 @@ export interface ReviewQuestion {
   answered_at: string;
   mistake_count: number;
   last_mistake: string;
+  answer_explanation?: string; // NEW: Optional explanation for the correct answer
 }
 
 export interface UserPerformanceSummary {
@@ -216,6 +220,27 @@ export interface UserPerformanceSummary {
     timestamp: string;
     score?: number;
   }>;
+}
+
+// NEW: Answer Explanation Types
+export interface AnswerExplanation {
+  answer_id: number;
+  question_text: string;
+  user_answer: string;
+  correct_answer: string;
+  explanation: string;
+  question_options: Record<string, any>;
+  test_title: string;
+  course_title: string;
+  answered_at: string;
+}
+
+export interface AnswerExplanationStats {
+  totalAnswers: number;
+  totalWithExplanations: number;
+  correctAnswersWithExplanations: number;
+  incorrectAnswersWithExplanations: number;
+  explanationCoveragePercentage: number;
 }
 
 // Existing types continue...

@@ -73,6 +73,21 @@ export interface StudyTimeDistributionPayload {
   totalHours: number; // Or totalDuration in consistent unit
 }
 
+// NEW: For GET /analytics/answer-explanations
+export interface AnswerExplanationsPayload {
+  incorrectAnswers: {
+    answerId: number;
+    questionText: string;
+    userAnswer: string;
+    correctAnswer: string;
+    explanation: string;
+    options: Record<string, any>;
+    testTitle: string;
+    courseTitle: string;
+    answeredAt: string;
+  }[];
+}
+
 // --- Service Functions ---
 
 export const getUserPerformanceAnalytics =
@@ -165,3 +180,20 @@ export const getStudyTimeDistribution =
     }
     return response.data;
   };
+
+// NEW: Get answer explanations for learning insights
+export const getAnswerExplanations = async (
+  limit: number = 10,
+): Promise<AnswerExplanationsPayload> => {
+  const response = await apiRequest<AnswerExplanationsPayload>(
+    `/analytics/answer-explanations?limit=${limit}`,
+  );
+
+  if (!response.data || typeof response.data !== 'object') {
+    console.warn('No answer explanations data received, returning defaults.');
+    return {
+      incorrectAnswers: [],
+    };
+  }
+  return response.data;
+};
