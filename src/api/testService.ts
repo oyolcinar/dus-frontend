@@ -16,12 +16,15 @@ type AllTestsPayload = Test[];
 // For GET /tests/course/:courseId
 type TestsByCoursePayload = Test[];
 
+// For GET /tests/topic/:topicId - NEW
+type TestsByTopicPayload = Test[];
+
 // For GET /tests/course-type/:courseType
 type TestsByCourseTypePayload = Test[];
 
 // For GET /tests/:testId
 // The payload is a single Test object.
-// The Test model should include: test_id, title, description, difficulty_level, created_at, question_count, time_limit, course_id
+// The Test model should include: test_id, title, description, difficulty_level, created_at, question_count, time_limit, course_id, topic_id
 
 // For GET /tests/:testId/with-questions
 // Your existing TestWithQuestions interface is good for this payload
@@ -91,13 +94,14 @@ interface MessagePayload {
   message: string;
 }
 
-// --- Service Input DTOs (updated with courseId) ---
+// --- Service Input DTOs (updated with topicId) ---
 export interface CreateTestRequest {
   title: string;
   description?: string;
   difficultyLevel: number; // Or string like 'easy', 'medium', 'hard'
   timeLimit?: number; // In seconds or minutes
-  courseId: number; // NEW: Required course relationship
+  courseId: number; // Required course relationship
+  topicId?: number; // NEW: Optional topic relationship
 }
 
 export interface UpdateTestRequest {
@@ -105,7 +109,8 @@ export interface UpdateTestRequest {
   description?: string;
   difficultyLevel?: number;
   timeLimit?: number;
-  courseId?: number; // NEW: Optional course relationship for updates
+  courseId?: number; // Optional course relationship for updates
+  topicId?: number; // NEW: Optional topic relationship for updates (can be null to remove association)
 }
 
 export interface SubmitTestRequest {
@@ -118,12 +123,30 @@ export interface SubmitTestRequest {
 
 // --- Service Functions ---
 
-export const getAllTests = async (): Promise<AllTestsPayload> => {
-  const response = await apiRequest<AllTestsPayload>('/tests');
+export const getAllTests = async (params?: {
+  courseId?: number;
+  topicId?: number;
+  courseType?: 'temel_dersler' | 'klinik_dersler';
+}): Promise<AllTestsPayload> => {
+  let url = '/tests';
+  if (params) {
+    const queryParams = new URLSearchParams();
+    if (params.courseId)
+      queryParams.append('courseId', params.courseId.toString());
+    if (params.topicId)
+      queryParams.append('topicId', params.topicId.toString());
+    if (params.courseType) queryParams.append('courseType', params.courseType);
+
+    if (queryParams.toString()) {
+      url += `?${queryParams.toString()}`;
+    }
+  }
+
+  const response = await apiRequest<AllTestsPayload>(url);
   return response.data || [];
 };
 
-// NEW: Get tests by course
+// Get tests by course
 export const getTestsByCourse = async (
   courseId: number,
 ): Promise<TestsByCoursePayload> => {
@@ -133,7 +156,17 @@ export const getTestsByCourse = async (
   return response.data || [];
 };
 
-// NEW: Get tests by course type
+// NEW: Get tests by topic
+export const getTestsByTopic = async (
+  topicId: number,
+): Promise<TestsByTopicPayload> => {
+  const response = await apiRequest<TestsByTopicPayload>(
+    `/tests/topic/${topicId}`,
+  );
+  return response.data || [];
+};
+
+// Get tests by course type
 export const getTestsByCourseType = async (
   courseType: 'temel_dersler' | 'klinik_dersler',
 ): Promise<TestsByCourseTypePayload> => {
@@ -157,7 +190,7 @@ export const getTestById = async (testId: number): Promise<Test | null> => {
   }
 };
 
-// NEW: Get test statistics
+// Get test statistics
 export const getTestStats = async (
   testId: number,
 ): Promise<TestStatsPayload | null> => {
@@ -176,7 +209,7 @@ export const getTestStats = async (
   }
 };
 
-// NEW: Check user test history
+// Check user test history
 export const getUserTestHistory = async (
   testId: number,
 ): Promise<TestUserHistoryPayload | null> => {
@@ -235,7 +268,7 @@ export const getQuestionsByTest = async (
   return response.data || [];
 };
 
-// UPDATED: Create test with courseId
+// UPDATED: Create test with topicId
 export const createTest = async (
   testData: CreateTestRequest,
 ): Promise<CreateTestPayload> => {
@@ -249,7 +282,7 @@ export const createTest = async (
   return response.data;
 };
 
-// UPDATED: Update test with courseId
+// UPDATED: Update test with topicId
 export const updateTest = async (
   testId: number,
   testData: UpdateTestRequest,
@@ -331,4 +364,54 @@ export const deleteTest = async (testId: number): Promise<MessagePayload> => {
     return { message: 'Test deleted successfully.' };
   }
   return response.data;
+};
+
+// NEW: Utility functions for topic-related operations
+
+// Get tests filtered by multiple criteria
+export const getTestsFiltered = async (filters: {
+  courseId?: number;
+  topicId?: number;
+  courseType?: 'temel_dersler' | 'klinik_dersler';
+  difficultyLevel?: number;
+}): Promise<AllTestsPayload> => {
+  const queryParams = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      queryParams.append(key, value.toString());
+    }
+  });
+
+  const url = queryParams.toString()
+    ? `/tests?${queryParams.toString()}`
+    : '/tests';
+  const response = await apiRequest<AllTestsPayload>(url);
+  return response.data || [];
+};
+
+// Batch operation to get tests for multiple topics
+export const getTestsForTopics = async (
+  topicIds: number[],
+): Promise<{ [topicId: number]: Test[] }> => {
+  const results: { [topicId: number]: Test[] } = {};
+
+  // Execute requests in parallel
+  const promises = topicIds.map(async (topicId) => {
+    try {
+      const tests = await getTestsByTopic(topicId);
+      return { topicId, tests };
+    } catch (error) {
+      console.warn(`Failed to fetch tests for topic ${topicId}:`, error);
+      return { topicId, tests: [] };
+    }
+  });
+
+  const resolvedResults = await Promise.all(promises);
+
+  resolvedResults.forEach(({ topicId, tests }) => {
+    results[topicId] = tests;
+  });
+
+  return results;
 };

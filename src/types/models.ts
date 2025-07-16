@@ -52,7 +52,7 @@ export interface Subtopic {
   created_at: string;
 }
 
-// Test related types - UPDATED WITH COURSE_ID
+// Test related types - UPDATED WITH COURSE_ID AND TOPIC_ID
 export interface Test {
   test_id: number;
   title: string;
@@ -60,8 +60,20 @@ export interface Test {
   difficulty_level?: number;
   question_count: number;
   time_limit: number;
-  course_id: number; // NEW: Course relationship field
+  course_id: number; // Course relationship field
+  topic_id?: number; // NEW: Optional topic relationship field
   created_at: string;
+  // Populated via joins in API responses
+  courses?: {
+    course_id: number;
+    title: string;
+    course_type: 'temel_dersler' | 'klinik_dersler';
+  };
+  topics?: {
+    topic_id: number;
+    title: string;
+    description?: string;
+  };
 }
 
 export interface Question {
@@ -80,7 +92,7 @@ export interface Answer {
   question_id: number;
   user_answer: string;
   is_correct: boolean;
-  answer_definition?: string; // NEW: Optional explanation field
+  answer_definition?: string; // Optional explanation field
   created_at: string;
 }
 
@@ -106,31 +118,57 @@ export interface CourseStatistics {
   created_at: string;
 }
 
-// NEW: Test Statistics Types
+// UPDATED: Test Statistics Types with topic support
 export interface TestStatistics {
   test_id: number;
   title: string;
   course_id: number;
+  topic_id?: number; // NEW: Optional topic reference
   total_questions: number;
   total_attempts: number;
   average_score: number;
   completion_rate: number;
   average_time_taken: number;
   created_at: string;
+  // Populated via joins
+  course?: {
+    course_id: number;
+    title: string;
+    course_type: 'temel_dersler' | 'klinik_dersler';
+  };
+  topic?: {
+    topic_id: number;
+    title: string;
+    description?: string;
+  };
 }
 
-// NEW: User Question History Types
+// NEW: Topic Statistics Types
+export interface TopicStatistics {
+  topic_id: number;
+  title: string;
+  course_id: number;
+  total_tests: number;
+  total_questions: number;
+  total_attempts: number;
+  average_score: number;
+  completion_rate: number;
+  created_at: string;
+}
+
+// UPDATED: User Question History Types with topic support
 export interface UserQuestionHistory {
   user_id: number;
   question_id: number;
   test_id: number;
   course_id: number;
+  topic_id?: number; // NEW: Optional topic reference
   user_answer: string;
   correct_answer: string;
   is_correct: boolean;
   answered_at: string;
   time_taken?: number;
-  answer_definition?: string; // NEW: Optional explanation field
+  answer_definition?: string; // Optional explanation field
 }
 
 export interface UserCourseStats {
@@ -148,11 +186,30 @@ export interface UserCourseStats {
   avg_score: number;
 }
 
+// NEW: User Topic Stats Types
+export interface UserTopicStats {
+  user_id: number;
+  topic_id: number;
+  topic_title: string;
+  course_id: number;
+  course_title: string;
+  total_questions_answered: number;
+  correct_answers: number;
+  incorrect_answers: number;
+  accuracy_percentage: number;
+  total_time_spent: number;
+  last_activity: string;
+  tests_taken: number;
+  avg_test_score: number;
+  test_accuracy: number;
+}
+
 export interface UserTestHistory {
   user_id: number;
   test_id: number;
   test_title: string;
   course_id: number;
+  topic_id?: number; // NEW: Optional topic reference
   score: number;
   total_questions: number;
   correct_answers: number;
@@ -189,12 +246,14 @@ export interface ReviewQuestion {
   test_title: string;
   course_id: number;
   course_title: string;
+  topic_id?: number; // NEW: Optional topic reference
+  topic_title?: string; // NEW: Optional topic title
   user_answer: string;
   is_correct: boolean;
   answered_at: string;
   mistake_count: number;
   last_mistake: string;
-  answer_explanation?: string; // NEW: Optional explanation for the correct answer
+  answer_explanation?: string; // Optional explanation for the correct answer
 }
 
 export interface UserPerformanceSummary {
@@ -214,15 +273,28 @@ export interface UserPerformanceSummary {
     questions_answered: number;
     accuracy: number;
   }>;
+  // NEW: Topic progress breakdown
+  topics_progress: Array<{
+    topic_id: number;
+    topic_title: string;
+    course_id: number;
+    progress_percentage: number;
+    questions_answered: number;
+    accuracy: number;
+    tests_taken: number;
+    avg_test_score: number;
+  }>;
   recent_activity: Array<{
     activity_type: 'test_completed' | 'question_answered';
     description: string;
     timestamp: string;
     score?: number;
+    topic_id?: number; // NEW: Optional topic reference
+    topic_title?: string; // NEW: Optional topic title
   }>;
 }
 
-// NEW: Answer Explanation Types
+// UPDATED: Answer Explanation Types with enhanced topic support
 export interface AnswerExplanation {
   answer_id: number;
   question_text: string;
@@ -232,6 +304,9 @@ export interface AnswerExplanation {
   question_options: Record<string, any>;
   test_title: string;
   course_title: string;
+  topic_id?: number; // NEW: Optional topic reference
+  topic_title?: string; // NEW: Optional topic title
+  topic_description?: string; // NEW: Optional topic description
   answered_at: string;
 }
 
@@ -241,6 +316,13 @@ export interface AnswerExplanationStats {
   correctAnswersWithExplanations: number;
   incorrectAnswersWithExplanations: number;
   explanationCoveragePercentage: number;
+  // NEW: Topic breakdown
+  topicBreakdown: Array<{
+    topic_id: number;
+    topic_title: string;
+    total_explanations: number;
+    explanation_coverage: number;
+  }>;
 }
 
 // Existing types continue...
