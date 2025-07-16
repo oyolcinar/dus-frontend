@@ -1,9 +1,11 @@
 import apiRequest from './apiClient';
-import { Test, Question, TestResult, Answer } from '../types/models';
-// We will define payload types here instead of relying on potentially pre-wrapped types from '../types/api'
-// to ensure consistency with the new apiRequest pattern.
-// If GetTestsResponse, GetTestResponse etc. from '../types/api' are *just* the payload types (e.g., Test[]),
-// then you could use them directly as TData. For clarity, I'll define specific payload types here.
+import {
+  Test,
+  Question,
+  TestResult,
+  Answer,
+  TestStatistics,
+} from '../types/models';
 
 // --- Define interfaces for the *actual data payloads* your backend sends ---
 // --- These will be the TData in apiRequest<TData> ---
@@ -11,16 +13,35 @@ import { Test, Question, TestResult, Answer } from '../types/models';
 // For GET /tests
 type AllTestsPayload = Test[];
 
+// For GET /tests/course/:courseId
+type TestsByCoursePayload = Test[];
+
+// For GET /tests/course-type/:courseType
+type TestsByCourseTypePayload = Test[];
+
 // For GET /tests/:testId
 // The payload is a single Test object.
-// The Test model should include: test_id, title, description, difficulty_level, created_at, question_count, time_limit
-// type SingleTestPayload = Test; // Can use Test directly
+// The Test model should include: test_id, title, description, difficulty_level, created_at, question_count, time_limit, course_id
 
 // For GET /tests/:testId/with-questions
 // Your existing TestWithQuestions interface is good for this payload
 export interface TestWithQuestionsPayload extends Test {
   // Exporting if used elsewhere
   questions: Question[];
+}
+
+// For GET /tests/:testId/stats
+type TestStatsPayload = TestStatistics;
+
+// For GET /tests/:testId/user-history
+interface TestUserHistoryPayload {
+  user_id: number;
+  test_id: number;
+  has_taken: boolean;
+  attempt_count: number;
+  best_score: number;
+  last_attempt: string;
+  average_score: number;
 }
 
 // For GET /questions/test/:testId
@@ -64,30 +85,19 @@ export interface ResultDetailsPayload {
   >;
 }
 
-// For GET /results/stats/:testId
-// Your existing TestStats interface is good for this payload
-export interface TestStatsPayload {
-  // Exporting if used elsewhere
-  testId: number;
-  testTitle?: string; // Make optional if backend might not send it
-  averageScore: number;
-  attemptCount: number;
-  // Potentially other stats like passRate, averageTimeTaken, etc.
-}
-
 // For DELETE /tests/:testId
 interface MessagePayload {
   // Reusable
   message: string;
 }
 
-// --- Service Input DTOs (already well-defined) ---
+// --- Service Input DTOs (updated with courseId) ---
 export interface CreateTestRequest {
   title: string;
   description?: string;
   difficultyLevel: number; // Or string like 'easy', 'medium', 'hard'
   timeLimit?: number; // In seconds or minutes
-  // questions?: CreateQuestionInput[]; // If creating questions along with the test
+  courseId: number; // NEW: Required course relationship
 }
 
 export interface UpdateTestRequest {
@@ -95,6 +105,7 @@ export interface UpdateTestRequest {
   description?: string;
   difficultyLevel?: number;
   timeLimit?: number;
+  courseId?: number; // NEW: Optional course relationship for updates
 }
 
 export interface SubmitTestRequest {
@@ -112,6 +123,26 @@ export const getAllTests = async (): Promise<AllTestsPayload> => {
   return response.data || [];
 };
 
+// NEW: Get tests by course
+export const getTestsByCourse = async (
+  courseId: number,
+): Promise<TestsByCoursePayload> => {
+  const response = await apiRequest<TestsByCoursePayload>(
+    `/tests/course/${courseId}`,
+  );
+  return response.data || [];
+};
+
+// NEW: Get tests by course type
+export const getTestsByCourseType = async (
+  courseType: 'temel_dersler' | 'klinik_dersler',
+): Promise<TestsByCourseTypePayload> => {
+  const response = await apiRequest<TestsByCourseTypePayload>(
+    `/tests/course-type/${courseType}`,
+  );
+  return response.data || [];
+};
+
 export const getTestById = async (testId: number): Promise<Test | null> => {
   try {
     const response = await apiRequest<Test>(`/tests/${testId}`);
@@ -122,6 +153,44 @@ export const getTestById = async (testId: number): Promise<Test | null> => {
       return null;
     }
     console.error(`Error fetching test ID ${testId}:`, error);
+    throw error;
+  }
+};
+
+// NEW: Get test statistics
+export const getTestStats = async (
+  testId: number,
+): Promise<TestStatsPayload | null> => {
+  try {
+    const response = await apiRequest<TestStatsPayload>(
+      `/tests/${testId}/stats`,
+    );
+    return response.data || null;
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(`Test statistics for ID ${testId} not found (404).`);
+      return null;
+    }
+    console.error(`Error fetching test statistics for ${testId}:`, error);
+    throw error;
+  }
+};
+
+// NEW: Check user test history
+export const getUserTestHistory = async (
+  testId: number,
+): Promise<TestUserHistoryPayload | null> => {
+  try {
+    const response = await apiRequest<TestUserHistoryPayload>(
+      `/tests/${testId}/user-history`,
+    );
+    return response.data || null;
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(`User test history for ID ${testId} not found (404).`);
+      return null;
+    }
+    console.error(`Error fetching user test history for ${testId}:`, error);
     throw error;
   }
 };
@@ -166,6 +235,7 @@ export const getQuestionsByTest = async (
   return response.data || [];
 };
 
+// UPDATED: Create test with courseId
 export const createTest = async (
   testData: CreateTestRequest,
 ): Promise<CreateTestPayload> => {
@@ -179,6 +249,7 @@ export const createTest = async (
   return response.data;
 };
 
+// UPDATED: Update test with courseId
 export const updateTest = async (
   testId: number,
   testData: UpdateTestRequest,
@@ -248,40 +319,6 @@ export const getResultDetails = async (
     }
     console.error(`Error fetching result details for ID ${resultId}:`, error);
     throw error;
-  }
-};
-
-export const getTestStats = async (
-  testId: number,
-): Promise<TestStatsPayload | null> => {
-  const defaultStats: TestStatsPayload = {
-    testId,
-    testTitle: '',
-    averageScore: 0,
-    attemptCount: 0,
-  };
-  try {
-    const response = await apiRequest<TestStatsPayload>(
-      `/results/stats/${testId}`,
-    );
-    if (!response.data || typeof response.data !== 'object') {
-      console.warn(`No stats for test ID ${testId}, returning defaults.`);
-      return defaultStats;
-    }
-    return {
-      // Merge with defaults
-      ...defaultStats,
-      ...response.data,
-    };
-  } catch (error: any) {
-    if (error.status === 404) {
-      console.warn(
-        `Stats for test ID ${testId} not found (404), returning defaults.`,
-      );
-    } else {
-      console.error(`Error fetching stats for test ID ${testId}:`, error);
-    }
-    return defaultStats;
   }
 };
 

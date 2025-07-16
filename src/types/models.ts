@@ -1,5 +1,3 @@
-// src/types/models.ts
-
 export interface User {
   id: number;
   userId: number;
@@ -26,12 +24,13 @@ export interface AuthResponse {
   refreshToken: string | null;
 }
 
-// Course related types
+// Course related types - UPDATED WITH COURSE_TYPE
 export interface Course {
   course_id: number;
   title: string;
   description?: string;
   image_url?: string;
+  course_type: 'temel_dersler' | 'klinik_dersler'; // NEW: Course type field
   created_at: string;
 }
 
@@ -53,7 +52,7 @@ export interface Subtopic {
   created_at: string;
 }
 
-// Test related types
+// Test related types - UPDATED WITH COURSE_ID
 export interface Test {
   test_id: number;
   title: string;
@@ -61,6 +60,7 @@ export interface Test {
   difficulty_level?: number;
   question_count: number;
   time_limit: number;
+  course_id: number; // NEW: Course relationship field
   created_at: string;
 }
 
@@ -91,6 +91,134 @@ export interface TestResult {
   time_taken?: number;
 }
 
+// NEW: Course Statistics Types
+export interface CourseStatistics {
+  course_id: number;
+  title: string;
+  course_type: 'temel_dersler' | 'klinik_dersler';
+  total_tests: number;
+  total_questions: number;
+  total_attempts: number;
+  average_score: number;
+  completion_rate: number;
+  created_at: string;
+}
+
+// NEW: Test Statistics Types
+export interface TestStatistics {
+  test_id: number;
+  title: string;
+  course_id: number;
+  total_questions: number;
+  total_attempts: number;
+  average_score: number;
+  completion_rate: number;
+  average_time_taken: number;
+  created_at: string;
+}
+
+// NEW: User Question History Types
+export interface UserQuestionHistory {
+  user_id: number;
+  question_id: number;
+  test_id: number;
+  course_id: number;
+  user_answer: string;
+  correct_answer: string;
+  is_correct: boolean;
+  answered_at: string;
+  time_taken?: number;
+}
+
+export interface UserCourseStats {
+  user_id: number;
+  course_id: number;
+  course_title: string;
+  course_type: 'temel_dersler' | 'klinik_dersler';
+  total_questions_answered: number;
+  correct_answers: number;
+  incorrect_answers: number;
+  accuracy_percentage: number;
+  total_time_spent: number;
+  last_activity: string;
+  tests_taken: number;
+  avg_score: number;
+}
+
+export interface UserTestHistory {
+  user_id: number;
+  test_id: number;
+  test_title: string;
+  course_id: number;
+  score: number;
+  total_questions: number;
+  correct_answers: number;
+  time_taken: number;
+  completed_at: string;
+  attempt_number: number;
+}
+
+export interface UserPerformanceTrends {
+  user_id: number;
+  course_type: 'temel_dersler' | 'klinik_dersler';
+  weekly_stats: Array<{
+    week: string;
+    questions_answered: number;
+    accuracy_percentage: number;
+    avg_score: number;
+    time_spent: number;
+  }>;
+  monthly_stats: Array<{
+    month: string;
+    questions_answered: number;
+    accuracy_percentage: number;
+    avg_score: number;
+    time_spent: number;
+  }>;
+}
+
+export interface ReviewQuestion {
+  question_id: number;
+  question_text: string;
+  options: Record<string, any>;
+  correct_answer: string;
+  test_id: number;
+  test_title: string;
+  course_id: number;
+  course_title: string;
+  user_answer: string;
+  is_correct: boolean;
+  answered_at: string;
+  mistake_count: number;
+  last_mistake: string;
+}
+
+export interface UserPerformanceSummary {
+  user_id: number;
+  total_questions_answered: number;
+  total_correct_answers: number;
+  overall_accuracy: number;
+  total_tests_taken: number;
+  avg_test_score: number;
+  total_study_time: number;
+  streak_days: number;
+  courses_progress: Array<{
+    course_id: number;
+    course_title: string;
+    course_type: 'temel_dersler' | 'klinik_dersler';
+    progress_percentage: number;
+    questions_answered: number;
+    accuracy: number;
+  }>;
+  recent_activity: Array<{
+    activity_type: 'test_completed' | 'question_answered';
+    description: string;
+    timestamp: string;
+    score?: number;
+  }>;
+}
+
+// Existing types continue...
 // Duel related types
 export interface Duel {
   duel_id: number;

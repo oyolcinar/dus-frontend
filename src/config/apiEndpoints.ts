@@ -1,4 +1,3 @@
-// API Endpoints definition
 const API_ENDPOINTS = {
   Authentication: [
     { name: 'Register', method: 'POST', path: '/api/auth/register' },
@@ -38,6 +37,17 @@ const API_ENDPOINTS = {
     { name: 'Create Course', method: 'POST', path: '/api/courses' },
     { name: 'Update Course', method: 'PUT', path: '/api/courses/1' },
     { name: 'Delete Course', method: 'DELETE', path: '/api/courses/1' },
+    // NEW: Course type and statistics endpoints
+    {
+      name: 'Get Courses by Type',
+      method: 'GET',
+      path: '/api/courses/type/temel_dersler',
+    },
+    {
+      name: 'Get Course Statistics',
+      method: 'GET',
+      path: '/api/courses/1/stats',
+    },
   ],
   Topics: [
     { name: 'List Topics', method: 'GET', path: '/api/topics?courseId=1' },
@@ -71,6 +81,19 @@ const API_ENDPOINTS = {
     { name: 'Create Test', method: 'POST', path: 'api/tests' },
     { name: 'Update Test', method: 'PUT', path: 'api/tests/1' },
     { name: 'Delete Test', method: 'DELETE', path: 'api/tests/1' },
+    // NEW: Course relationship and statistics endpoints
+    { name: 'Get Tests by Course', method: 'GET', path: '/api/tests/course/1' },
+    {
+      name: 'Get Tests by Course Type',
+      method: 'GET',
+      path: '/api/tests/course-type/temel_dersler',
+    },
+    { name: 'Get Test Statistics', method: 'GET', path: '/api/tests/1/stats' },
+    {
+      name: 'Check User Test History',
+      method: 'GET',
+      path: '/api/tests/1/user-history',
+    },
   ],
   Questions: [
     { name: 'List Questions', method: 'GET', path: 'api/questions?testId=1' },
@@ -140,6 +163,54 @@ const API_ENDPOINTS = {
     },
     { name: 'Get Study Analytics', method: 'GET', path: 'api/analytics/study' },
     { name: 'Get Duel Analytics', method: 'GET', path: 'api/analytics/duels' },
+  ],
+  // NEW: User Question History endpoints
+  'User History': [
+    {
+      name: 'Check Question Answered',
+      method: 'GET',
+      path: '/api/user-history/question/1',
+    },
+    {
+      name: 'Get User Test History',
+      method: 'GET',
+      path: '/api/user-history/test/1',
+    },
+    {
+      name: 'Get User Course History',
+      method: 'GET',
+      path: '/api/user-history/course/1',
+    },
+    {
+      name: 'Get Complete Question History',
+      method: 'GET',
+      path: '/api/user-history/questions',
+    },
+    {
+      name: 'Get User Course Statistics',
+      method: 'GET',
+      path: '/api/user-history/course-stats',
+    },
+    {
+      name: 'Get Incorrect Answers',
+      method: 'GET',
+      path: '/api/user-history/incorrect-answers',
+    },
+    {
+      name: 'Get Performance Trends',
+      method: 'GET',
+      path: '/api/user-history/trends',
+    },
+    {
+      name: 'Get Review Questions',
+      method: 'GET',
+      path: '/api/user-history/review-questions',
+    },
+    {
+      name: 'Get Performance Summary',
+      method: 'GET',
+      path: '/api/user-history/performance-summary',
+    },
   ],
   Admin: [
     { name: 'List All Users', method: 'GET', path: 'api/admin/users' },
