@@ -83,6 +83,7 @@ export interface Question {
   options?: Record<string, any>;
   correct_answer: string;
   created_at: string;
+  explanation?: string;
 }
 
 // UPDATED: Answer interface with answer_definition field
