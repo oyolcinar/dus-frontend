@@ -494,6 +494,28 @@ export function useSession() {
     }
   };
 
+  useEffect(() => {
+    // Sync authToken whenever user state changes
+    const syncAuthToken = async () => {
+      try {
+        if (user && isSessionValid) {
+          const userToken = await AsyncStorage.getItem('userToken');
+          if (userToken) {
+            await AsyncStorage.setItem('authToken', userToken);
+            console.log('Auth token synced for socket service');
+          }
+        } else {
+          await AsyncStorage.removeItem('authToken');
+          console.log('Auth token cleared');
+        }
+      } catch (error) {
+        console.error('Error syncing auth token:', error);
+      }
+    };
+
+    syncAuthToken();
+  }, [user, isSessionValid]);
+
   return {
     user,
     isLoading,

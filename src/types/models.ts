@@ -341,6 +341,40 @@ export interface Duel {
   selection_type?: string;
   branch_id?: number;
   created_at: string;
+
+  // Extended properties populated via joins in API responses
+  course_name?: string;
+  course_title?: string;
+  test_name?: string;
+  test_title?: string;
+  opponent_username?: string;
+  initiator_username?: string;
+
+  // Populated via joins with related tables
+  test?: {
+    test_id: number;
+    title: string;
+    course_id: number;
+    topic_id?: number;
+  };
+  course?: {
+    course_id: number;
+    title: string;
+    course_type: 'temel_dersler' | 'klinik_dersler';
+  };
+  topic?: {
+    topic_id: number;
+    title: string;
+    description?: string;
+  };
+  initiator?: {
+    user_id: number;
+    username: string;
+  };
+  opponent?: {
+    user_id: number;
+    username: string;
+  };
 }
 
 export interface DuelResult {

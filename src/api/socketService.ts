@@ -1,7 +1,9 @@
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useRef, useState } from 'react';
-import API_URL from '../config/api.config';
+import { SOCKET_URL } from '../config/api.config';
+
+// ... (keep all the interfaces as they were)
 
 // Socket event interfaces based on backend
 interface SocketEvents {
@@ -92,7 +94,7 @@ interface FinalResult {
 
 // Socket connection configuration
 interface SocketConfig {
-  apiUrl: string;
+  socketUrl: string;
   transports: ('websocket' | 'polling')[];
   timeout: number;
   forceNew: boolean;
@@ -110,7 +112,7 @@ interface ConnectionState {
 
 // Internal socket instance and state
 let socketInstance: Socket | null = null;
-let eventListeners = new Map<string, Function[]>();
+let eventListeners = new Map<string, ((...args: any[]) => void)[]>();
 let connectionState: ConnectionState = {
   connected: false,
   connecting: false,
@@ -120,20 +122,176 @@ let connectionState: ConnectionState = {
   error: null,
 };
 
-// Configuration
+// Connection promises to handle concurrent connection attempts
+let connectionPromise: Promise<void> | null = null;
+
+// FIXED: Use dedicated SOCKET_URL instead of parsing API_URL
 const getSocketConfig = (): SocketConfig => ({
-  apiUrl: API_URL || 'http://localhost:3001',
+  socketUrl: SOCKET_URL || 'http://localhost:3001',
   transports: ['websocket', 'polling'],
   timeout: 10000,
-  forceNew: true,
+  forceNew: false,
 });
 
-// Connection management
+// Enhanced JWT token debugging function
+const debugToken = (token: string): void => {
+  if (!__DEV__) return;
+
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      console.log('🔧 Token Debug: Invalid JWT format (not 3 parts)');
+      return;
+    }
+
+    // Decode header
+    const header = JSON.parse(
+      atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')),
+    );
+
+    // Decode payload
+    const payload = JSON.parse(
+      atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')),
+    );
+
+    console.log('🔧 Token Debug - Header:', header);
+    console.log('🔧 Token Debug - Payload:', {
+      userId: payload.userId,
+      username: payload.username,
+      email: payload.email,
+      exp: payload.exp
+        ? new Date(payload.exp * 1000).toISOString()
+        : 'No expiration',
+      iat: payload.iat
+        ? new Date(payload.iat * 1000).toISOString()
+        : 'No issued time',
+      iss: payload.iss,
+      aud: payload.aud,
+    });
+
+    // Check if token is expired
+    if (payload.exp) {
+      const isExpired = Date.now() >= payload.exp * 1000;
+      console.log('🔧 Token Debug - Expired:', isExpired);
+      if (isExpired) {
+        console.log(
+          '🔧 Token Debug - Token expired at:',
+          new Date(payload.exp * 1000).toISOString(),
+        );
+      }
+    }
+
+    // Check token age
+    if (payload.iat) {
+      const tokenAge = (Date.now() - payload.iat * 1000) / 1000 / 60; // minutes
+      console.log(
+        '🔧 Token Debug - Token age:',
+        tokenAge.toFixed(2),
+        'minutes',
+      );
+    }
+  } catch (error) {
+    console.log('🔧 Token Debug: Failed to decode token:', error);
+    console.log(
+      '🔧 Token Debug: Token preview:',
+      token.substring(0, 50) + '...',
+    );
+  }
+};
+
+// Enhanced authentication checking with detailed debugging
+const checkAuthentication = async (): Promise<{
+  token: string;
+  userData: any;
+} | null> => {
+  try {
+    console.log('🔧 Auth Check: Starting authentication check...');
+
+    // Try both token keys for compatibility
+    const [authToken, userToken, userDataStr] = await Promise.all([
+      AsyncStorage.getItem('authToken'),
+      AsyncStorage.getItem('userToken'),
+      AsyncStorage.getItem('userData'),
+    ]);
+
+    console.log('🔧 Auth Check: Storage check results:', {
+      hasAuthToken: !!authToken,
+      hasUserToken: !!userToken,
+      hasUserData: !!userDataStr,
+      authTokenPreview: authToken ? authToken.substring(0, 50) + '...' : 'null',
+      userTokenPreview: userToken ? userToken.substring(0, 50) + '...' : 'null',
+    });
+
+    // Prefer authToken, fallback to userToken
+    const token = authToken || userToken;
+
+    if (!token) {
+      console.log(
+        '🔧 Auth Check: No auth token found (checked both authToken and userToken)',
+      );
+      return null;
+    }
+
+    if (!userDataStr) {
+      console.log('🔧 Auth Check: No user data found');
+      return null;
+    }
+
+    const userData = JSON.parse(userDataStr);
+    console.log('🔧 Auth Check: User data loaded:', {
+      userId: userData.userId,
+      username: userData.username,
+      email: userData.email,
+    });
+
+    // Debug the token we're about to use
+    debugToken(token);
+
+    // Ensure both tokens are synced
+    if (token && !authToken) {
+      await AsyncStorage.setItem('authToken', token);
+      console.log('🔧 Auth Check: Synced authToken from userToken');
+    }
+    if (token && !userToken) {
+      await AsyncStorage.setItem('userToken', token);
+      console.log('🔧 Auth Check: Synced userToken from authToken');
+    }
+
+    console.log('🔧 Auth Check: Authentication successful');
+    return { token, userData };
+  } catch (error) {
+    console.error('🔧 Auth Check: Error checking authentication:', error);
+    return null;
+  }
+};
+
+// Enhanced connection management with authentication check
 export const connect = async (token?: string): Promise<void> => {
-  if (
-    connectionState.connecting ||
-    (socketInstance && socketInstance.connected)
-  ) {
+  // If already connected, return immediately
+  if (socketInstance && socketInstance.connected) {
+    console.log('Socket already connected');
+    return Promise.resolve();
+  }
+
+  // If already connecting, return the existing promise
+  if (connectionState.connecting && connectionPromise) {
+    console.log('Connection already in progress, waiting...');
+    return connectionPromise;
+  }
+
+  // Create new connection promise
+  connectionPromise = createConnection(token);
+
+  try {
+    await connectionPromise;
+  } finally {
+    connectionPromise = null;
+  }
+};
+
+// Enhanced connection creation with better auth handling and debugging
+const createConnection = async (token?: string): Promise<void> => {
+  if (connectionState.connecting) {
     return;
   }
 
@@ -141,16 +299,48 @@ export const connect = async (token?: string): Promise<void> => {
   connectionState.error = null;
 
   try {
-    const authToken = token || (await AsyncStorage.getItem('authToken'));
+    console.log('🔧 Socket Connect: Starting connection process...');
+
+    // Get authentication token - either provided or from storage
+    let authToken = token;
+    let userData = null;
+
     if (!authToken) {
-      throw new Error('No authentication token available');
+      console.log('🔧 Socket Connect: No token provided, checking storage...');
+      const authData = await checkAuthentication();
+      if (!authData) {
+        throw new Error('No authentication token available');
+      }
+      authToken = authData.token;
+      userData = authData.userData;
+    } else {
+      console.log('🔧 Socket Connect: Using provided token');
+      debugToken(authToken);
     }
 
     const config = getSocketConfig();
-    console.log('Connecting to socket server:', config.apiUrl);
 
-    socketInstance = io(config.apiUrl, {
-      auth: { token: authToken },
+    console.log('🔧 Socket Connect: Creating connection with config:', {
+      socketUrl: config.socketUrl,
+      username: userData?.username || 'unknown',
+      tokenPreview: authToken.substring(0, 50) + '...',
+    });
+
+    // Disconnect existing socket if any
+    if (socketInstance) {
+      console.log('🔧 Socket Connect: Disconnecting existing socket');
+      socketInstance.disconnect();
+    }
+
+    // Create the socket connection with enhanced debugging
+    console.log('🔧 Socket Connect: Creating socket instance...');
+    socketInstance = io(config.socketUrl, {
+      auth: {
+        token: authToken,
+        // Add additional auth info for debugging
+        userId: userData?.userId,
+        username: userData?.username,
+      },
       transports: config.transports,
       timeout: config.timeout,
       forceNew: config.forceNew,
@@ -160,6 +350,8 @@ export const connect = async (token?: string): Promise<void> => {
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
+        connectionState.connecting = false;
+        console.log('🔧 Socket Connect: Connection timeout');
         reject(new Error('Connection timeout'));
       }, config.timeout);
 
@@ -169,7 +361,10 @@ export const connect = async (token?: string): Promise<void> => {
         connectionState.connected = true;
         connectionState.reconnectAttempts = 0;
         connectionState.socketId = socketInstance!.id || null;
-        console.log('Socket connected successfully');
+        console.log(
+          '🔧 Socket Connect: Connected successfully:',
+          socketInstance!.id,
+        );
         resolve();
       });
 
@@ -177,7 +372,10 @@ export const connect = async (token?: string): Promise<void> => {
         clearTimeout(timeoutId);
         connectionState.connecting = false;
         connectionState.error = error.message;
-        console.error('Socket connection error:', error);
+        console.error('🔧 Socket Connect: Connection error:', error);
+        console.error('🔧 Socket Connect: Error details:', {
+          message: error.message,
+        });
         reject(error);
       });
     });
@@ -187,12 +385,17 @@ export const connect = async (token?: string): Promise<void> => {
       error instanceof Error
         ? error.message || 'Unknown error'
         : 'Unknown error';
-    console.error('Failed to initialize socket connection:', error);
+    console.error(
+      '🔧 Socket Connect: Failed to initialize socket connection:',
+      error,
+    );
     throw error;
   }
 };
 
+// Enhanced disconnect function
 export const disconnect = (): void => {
+  console.log('🔧 Socket Disconnect: Disconnecting socket...');
   if (socketInstance) {
     socketInstance.disconnect();
     socketInstance = null;
@@ -207,6 +410,10 @@ export const disconnect = (): void => {
     socketId: null,
     error: null,
   };
+
+  // Clear connection promise
+  connectionPromise = null;
+  console.log('🔧 Socket Disconnect: Disconnection complete');
 };
 
 export const isConnected = (): boolean => {
@@ -217,12 +424,14 @@ export const getConnectionState = (): ConnectionState => {
   return { ...connectionState };
 };
 
-// Event listener management
+// Enhanced event listener management
 const setupEventListeners = (): void => {
   if (!socketInstance) return;
 
+  console.log('🔧 Socket Events: Setting up event listeners...');
+
   socketInstance.on('connect', () => {
-    console.log('Connected to socket server');
+    console.log('🔧 Socket Events: Connected to socket server');
     connectionState.connected = true;
     connectionState.reconnectAttempts = 0;
     connectionState.socketId = socketInstance!.id || null;
@@ -230,7 +439,7 @@ const setupEventListeners = (): void => {
   });
 
   socketInstance.on('disconnect', (reason) => {
-    console.log('Disconnected from socket server:', reason);
+    console.log('🔧 Socket Events: Disconnected from socket server:', reason);
     connectionState.connected = false;
     connectionState.socketId = null;
     emitToListeners('disconnect');
@@ -242,9 +451,16 @@ const setupEventListeners = (): void => {
   });
 
   socketInstance.on('connect_error', (error) => {
-    console.error('Socket connection error:', error);
+    console.error('🔧 Socket Events: Connection error:', error);
     connectionState.error = error?.message || 'Connection error';
     handleReconnection();
+  });
+
+  // Re-register all existing event listeners
+  eventListeners.forEach((listeners, event) => {
+    listeners.forEach((callback) => {
+      socketInstance!.on(event, callback);
+    });
   });
 };
 
@@ -252,22 +468,22 @@ const handleReconnection = async (): Promise<void> => {
   if (
     connectionState.reconnectAttempts >= connectionState.maxReconnectAttempts
   ) {
-    console.log('Max reconnection attempts reached');
+    console.log('🔧 Socket Reconnect: Max reconnection attempts reached');
     return;
   }
 
   connectionState.reconnectAttempts++;
-  const delay = 1000 * Math.pow(2, connectionState.reconnectAttempts - 1); // Exponential backoff
+  const delay = 1000 * Math.pow(2, connectionState.reconnectAttempts - 1);
 
   console.log(
-    `Attempting to reconnect in ${delay}ms (attempt ${connectionState.reconnectAttempts})`,
+    `🔧 Socket Reconnect: Attempting to reconnect in ${delay}ms (attempt ${connectionState.reconnectAttempts})`,
   );
 
   setTimeout(async () => {
     try {
       await connect();
     } catch (error) {
-      console.error('Reconnection failed:', error);
+      console.error('🔧 Socket Reconnect: Reconnection failed:', error);
     }
   }, delay);
 };
@@ -374,17 +590,18 @@ const emitToListeners = (event: string, ...args: any[]): void => {
   });
 };
 
-// Duel-specific actions
+// Enhanced duel-specific actions with connection checking
 export const joinDuelRoom = (duelId: number): void => {
   if (!socketInstance || !socketInstance.connected) {
     throw new Error('Socket not connected');
   }
-  console.log('Joining duel room:', duelId);
+  console.log('🔧 Socket Action: Joining duel room:', duelId);
   socketInstance.emit('join_duel_room', { duelId });
 };
 
 export const leaveDuelRoom = (): void => {
   if (socketInstance && socketInstance.connected) {
+    console.log('🔧 Socket Action: Leaving duel room');
     socketInstance.emit('leave_duel_room');
   }
 };
@@ -393,7 +610,7 @@ export const signalReady = (): void => {
   if (!socketInstance || !socketInstance.connected) {
     throw new Error('Socket not connected');
   }
-  console.log('Signaling ready for duel');
+  console.log('🔧 Socket Action: Signaling ready for duel');
   socketInstance.emit('ready_for_duel');
 };
 
@@ -405,7 +622,11 @@ export const submitAnswer = (
   if (!socketInstance || !socketInstance.connected) {
     throw new Error('Socket not connected');
   }
-  console.log('Submitting answer:', { questionId, selectedAnswer, timeTaken });
+  console.log('🔧 Socket Action: Submitting answer:', {
+    questionId,
+    selectedAnswer,
+    timeTaken,
+  });
   socketInstance.emit('submit_answer', {
     questionId,
     selectedAnswer,
@@ -413,11 +634,48 @@ export const submitAnswer = (
   });
 };
 
-export const challengeBot = (testId: number, difficulty: number = 1): void => {
-  if (!socketInstance || !socketInstance.connected) {
-    throw new Error('Socket not connected');
+// Enhanced challengeBot with connection check and auto-connect
+export const challengeBot = async (
+  testId: number,
+  difficulty: number = 1,
+): Promise<void> => {
+  console.log('🔧 Socket Bot: Starting bot challenge...', {
+    testId,
+    difficulty,
+  });
+
+  // First ensure we have authentication
+  const authData = await checkAuthentication();
+  if (!authData) {
+    throw new Error('Not authenticated - please log in first');
   }
-  console.log('Challenging bot:', { testId, difficulty });
+
+  // Try to ensure connection first
+  if (!socketInstance || !socketInstance.connected) {
+    console.log(
+      '🔧 Socket Bot: Socket not connected, attempting to connect...',
+    );
+    try {
+      await connect(authData.token);
+    } catch (error) {
+      console.error(
+        '🔧 Socket Bot: Failed to connect socket for bot challenge:',
+        error,
+      );
+      throw new Error('Socket connection failed - will use HTTP fallback');
+    }
+  }
+
+  // Double-check connection after attempt
+  if (!socketInstance || !socketInstance.connected) {
+    throw new Error('Socket not connected - will use HTTP fallback');
+  }
+
+  console.log('🔧 Socket Bot: Challenging bot via socket:', {
+    testId,
+    difficulty,
+    user: authData.userData.username,
+  });
   socketInstance.emit('challenge_bot', { testId, difficulty });
 };
 
@@ -427,15 +685,29 @@ export const sendHeartbeat = (): void => {
   }
 };
 
-// Auto-initialization helper
+// Enhanced auto-initialization helper
 export const initializeSocket = async (): Promise<void> => {
   try {
-    const token = await AsyncStorage.getItem('authToken');
-    if (token) {
-      await connect(token);
+    console.log('🔧 Socket Init: Initializing socket...');
+
+    // Check authentication first
+    const authData = await checkAuthentication();
+    if (!authData) {
+      console.log(
+        '🔧 Socket Init: No authentication found for socket initialization',
+      );
+      throw new Error('No authentication token available');
     }
+
+    console.log(
+      '🔧 Socket Init: Authentication found, connecting for user:',
+      authData.userData.username,
+    );
+    await connect(authData.token);
+    console.log('🔧 Socket Init: Socket auto-initialized successfully');
   } catch (error) {
-    console.error('Error auto-initializing socket:', error);
+    console.error('🔧 Socket Init: Error auto-initializing socket:', error);
+    throw error;
   }
 };
 
@@ -458,6 +730,11 @@ export const useSocket = () => {
     onConnect(handleConnect);
     onDisconnect(handleDisconnect);
 
+    // Auto-initialize if not connected
+    if (!connected) {
+      initializeSocket().catch(console.error);
+    }
+
     return () => {
       off('connect', handleConnect);
       off('disconnect', handleDisconnect);
@@ -472,6 +749,7 @@ export const useSocket = () => {
     isConnected,
     on,
     off,
+    initializeSocket,
   };
 };
 

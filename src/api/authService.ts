@@ -178,6 +178,7 @@ export async function login(
     }
     const user: User = normalizeUser(apiData.user);
     await AsyncStorage.setItem('userToken', apiData.session.access_token);
+    await AsyncStorage.setItem('authToken', apiData.session.access_token);
     if (apiData.session.refresh_token) {
       await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
     }
@@ -223,6 +224,7 @@ export async function register(
     }
     const user: User = normalizeUser(apiData.user);
     await AsyncStorage.setItem('userToken', apiData.session.access_token);
+    await AsyncStorage.setItem('authToken', apiData.session.access_token);
     if (apiData.session.refresh_token) {
       await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
     }
