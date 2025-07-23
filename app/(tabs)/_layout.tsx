@@ -129,6 +129,13 @@ export default function TabLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name='duels/history'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }
