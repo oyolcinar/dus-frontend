@@ -12,6 +12,10 @@ import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../context/AuthContext';
 import { duelService } from '../../../src/api';
+import {
+  getUserDuelStats,
+  UserDuelStatsPayload,
+} from '../../../src/api/duelResultService'; // Import the service
 import { checkAndRefreshSession } from '../../../src/api/authService';
 import { Duel } from '../../../src/types/models';
 import {
@@ -43,6 +47,7 @@ export default function DuelsScreen() {
   const isDark = colorScheme === 'dark';
 
   const [activeDuels, setActiveDuels] = useState<Duel[]>([]);
+  const [userStats, setUserStats] = useState<UserDuelStatsPayload | null>(null); // Add user stats state
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,8 +83,9 @@ export default function DuelsScreen() {
       }
 
       // Use Promise.allSettled to handle partial failures gracefully
-      const [duelsResponse] = await Promise.allSettled([
+      const [duelsResponse, userStatsResponse] = await Promise.allSettled([
         duelService.getActiveDuels(),
+        getUserDuelStats(), // Fetch user duel stats
       ]);
 
       // Process each response individually
@@ -94,9 +100,19 @@ export default function DuelsScreen() {
         setActiveDuels([]); // Set empty array instead of keeping old data
       }
 
+      // Process user stats
+      if (userStatsResponse.status === 'fulfilled') {
+        setUserStats(userStatsResponse.value);
+        hasData = true;
+      } else {
+        console.error('Failed to fetch user stats:', userStatsResponse.reason);
+        // Don't set error here, just log it since this is supplementary data
+        setUserStats(null);
+      }
+
       // Check if all requests failed
       if (!hasData) {
-        const firstError = [duelsResponse].find(
+        const firstError = [duelsResponse, userStatsResponse].find(
           (response) => response.status === 'rejected',
         )?.reason;
 
@@ -462,9 +478,7 @@ export default function DuelsScreen() {
               <StatCard
                 icon='fire'
                 title='Kazanılan'
-                value={activeDuels
-                  .filter((d) => d.status === 'completed')
-                  .length.toString()}
+                value={(userStats?.wins || 0).toString()} // Use wins from user stats
                 color={isDark ? Colors.vibrant.yellow : Colors.vibrant.yellow}
                 titleFontFamily='SecondaryFont-Bold'
               />

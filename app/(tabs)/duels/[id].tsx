@@ -1,4 +1,4 @@
-// app/(tabs)/duels/[id].tsx - Enhanced with analytics and results integration - FULLY FIXED
+// app/(tabs)/duels/[id].tsx - Enhanced with analytics and results integration - FULLY FIXED WITH PROPER STYLING
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -13,6 +13,7 @@ import {
   Dimensions,
   ViewStyle,
   TextStyle,
+  ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
@@ -198,6 +199,29 @@ export default function DuelRoomScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
 
+  // Add this function before your other functions
+  const resetDuelState = useCallback(() => {
+    setPhase('connecting');
+    setSession(null);
+    setCurrentQuestion(null);
+    setQuestionIndex(0);
+    setSelectedAnswer(null);
+    setTimeLeft(30);
+    setCountdown(3);
+    setRoundResult(null);
+    setFinalResults(null);
+    setUserScore(0);
+    setOpponentScore(0);
+    setOpponentAnswered(false);
+    setHasAnswered(false);
+    setAnsweredQuestions([]);
+    setDuelStartTime(null);
+    setDuelEndTime(null);
+    setIsCreatingDuelResult(false);
+    setDuelResultCreated(false);
+    setError(null);
+  }, []);
+
   // Load duel information and check for bots
   useEffect(() => {
     const loadDuelInfo = async () => {
@@ -285,11 +309,18 @@ export default function DuelRoomScreen() {
     initializeConnection();
     return () => {
       disconnect();
+      resetDuelState(); // Add this line
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
-  }, []);
+  }, [resetDuelState]);
+
+  useEffect(() => {
+    if (duelId) {
+      resetDuelState();
+    }
+  }, [duelId, resetDuelState]);
 
   // Load user data
   useEffect(() => {
@@ -564,8 +595,7 @@ export default function DuelRoomScreen() {
     setFinalResults(data);
     setDuelEndTime(Date.now());
 
-    // Create duel result record
-    await createDuelResultRecord(data);
+    await trackDuelAnalytics(data);
   };
 
   const handleOpponentDisconnected = (data: {
@@ -601,7 +631,8 @@ export default function DuelRoomScreen() {
           style: 'destructive',
           onPress: () => {
             disconnect();
-            router.back();
+            resetDuelState();
+            router.replace('/(tabs)/duels/new');
           },
         },
       ],
@@ -894,7 +925,7 @@ export default function DuelRoomScreen() {
     </View>
   );
 
-  // FIXED: Complete rewrite of renderQuestion with proper layout
+  // COMPLETELY REWRITTEN: Question render with proper ScrollView and layout
   const renderQuestion = () => {
     console.log('renderQuestion called, currentQuestion:', currentQuestion);
     console.log('phase:', phase);
@@ -924,64 +955,75 @@ export default function DuelRoomScreen() {
     console.log('Rendering question:', currentQuestion.text);
     console.log('Options:', currentQuestion.options);
 
-    const botInfo = getBotDisplayInfo();
-
     return (
       <View style={styles.mainContainer}>
-        {/* Header positioned at top */}
+        {/* FIXED: Header positioned at top */}
         {renderDuelInfoHeader()}
 
-        {/* Main content with proper spacing */}
-        <View style={[styles.questionContainer, { paddingTop: 120 }]}>
-          {/* Header */}
-          <Row style={styles.questionHeader}>
-            <Column>
-              <Text style={styles.questionCounter}>
-                Soru {questionIndex + 1} / {totalQuestions}
-              </Text>
-              <ProgressBar
-                progress={Number(
-                  (((questionIndex + 1) / totalQuestions) * 100).toFixed(0),
-                )}
-                progressColor={Colors.vibrant.mint}
-                style={{ width: 120 }}
-              />
-            </Column>
-            <Column style={{ alignItems: 'flex-end' as const }}>
-              <Text
-                style={[styles.timer, timeLeft <= 10 && styles.timerDanger]}
-              >
-                {timeLeft}s
-              </Text>
-              <Text style={styles.opponentStatus}>
-                {opponentAnswered
-                  ? `${opponentInfo?.isBot ? 'Bot' : 'Rakip'}: Tamamladı ✓`
-                  : `${opponentInfo?.isBot ? 'Bot' : 'Rakip'}: ${
-                      opponentInfo?.isBot ? 'Hesaplıyor...' : 'Düşünüyor...'
-                    }`}
-              </Text>
-            </Column>
-          </Row>
+        {/* FIXED: Main content with ScrollView and proper spacing */}
+        <ScrollView
+          style={styles.scrollContainer}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          {/* FIXED: Question Header with proper container */}
+          <View style={styles.questionHeaderContainer}>
+            <Row style={styles.questionHeader}>
+              <Column>
+                <Text style={styles.questionCounter}>
+                  Soru {questionIndex + 1} / {totalQuestions}
+                </Text>
+                <ProgressBar
+                  progress={Number(
+                    (((questionIndex + 1) / totalQuestions) * 100).toFixed(0),
+                  )}
+                  progressColor={Colors.vibrant.mint}
+                  style={{ width: 120, marginTop: Spacing[1] }}
+                />
+              </Column>
+              <Column style={{ alignItems: 'flex-end' as const }}>
+                <Text
+                  style={[styles.timer, timeLeft <= 10 && styles.timerDanger]}
+                >
+                  {timeLeft}s
+                </Text>
+                <Text style={styles.opponentStatus}>
+                  {opponentAnswered
+                    ? `${opponentInfo?.isBot ? 'Bot' : 'Rakip'}: Tamamladı ✓`
+                    : `${opponentInfo?.isBot ? 'Bot' : 'Rakip'}: ${
+                        opponentInfo?.isBot ? 'Hesaplıyor...' : 'Düşünüyor...'
+                      }`}
+                </Text>
+              </Column>
+            </Row>
+          </View>
 
-          {/* Score Display */}
-          <Row style={styles.scoreRow}>
-            <ScoreDisplay
-              score={userScore}
-              maxScore={totalQuestions}
-              label='Siz'
-              variant='gradient'
-              size='small'
-            />
-            <ScoreDisplay
-              score={opponentScore}
-              maxScore={totalQuestions}
-              label={opponentInfo?.username || 'Rakip'}
-              variant='gradient'
-              size='small'
-            />
-          </Row>
+          {/* FIXED: Score Display with proper container */}
+          <View style={styles.scoreContainer}>
+            <Row style={styles.scoreRow}>
+              <View style={styles.scoreDisplayWrapper}>
+                <ScoreDisplay
+                  score={userScore}
+                  maxScore={totalQuestions}
+                  label='Siz'
+                  variant='gradient'
+                  size='small'
+                />
+              </View>
+              <View style={styles.scoreDisplayWrapper}>
+                <ScoreDisplay
+                  score={opponentScore}
+                  maxScore={totalQuestions}
+                  label={opponentInfo?.username || 'Rakip'}
+                  variant='gradient'
+                  size='small'
+                />
+              </View>
+            </Row>
+          </View>
 
-          {/* Question - FIXED: Removed problematic animation */}
+          {/* FIXED: Question Content with proper styling */}
           <View style={styles.questionCard}>
             <View style={styles.questionContent}>
               <Text style={styles.questionText}>{currentQuestion.text}</Text>
@@ -997,6 +1039,7 @@ export default function DuelRoomScreen() {
                     ]}
                     onPress={() => handleAnswerSelect(key)}
                     disabled={hasAnswered}
+                    activeOpacity={0.8}
                   >
                     <Text
                       style={[
@@ -1012,18 +1055,26 @@ export default function DuelRoomScreen() {
             </View>
           </View>
 
-          {/* Answer Status */}
+          {/* FIXED: Answer Status with proper container */}
           {hasAnswered && (
-            <View style={styles.answerStatus}>
-              <Badge text='Cevap Gönderildi ✓' variant='success' size='md' />
-              <Paragraph style={styles.lightText}>
+            <View style={styles.answerStatusContainer}>
+              <Badge
+                text='Cevap Gönderildi ✓'
+                variant='success'
+                size='md'
+                style={styles.answerStatusBadge}
+              />
+              <Paragraph style={styles.answerStatusText}>
                 {opponentInfo?.isBot
                   ? 'Bot hesaplıyor...'
                   : 'Rakip bekleniyor...'}
               </Paragraph>
             </View>
           )}
-        </View>
+
+          {/* Bottom spacing for scroll */}
+          <View style={styles.bottomSpacing} />
+        </ScrollView>
       </View>
     );
   };
@@ -1031,78 +1082,97 @@ export default function DuelRoomScreen() {
   const renderResults = () => (
     <View style={styles.mainContainer}>
       {renderDuelInfoHeader()}
-      <View style={styles.contentWrapper}>
-        <PlayfulCard variant='glass' style={styles.resultsCard}>
-          <Column style={{ alignItems: 'center' as const }}>
-            <PlayfulTitle level={2} style={styles.whiteText}>
-              {questionIndex + 1}. Tur Sonuçları
-            </PlayfulTitle>
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.resultsContainer}>
+          <PlayfulCard variant='glass' style={styles.resultsCard}>
+            <Column style={{ alignItems: 'center' as const }}>
+              <PlayfulTitle level={2} style={styles.whiteText}>
+                {questionIndex + 1}. Tur Sonuçları
+              </PlayfulTitle>
 
-            {/* FIXED: Use optional chaining to prevent render crashes if roundResult is incomplete */}
-            {roundResult && (
-              <>
-                <Text style={styles.correctAnswer}>
-                  Doğru Cevap: {roundResult.question?.correctAnswer}){' '}
-                  {roundResult.question?.options?.[
-                    roundResult.question?.correctAnswer
-                  ] || 'N/A'}
-                </Text>
+              {/* FIXED: Proper container for round results */}
+              {roundResult && (
+                <View style={styles.roundResultContent}>
+                  <View style={styles.correctAnswerContainer}>
+                    <Text style={styles.correctAnswer}>
+                      Doğru Cevap: {roundResult.question?.correctAnswer}){' '}
+                      {roundResult.question?.options?.[
+                        roundResult.question?.correctAnswer
+                      ] || 'N/A'}
+                    </Text>
+                  </View>
 
-                <Row style={styles.resultRow}>
-                  {roundResult.answers?.map((answer, idx) => {
-                    if (!answer) return null; // Add guard for malformed answer array
+                  <View style={styles.resultRowContainer}>
+                    <Row style={styles.resultRow}>
+                      {roundResult.answers?.map((answer, idx) => {
+                        if (!answer) return null;
 
-                    const isUser = answer.userId === userData?.userId;
-                    const displayName = isUser
-                      ? 'Siz'
-                      : opponentInfo?.username || 'Rakip';
+                        const isUser = answer.userId === userData?.userId;
+                        const displayName = isUser
+                          ? 'Siz'
+                          : opponentInfo?.username || 'Rakip';
 
-                    return (
-                      <Column key={idx} style={styles.playerResult}>
-                        <Text style={styles.playerName}>
-                          {displayName}
-                          {!isUser && opponentInfo?.isBot && ' 🤖'}
-                        </Text>
-                        <Badge
-                          text={answer.isCorrect ? 'Doğru ✓' : 'Yanlış ✗'}
-                          variant={answer.isCorrect ? 'success' : 'error'}
+                        return (
+                          <View key={idx} style={styles.playerResultContainer}>
+                            <Column style={styles.playerResult}>
+                              <Text style={styles.playerName}>
+                                {displayName}
+                                {!isUser && opponentInfo?.isBot && ' 🤖'}
+                              </Text>
+                              <Badge
+                                text={answer.isCorrect ? 'Doğru ✓' : 'Yanlış ✗'}
+                                variant={answer.isCorrect ? 'success' : 'error'}
+                                style={styles.resultBadge}
+                              />
+                              <Text style={styles.timeText}>
+                                {Math.floor((answer.timeTaken / 1000) * 10) /
+                                  10}
+                                s
+                              </Text>
+                            </Column>
+                          </View>
+                        );
+                      })}
+                    </Row>
+                  </View>
+
+                  <View style={styles.currentScoreContainer}>
+                    <Row style={styles.currentScore}>
+                      <Column style={{ alignItems: 'center' as const }}>
+                        <AnimatedCounter
+                          value={userScore}
+                          style={{ color: Colors.vibrant.mint }}
                         />
-                        <Text style={styles.timeText}>
-                          {Math.floor((answer.timeTaken / 1000) * 10) / 10}s
+                        <Text style={styles.scoreLabel}>Puanınız</Text>
+                      </Column>
+                      <Text style={styles.scoreVs}>-</Text>
+                      <Column style={{ alignItems: 'center' as const }}>
+                        <AnimatedCounter
+                          value={opponentScore}
+                          style={{ color: Colors.vibrant.coral }}
+                        />
+                        <Text style={styles.scoreLabel}>
+                          {opponentInfo?.isBot ? 'Bot' : 'Rakip'}
                         </Text>
                       </Column>
-                    );
-                  })}
-                </Row>
+                    </Row>
+                  </View>
+                </View>
+              )}
 
-                <Row style={styles.currentScore}>
-                  <Column style={{ alignItems: 'center' as const }}>
-                    <AnimatedCounter
-                      value={userScore}
-                      style={{ color: Colors.vibrant.mint }}
-                    />
-                    <Text style={styles.scoreLabel}>Puanınız</Text>
-                  </Column>
-                  <Text style={styles.scoreVs}>-</Text>
-                  <Column style={{ alignItems: 'center' as const }}>
-                    <AnimatedCounter
-                      value={opponentScore}
-                      style={{ color: Colors.vibrant.coral }}
-                    />
-                    <Text style={styles.scoreLabel}>
-                      {opponentInfo?.isBot ? 'Bot' : 'Rakip'}
-                    </Text>
-                  </Column>
-                </Row>
-              </>
-            )}
-
-            <Paragraph style={styles.lightText}>
-              Sonraki soru 3 saniye içinde...
-            </Paragraph>
-          </Column>
-        </PlayfulCard>
-      </View>
+              <View style={styles.nextQuestionContainer}>
+                <Paragraph style={styles.lightText}>
+                  Sonraki soru 3 saniye içinde...
+                </Paragraph>
+              </View>
+            </Column>
+          </PlayfulCard>
+        </View>
+      </ScrollView>
     </View>
   );
 
@@ -1112,174 +1182,212 @@ export default function DuelRoomScreen() {
     return (
       <View style={styles.mainContainer}>
         {renderDuelInfoHeader()}
-        <View style={styles.contentWrapper}>
-          <PlayfulCard variant='glass' style={styles.finalCard}>
-            <Column style={{ alignItems: 'center' as const }}>
-              {/* Duel Summary */}
-              {duelInfo && (
-                <View style={styles.duelSummary}>
-                  <Text style={styles.duelSummaryTitle}>Düello Özeti</Text>
-                  <Text style={styles.duelSummaryText}>
-                    📚 {duelInfo.course_name}
-                  </Text>
-                  <Text style={styles.duelSummaryText}>
-                    📝 {duelInfo.test_name}
-                  </Text>
-                  <Text style={styles.duelSummaryText}>
-                    👥 {userData?.username} vs {opponentInfo?.username}
-                    {opponentInfo?.isBot && ' 🤖'}
-                  </Text>
-                  {botInfo && (
-                    <Text
-                      style={[styles.duelSummaryText, { color: botInfo.color }]}
-                    >
-                      🎯 Zorluk Seviye {botInfo.difficulty} • {botInfo.accuracy}
-                      % Doğruluk
-                    </Text>
-                  )}
-                  {/* Show answered questions count */}
-                  <Text style={styles.duelSummaryText}>
-                    📊 {answeredQuestions.length} soru yanıtlandı
-                  </Text>
-                  {duelResultCreated && (
-                    <Badge
-                      text='Sonuçlar Kaydedildi ✓'
-                      variant='success'
-                      style={{ marginTop: Spacing[2] }}
-                    />
-                  )}
-                </View>
-              )}
-
-              {finalResults && (
-                <>
-                  {/* Winner Display */}
-                  <View style={styles.winnerSection}>
-                    {finalResults.winnerId === userData?.userId ? (
-                      <>
-                        <Text style={styles.winnerEmoji}>🏆</Text>
-                        <PlayfulTitle
-                          level={1}
-                          gradient='primary'
-                          style={styles.winnerText}
+        <ScrollView
+          style={styles.scrollContainer}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.finalContainer}>
+            <PlayfulCard variant='glass' style={styles.finalCard}>
+              <Column style={{ alignItems: 'center' as const }}>
+                {/* FIXED: Duel Summary with proper container */}
+                {duelInfo && (
+                  <View style={styles.duelSummaryContainer}>
+                    <View style={styles.duelSummary}>
+                      <Text style={styles.duelSummaryTitle}>Düello Özeti</Text>
+                      <Text style={styles.duelSummaryText}>
+                        📚 {duelInfo.course_name}
+                      </Text>
+                      <Text style={styles.duelSummaryText}>
+                        📝 {duelInfo.test_name}
+                      </Text>
+                      <Text style={styles.duelSummaryText}>
+                        👥 {userData?.username} vs {opponentInfo?.username}
+                        {opponentInfo?.isBot && ' 🤖'}
+                      </Text>
+                      {botInfo && (
+                        <Text
+                          style={[
+                            styles.duelSummaryText,
+                            { color: botInfo.color },
+                          ]}
                         >
-                          ZAFER!
-                        </PlayfulTitle>
-                        {opponentInfo?.isBot && (
-                          <Text style={styles.botVictoryText}>
-                            {opponentInfo.username} botu yendiniz!
-                          </Text>
-                        )}
-                      </>
-                    ) : finalResults.winnerId ? (
-                      <>
-                        <Text style={styles.winnerEmoji}>😔</Text>
-                        <PlayfulTitle level={1} style={styles.loserText}>
-                          Yenilgi
-                        </PlayfulTitle>
-                        {opponentInfo?.isBot && (
-                          <Text style={styles.botDefeatText}>
-                            {opponentInfo.username} botu sizi yendi!
-                          </Text>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <Text style={styles.winnerEmoji}>🤝</Text>
-                        <PlayfulTitle level={1} style={styles.drawText}>
-                          Beraberlik!
-                        </PlayfulTitle>
-                      </>
-                    )}
+                          🎯 Zorluk Seviye {botInfo.difficulty} •{' '}
+                          {botInfo.accuracy}% Doğruluk
+                        </Text>
+                      )}
+                      <Text style={styles.duelSummaryText}>
+                        📊 {answeredQuestions.length} soru yanıtlandı
+                      </Text>
+                      {duelResultCreated && (
+                        <View style={styles.resultCreatedContainer}>
+                          <Badge
+                            text='Sonuçlar Kaydedildi ✓'
+                            variant='success'
+                            style={styles.resultCreatedBadge}
+                          />
+                        </View>
+                      )}
+                    </View>
                   </View>
+                )}
 
-                  {/* Final Score */}
-                  <Row style={styles.finalScore}>
-                    <ScoreDisplay
-                      score={
-                        finalResults.user1.userId === userData?.userId
-                          ? finalResults.user1.score
-                          : finalResults.user2.score
-                      }
-                      maxScore={totalQuestions}
-                      label='Siz'
-                      variant='gradient'
-                      size='large'
-                    />
-                    <ScoreDisplay
-                      score={
-                        finalResults.user1.userId === userData?.userId
-                          ? finalResults.user2.score
-                          : finalResults.user1.score
-                      }
-                      maxScore={totalQuestions}
-                      label={opponentInfo?.username || 'Rakip'}
-                      variant='gradient'
-                      size='large'
-                    />
-                  </Row>
-
-                  {/* Enhanced Stats */}
-                  <View style={styles.statsSection}>
-                    <Row>
-                      <Text style={styles.statText}>
-                        Doğruluk:{' '}
-                        {Math.floor(
-                          (finalResults.user1.userId === userData?.userId
-                            ? finalResults.user1.accuracy
-                            : finalResults.user2.accuracy) * 100,
+                {finalResults && (
+                  <>
+                    {/* FIXED: Winner Display with proper container */}
+                    <View style={styles.winnerSectionContainer}>
+                      <View style={styles.winnerSection}>
+                        {finalResults.winnerId === userData?.userId ? (
+                          <>
+                            <Text style={styles.winnerEmoji}>🏆</Text>
+                            <PlayfulTitle
+                              level={1}
+                              gradient='primary'
+                              style={styles.winnerText}
+                            >
+                              ZAFER!
+                            </PlayfulTitle>
+                            {opponentInfo?.isBot && (
+                              <Text style={styles.botVictoryText}>
+                                {opponentInfo.username} botu yendiniz!
+                              </Text>
+                            )}
+                          </>
+                        ) : finalResults.winnerId ? (
+                          <>
+                            <Text style={styles.winnerEmoji}>😔</Text>
+                            <PlayfulTitle level={1} style={styles.loserText}>
+                              Yenilgi
+                            </PlayfulTitle>
+                            {opponentInfo?.isBot && (
+                              <Text style={styles.botDefeatText}>
+                                {opponentInfo.username} botu sizi yendi!
+                              </Text>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <Text style={styles.winnerEmoji}>🤝</Text>
+                            <PlayfulTitle level={1} style={styles.drawText}>
+                              Beraberlik!
+                            </PlayfulTitle>
+                          </>
                         )}
-                        %
-                      </Text>
-                      <Text style={styles.statText}>
-                        Ort. Süre:{' '}
-                        {Math.floor(
-                          ((finalResults.user1.userId === userData?.userId
-                            ? finalResults.user1.totalTime
-                            : finalResults.user2.totalTime) /
-                            1000 /
-                            totalQuestions) *
-                            10,
-                        ) / 10}
-                        s
-                      </Text>
-                    </Row>
+                      </View>
+                    </View>
 
-                    {/* Additional stats from answered questions */}
-                    {answeredQuestions.length > 0 && (
-                      <Row style={{ marginTop: Spacing[2] }}>
-                        <Text style={styles.statText}>
-                          Doğru:{' '}
-                          {answeredQuestions.filter((q) => q.isCorrect).length}
-                        </Text>
-                        <Text style={styles.statText}>
-                          Yanlış:{' '}
-                          {answeredQuestions.filter((q) => !q.isCorrect).length}
-                        </Text>
+                    {/* FIXED: Final Score with proper container */}
+                    <View style={styles.finalScoreContainer}>
+                      <Row style={styles.finalScore}>
+                        <View style={styles.finalScoreWrapper}>
+                          <ScoreDisplay
+                            score={
+                              finalResults.user1.userId === userData?.userId
+                                ? finalResults.user1.score
+                                : finalResults.user2.score
+                            }
+                            maxScore={totalQuestions}
+                            label='Siz'
+                            variant='gradient'
+                            size='large'
+                          />
+                        </View>
+                        <View style={styles.finalScoreWrapper}>
+                          <ScoreDisplay
+                            score={
+                              finalResults.user1.userId === userData?.userId
+                                ? finalResults.user2.score
+                                : finalResults.user1.score
+                            }
+                            maxScore={totalQuestions}
+                            label={opponentInfo?.username || 'Rakip'}
+                            variant='gradient'
+                            size='large'
+                          />
+                        </View>
                       </Row>
-                    )}
-                  </View>
+                    </View>
 
-                  {/* Action Buttons */}
-                  <Row style={styles.actionButtons}>
-                    <Button
-                      title='Yeni Düello'
-                      variant='primary'
-                      onPress={() => router.push('/(tabs)/duels/new')}
-                      style={{ flex: 1, marginRight: Spacing[2] }}
-                    />
-                    <Button
-                      title='Çık'
-                      variant='outline'
-                      onPress={() => router.back()}
-                      style={{ flex: 1, marginLeft: Spacing[2] }}
-                    />
-                  </Row>
-                </>
-              )}
-            </Column>
-          </PlayfulCard>
-        </View>
+                    {/* FIXED: Enhanced Stats with proper container */}
+                    <View style={styles.statsSectionContainer}>
+                      <View style={styles.statsSection}>
+                        <Row style={styles.statsRow}>
+                          <Text style={styles.statText}>
+                            Doğruluk:{' '}
+                            {Math.floor(
+                              (finalResults.user1.userId === userData?.userId
+                                ? finalResults.user1.accuracy
+                                : finalResults.user2.accuracy) * 100,
+                            )}
+                            %
+                          </Text>
+                          <Text style={styles.statText}>
+                            Ort. Süre:{' '}
+                            {Math.floor(
+                              ((finalResults.user1.userId === userData?.userId
+                                ? finalResults.user1.totalTime
+                                : finalResults.user2.totalTime) /
+                                1000 /
+                                totalQuestions) *
+                                10,
+                            ) / 10}
+                            s
+                          </Text>
+                        </Row>
+
+                        {/* Additional stats from answered questions */}
+                        {answeredQuestions.length > 0 && (
+                          <Row style={styles.additionalStatsRow}>
+                            <Text style={styles.statText}>
+                              Doğru:{' '}
+                              {
+                                answeredQuestions.filter((q) => q.isCorrect)
+                                  .length
+                              }
+                            </Text>
+                            <Text style={styles.statText}>
+                              Yanlış:{' '}
+                              {
+                                answeredQuestions.filter((q) => !q.isCorrect)
+                                  .length
+                              }
+                            </Text>
+                          </Row>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* FIXED: Action Buttons with proper container */}
+                    <View style={styles.actionButtonsContainer}>
+                      <Row style={styles.actionButtons}>
+                        <Button
+                          title='Yeni Düello'
+                          variant='primary'
+                          onPress={() => {
+                            disconnect();
+                            resetDuelState();
+                            router.replace('/(tabs)/duels/new');
+                          }}
+                          style={styles.actionButton}
+                        />
+                        <Button
+                          title='Çık'
+                          variant='outline'
+                          onPress={() => {
+                            disconnect();
+                            resetDuelState();
+                            router.replace('/(tabs)/duels');
+                          }}
+                          style={styles.actionButton}
+                        />
+                      </Row>
+                    </View>
+                  </>
+                )}
+              </Column>
+            </PlayfulCard>
+          </View>
+        </ScrollView>
       </View>
     );
   };
@@ -1327,7 +1435,7 @@ export default function DuelRoomScreen() {
   }
 }
 
-// FULLY FIXED STYLES OBJECT
+// COMPLETELY REWRITTEN STYLES WITH PROPER DIMENSIONS AND CONTAINERS
 const styles = {
   // Main container with proper background
   mainContainer: {
@@ -1341,43 +1449,456 @@ const styles = {
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
     paddingHorizontal: Spacing[4],
-    paddingTop: 120,
+    paddingTop: 140, // Increased for header space
     paddingBottom: Spacing[4],
   } as ViewStyle,
 
-  // Question container for the question phase
-  questionContainer: {
+  // FIXED: ScrollView container
+  scrollContainer: {
     flex: 1,
-    padding: Spacing[4],
     backgroundColor: Colors.vibrant.purple,
   } as ViewStyle,
 
-  // Fixed header styling - positioned at top
+  // FIXED: ScrollView content
+  scrollContent: {
+    paddingTop: 140, // Space for fixed header
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[8],
+    minHeight: height - 100, // Ensure minimum scrollable height
+  } as ViewStyle,
+
+  // FIXED: Header styling with proper z-index
   duelInfoHeader: {
     backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: BorderRadius.md,
     padding: Spacing[3],
     marginHorizontal: Spacing[4],
     marginTop: 50,
-    marginBottom: 0,
     position: 'absolute' as const,
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 10,
+    zIndex: 1000, // High z-index to stay on top
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 10, // Higher elevation for Android
   } as ViewStyle,
 
-  // Enhanced text styling for better visibility
+  // FIXED: Question header container
+  questionHeaderContainer: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[4],
+    marginBottom: Spacing[4],
+    minHeight: 80,
+  } as ViewStyle,
+
+  questionHeader: {
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+  } as ViewStyle,
+
+  // FIXED: Score container
+  scoreContainer: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[4],
+    marginBottom: Spacing[6],
+    minHeight: 100,
+  } as ViewStyle,
+
+  scoreRow: {
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+  } as ViewStyle,
+
+  scoreDisplayWrapper: {
+    flex: 1,
+    alignItems: 'center' as const,
+    minHeight: 60,
+    justifyContent: 'center' as const,
+  } as ViewStyle,
+
+  // FIXED: Question card with proper dimensions
+  questionCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    marginBottom: Spacing[6],
+    minHeight: 400, // Ensure minimum height
+  } as ViewStyle,
+
+  // FIXED: Question content with proper padding
+  questionContent: {
+    padding: Spacing[6],
+    minHeight: 350,
+    justifyContent: 'center' as const,
+    fontFamily: 'SecondaryFont-Regular',
+  } as ViewStyle,
+
+  questionText: {
+    fontSize: 16,
+    // fontWeight: 'bold' as const,
+    color: Colors.white,
+    textAlign: 'left' as const,
+    marginBottom: Spacing[6],
+    fontFamily: 'SecondaryFont-Regular',
+    lineHeight: 28,
+    minHeight: 60, // Ensure text container height
+  } as TextStyle,
+
+  // FIXED: Options container with proper spacing
+  optionsContainer: {
+    gap: Spacing[3],
+    minHeight: 240, // Ensure all options are visible
+  } as ViewStyle,
+
+  // FIXED: Option button with guaranteed visibility and touch area
+  optionButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[4],
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+    minHeight: 60, // Guaranteed minimum touch area
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  } as ViewStyle,
+
+  selectedOption: {
+    backgroundColor: Colors.vibrant?.purple || '#8b5cf6',
+    borderColor: Colors.white,
+    borderWidth: 3,
+    fontFamily: 'SecondaryFont-Bold',
+  } as ViewStyle,
+
+  disabledOption: {
+    opacity: 0.6,
+  } as ViewStyle,
+
+  optionText: {
+    fontSize: 16,
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Regular',
+    fontWeight: '500' as const,
+    textAlign: 'center' as const,
+    lineHeight: 22,
+  } as TextStyle,
+
+  selectedOptionText: {
+    fontWeight: 'bold' as const,
+    fontFamily: 'SecondaryFont-Bold',
+  } as TextStyle,
+
+  // FIXED: Answer status container
+  answerStatusContainer: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[4],
+    alignItems: 'center' as const,
+    minHeight: 80,
+    justifyContent: 'center' as const,
+  } as ViewStyle,
+
+  answerStatusBadge: {
+    marginBottom: Spacing[2],
+  } as ViewStyle,
+
+  answerStatusText: {
+    color: Colors.gray?.[300] || '#d1d5db',
+    textAlign: 'center' as const,
+    fontFamily: 'SecondaryFont-Regular',
+  } as TextStyle,
+
+  // FIXED: Results containers
+  resultsContainer: {
+    flex: 1,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    minHeight: height - 200,
+  } as ViewStyle,
+
+  resultsCard: {
+    padding: Spacing[6],
+    width: Math.floor(width * 0.95),
+    maxWidth: 500,
+    minHeight: 400,
+  } as ViewStyle,
+
+  roundResultContent: {
+    width: '100%',
+    minHeight: 300,
+  } as ViewStyle,
+
+  correctAnswerContainer: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing[3],
+    marginBottom: Spacing[4],
+    minHeight: 50,
+    justifyContent: 'center' as const,
+  } as ViewStyle,
+
+  resultRowContainer: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing[4],
+    marginVertical: Spacing[4],
+    minHeight: 120,
+  } as ViewStyle,
+
+  resultRow: {
+    justifyContent: 'space-around' as const,
+    width: '100%',
+  } as ViewStyle,
+
+  playerResultContainer: {
+    flex: 1,
+    alignItems: 'center' as const,
+    minHeight: 100,
+    justifyContent: 'center' as const,
+  } as ViewStyle,
+
+  playerResult: {
+    alignItems: 'center' as const,
+    gap: Spacing[2],
+  } as ViewStyle,
+
+  resultBadge: {
+    marginVertical: Spacing[1],
+  } as ViewStyle,
+
+  currentScoreContainer: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing[4],
+    marginTop: Spacing[4],
+    minHeight: 80,
+    justifyContent: 'center' as const,
+  } as ViewStyle,
+
+  currentScore: {
+    alignItems: 'center' as const,
+    gap: Spacing[4],
+    justifyContent: 'center' as const,
+  } as ViewStyle,
+
+  nextQuestionContainer: {
+    marginTop: Spacing[4],
+    minHeight: 40,
+    justifyContent: 'center' as const,
+  } as ViewStyle,
+
+  // FIXED: Final screen containers
+  finalContainer: {
+    flex: 1,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    minHeight: height - 200,
+  } as ViewStyle,
+
+  finalCard: {
+    padding: Spacing[6],
+    width: Math.floor(width * 0.95),
+    maxWidth: 500,
+    minHeight: 600,
+  } as ViewStyle,
+
+  duelSummaryContainer: {
+    width: '100%',
+    marginBottom: Spacing[6],
+  } as ViewStyle,
+
+  duelSummary: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing[4],
+    minHeight: 120,
+    justifyContent: 'center' as const,
+  } as ViewStyle,
+
+  resultCreatedContainer: {
+    marginTop: Spacing[3],
+    alignItems: 'center' as const,
+  } as ViewStyle,
+
+  resultCreatedBadge: {
+    alignSelf: 'center' as const,
+  } as ViewStyle,
+
+  winnerSectionContainer: {
+    width: '100%',
+    marginBottom: Spacing[6],
+  } as ViewStyle,
+
+  winnerSection: {
+    alignItems: 'center' as const,
+    minHeight: 150,
+    justifyContent: 'center' as const,
+  } as ViewStyle,
+
+  finalScoreContainer: {
+    width: '100%',
+    marginBottom: Spacing[6],
+  } as ViewStyle,
+
+  finalScore: {
+    justifyContent: 'space-around' as const,
+    width: '100%',
+    minHeight: 100,
+    alignItems: 'center' as const,
+  } as ViewStyle,
+
+  finalScoreWrapper: {
+    flex: 1,
+    alignItems: 'center' as const,
+    minHeight: 80,
+    justifyContent: 'center' as const,
+  } as ViewStyle,
+
+  statsSectionContainer: {
+    width: '100%',
+    marginBottom: Spacing[6],
+  } as ViewStyle,
+
+  statsSection: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing[4],
+    minHeight: 80,
+  } as ViewStyle,
+
+  statsRow: {
+    justifyContent: 'space-between' as const,
+    marginBottom: Spacing[2],
+  } as ViewStyle,
+
+  additionalStatsRow: {
+    justifyContent: 'space-between' as const,
+    marginTop: Spacing[2],
+  } as ViewStyle,
+
+  actionButtonsContainer: {
+    width: '100%',
+    minHeight: 60,
+  } as ViewStyle,
+
+  actionButtons: {
+    gap: Spacing[4],
+    width: '100%',
+    justifyContent: 'space-between' as const,
+  } as ViewStyle,
+
+  actionButton: {
+    flex: 1,
+    minHeight: 50,
+  } as ViewStyle,
+
+  // Bottom spacing for scroll
+  bottomSpacing: {
+    height: Spacing[8],
+  } as ViewStyle,
+
+  // Reused styles from original
+  lobbyCard: {
+    padding: Spacing[4],
+    width: Math.floor(width * 0.9),
+    maxWidth: 400,
+  } as ViewStyle,
+
+  questionCounter: {
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Bold',
+  } as TextStyle,
+
+  timer: {
+    fontSize: 24,
+    fontWeight: 'bold' as const,
+    color: Colors.white,
+    fontFamily: 'PrimaryFont',
+  } as TextStyle,
+
+  timerDanger: {
+    color: Colors.vibrant?.coral || '#f87171',
+  } as TextStyle,
+
+  opponentStatus: {
+    fontSize: 12,
+    color: Colors.gray?.[300] || '#d1d5db',
+    fontFamily: 'SecondaryFont-Regular',
+  } as TextStyle,
+
+  vsText: {
+    fontSize: 24,
+    fontWeight: 'bold' as const,
+    color: Colors.white,
+    marginHorizontal: Spacing[4],
+    fontFamily: 'PrimaryFont',
+  } as TextStyle,
+
+  whiteText: {
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Bold',
+  } as TextStyle,
+
+  lightText: {
+    color: Colors.gray?.[300] || '#d1d5db',
+    textAlign: 'center' as const,
+    fontFamily: 'SecondaryFont-Regular',
+  } as TextStyle,
+
+  countdownText: {
+    fontSize: 120,
+    fontWeight: 'bold' as const,
+    color: Colors.white,
+    fontFamily: 'PrimaryFont',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  } as TextStyle,
+
+  correctAnswer: {
+    fontSize: 16,
+    color: Colors.vibrant?.mint || '#10b981',
+    fontWeight: 'bold' as const,
+    textAlign: 'center' as const,
+    fontFamily: 'SecondaryFont-Bold',
+  } as TextStyle,
+
+  playerName: {
+    fontSize: 14,
+    color: Colors.white,
+    fontWeight: 'bold' as const,
+    fontFamily: 'SecondaryFont-Bold',
+  } as TextStyle,
+
+  timeText: {
+    fontSize: 12,
+    color: Colors.gray?.[300] || '#d1d5db',
+    fontFamily: 'SecondaryFont-Regular',
+  } as TextStyle,
+
+  scoreVs: {
+    fontSize: 24,
+    color: Colors.white,
+    fontWeight: 'bold' as const,
+    fontFamily: 'PrimaryFont',
+  } as TextStyle,
+
+  scoreLabel: {
+    fontSize: 12,
+    color: Colors.gray?.[300] || '#d1d5db',
+    fontFamily: 'SecondaryFont-Regular',
+    marginTop: 4,
+  } as TextStyle,
+
   duelInfoCourse: {
     fontSize: 14,
     fontWeight: 'bold' as const,
@@ -1463,14 +1984,6 @@ const styles = {
     marginTop: Spacing[2],
   } as TextStyle,
 
-  duelSummary: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: BorderRadius.md,
-    padding: Spacing[4],
-    marginBottom: Spacing[6],
-    alignSelf: 'stretch',
-  } as ViewStyle,
-
   duelSummaryTitle: {
     fontSize: 16,
     fontWeight: 'bold' as const,
@@ -1487,212 +2000,6 @@ const styles = {
     fontFamily: 'SecondaryFont-Regular',
     marginBottom: 2,
   } as TextStyle,
-
-  questionHeader: {
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    marginBottom: Spacing[4],
-  } as ViewStyle,
-
-  questionCounter: {
-    fontSize: 16,
-    fontWeight: 'bold' as const,
-    color: Colors.white,
-    fontFamily: 'SecondaryFont-Bold',
-  } as TextStyle,
-
-  timer: {
-    fontSize: 24,
-    fontWeight: 'bold' as const,
-    color: Colors.white,
-    fontFamily: 'PrimaryFont',
-  } as TextStyle,
-
-  timerDanger: {
-    color: Colors.vibrant?.coral || '#f87171',
-  } as TextStyle,
-
-  opponentStatus: {
-    fontSize: 12,
-    color: Colors.gray?.[300] || '#d1d5db',
-    fontFamily: 'SecondaryFont-Regular',
-  } as TextStyle,
-
-  scoreRow: {
-    justifyContent: 'space-between' as const,
-    marginBottom: Spacing[6],
-  } as ViewStyle,
-
-  // FIXED: Question card with guaranteed visibility
-  questionCard: {
-    flex: 1,
-    justifyContent: 'center' as const,
-    minHeight: 300,
-  } as ViewStyle,
-
-  // FIXED: Question content with fallback styling
-  questionContent: {
-    padding: Spacing[6],
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  } as ViewStyle,
-
-  questionText: {
-    fontSize: 20,
-    fontWeight: 'bold' as const,
-    color: Colors.white,
-    textAlign: 'center' as const,
-    marginBottom: Spacing[6],
-    fontFamily: 'PrimaryFont',
-    lineHeight: 28,
-  } as TextStyle,
-
-  // FIXED: Options container with proper spacing
-  optionsContainer: {
-    gap: Spacing[3],
-  } as ViewStyle,
-
-  // FIXED: Option button with guaranteed visibility
-  optionButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: BorderRadius.lg,
-    padding: Spacing[4],
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-    minHeight: 60,
-  } as ViewStyle,
-
-  selectedOption: {
-    backgroundColor: Colors.vibrant?.purple || '#8b5cf6',
-    borderColor: Colors.white,
-  } as ViewStyle,
-
-  disabledOption: {
-    opacity: 0.6,
-  } as ViewStyle,
-
-  optionText: {
-    fontSize: 16,
-    color: Colors.white,
-    fontFamily: 'SecondaryFont-Regular',
-    fontWeight: '500' as const,
-  } as TextStyle,
-
-  selectedOptionText: {
-    fontWeight: 'bold' as const,
-    fontFamily: 'SecondaryFont-Bold',
-  } as TextStyle,
-
-  answerStatus: {
-    alignItems: 'center' as const,
-    marginTop: Spacing[4],
-  } as ViewStyle,
-
-  lobbyCard: {
-    padding: Spacing[4],
-    width: Math.floor(width * 0.9),
-    maxWidth: 400,
-  } as ViewStyle,
-
-  resultsCard: {
-    padding: Spacing[4],
-    width: Math.floor(width * 0.9),
-    maxWidth: 400,
-  } as ViewStyle,
-
-  finalCard: {
-    padding: Spacing[4],
-    width: Math.floor(width * 0.9),
-    maxWidth: 400,
-  } as ViewStyle,
-
-  vsText: {
-    fontSize: 24,
-    fontWeight: 'bold' as const,
-    color: Colors.white,
-    marginHorizontal: Spacing[4],
-    fontFamily: 'PrimaryFont',
-  } as TextStyle,
-
-  whiteText: {
-    color: Colors.white,
-  } as TextStyle,
-
-  lightText: {
-    color: Colors.gray?.[300] || '#d1d5db',
-    textAlign: 'center' as const,
-    fontFamily: 'SecondaryFont-Regular',
-  } as TextStyle,
-
-  countdownText: {
-    fontSize: 120,
-    fontWeight: 'bold' as const,
-    color: Colors.white,
-    fontFamily: 'PrimaryFont',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 4,
-  } as TextStyle,
-
-  correctAnswer: {
-    fontSize: 16,
-    color: Colors.vibrant?.mint || '#10b981',
-    fontWeight: 'bold' as const,
-    textAlign: 'center' as const,
-    marginBottom: Spacing[4],
-    fontFamily: 'SecondaryFont-Bold',
-  } as TextStyle,
-
-  resultRow: {
-    justifyContent: 'space-around' as const,
-    width: '100%',
-    marginVertical: Spacing[4],
-  } as ViewStyle,
-
-  playerResult: {
-    alignItems: 'center' as const,
-    gap: Spacing[2],
-  } as ViewStyle,
-
-  playerName: {
-    fontSize: 14,
-    color: Colors.white,
-    fontWeight: 'bold' as const,
-    fontFamily: 'SecondaryFont-Bold',
-  } as TextStyle,
-
-  timeText: {
-    fontSize: 12,
-    color: Colors.gray?.[300] || '#d1d5db',
-    fontFamily: 'SecondaryFont-Regular',
-  } as TextStyle,
-
-  currentScore: {
-    alignItems: 'center' as const,
-    gap: Spacing[4],
-    marginTop: Spacing[4],
-  } as ViewStyle,
-
-  scoreVs: {
-    fontSize: 24,
-    color: Colors.white,
-    fontWeight: 'bold' as const,
-    fontFamily: 'PrimaryFont',
-  } as TextStyle,
-
-  scoreLabel: {
-    fontSize: 12,
-    color: Colors.gray?.[300] || '#d1d5db',
-    fontFamily: 'SecondaryFont-Regular',
-    marginTop: 4,
-  } as TextStyle,
-
-  winnerSection: {
-    alignItems: 'center' as const,
-    marginBottom: Spacing[6],
-  } as ViewStyle,
 
   winnerEmoji: {
     fontSize: 64,
@@ -1711,25 +2018,9 @@ const styles = {
     color: Colors.vibrant?.yellow || '#fbbf24',
   } as TextStyle,
 
-  finalScore: {
-    justifyContent: 'space-around' as const,
-    width: '100%',
-    marginBottom: Spacing[6],
-  } as ViewStyle,
-
-  statsSection: {
-    width: '100%',
-    marginBottom: Spacing[6],
-  } as ViewStyle,
-
   statText: {
     fontSize: 14,
     color: Colors.gray?.[300] || '#d1d5db',
     fontFamily: 'SecondaryFont-Regular',
   } as TextStyle,
-
-  actionButtons: {
-    gap: Spacing[4],
-    width: '100%',
-  } as ViewStyle,
 };

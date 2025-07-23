@@ -334,6 +334,13 @@ export default function NewDuelScreen() {
       setIsChallenginBot(false);
       setModalVisible(false);
       resetChallengeState();
+      if (data.duel && data.duel.duel_id) {
+        console.log('Navigating to duel:', data.duel.duel_id);
+        router.push({
+          pathname: '/(tabs)/duels/[id]' as any, // Note the correct path format
+          params: { id: data.duel.duel_id.toString() },
+        });
+      }
     };
 
     const handleBotChallengeError = (data: { message: string }) => {
