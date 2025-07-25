@@ -37,7 +37,6 @@ const API_ENDPOINTS = {
     { name: 'Create Course', method: 'POST', path: '/api/courses' },
     { name: 'Update Course', method: 'PUT', path: '/api/courses/1' },
     { name: 'Delete Course', method: 'DELETE', path: '/api/courses/1' },
-    // Course type and statistics endpoints
     {
       name: 'Get Courses by Type',
       method: 'GET',
@@ -55,7 +54,6 @@ const API_ENDPOINTS = {
     { name: 'Create Topic', method: 'POST', path: '/api/topics' },
     { name: 'Update Topic', method: 'PUT', path: '/api/topics/1' },
     { name: 'Delete Topic', method: 'DELETE', path: '/api/topics/1' },
-    // NEW: Topic statistics endpoints
     {
       name: 'Get Topic Statistics',
       method: 'GET',
@@ -74,7 +72,87 @@ const API_ENDPOINTS = {
     { name: 'Update Subtopic', method: 'PUT', path: '/api/subtopics/1' },
     { name: 'Delete Subtopic', method: 'DELETE', path: '/api/subtopics/1' },
   ],
-  Study: [
+  'Study Tracking': [
+    // NEW: Chronometer functionality
+    {
+      name: 'Start Study Session',
+      method: 'POST',
+      path: '/api/study/sessions/start',
+    },
+    {
+      name: 'End Study Session',
+      method: 'POST',
+      path: '/api/study/sessions/1/end',
+    },
+    {
+      name: 'Get Active Session',
+      method: 'GET',
+      path: '/api/study/sessions/active/1',
+    },
+    { name: 'Get User Sessions', method: 'GET', path: '/api/study/sessions' },
+    {
+      name: 'Get User Sessions Paginated',
+      method: 'GET',
+      path: '/api/study/sessions?page=1&limit=20',
+    },
+    {
+      name: 'Get Sessions by Topic',
+      method: 'GET',
+      path: '/api/study/sessions?topicId=1',
+    },
+    {
+      name: 'Get Sessions by Course',
+      method: 'GET',
+      path: '/api/study/sessions?courseId=1',
+    },
+
+    // NEW: Topic details management
+    {
+      name: 'Update Topic Details',
+      method: 'POST',
+      path: '/api/study/topic-details',
+    },
+    {
+      name: 'Get Topic Details',
+      method: 'GET',
+      path: '/api/study/topic-details/1',
+    },
+
+    // NEW: Course and overview endpoints
+    {
+      name: 'Get Klinik Courses',
+      method: 'GET',
+      path: '/api/study/courses/klinik',
+    },
+    {
+      name: 'Get Course Study Overview',
+      method: 'GET',
+      path: '/api/study/overview/course/1',
+    },
+    {
+      name: 'Get All Courses Statistics',
+      method: 'GET',
+      path: '/api/study/overview/all-courses',
+    },
+    {
+      name: 'Get Study Statistics',
+      method: 'GET',
+      path: '/api/study/statistics',
+    },
+
+    // NEW: Preferred course management
+    {
+      name: 'Set Preferred Course',
+      method: 'POST',
+      path: '/api/study/preferred-course',
+    },
+    {
+      name: 'Get Preferred Course',
+      method: 'GET',
+      path: '/api/study/preferred-course',
+    },
+
+    // Legacy study endpoints
     { name: 'Start Session', method: 'POST', path: '/api/study/session/start' },
     { name: 'End Session', method: 'POST', path: '/api/study/session/end' },
     { name: 'Get Progress', method: 'GET', path: '/api/study/progress' },
@@ -87,23 +165,18 @@ const API_ENDPOINTS = {
     { name: 'Get Video', method: 'GET', path: 'api/coaching/videos/1' },
   ],
   Tests: [
-    // Basic test operations
     { name: 'List Tests', method: 'GET', path: '/api/tests' },
     { name: 'Get Test', method: 'GET', path: '/api/tests/1' },
     { name: 'Create Test', method: 'POST', path: '/api/tests' },
     { name: 'Update Test', method: 'PUT', path: '/api/tests/1' },
     { name: 'Delete Test', method: 'DELETE', path: '/api/tests/1' },
-
-    // Course and topic relationship endpoints
     { name: 'Get Tests by Course', method: 'GET', path: '/api/tests/course/1' },
-    { name: 'Get Tests by Topic', method: 'GET', path: '/api/tests/topic/1' }, // NEW
+    { name: 'Get Tests by Topic', method: 'GET', path: '/api/tests/topic/1' },
     {
       name: 'Get Tests by Course Type',
       method: 'GET',
       path: '/api/tests/course-type/temel_dersler',
     },
-
-    // Test with filtering
     {
       name: 'Get Tests with Course Filter',
       method: 'GET',
@@ -113,14 +186,12 @@ const API_ENDPOINTS = {
       name: 'Get Tests with Topic Filter',
       method: 'GET',
       path: '/api/tests?topicId=1',
-    }, // NEW
+    },
     {
       name: 'Get Tests with Multiple Filters',
       method: 'GET',
       path: '/api/tests?courseId=1&topicId=1',
-    }, // NEW
-
-    // Test details and statistics
+    },
     {
       name: 'Get Test with Questions',
       method: 'GET',
@@ -139,7 +210,6 @@ const API_ENDPOINTS = {
     { name: 'Create Question', method: 'POST', path: '/api/questions' },
     { name: 'Update Question', method: 'PUT', path: '/api/questions/1' },
     { name: 'Delete Question', method: 'DELETE', path: '/api/questions/1' },
-    // NEW: Question filtering by topic
     {
       name: 'Get Questions by Topic',
       method: 'GET',
@@ -158,7 +228,6 @@ const API_ENDPOINTS = {
       method: 'GET',
       path: '/api/answers/result/1',
     },
-    // Answer explanation endpoints
     {
       name: 'Get Incorrect Answers with Explanations',
       method: 'GET',
@@ -229,59 +298,168 @@ const API_ENDPOINTS = {
     { name: 'Delete Plan', method: 'DELETE', path: '/api/studyPlans/1' },
   ],
   Analytics: [
-    // User analytics
+    // NEW: Streak Analytics
     {
-      name: 'Get User Dashboard Analytics',
+      name: 'Get Longest Streaks',
       method: 'GET',
-      path: '/api/analytics/dashboard',
+      path: '/api/analytics/streaks/longest',
+    },
+    {
+      name: 'Get Streaks Summary',
+      method: 'GET',
+      path: '/api/analytics/streaks/summary',
+    },
+    {
+      name: 'Get Streaks Analytics',
+      method: 'GET',
+      path: '/api/analytics/streaks/analytics',
+    },
+
+    // NEW: Progress Analytics
+    {
+      name: 'Get Daily Progress',
+      method: 'GET',
+      path: '/api/analytics/progress/daily',
+    },
+    {
+      name: 'Get Daily Progress with Params',
+      method: 'GET',
+      path: '/api/analytics/progress/daily?days=30',
+    },
+    {
+      name: 'Get Daily Progress Date Range',
+      method: 'GET',
+      path: '/api/analytics/progress/daily?startDate=2024-01-01&endDate=2024-01-31',
     },
     {
       name: 'Get Weekly Progress',
       method: 'GET',
+      path: '/api/analytics/progress/weekly',
+    },
+    {
+      name: 'Get Weekly Progress with Params',
+      method: 'GET',
+      path: '/api/analytics/progress/weekly?weeksBack=12',
+    },
+    {
+      name: 'Get Daily Progress Analytics',
+      method: 'GET',
+      path: '/api/analytics/progress/daily-analytics',
+    },
+    {
+      name: 'Get Weekly Progress Analytics',
+      method: 'GET',
+      path: '/api/analytics/progress/weekly-analytics',
+    },
+
+    // NEW: Course Analytics
+    {
+      name: 'Get Top Courses',
+      method: 'GET',
+      path: '/api/analytics/courses/top',
+    },
+    {
+      name: 'Get Top Courses Limited',
+      method: 'GET',
+      path: '/api/analytics/courses/top?limit=5',
+    },
+    {
+      name: 'Get Most Studied Course',
+      method: 'GET',
+      path: '/api/analytics/courses/most-studied',
+    },
+    {
+      name: 'Get Course Analytics',
+      method: 'GET',
+      path: '/api/analytics/courses/analytics',
+    },
+
+    // NEW: Comparative Analytics
+    {
+      name: 'Get Comparative Analytics',
+      method: 'GET',
+      path: '/api/analytics/comparative',
+    },
+    {
+      name: 'Get Recent Activity',
+      method: 'GET',
+      path: '/api/analytics/recent-activity',
+    },
+    {
+      name: 'Get Recent Activity with Days',
+      method: 'GET',
+      path: '/api/analytics/recent-activity?daysBack=7',
+    },
+
+    // NEW: Dashboard Analytics
+    {
+      name: 'Get Dashboard Analytics',
+      method: 'GET',
+      path: '/api/analytics/dashboard',
+    },
+    {
+      name: 'Get Analytics Summary',
+      method: 'GET',
+      path: '/api/analytics/summary',
+    },
+    { name: 'Get All Analytics', method: 'GET', path: '/api/analytics/all' },
+    {
+      name: 'Get All Analytics with Params',
+      method: 'GET',
+      path: '/api/analytics/all?daysBack=30&weeksBack=12',
+    },
+
+    // Legacy Analytics (for backward compatibility)
+    {
+      name: 'Get Dashboard Analytics Legacy',
+      method: 'GET',
+      path: '/api/analytics/dashboard-legacy',
+    },
+    {
+      name: 'Get Weekly Progress Legacy',
+      method: 'GET',
       path: '/api/analytics/weekly-progress',
     },
     {
-      name: 'Get Topic Analytics',
+      name: 'Get Topic Analytics Legacy',
       method: 'GET',
       path: '/api/analytics/topics',
     },
     {
-      name: 'Get Test Topic Analytics', // NEW
+      name: 'Get Test Topic Analytics Legacy',
       method: 'GET',
       path: '/api/analytics/test-topics',
     },
     {
-      name: 'Get User Performance',
+      name: 'Get User Performance Legacy',
       method: 'GET',
       path: '/api/analytics/user-performance',
     },
     {
-      name: 'Get Activity Timeline',
+      name: 'Get Activity Timeline Legacy',
       method: 'GET',
       path: '/api/analytics/activity?days=7',
     },
     {
-      name: 'Get Weakest Topics',
+      name: 'Get Weakest Topics Legacy',
       method: 'GET',
       path: '/api/analytics/weakest-topics?limit=5',
     },
     {
-      name: 'Get Improvement Metrics',
+      name: 'Get Improvement Metrics Legacy',
       method: 'GET',
       path: '/api/analytics/improvement',
     },
     {
-      name: 'Get Study Time Distribution',
+      name: 'Get Study Time Distribution Legacy',
       method: 'GET',
       path: '/api/analytics/study-time-distribution',
     },
-    // Answer explanations endpoint (enhanced with topic data)
     {
-      name: 'Get Answer Explanations',
+      name: 'Get Answer Explanations Legacy',
       method: 'GET',
       path: '/api/analytics/answer-explanations?limit=10',
     },
-    // Admin analytics
     {
       name: 'Get Admin Overview',
       method: 'GET',
@@ -293,7 +471,6 @@ const API_ENDPOINTS = {
       path: '/api/analytics/admin/user-performance',
     },
   ],
-  // User Question History endpoints
   'User History': [
     {
       name: 'Check Question Answered',
@@ -311,7 +488,7 @@ const API_ENDPOINTS = {
       path: '/api/user-history/course/1',
     },
     {
-      name: 'Get User Topic History', // NEW
+      name: 'Get User Topic History',
       method: 'GET',
       path: '/api/user-history/topic/1',
     },
@@ -326,7 +503,7 @@ const API_ENDPOINTS = {
       path: '/api/user-history/course-stats',
     },
     {
-      name: 'Get User Topic Statistics', // NEW
+      name: 'Get User Topic Statistics',
       method: 'GET',
       path: '/api/user-history/topic-stats',
     },
@@ -336,7 +513,7 @@ const API_ENDPOINTS = {
       path: '/api/user-history/incorrect-answers',
     },
     {
-      name: 'Get Incorrect Answers by Topic', // NEW
+      name: 'Get Incorrect Answers by Topic',
       method: 'GET',
       path: '/api/user-history/incorrect-answers?topicId=1',
     },
@@ -351,7 +528,7 @@ const API_ENDPOINTS = {
       path: '/api/user-history/review-questions',
     },
     {
-      name: 'Get Review Questions by Topic', // NEW
+      name: 'Get Review Questions by Topic',
       method: 'GET',
       path: '/api/user-history/review-questions?topicId=1',
     },
@@ -371,7 +548,6 @@ const API_ENDPOINTS = {
     },
     { name: 'System Health', method: 'GET', path: '/api/admin/health' },
     { name: 'Usage Stats', method: 'GET', path: '/api/admin/stats' },
-    // NEW: Admin topic management
     {
       name: 'Get Topic Usage Stats',
       method: 'GET',
@@ -383,7 +559,6 @@ const API_ENDPOINTS = {
       path: '/api/admin/tests/topic-distribution',
     },
   ],
-  // NEW: Topic Management section
   'Topic Management': [
     {
       name: 'Get Topic with Tests',
@@ -406,7 +581,6 @@ const API_ENDPOINTS = {
       path: '/api/topics/1/difficulty-analysis',
     },
   ],
-  // NEW: Enhanced Test Management section
   'Test Management': [
     {
       name: 'Bulk Update Test Topics',

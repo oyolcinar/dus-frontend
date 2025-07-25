@@ -16,6 +16,8 @@ export interface User {
   // OAuth fields
   oauthProvider?: string | null;
   isOAuthUser?: boolean;
+  // NEW: Preferred course field
+  preferred_course_id?: number | null;
 }
 
 export interface AuthResponse {
@@ -30,8 +32,16 @@ export interface Course {
   title: string;
   description?: string;
   image_url?: string;
-  course_type: 'temel_dersler' | 'klinik_dersler'; // NEW: Course type field
+  course_type: 'temel_dersler' | 'klinik_dersler'; // Course type field
   created_at: string;
+}
+
+// NEW: Klinik Course interface for study tracking
+export interface KlinikCourse {
+  course_id: number;
+  title: string;
+  description?: string;
+  topic_count: number;
 }
 
 export interface Topic {
@@ -61,7 +71,7 @@ export interface Test {
   question_count: number;
   time_limit: number;
   course_id: number; // Course relationship field
-  topic_id?: number; // NEW: Optional topic relationship field
+  topic_id?: number; // Optional topic relationship field
   created_at: string;
   // Populated via joins in API responses
   courses?: {
@@ -106,7 +116,268 @@ export interface TestResult {
   time_taken?: number;
 }
 
-// NEW: Course Statistics Types
+// ===============================
+// NEW: ENHANCED STUDY TRACKING TYPES
+// ===============================
+
+// Enhanced StudySession interface for chronometer functionality
+export interface StudySession {
+  session_id: number;
+  user_id: number;
+  topic_id: number;
+  start_time: string;
+  end_time?: string | null;
+  duration_seconds?: number | null;
+  session_date: string;
+  notes?: string | null;
+  end_notes?: string | null;
+  status: 'active' | 'completed';
+  created_at: string;
+  updated_at: string;
+  // Populated via joins
+  topics?: {
+    topic_id: number;
+    title: string;
+    courses: {
+      course_id: number;
+      title: string;
+    };
+  };
+}
+
+// User topic details interface
+export interface UserTopicDetails {
+  user_id: number;
+  topic_id: number;
+  tekrar_sayisi?: number | null;
+  konu_kaynaklari?: string[] | null;
+  soru_bankasi_kaynaklari?: string[] | null;
+  difficulty_rating?: number | null; // 1-5 scale
+  notes?: string | null;
+  is_completed?: boolean;
+  created_at: string;
+  updated_at: string;
+  // Populated via joins
+  topics?: {
+    topic_id: number;
+    title: string;
+    description?: string;
+    courses: {
+      course_id: number;
+      title: string;
+    };
+  };
+}
+
+// Course study overview interface
+export interface CourseStudyOverview {
+  user_id: number;
+  course_id: number;
+  course_title: string;
+  topic_id: number;
+  topic_title: string;
+  total_study_hours: number;
+  total_sessions: number;
+  average_session_duration: number;
+  last_studied_at?: string | null;
+  completion_percentage: number;
+  notes_count: number;
+}
+
+// All courses statistics interface
+export interface AllCoursesStatistics {
+  course_id: number;
+  course_title: string;
+  total_topics: number;
+  studied_topics: number;
+  completion_percentage: number;
+  total_study_hours: number;
+  is_preferred: boolean;
+}
+
+// Overall study statistics interface
+export interface StudyStatistics {
+  user_id: number;
+  total_study_hours: number;
+  total_sessions: number;
+  unique_topics_studied: number;
+  unique_courses_studied: number;
+  average_session_duration: number;
+  longest_session_minutes: number;
+  total_notes: number;
+  current_streak_days: number;
+  longest_streak_days: number;
+  last_study_date?: string | null;
+  this_week_hours: number;
+  this_month_hours: number;
+}
+
+// Preferred course interface
+export interface PreferredCourse {
+  course_id: number;
+  title: string;
+  description?: string;
+}
+
+// ===============================
+// NEW: ANALYTICS TYPES
+// ===============================
+
+// Streak Analytics Types
+export interface LongestStreak {
+  streak_type: 'topic' | 'course' | 'daily_study';
+  topic_title?: string;
+  course_title?: string;
+  longest_streak_seconds: number;
+  longest_streak_minutes: number;
+  longest_streak_hours: number;
+  longest_streak_date: string;
+}
+
+export interface StreaksSummary {
+  longest_single_session_minutes: number;
+  longest_single_session_topic?: string;
+  longest_single_session_course?: string;
+  longest_topic_streak_minutes: number;
+  longest_course_streak_minutes: number;
+}
+
+export interface StreaksAnalytics {
+  user_id: number;
+  streak_type: string;
+  topic_id?: number;
+  topic_title?: string;
+  course_id?: number;
+  course_title?: string;
+  longest_streak_seconds: number;
+  longest_streak_minutes: number;
+  longest_streak_hours: number;
+  longest_streak_date: string;
+  created_at: string;
+}
+
+// Progress Analytics Types
+export interface DailyProgress {
+  study_date: string;
+  daily_study_minutes: number;
+  daily_sessions: number;
+  daily_topics_studied: number;
+  daily_questions_answered: number;
+  daily_accuracy_percentage: number;
+}
+
+export interface WeeklyProgress {
+  week_start: string;
+  week_end: string;
+  weekly_study_hours: number;
+  weekly_sessions: number;
+  weekly_topics_studied: number;
+  weekly_consistency_percentage: number;
+  weekly_accuracy_percentage: number;
+}
+
+// Course Analytics Types
+export interface TopCourse {
+  course_id: number;
+  course_title: string;
+  total_time_hours: number;
+  study_session_hours: number;
+  duel_hours: number;
+  topics_studied: number;
+  accuracy_percentage: number;
+  rank: number;
+}
+
+export interface MostStudiedCourse {
+  user_id: number;
+  course_id: number;
+  course_title: string;
+  total_time_hours: number;
+  study_session_hours: number;
+  duel_hours: number;
+  topics_studied: number;
+  sessions_count: number;
+  time_rank: number;
+  percentage_of_total: number;
+}
+
+// Comparative Analytics Types
+export interface ComparativeMetric {
+  metric_name: string;
+  user_value: number;
+  platform_average: number;
+  user_rank: number;
+  total_users: number;
+  percentile: number;
+}
+
+// Recent Activity Types
+export interface RecentActivity {
+  period_name: string;
+  total_study_minutes: number;
+  total_sessions: number;
+  unique_topics: number;
+  unique_courses: number;
+  total_questions: number;
+  accuracy_percentage: number;
+  consistency_days: number;
+  best_day?: string;
+  best_day_minutes?: number;
+}
+
+// Dashboard Analytics Types
+export interface DashboardAnalytics {
+  total_study_hours: number;
+  total_sessions: number;
+  unique_topics_studied: number;
+  unique_courses_studied: number;
+  longest_session_minutes: number;
+  average_session_minutes: number;
+  current_streak_days: number;
+  longest_streak_days: number;
+  most_studied_course?: string;
+  most_studied_topic?: string;
+  last_study_date?: string;
+  last_7_days_hours: number;
+  last_30_days_hours: number;
+}
+
+// Analytics Summary Types
+export interface AnalyticsSummary {
+  user_id: number;
+  total_study_time_hours: number;
+  total_sessions: number;
+  average_session_duration: number;
+  unique_topics_count: number;
+  unique_courses_count: number;
+  longest_streak_minutes: number;
+  current_streak_days: number;
+  total_questions_answered: number;
+  overall_accuracy: number;
+  most_active_time_period?: string;
+  most_studied_course?: string;
+  improvement_rate?: number;
+  consistency_score?: number;
+  last_activity_date?: string;
+}
+
+// Comprehensive Analytics Type
+export interface ComprehensiveAnalytics {
+  dashboard: DashboardAnalytics | null;
+  summary: AnalyticsSummary | null;
+  longestStreaks: LongestStreak[];
+  dailyProgress: DailyProgress[];
+  weeklyProgress: WeeklyProgress[];
+  topCourses: TopCourse[];
+  comparative: ComparativeMetric[];
+  recentActivity: RecentActivity[];
+}
+
+// ===============================
+// EXISTING TYPES (Updated where needed)
+// ===============================
+
+// Course Statistics Types
 export interface CourseStatistics {
   course_id: number;
   title: string;
@@ -124,7 +395,7 @@ export interface TestStatistics {
   test_id: number;
   title: string;
   course_id: number;
-  topic_id?: number; // NEW: Optional topic reference
+  topic_id?: number; // Optional topic reference
   total_questions: number;
   total_attempts: number;
   average_score: number;
@@ -144,7 +415,7 @@ export interface TestStatistics {
   };
 }
 
-// NEW: Topic Statistics Types
+// Topic Statistics Types
 export interface TopicStatistics {
   topic_id: number;
   title: string;
@@ -163,7 +434,7 @@ export interface UserQuestionHistory {
   question_id: number;
   test_id: number;
   course_id: number;
-  topic_id?: number; // NEW: Optional topic reference
+  topic_id?: number; // Optional topic reference
   user_answer: string;
   correct_answer: string;
   is_correct: boolean;
@@ -187,7 +458,7 @@ export interface UserCourseStats {
   avg_score: number;
 }
 
-// NEW: User Topic Stats Types
+// User Topic Stats Types
 export interface UserTopicStats {
   user_id: number;
   topic_id: number;
@@ -210,7 +481,7 @@ export interface UserTestHistory {
   test_id: number;
   test_title: string;
   course_id: number;
-  topic_id?: number; // NEW: Optional topic reference
+  topic_id?: number; // Optional topic reference
   score: number;
   total_questions: number;
   correct_answers: number;
@@ -247,8 +518,8 @@ export interface ReviewQuestion {
   test_title: string;
   course_id: number;
   course_title: string;
-  topic_id?: number; // NEW: Optional topic reference
-  topic_title?: string; // NEW: Optional topic title
+  topic_id?: number; // Optional topic reference
+  topic_title?: string; // Optional topic title
   user_answer: string;
   is_correct: boolean;
   answered_at: string;
@@ -274,7 +545,7 @@ export interface UserPerformanceSummary {
     questions_answered: number;
     accuracy: number;
   }>;
-  // NEW: Topic progress breakdown
+  // Topic progress breakdown
   topics_progress: Array<{
     topic_id: number;
     topic_title: string;
@@ -286,12 +557,12 @@ export interface UserPerformanceSummary {
     avg_test_score: number;
   }>;
   recent_activity: Array<{
-    activity_type: 'test_completed' | 'question_answered';
+    activity_type: 'test_completed' | 'question_answered' | 'study_session';
     description: string;
     timestamp: string;
     score?: number;
-    topic_id?: number; // NEW: Optional topic reference
-    topic_title?: string; // NEW: Optional topic title
+    topic_id?: number; // Optional topic reference
+    topic_title?: string; // Optional topic title
   }>;
 }
 
@@ -305,9 +576,9 @@ export interface AnswerExplanation {
   question_options: Record<string, any>;
   test_title: string;
   course_title: string;
-  topic_id?: number; // NEW: Optional topic reference
-  topic_title?: string; // NEW: Optional topic title
-  topic_description?: string; // NEW: Optional topic description
+  topic_id?: number; // Optional topic reference
+  topic_title?: string; // Optional topic title
+  topic_description?: string; // Optional topic description
   answered_at: string;
 }
 
@@ -317,7 +588,7 @@ export interface AnswerExplanationStats {
   correctAnswersWithExplanations: number;
   incorrectAnswersWithExplanations: number;
   explanationCoveragePercentage: number;
-  // NEW: Topic breakdown
+  // Topic breakdown
   topicBreakdown: Array<{
     topic_id: number;
     topic_title: string;
@@ -326,7 +597,10 @@ export interface AnswerExplanationStats {
   }>;
 }
 
-// Existing types continue...
+// ===============================
+// EXISTING TYPES (Unchanged)
+// ===============================
+
 // Duel related types
 export interface Duel {
   duel_id: number;
@@ -385,7 +659,7 @@ export interface DuelResult {
   created_at: string;
 }
 
-// Study related types
+// Study related types (Legacy - keeping for backward compatibility)
 export interface StudyProgress {
   progress_id: number;
   user_id: number;
@@ -393,15 +667,6 @@ export interface StudyProgress {
   repetition_count: number;
   mastery_level: number;
   last_studied_at?: string;
-  created_at: string;
-}
-
-export interface StudySession {
-  session_id: number;
-  user_id: number;
-  start_time: string;
-  end_time?: string;
-  duration?: number;
   created_at: string;
 }
 
@@ -413,7 +678,7 @@ export interface SessionDetail {
   created_at: string;
 }
 
-// Analytics types
+// Analytics types (Legacy)
 export interface ErrorAnalytic {
   error_id: number;
   user_id: number;
