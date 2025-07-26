@@ -52,7 +52,7 @@ export interface ButtonProps {
   fontFamily?: string;
 }
 
-// Enhanced Card component props with playful variants
+// Enhanced Card component props with collapsible and category variants
 export interface CardProps {
   title?: string;
   children: React.ReactNode;
@@ -60,7 +60,7 @@ export interface CardProps {
     | 'default'
     | 'outlined'
     | 'elevated'
-    // NEW: Playful variants
+    // Playful variants
     | 'playful'
     | 'glass'
     | 'game'
@@ -68,9 +68,9 @@ export interface CardProps {
     | 'gradient';
   style?: StyleProp<ViewStyle>;
   titleStyle?: StyleProp<TextStyle>;
-  padding?: 'none' | 'small' | 'medium' | 'large' | 'xl'; // NEW: xl padding
+  padding?: 'none' | 'small' | 'medium' | 'large' | 'xl';
   testID?: string;
-  // NEW: Playful options
+  // Playful options
   gradient?:
     | GradientStyle
     | keyof typeof import('../../constants/theme').Colors.gradients;
@@ -79,10 +79,30 @@ export interface CardProps {
   pulseEffect?: boolean;
   borderGlow?: boolean;
   bounceOnPress?: boolean;
-  // NEW: Font options
+  // Font options
   titleFontFamily?: string;
   contentFontFamily?: string;
   contentContainerStyle?: StyleProp<ViewStyle>;
+
+  // NEW: Collapsible functionality
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
+  onCollapseToggle?: (isCollapsed: boolean) => void;
+
+  // NEW: Medical category color variants
+  category?:
+    | 'radyoloji'
+    | 'restoratif'
+    | 'endodonti'
+    | 'pedodonti'
+    | 'protetik'
+    | 'peridontoloji'
+    | 'cerrahi'
+    | 'ortodonti';
+
+  // NEW: Custom collapse icon
+  collapseIcon?: React.ComponentProps<typeof FontAwesome>['name'];
+  expandIcon?: React.ComponentProps<typeof FontAwesome>['name'];
 }
 
 // Enhanced Badge component props

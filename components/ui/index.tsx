@@ -96,6 +96,9 @@ export { default as ProfileHeader } from './ProfileHeader';
 export { default as NotificationBadge } from './NotificationBadge';
 export { default as NotificationItem } from './NotificationItem';
 
+export { default as StudyChronometer } from './StudyChronometer';
+export { default as CourseSelectionModal } from './CourseSelectionModal';
+
 // NEW: Game-Specific Components
 export { default as QuestionDisplay } from './Game/QuestionDisplay';
 export { default as AnswerOption } from './Game/AnswerOption';

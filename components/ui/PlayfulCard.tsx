@@ -1,5 +1,5 @@
 // components/ui/PlayfulCard.tsx
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,8 +8,13 @@ import {
   Easing,
   ColorValue,
   useColorScheme,
+  TouchableOpacity,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { FontAwesome } from '@expo/vector-icons';
 import { CardProps } from './types';
 import {
   Colors,
@@ -21,8 +26,68 @@ import {
 import { createPlayfulShadow } from '../../utils/styleUtils';
 import { toAnimatedStyle } from '../../utils/styleTypes';
 
+// Enable LayoutAnimation on Android
+if (
+  Platform.OS === 'android' &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 // Helper type to ensure gradient colors are properly typed
 type GradientColors = readonly [ColorValue, ColorValue, ...ColorValue[]];
+
+// Category color mapping
+const CATEGORY_COLORS = {
+  radyoloji: {
+    background: '#FF7675',
+    text: '#FFFFFF',
+    border: '#FFFFFF',
+    iconColor: '#FFFFFF',
+  },
+  restoratif: {
+    background: '#4285F4',
+    text: '#FFFFFF',
+    border: '#FFFFFF',
+    iconColor: '#FFFFFF',
+  },
+  endodonti: {
+    background: '#FFD93D',
+    text: '#2D3436',
+    border: '#2D3436',
+    iconColor: '#2D3436',
+  },
+  pedodonti: {
+    background: '#FF6B9D',
+    text: '#FFFFFF',
+    border: '#FFFFFF',
+    iconColor: '#FFFFFF',
+  },
+  protetik: {
+    background: '#21b958',
+    text: '#FFFFFF',
+    border: '#FFFFFF',
+    iconColor: '#FFFFFF',
+  },
+  peridontoloji: {
+    background: '#800000',
+    text: '#FFFFFF',
+    border: '#FFFFFF',
+    iconColor: '#FFFFFF',
+  },
+  cerrahi: {
+    background: '#ec1c24',
+    text: '#FFFFFF',
+    border: '#FFFFFF',
+    iconColor: '#FFFFFF',
+  },
+  ortodonti: {
+    background: '#702963',
+    text: '#FFFFFF',
+    border: '#FFFFFF',
+    iconColor: '#FFFFFF',
+  },
+} as const;
 
 const PlayfulCard: React.FC<CardProps> = ({
   title,
@@ -40,13 +105,29 @@ const PlayfulCard: React.FC<CardProps> = ({
   titleFontFamily,
   contentFontFamily,
   contentContainerStyle,
+  // NEW: Collapsible props
+  collapsible = false,
+  defaultCollapsed = false,
+  onCollapseToggle,
+  // NEW: Category props
+  category,
+  collapseIcon = 'chevron-down',
+  expandIcon = 'chevron-up',
   ...props
 }) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+
+  // Animation refs
   const floatAnimation = useRef(new Animated.Value(0)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
   const glowAnimation = useRef(new Animated.Value(0)).current;
+
+  // NEW: Collapsible state
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
+  const collapseAnimation = useRef(
+    new Animated.Value(defaultCollapsed ? 0 : 1),
+  ).current;
 
   // Store animation references for proper cleanup
   const animationRefs = useRef<{
@@ -55,6 +136,7 @@ const PlayfulCard: React.FC<CardProps> = ({
     glow?: Animated.CompositeAnimation;
   }>({});
 
+  // Floating animation effect
   useEffect(() => {
     if (floatingAnimation) {
       const floatAnim = Animated.loop(
@@ -87,6 +169,7 @@ const PlayfulCard: React.FC<CardProps> = ({
     }
   }, [floatingAnimation, floatAnimation]);
 
+  // Pulse animation effect
   useEffect(() => {
     if (pulseEffect) {
       const pulseAnim = Animated.loop(
@@ -119,6 +202,7 @@ const PlayfulCard: React.FC<CardProps> = ({
     }
   }, [pulseEffect, pulseAnimation]);
 
+  // Glow animation effect
   useEffect(() => {
     if (borderGlow) {
       const glowAnim = Animated.loop(
@@ -168,6 +252,34 @@ const PlayfulCard: React.FC<CardProps> = ({
     };
   }, []);
 
+  // NEW: Handle collapse toggle
+  const handleCollapseToggle = () => {
+    const newCollapsedState = !isCollapsed;
+
+    // Use LayoutAnimation for smooth height transition
+    LayoutAnimation.configureNext({
+      duration: 300,
+      create: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+      },
+      update: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+      },
+    });
+
+    setIsCollapsed(newCollapsedState);
+    onCollapseToggle?.(newCollapsedState);
+
+    // Animate the collapse animation value
+    Animated.timing(collapseAnimation, {
+      toValue: newCollapsedState ? 0 : 1,
+      duration: 300,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  };
+
   const getVariantStyles = () => {
     // Helper function to ensure gradient colors are properly typed
     const createGradient = (colors: string[]): GradientColors => {
@@ -198,11 +310,18 @@ const PlayfulCard: React.FC<CardProps> = ({
       return createGradient(fallbackColors);
     };
 
-    // Base colors based on theme
-    const baseBackgroundColor = isDark
-      ? Colors.vibrant?.purpleDark
-      : Colors.vibrant?.purpleDark;
-    const baseBorderColor = isDark ? Colors.gray[200] : Colors.gray[200];
+    // NEW: Get category colors if category is provided
+    const categoryColors = category ? CATEGORY_COLORS[category] : null;
+
+    // Base colors based on theme and category
+    const baseBackgroundColor =
+      categoryColors?.background ||
+      (isDark ? Colors.vibrant?.purpleDark : Colors.vibrant?.purpleDark);
+    const baseBorderColor =
+      categoryColors?.border || (isDark ? Colors.gray[200] : Colors.gray[200]);
+    const baseTextColor =
+      categoryColors?.text || (isDark ? Colors.white : Colors.white);
+
     const glassBg = isDark
       ? 'rgba(255, 255, 255, 0.15)'
       : 'rgba(255, 255, 255, 0.15)';
@@ -215,18 +334,25 @@ const PlayfulCard: React.FC<CardProps> = ({
         return {
           backgroundColor: baseBackgroundColor,
           borderColor: baseBorderColor,
+          textColor: baseTextColor,
           gradient: null,
         };
       case 'outlined':
         return {
-          backgroundColor: baseBackgroundColor,
-          borderColor: isDark ? Colors.gray[300] : Colors.gray[300],
-          borderWidth: 1,
+          backgroundColor: categoryColors
+            ? baseBackgroundColor
+            : isDark
+            ? 'transparent'
+            : 'transparent',
+          borderColor: baseBorderColor,
+          borderWidth: 2,
+          textColor: categoryColors ? baseTextColor : baseBorderColor,
           gradient: null,
         };
       case 'elevated':
         return {
           backgroundColor: baseBackgroundColor,
+          textColor: baseTextColor,
           gradient: null,
           shadow:
             createPlayfulShadow?.(
@@ -237,6 +363,7 @@ const PlayfulCard: React.FC<CardProps> = ({
       case 'playful':
         return {
           backgroundColor: baseBackgroundColor,
+          textColor: baseTextColor,
           gradient: null,
           shadow:
             createPlayfulShadow?.(
@@ -246,14 +373,20 @@ const PlayfulCard: React.FC<CardProps> = ({
         };
       case 'glass':
         return {
-          backgroundColor: glassBg,
-          borderColor: glassBorder,
+          backgroundColor: categoryColors ? baseBackgroundColor : glassBg,
+          borderColor: categoryColors ? baseBorderColor : glassBorder,
           borderWidth: 1,
+          textColor: categoryColors
+            ? baseTextColor
+            : isDark
+            ? Colors.white
+            : Colors.white,
           gradient: null,
         };
       case 'game':
         return {
           backgroundColor: baseBackgroundColor,
+          textColor: baseTextColor,
           gradient: null,
           shadow:
             createPlayfulShadow?.(
@@ -264,6 +397,7 @@ const PlayfulCard: React.FC<CardProps> = ({
       case 'floating':
         return {
           backgroundColor: baseBackgroundColor,
+          textColor: baseTextColor,
           gradient: null,
           shadow:
             createPlayfulShadow?.(
@@ -274,6 +408,7 @@ const PlayfulCard: React.FC<CardProps> = ({
       case 'gradient':
         return {
           backgroundColor: 'transparent',
+          textColor: baseTextColor,
           gradient: resolveGradient(
             Colors.gradients?.primary || [
               Colors.primary.DEFAULT,
@@ -285,6 +420,7 @@ const PlayfulCard: React.FC<CardProps> = ({
         return {
           backgroundColor: baseBackgroundColor,
           borderColor: baseBorderColor,
+          textColor: baseTextColor,
           gradient: null,
         };
     }
@@ -320,14 +456,19 @@ const PlayfulCard: React.FC<CardProps> = ({
     outputRange: [0, 0.6],
   });
 
-  // Create custom title style with font family support
+  // Create custom title style with font family support and category colors
   const customTitleStyle = {
     ...(titleFontFamily ? { fontFamily: titleFontFamily } : {}),
     // Remove fontWeight if custom font is provided
     ...(titleFontFamily ? {} : { fontWeight: FontWeights.bold as any }),
-    // Theme-aware text color
-    color: isDark ? Colors.white : Colors.white,
+    // Use category or theme-aware text color
+    color: variantStyles.textColor,
   };
+
+  // NEW: Get category icon color
+  const iconColor = category
+    ? CATEGORY_COLORS[category].iconColor
+    : variantStyles.textColor;
 
   // Separate complex animated styles into variables
   const animatedStyle = toAnimatedStyle({
@@ -349,27 +490,73 @@ const PlayfulCard: React.FC<CardProps> = ({
     styles.glowBorder,
     {
       opacity: glowOpacity,
-      borderColor: Colors.white || Colors.vibrant?.purpleLight,
+      borderColor: variantStyles.borderColor || Colors.vibrant?.purpleLight,
     },
   ]);
 
+  // NEW: Render header with optional collapse functionality
+  const renderHeader = () => {
+    if (!title) return null;
+
+    const HeaderComponent = collapsible ? TouchableOpacity : View;
+    const headerProps = collapsible
+      ? {
+          onPress: handleCollapseToggle,
+          activeOpacity: 0.7,
+        }
+      : {};
+
+    return (
+      <HeaderComponent
+        style={[
+          styles.header,
+          {
+            borderBottomColor: variantStyles.textColor,
+          },
+          collapsible && styles.collapsibleHeader,
+        ]}
+        {...headerProps}
+      >
+        <Text style={[styles.title, customTitleStyle, titleStyle]}>
+          {title}
+        </Text>
+        {collapsible && (
+          <FontAwesome
+            name={isCollapsed ? collapseIcon : expandIcon}
+            size={16}
+            color={iconColor}
+            style={styles.collapseIcon}
+          />
+        )}
+      </HeaderComponent>
+    );
+  };
+
+  // NEW: Render content with collapse animation
+  const renderContent = () => {
+    if (collapsible && isCollapsed) {
+      return null;
+    }
+
+    return (
+      <Animated.View
+        style={[
+          styles.content,
+          contentContainerStyle,
+          collapsible && {
+            opacity: collapseAnimation,
+          },
+        ]}
+      >
+        {children}
+      </Animated.View>
+    );
+  };
+
   const cardContent = (
     <View style={[paddingStyles]}>
-      {title && (
-        <View
-          style={[
-            styles.header,
-            {
-              borderBottomColor: isDark ? Colors.white : Colors.white,
-            },
-          ]}
-        >
-          <Text style={[styles.title, customTitleStyle, titleStyle]}>
-            {title}
-          </Text>
-        </View>
-      )}
-      <View style={[styles.content, contentContainerStyle]}>{children}</View>
+      {renderHeader()}
+      {renderContent()}
     </View>
   );
 
@@ -423,13 +610,20 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing[2],
     borderBottomWidth: 1,
   },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   title: {
     fontSize: FontSizes.lg,
+    flex: 1,
+  },
+  collapseIcon: {
+    marginLeft: Spacing[2],
   },
   content: {
     flex: 1,
-    // alignItems: 'center',
-    // justifyContent: 'center',
   },
   glowBorder: {
     position: 'absolute',

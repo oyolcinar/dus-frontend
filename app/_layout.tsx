@@ -34,6 +34,7 @@ import { LocalizationProvider } from '../context/LocalizationContext';
 import { AssetProvider, preloadAssets } from '../services/assetManager';
 import AppBackground from '@/components/AppBackground';
 import NotificationProvider from '@/context/NotificationContext';
+import { PreferredCourseProvider } from '@/context/PreferredCourseContext';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -104,11 +105,13 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <NetworkProvider>
         <LocalizationProvider>
-          <AssetProvider>
-            <AuthProvider>
-              <RootLayoutNav />
-            </AuthProvider>
-          </AssetProvider>
+          <PreferredCourseProvider>
+            <AssetProvider>
+              <AuthProvider>
+                <RootLayoutNav />
+              </AuthProvider>
+            </AssetProvider>
+          </PreferredCourseProvider>
         </LocalizationProvider>
       </NetworkProvider>
     </SafeAreaProvider>
@@ -187,7 +190,7 @@ function RootLayoutNav() {
               <Stack.Screen name='(tabs)' options={{ headerShown: false }} />
 
               {/* These screens are available regardless of authentication state */}
-              <Stack.Screen
+              {/* <Stack.Screen
                 name='study/[id]'
                 options={{
                   headerShown: true,
@@ -197,8 +200,8 @@ function RootLayoutNav() {
                   },
                   headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
                 }}
-              />
-              <Stack.Screen
+              /> */}
+              {/* <Stack.Screen
                 name='topic/[id]'
                 options={{
                   headerShown: true,
@@ -208,8 +211,8 @@ function RootLayoutNav() {
                   },
                   headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
                 }}
-              />
-              <Stack.Screen
+              /> */}
+              {/* <Stack.Screen
                 name='subtopic/[id]'
                 options={{
                   headerShown: true,
@@ -219,8 +222,8 @@ function RootLayoutNav() {
                   },
                   headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
                 }}
-              />
-              <Stack.Screen
+              /> */}
+              {/* <Stack.Screen
                 name='test/[id]'
                 options={{
                   headerShown: true,
@@ -230,7 +233,7 @@ function RootLayoutNav() {
                   },
                   headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
                 }}
-              />
+              /> */}
             </Stack>
           </AppBackground>
         </ThemeProvider>
