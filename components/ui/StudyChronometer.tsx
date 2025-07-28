@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   StyleProp,
   ViewStyle,
-  TextStyle,
   DimensionValue,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
@@ -35,7 +34,7 @@ import { createPlayfulShadow } from '../../utils/styleUtils';
 // Get screen dimensions
 const { width: screenWidth } = Dimensions.get('window');
 
-// Category color mapping (same as PlayfulCard)
+// Category color mapping
 const CATEGORY_COLORS = {
   radyoloji: {
     background: '#FF7675',
@@ -128,21 +127,58 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
   disabled = false,
   autoStart = false,
   showNotes = false,
-  maxWidth = screenWidth * 0.5, // Half screen width by default
+  maxWidth = screenWidth * 0.5,
   testID,
 }) => {
   // State management
   const [timerState, setTimerState] = useState<TimerState>('idle');
-  const [timeElapsed, setTimeElapsed] = useState(0); // in seconds
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [startTime, setStartTime] = useState<Date | null>(null);
-  const [backgroundTime, setBackgroundTime] = useState<Date | null>(null);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+  const [pausedDuration, setPausedDuration] = useState(0); // Total paused time in ms
+  const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   // Refs
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const updateTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appStateRef = useRef(AppState.currentState);
+  const isActiveRef = useRef(true);
+
+  // Calculate elapsed time based on start time, current time, and paused duration
+  const calculateElapsedTime = useCallback((): number => {
+    if (!sessionStartTime || timerState === 'idle') return 0;
+
+    const now = new Date();
+    const totalElapsed = now.getTime() - sessionStartTime.getTime();
+
+    // Subtract paused duration
+    let totalPausedTime = pausedDuration;
+
+    // If currently paused, add current pause duration
+    if (timerState === 'paused' && pauseStartTime) {
+      totalPausedTime += now.getTime() - pauseStartTime.getTime();
+    }
+
+    return Math.max(0, Math.floor((totalElapsed - totalPausedTime) / 1000));
+  }, [sessionStartTime, pausedDuration, pauseStartTime, timerState]);
+
+  // Update current time every second for real-time calculation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Call onTimeUpdate when time changes
+  useEffect(() => {
+    if (timerState === 'running') {
+      const elapsed = calculateElapsedTime();
+      onTimeUpdate?.(elapsed);
+    }
+  }, [currentTime, timerState, calculateElapsedTime, onTimeUpdate]);
 
   // Check for existing active session on mount
   useEffect(() => {
@@ -156,44 +192,41 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     }
   }, [autoStart, timerState, sessionId]);
 
-  // Handle app state changes for background timing
+  // Handle app state changes
   useEffect(() => {
     const subscription = AppState.addEventListener(
       'change',
       handleAppStateChange,
     );
     return () => subscription?.remove();
-  }, [timerState]);
-
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
   }, []);
 
   // Check for existing active session
   const checkExistingSession = async () => {
     try {
       setTimerState('loading');
-      const activeSession = await getActiveStudySession(topicId);
+      console.log('Checking for existing session for topic:', topicId);
+
+      const activeSessions = await getActiveStudySession(topicId);
+      console.log('Active sessions response:', activeSessions);
+
+      // Handle both array and single object responses
+      const activeSession = Array.isArray(activeSessions)
+        ? activeSessions[0]
+        : activeSessions;
 
       if (activeSession?.session_id) {
-        setSessionId(activeSession.session_id);
-        setStartTime(new Date(activeSession.start_time || Date.now()));
+        console.log('Found active session:', activeSession);
 
-        // Calculate elapsed time from start_time
-        const elapsed = Math.floor(
-          (Date.now() -
-            new Date(activeSession.start_time || Date.now()).getTime()) /
-            1000,
-        );
-        setTimeElapsed(elapsed);
+        setSessionId(activeSession.session_id);
+        setSessionStartTime(new Date(activeSession.start_time));
+        setPausedDuration(0); // Reset paused duration for existing session
+        setPauseStartTime(null);
         setTimerState('running');
-        startTimerInterval();
+
+        console.log('Resumed existing session:', activeSession.session_id);
       } else {
+        console.log('No active session found');
         setTimerState('idle');
       }
     } catch (error) {
@@ -202,54 +235,32 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     }
   };
 
-  // Handle app state changes
+  // Handle app state changes - improved logic
   const handleAppStateChange = (nextAppState: AppStateStatus) => {
-    if (
-      appStateRef.current.match(/inactive|background/) &&
-      nextAppState === 'active'
-    ) {
+    console.log(
+      'App state changed from',
+      appStateRef.current,
+      'to',
+      nextAppState,
+    );
+
+    if (nextAppState === 'active' && !isActiveRef.current) {
       // App came to foreground
-      if (timerState === 'running' && backgroundTime) {
-        const backgroundDuration = Math.floor(
-          (Date.now() - backgroundTime.getTime()) / 1000,
-        );
-        setTimeElapsed((prev) => prev + backgroundDuration);
-        setBackgroundTime(null);
-      }
+      console.log('App came to foreground, timer state:', timerState);
+      isActiveRef.current = true;
+
+      // Update current time to trigger recalculation
+      setCurrentTime(new Date());
     } else if (
-      appStateRef.current === 'active' &&
-      nextAppState.match(/inactive|background/)
+      nextAppState.match(/inactive|background/) &&
+      isActiveRef.current
     ) {
       // App went to background
-      if (timerState === 'running') {
-        setBackgroundTime(new Date());
-      }
+      console.log('App went to background, timer state:', timerState);
+      isActiveRef.current = false;
     }
 
     appStateRef.current = nextAppState;
-  };
-
-  // Start timer interval
-  const startTimerInterval = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
-    timerRef.current = setInterval(() => {
-      setTimeElapsed((prev) => {
-        const newTime = prev + 1;
-        onTimeUpdate?.(newTime);
-        return newTime;
-      });
-    }, 1000);
-  }, [onTimeUpdate]);
-
-  // Stop timer interval
-  const stopTimerInterval = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
   };
 
   // Handle start timer
@@ -259,16 +270,20 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     try {
       setTimerState('loading');
       setError(null);
+      console.log('Starting study session for topic:', topicId);
 
       const response = await startStudySession(topicId, notes || undefined);
+      console.log('Study session started:', response);
 
+      const startTime = new Date();
       setSessionId(response.sessionId);
-      setStartTime(new Date());
-      setTimeElapsed(0);
+      setSessionStartTime(startTime);
+      setPausedDuration(0);
+      setPauseStartTime(null);
       setTimerState('running');
 
-      startTimerInterval();
       onSessionStart?.(response.sessionId);
+      console.log('Timer started successfully');
     } catch (error: any) {
       console.error('Error starting study session:', error);
       setError(error.message || 'Failed to start study session');
@@ -276,14 +291,21 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     }
   };
 
-  // Handle pause timer
+  // Handle pause/resume timer
   const handlePauseTimer = () => {
+    const now = new Date();
+
     if (timerState === 'running') {
+      console.log('Pausing timer');
+      setPauseStartTime(now);
       setTimerState('paused');
-      stopTimerInterval();
-    } else if (timerState === 'paused') {
+    } else if (timerState === 'paused' && pauseStartTime) {
+      console.log('Resuming timer');
+      // Add the pause duration to total paused time
+      const pauseDuration = now.getTime() - pauseStartTime.getTime();
+      setPausedDuration((prev) => prev + pauseDuration);
+      setPauseStartTime(null);
       setTimerState('running');
-      startTimerInterval();
     }
   };
 
@@ -291,11 +313,12 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
   const handleStopTimer = async () => {
     if (!sessionId || timerState === 'loading') return;
 
+    const elapsed = calculateElapsedTime();
+    const formattedTime = formatTime(elapsed);
+
     Alert.alert(
       'End Study Session',
-      `You've studied for ${
-        formatSessionDuration(timeElapsed).formatted
-      }. End this session?`,
+      `You've studied for ${formattedTime}. End this session?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -314,19 +337,20 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     try {
       setTimerState('loading');
       setError(null);
+      console.log('Ending study session:', sessionId);
 
       const response = await endStudySession(sessionId, notes || undefined);
+      console.log('Study session ended:', response);
 
-      stopTimerInterval();
-
-      // Reset state
+      // Reset all state
       setSessionId(null);
-      setStartTime(null);
-      setTimeElapsed(0);
+      setSessionStartTime(null);
+      setPausedDuration(0);
+      setPauseStartTime(null);
       setTimerState('idle');
-      setBackgroundTime(null);
 
       onSessionEnd?.(response.session);
+      console.log('Timer stopped successfully');
     } catch (error: any) {
       console.error('Error ending study session:', error);
       setError(error.message || 'Failed to end study session');
@@ -334,18 +358,14 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     }
   };
 
-  // Get variant styles (similar to PlayfulCard)
+  // Get variant styles
   const getVariantStyles = () => {
     const categoryColors = category ? CATEGORY_COLORS[category] : null;
-
     const baseBackgroundColor =
       categoryColors?.background || Colors.primary.DEFAULT;
     const baseTextColor = categoryColors?.text || Colors.white;
     const baseBorderColor = categoryColors?.border || Colors.primary.light;
     const baseIconColor = categoryColors?.iconColor || Colors.white;
-
-    const glassBg = 'rgba(255, 255, 255, 0.15)';
-    const glassBorder = 'rgba(255, 255, 255, 0.3)';
 
     switch (variant) {
       case 'outlined':
@@ -366,46 +386,6 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
               Colors.shadows?.medium || Colors.gray[400],
               'heavy',
             ) || {},
-        };
-      case 'playful':
-        return {
-          backgroundColor: baseBackgroundColor,
-          textColor: baseTextColor,
-          iconColor: baseIconColor,
-          shadow:
-            createPlayfulShadow?.(
-              Colors.vibrant?.purpleLight || Colors.gray[200],
-              'medium',
-            ) || {},
-        };
-      case 'glass':
-        return {
-          backgroundColor: categoryColors ? baseBackgroundColor : glassBg,
-          borderColor: categoryColors ? baseBorderColor : glassBorder,
-          borderWidth: 1,
-          textColor: categoryColors ? baseTextColor : Colors.white,
-          iconColor: categoryColors ? baseIconColor : Colors.white,
-        };
-      case 'floating':
-        return {
-          backgroundColor: baseBackgroundColor,
-          textColor: baseTextColor,
-          iconColor: baseIconColor,
-          shadow:
-            createPlayfulShadow?.(
-              Colors.vibrant?.blue || Colors.primary.DEFAULT,
-              'heavy',
-            ) || {},
-        };
-      case 'gradient':
-        return {
-          backgroundColor: 'transparent',
-          textColor: baseTextColor,
-          iconColor: baseIconColor,
-          gradient: [
-            baseBackgroundColor,
-            categoryColors?.background || Colors.primary.light,
-          ] as [string, string],
         };
       default:
         return {
@@ -432,7 +412,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
       .padStart(2, '0')}`;
   };
 
-  // Get status text and icon
+  // Get status display
   const getStatusDisplay = () => {
     switch (timerState) {
       case 'idle':
@@ -448,7 +428,11 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
           color: '#4CAF50',
         };
       case 'paused':
-        return { text: 'Paused', icon: 'play' as const, color: '#FF9800' };
+        return {
+          text: 'Paused',
+          icon: 'play' as const,
+          color: '#FF9800',
+        };
       case 'loading':
         return {
           text: 'Loading...',
@@ -460,6 +444,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
 
   const variantStyles = getVariantStyles();
   const statusDisplay = getStatusDisplay();
+  const elapsedTime = calculateElapsedTime();
 
   // Main render function
   const renderContent = () => (
@@ -483,7 +468,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
       {/* Timer Display */}
       <View style={styles.timerSection}>
         <Text style={[styles.timeDisplay, { color: variantStyles.textColor }]}>
-          {formatTime(timeElapsed)}
+          {formatTime(elapsedTime)}
         </Text>
         <View style={styles.statusRow}>
           {timerState === 'loading' ? (
@@ -513,12 +498,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
               { backgroundColor: variantStyles.iconColor },
             ]}
             onPress={handleStartTimer}
-            disabled={
-              disabled ||
-              (timerState !== 'idle' &&
-                timerState !== 'running' &&
-                timerState !== 'paused')
-            }
+            disabled={disabled || timerState !== 'idle'}
             testID={`${testID}-start-button`}
           >
             <FontAwesome
@@ -575,6 +555,17 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
       {error && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              setError(null);
+              if (timerState === 'idle') {
+                handleStartTimer();
+              }
+            }}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -592,22 +583,6 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     style,
   ];
 
-  // Render with gradient if needed
-  if (variantStyles.gradient) {
-    return (
-      <View style={baseCardStyle} testID={testID}>
-        <LinearGradient
-          colors={variantStyles.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradientContainer}
-        >
-          {renderContent()}
-        </LinearGradient>
-      </View>
-    );
-  }
-
   return (
     <View style={baseCardStyle} testID={testID}>
       {renderContent()}
@@ -619,9 +594,6 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: BorderRadius.card || BorderRadius.xl,
     overflow: 'hidden',
-  },
-  gradientContainer: {
-    borderRadius: BorderRadius.card || BorderRadius.xl,
   },
   container: {
     padding: Spacing[4],
@@ -701,6 +673,18 @@ const styles = StyleSheet.create({
     color: '#F44336',
     fontSize: FontSizes.xs,
     textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: Spacing[1],
+    padding: Spacing[1],
+    backgroundColor: '#F44336',
+    borderRadius: BorderRadius.sm,
+    alignSelf: 'center',
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: FontSizes.xs,
+    paddingHorizontal: Spacing[2],
   },
 });
 

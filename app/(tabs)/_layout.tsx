@@ -32,15 +32,15 @@ export default function TabLayout() {
         }}
       />
 
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name='courses/index'
         options={{
           title: 'Dersler',
           tabBarIcon: ({ color }) => <TabBarIcon name='book' color={color} />,
         }}
-      />
+      /> */}
 
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name='tests'
         options={{
           title: 'Testler',
@@ -48,7 +48,7 @@ export default function TabLayout() {
             <TabBarIcon name='check-circle' color={color} />
           ),
         }}
-      />
+      /> */}
 
       <Tabs.Screen
         name='duels/index'
@@ -58,13 +58,13 @@ export default function TabLayout() {
         }}
       />
 
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name='notifications/index'
         options={{
           title: 'Bildirimler',
           tabBarIcon: ({ color }) => <TabBarIcon name='bell' color={color} />,
         }}
-      />
+      /> */}
 
       <Tabs.Screen
         name='profile/index'

@@ -158,6 +158,8 @@ export interface UserTopicDetails {
   created_at: string;
   updated_at: string;
   // Populated via joins
+  total_study_time_seconds?: number;
+  last_studied_at?: string;
   topics?: {
     topic_id: number;
     title: string;
