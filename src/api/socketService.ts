@@ -636,11 +636,65 @@ export const submitAnswer = (
 
 // Enhanced challengeBot with connection check and auto-connect
 export const challengeBot = async (
-  testId: number,
+  testIdOrCourseId: number,
   difficulty: number = 1,
+  isTestId: boolean = true, // true for testId, false for courseId
 ): Promise<void> => {
   console.log('🔧 Socket Bot: Starting bot challenge...', {
-    testId,
+    testIdOrCourseId,
+    difficulty,
+    isTestId,
+  });
+
+  // First ensure we have authentication
+  const authData = await checkAuthentication();
+  if (!authData) {
+    throw new Error('Not authenticated - please log in first');
+  }
+
+  // Try to ensure connection first
+  if (!socketInstance || !socketInstance.connected) {
+    console.log(
+      '🔧 Socket Bot: Socket not connected, attempting to connect...',
+    );
+    try {
+      await connect(authData.token);
+    } catch (error) {
+      console.error(
+        '🔧 Socket Bot: Failed to connect socket for bot challenge:',
+        error,
+      );
+      throw new Error('Socket connection failed - will use HTTP fallback');
+    }
+  }
+
+  // Double-check connection after attempt
+  if (!socketInstance || !socketInstance.connected) {
+    throw new Error('Socket not connected - will use HTTP fallback');
+  }
+
+  const eventData = {
+    difficulty,
+    ...(isTestId
+      ? { testId: testIdOrCourseId }
+      : { courseId: testIdOrCourseId }),
+  };
+
+  console.log('🔧 Socket Bot: Challenging bot via socket:', {
+    eventData,
+    user: authData.userData.username,
+  });
+
+  socketInstance.emit('challenge_bot', eventData);
+};
+
+// NEW: Dedicated course-based bot challenge function
+export const challengeBotWithCourse = async (
+  courseId: number,
+  difficulty: number = 1,
+): Promise<void> => {
+  console.log('🔧 Socket Bot: Starting course-based bot challenge...', {
+    courseId,
     difficulty,
   });
 
@@ -671,12 +725,24 @@ export const challengeBot = async (
     throw new Error('Socket not connected - will use HTTP fallback');
   }
 
-  console.log('🔧 Socket Bot: Challenging bot via socket:', {
-    testId,
+  console.log('🔧 Socket Bot: Challenging bot via socket with course:', {
+    courseId,
     difficulty,
     user: authData.userData.username,
   });
-  socketInstance.emit('challenge_bot', { testId, difficulty });
+
+  socketInstance.emit('challenge_bot_course', {
+    courseId,
+    difficulty,
+  });
+};
+
+// Keep the original challengeBot function for backward compatibility
+export const challengeBotLegacy = async (
+  testId: number,
+  difficulty: number = 1,
+): Promise<void> => {
+  return challengeBot(testId, difficulty, true);
 };
 
 export const sendHeartbeat = (): void => {

@@ -88,18 +88,61 @@ export const getBotByDifficulty = async (
   return response.data.data;
 };
 
+export const challengeBotWithCourse = async (
+  courseId: number,
+  difficulty: number = 1,
+): Promise<{
+  success: boolean;
+  duel?: any;
+  message?: string;
+}> => {
+  try {
+    const response = await apiRequest<{
+      success: boolean;
+      duel?: any;
+      message?: string;
+    }>('/bots/challenge-course', 'POST', {
+      courseId,
+      difficulty,
+    });
+
+    return response.data || { success: false, message: 'No response data' };
+  } catch (error) {
+    console.error('Error challenging bot with course:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Bot challenge failed',
+    };
+  }
+};
+
+// Keep the original challengeBot function for backward compatibility
 export const challengeBot = async (
   testId: number,
   difficulty: number = 1,
-): Promise<BotDuelPayload> => {
-  const response = await apiRequest<BotDuelPayload>('/bots/challenge', 'POST', {
-    testId,
-    difficulty,
-  });
-  if (!response.data) {
-    throw new Error('Failed to create bot duel: No data received');
+): Promise<{
+  success: boolean;
+  duel?: any;
+  message?: string;
+}> => {
+  try {
+    const response = await apiRequest<{
+      success: boolean;
+      duel?: any;
+      message?: string;
+    }>('/bots/challenge', 'POST', {
+      testId,
+      difficulty,
+    });
+
+    return response.data || { success: false, message: 'No response data' };
+  } catch (error) {
+    console.error('Error challenging bot:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Bot challenge failed',
+    };
   }
-  return response.data;
 };
 
 export const isBot = async (userId: number): Promise<boolean> => {

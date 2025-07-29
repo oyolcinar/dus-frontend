@@ -63,6 +63,8 @@ import { useAuth } from '../../../context/AuthContext';
 let challengeBotViaSocket:
   | ((testId: number, difficulty: number) => Promise<void>)
   | undefined;
+let challengeBotWithCourse: // ADDED: Course-based bot challenge
+((courseId: number, difficulty: number) => Promise<void>) | undefined;
 let onBotChallengeCreated:
   | ((callback: (data: { duel: any }) => void) => void)
   | undefined;
@@ -82,6 +84,7 @@ let connect: ((token?: string) => Promise<void>) | undefined;
 try {
   const socketService = require('../../../src/api/socketService');
   challengeBotViaSocket = socketService.challengeBot;
+  challengeBotWithCourse = socketService.challengeBotWithCourse; // ADDED
   onBotChallengeCreated = socketService.onBotChallengeCreated;
   onBotChallengeError = socketService.onBotChallengeError;
   onAutoJoinDuel = socketService.onAutoJoinDuel;
@@ -94,11 +97,7 @@ try {
 }
 
 type DuelHubTab = 'find' | 'friends' | 'leaderboard' | 'bots';
-type ChallengeStep =
-  | 'selectOpponent'
-  | 'selectCourse'
-  | 'selectTest'
-  | 'confirm';
+type ChallengeStep = 'selectOpponent' | 'selectCourse' | 'confirm';
 
 export default function NewDuelScreen() {
   const router = useRouter();
@@ -119,7 +118,6 @@ export default function NewDuelScreen() {
 
   // Data state
   const [courses, setCourses] = useState<Course[]>([]);
-  const [tests, setTests] = useState<Test[]>([]);
   const [recommended, setRecommended] = useState<Opponent[]>([]);
   const [friends, setFriends] = useState<Opponent[]>([]);
   const [leaderboard, setLeaderboard] = useState<Opponent[]>([]);
@@ -134,13 +132,10 @@ export default function NewDuelScreen() {
   );
   const [selectedBot, setSelectedBot] = useState<Bot | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [selectedTest, setSelectedTest] = useState<Test | null>(null);
 
   // UI state
   const [showWheelForCourse, setShowWheelForCourse] = useState(false);
-  const [showWheelForTest, setShowWheelForTest] = useState(false);
   const [isSubmittingChallenge, setIsSubmittingChallenge] = useState(false);
-  const [isLoadingTests, setIsLoadingTests] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Bot challenge state
@@ -245,6 +240,24 @@ export default function NewDuelScreen() {
 
     checkAuthAndInitSocket();
   }, [contextUser, isSessionValid, authLoading]);
+
+  // Reset challenge state function
+  const resetChallengeState = () => {
+    setSelectedOpponent(null);
+    setSelectedBot(null);
+    setSelectedCourse(null);
+    setIsBotChallenge(false);
+    setChallengeStep('selectOpponent');
+    setShowWheelForCourse(false);
+    setError(null);
+    setIsChallenginBot(false);
+  };
+
+  // Handle modal close
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    resetChallengeState();
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -380,11 +393,9 @@ export default function NewDuelScreen() {
     setSelectedOpponent(opponent);
     setSelectedBot(null);
     setSelectedCourse(null);
-    setSelectedTest(null);
     setIsBotChallenge(false);
     setChallengeStep('selectCourse');
     setShowWheelForCourse(false);
-    setShowWheelForTest(false);
     setModalVisible(true);
   };
 
@@ -397,11 +408,9 @@ export default function NewDuelScreen() {
     setSelectedBot(bot);
     setSelectedOpponent(null);
     setSelectedCourse(null);
-    setSelectedTest(null);
     setIsBotChallenge(true);
     setChallengeStep('selectCourse');
     setShowWheelForCourse(false);
-    setShowWheelForTest(false);
     setModalVisible(true);
   };
 
@@ -415,41 +424,15 @@ export default function NewDuelScreen() {
 
   const handleCourseSelected = async (course: Course) => {
     setSelectedCourse(course);
-    setIsLoadingTests(true);
     setError(null);
 
-    try {
-      // Get tests for the selected course
-      const testsData = await testService.getTestsByCourse(course.course_id);
-      setTests(testsData);
-
-      if (testsData.length === 0) {
-        setError('Seçilen derste test bulunamadı.');
-        return;
-      }
-
-      setChallengeStep('selectTest');
-    } catch (err) {
-      console.error('Error fetching tests:', err);
-      setError('Testler yüklenirken hata oluştu.');
-    } finally {
-      setIsLoadingTests(false);
-    }
-  };
-
-  const handleTestSpinComplete = (testName: string, index: number) => {
-    const winningTest = tests[index];
-    if (winningTest) {
-      setSelectedTest(winningTest);
-      setChallengeStep('confirm');
-    }
-    setShowWheelForTest(false);
+    setChallengeStep('confirm');
   };
 
   // Enhanced challenge submit with proper auth checking
   const handleChallengeSubmit = async () => {
-    if (!selectedTest) {
-      setError('Test seçilmedi.');
+    if (!selectedCourse) {
+      setError('Ders seçilmedi.');
       return;
     }
 
@@ -462,7 +445,7 @@ export default function NewDuelScreen() {
     }
 
     if (isBotChallenge && selectedBot) {
-      // Double-check auth state before proceeding with bot challenge
+      // Bot challenge logic with course support
       const currentToken = await AsyncStorage.getItem('authToken');
       if (!currentToken) {
         setError(
@@ -476,7 +459,6 @@ export default function NewDuelScreen() {
       setError(null);
 
       try {
-        // Check if we should try socket-based challenge
         const shouldUseSocket =
           challengeBotViaSocket &&
           isConnected &&
@@ -489,18 +471,19 @@ export default function NewDuelScreen() {
           isAuthenticated: isAuthenticated,
           hasAuthToken: !!authToken,
           contextUser: contextUser.username,
-          testId: selectedTest.test_id,
+          courseId: selectedCourse.course_id,
           difficulty: selectedBot.difficultyLevel,
         });
 
         if (shouldUseSocket) {
-          console.log('Using socket-based bot challenge');
+          console.log('Using socket-based bot challenge with course');
           try {
-            await challengeBotViaSocket!(
-              selectedTest.test_id,
+            // UPDATED: Use the new course-based socket challenge
+            await challengeBotWithCourse!(
+              selectedCourse.course_id,
               selectedBot.difficultyLevel,
             );
-            console.log('Socket bot challenge sent successfully');
+            console.log('Socket course-based bot challenge sent successfully');
             // Response will be handled by socket listeners
           } catch (socketError) {
             console.error('Socket challenge failed:', socketError);
@@ -508,22 +491,26 @@ export default function NewDuelScreen() {
           }
         } else {
           console.log(
-            'Using HTTP API for bot challenge (socket not available/connected or not authenticated)',
+            'Using HTTP API for bot challenge (socket not available/connected)',
           );
           throw new Error('Socket not available, using fallback');
         }
       } catch (err) {
         console.log('Attempting HTTP fallback for bot challenge');
 
-        // HTTP API fallback
+        // HTTP API fallback with course support
         try {
-          const response = await botService.challengeBot(
-            selectedTest.test_id,
+          // UPDATED: Use the new course-based bot service
+          const response = await botService.challengeBotWithCourse(
+            selectedCourse.course_id,
             selectedBot.difficultyLevel,
           );
 
           if (response.success && response.duel) {
-            console.log('HTTP bot challenge successful:', response.duel);
+            console.log(
+              'HTTP course-based bot challenge successful:',
+              response.duel,
+            );
             setModalVisible(false);
             resetChallengeState();
 
@@ -556,14 +543,16 @@ export default function NewDuelScreen() {
         setIsChallenginBot(false);
       }
     } else if (!isBotChallenge && selectedOpponent) {
-      // Regular user challenge with auth check
+      // Regular user challenge with courseId (unchanged)
       setIsSubmittingChallenge(true);
       setError(null);
 
       try {
-        const response = await duelService.challengeUser(
+        // Use the new challengeUserWithCourse function
+        const response = await duelService.challengeUserWithCourse(
           selectedOpponent.id,
-          selectedTest.test_id,
+          selectedCourse.course_id,
+          5, // 5 questions
         );
         const newDuel = response.duel;
         setModalVisible(false);
@@ -584,24 +573,6 @@ export default function NewDuelScreen() {
         setIsSubmittingChallenge(false);
       }
     }
-  };
-
-  const resetChallengeState = () => {
-    setSelectedOpponent(null);
-    setSelectedBot(null);
-    setSelectedCourse(null);
-    setSelectedTest(null);
-    setIsBotChallenge(false);
-    setChallengeStep('selectOpponent');
-    setShowWheelForCourse(false);
-    setShowWheelForTest(false);
-    setError(null);
-    setIsChallenginBot(false);
-  };
-
-  const handleCloseModal = () => {
-    setModalVisible(false);
-    resetChallengeState();
   };
 
   // Enhanced retry socket connection
@@ -1111,8 +1082,6 @@ export default function NewDuelScreen() {
       switch (challengeStep) {
         case 'selectCourse':
           return 'Ders Seçin';
-        case 'selectTest':
-          return 'Test Seçin';
         case 'confirm':
           return 'Meydan Okumayı Onayla';
         default:
@@ -1166,7 +1135,6 @@ export default function NewDuelScreen() {
                   Zorluk: Seviye {selectedBot.difficultyLevel} • Doğruluk:{' '}
                   {(selectedBot.accuracyRate * 100).toFixed(0)}%
                 </Text>
-                {/* Auth + Socket status in modal */}
                 <Text
                   style={{
                     fontSize: 10,
@@ -1199,7 +1167,7 @@ export default function NewDuelScreen() {
                   textAlign: 'center',
                 }}
               >
-                Önce bir ders seçin veya şansınızı deneyin!
+                Bir ders seçin! Seçilen dersten 5 rastgele soru gelecek.
               </Text>
 
               {showWheelForCourse ? (
@@ -1222,7 +1190,7 @@ export default function NewDuelScreen() {
                     showWinnerModal={true}
                     winnerModalDuration={2000}
                     onWinnerModalClose={() => {
-                      // Modal automatically closes, course selection happens in handleCourseSpinComplete
+                      // Course selection happens in handleCourseSpinComplete
                     }}
                   />
                 </View>
@@ -1241,7 +1209,7 @@ export default function NewDuelScreen() {
                       }
                     }}
                     placeholder='Bir Ders Seçin...'
-                    enabled={!isLoadingTests}
+                    enabled={true}
                     forceLight={true}
                     style={{
                       backgroundColor: Colors.white,
@@ -1258,7 +1226,7 @@ export default function NewDuelScreen() {
                     onPress={() => setShowWheelForCourse(true)}
                     variant='secondary'
                     icon='random'
-                    disabled={isLoadingTests}
+                    disabled={false}
                     style={{
                       minHeight: 44,
                       backgroundColor: Colors.secondary.DEFAULT,
@@ -1272,145 +1240,13 @@ export default function NewDuelScreen() {
                   />
                 </View>
               )}
-
-              {isLoadingTests && (
-                <View style={{ alignItems: 'center', marginTop: Spacing[4] }}>
-                  <ActivityIndicator size='small' color={Colors.white} />
-                  <Text
-                    style={{
-                      color: Colors.gray[300],
-                      fontFamily: 'SecondaryFont-Regular',
-                      marginTop: Spacing[2],
-                    }}
-                  >
-                    Testler yükleniyor...
-                  </Text>
-                </View>
-              )}
             </>
           )}
 
-          {/* Test Selection Step */}
-          {challengeStep === 'selectTest' && selectedCourse && (
-            <>
-              <Text
-                style={{
-                  fontSize: 14,
-                  lineHeight: 20,
-                  color: Colors.gray[300],
-                  fontFamily: 'SecondaryFont-Regular',
-                  marginBottom: Spacing[2],
-                  textAlign: 'center',
-                }}
-              >
-                Seçilen Ders:{' '}
-                <Text style={{ fontWeight: 'bold', color: Colors.gray[100] }}>
-                  {selectedCourse.title}
-                </Text>
-              </Text>
-
-              <Text
-                style={{
-                  fontSize: 14,
-                  lineHeight: 20,
-                  color: Colors.gray[300],
-                  fontFamily: 'SecondaryFont-Regular',
-                  marginBottom: Spacing[4],
-                  textAlign: 'center',
-                }}
-              >
-                Şimdi bir test seçin!
-              </Text>
-
-              {showWheelForTest ? (
-                <View
-                  style={{
-                    alignItems: 'center',
-                    paddingVertical: Spacing[4],
-                    minHeight: 300,
-                    marginBottom: Spacing[4],
-                  }}
-                >
-                  <SpinningWheel
-                    items={tests.map((t) => t.title)}
-                    onSpinEnd={handleTestSpinComplete}
-                    size={280}
-                    spinButtonText='ÇEVİR'
-                    sliceFontFamily='PrimaryFont'
-                    winnerFontFamily='PrimaryFont'
-                    fontFamily='PrimaryFont'
-                    showWinnerModal={true}
-                    winnerModalDuration={2000}
-                    onWinnerModalClose={() => {
-                      // Selection happens in handleTestSpinComplete
-                    }}
-                  />
-                </View>
-              ) : (
-                <View style={{ marginBottom: Spacing[4] }}>
-                  <Picker
-                    items={tests.map((t) => ({
-                      label: t.title,
-                      value: t.test_id,
-                    }))}
-                    selectedValue={selectedTest?.test_id || null}
-                    onValueChange={(val) => {
-                      const test = tests.find((t) => t.test_id === val);
-                      if (test) {
-                        setSelectedTest(test);
-                        setChallengeStep('confirm');
-                      }
-                    }}
-                    placeholder='Bir Test Seçin...'
-                    enabled={true}
-                    forceLight={true}
-                    style={{
-                      backgroundColor: Colors.white,
-                      borderColor: Colors.gray[300],
-                      borderWidth: 2,
-                      marginBottom: Spacing[3],
-                    }}
-                    fontFamily='SecondaryFont-Regular'
-                    placeholderFontFamily='SecondaryFont-Regular'
-                  />
-
-                  <Button
-                    title='Test İçin Çevir'
-                    onPress={() => setShowWheelForTest(true)}
-                    variant='secondary'
-                    icon='random'
-                    style={{
-                      minHeight: 44,
-                      backgroundColor: Colors.secondary.DEFAULT,
-                      borderRadius: BorderRadius.lg,
-                    }}
-                    textStyle={{
-                      fontFamily: 'SecondaryFont-Bold',
-                      fontSize: 16,
-                      color: Colors.white,
-                    }}
-                  />
-
-                  <Button
-                    title='Geri Dön'
-                    onPress={() => setChallengeStep('selectCourse')}
-                    variant='outline'
-                    style={{
-                      marginTop: Spacing[2],
-                      borderColor: Colors.white,
-                    }}
-                    textStyle={{
-                      fontFamily: 'SecondaryFont-Regular',
-                      color: Colors.white,
-                    }}
-                  />
-                </View>
-              )}
-            </>
-          )}
+          {/* REMOVED: Test Selection Step - No longer needed */}
 
           {/* Confirmation Step */}
-          {challengeStep === 'confirm' && selectedCourse && selectedTest && (
+          {challengeStep === 'confirm' && selectedCourse && (
             <>
               <View style={{ marginBottom: Spacing[6] }}>
                 <Text
@@ -1460,8 +1296,8 @@ export default function NewDuelScreen() {
                       marginBottom: Spacing[1],
                     }}
                   >
-                    <Text style={{ fontWeight: 'bold' }}>Test:</Text>{' '}
-                    {selectedTest.title}
+                    <Text style={{ fontWeight: 'bold' }}>Soru Sayısı:</Text> 5
+                    Rastgele Soru
                   </Text>
                   {isBotChallenge && (
                     <Text
@@ -1502,7 +1338,7 @@ export default function NewDuelScreen() {
 
               <Button
                 title='Geri Dön'
-                onPress={() => setChallengeStep('selectTest')}
+                onPress={() => setChallengeStep('selectCourse')}
                 variant='outline'
                 disabled={isSubmittingChallenge || isChallenginBot}
                 style={{

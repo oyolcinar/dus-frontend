@@ -78,33 +78,66 @@ type SelectionType = 'random' | 'friend';
 
 export const challengeUser = async (
   opponentId: number,
-  testId: number,
-  questionCount: number = 3,
+  testId?: number, // Made optional
+  questionCount: number = 5, // Increased default to 5
+  branchType: BranchType = 'mixed',
+  selectionType: SelectionType = 'random',
+  branchId?: number,
+  courseId?: number, // NEW: Add courseId parameter
+): Promise<ChallengeDuelPayload> => {
+  // Ensure either testId or courseId is provided
+  if (!testId && !courseId) {
+    throw new Error('Either test ID or course ID must be provided');
+  }
+
+  const requestBody: any = {
+    opponentId,
+    questionCount,
+    branchType,
+    selectionType,
+    branchId,
+  };
+
+  // Add testId if provided (backward compatibility)
+  if (testId) {
+    requestBody.testId = testId;
+  }
+
+  // Add courseId if provided (new system)
+  if (courseId) {
+    requestBody.courseId = courseId;
+  }
+
+  const response = await apiRequest<ChallengeDuelPayload>(
+    '/duels/challenge',
+    'POST',
+    requestBody,
+  );
+
+  if (!response.data) {
+    throw new Error('Failed to create duel challenge: No data received');
+  }
+  return response.data;
+};
+
+// NEW: Add a course-specific challenge function for convenience
+export const challengeUserWithCourse = async (
+  opponentId: number,
+  courseId: number,
+  questionCount: number = 5,
   branchType: BranchType = 'mixed',
   selectionType: SelectionType = 'random',
   branchId?: number,
 ): Promise<ChallengeDuelPayload> => {
-  // Return the payload type
-  const response = await apiRequest<ChallengeDuelPayload>( // Use payload type as generic
-    '/duels/challenge',
-    'POST',
-    {
-      opponentId,
-      testId,
-      questionCount,
-      branchType,
-      selectionType,
-      branchId,
-    },
+  return challengeUser(
+    opponentId,
+    undefined, // no testId
+    questionCount,
+    branchType,
+    selectionType,
+    branchId,
+    courseId,
   );
-  // apiRequest throws on error or if response.data is not what's expected by TData structure
-  // If apiRequest itself ensures response.data is TData, this check might be redundant
-  // but it's a good safeguard if apiRequest's behavior for non-JSON or empty success is uncertain.
-  if (!response.data) {
-    // This check might need adjustment based on how apiRequest handles empty successful responses
-    throw new Error('Failed to create duel challenge: No data received');
-  }
-  return response.data; // This is now correctly typed as ChallengeDuelPayload
 };
 
 export const getPendingChallenges = async (): Promise<DuelsArrayPayload> => {
