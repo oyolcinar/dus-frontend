@@ -4,6 +4,9 @@ import apiRequest, { ApiError } from './apiClient';
 import { ApiResponse } from '../types/api';
 import { User, AuthResponse } from '../types/models';
 
+// Achievement integration
+import { triggerAchievementCheck } from './achievementService';
+
 // This is a standard part of Expo's OAuth flow, keep it.
 WebBrowser.maybeCompleteAuthSession();
 
@@ -48,6 +51,7 @@ function normalizeUser(apiUser: any): User {
     permissions: apiUser.permissions || [],
     oauthProvider: apiUser.oauth_provider || apiUser.oauthProvider || null,
     isOAuthUser: !!(apiUser.oauth_provider || apiUser.oauthProvider),
+    preferred_course_id: apiUser.preferred_course_id || null,
   };
 }
 
@@ -184,6 +188,19 @@ export async function login(
     }
     await AsyncStorage.setItem('userData', JSON.stringify(user));
     console.log('Login successful, user data stored');
+
+    // ENHANCED: Check for daily login achievements (optional)
+    try {
+      // You can add achievement checking for login streaks or daily login bonuses
+      // For now, we'll skip this to avoid overwhelming the user on every login
+      console.log(
+        'User logged in successfully - achievement check skipped for login',
+      );
+    } catch (achievementError) {
+      console.error('Achievement check failed after login:', achievementError);
+      // Don't throw - achievement check failure shouldn't break login
+    }
+
     return {
       user,
       token: apiData.session.access_token,
@@ -207,11 +224,12 @@ export async function login(
   }
 }
 
+// ENHANCED: Register function with achievement integration
 export async function register(
   username: string,
   email: string,
   password: string,
-): Promise<AuthResponse> {
+): Promise<AuthResponse & { achievementCheck?: any }> {
   try {
     const response = await apiRequest<AuthApiPayload>(
       '/auth/register',
@@ -230,10 +248,42 @@ export async function register(
     }
     await AsyncStorage.setItem('userData', JSON.stringify(user));
     console.log('Registration successful, user data stored');
+
+    // ENHANCED: Check for registration achievement (should award "Acemi Dusiyer")
+    let achievementCheck = null;
+    try {
+      console.log('🎉 Checking achievements after user registration');
+
+      // Give the backend a moment to process the registration
+      setTimeout(async () => {
+        try {
+          achievementCheck = await triggerAchievementCheck('user_registered');
+          console.log(
+            'Registration achievement check result:',
+            achievementCheck,
+          );
+
+          if (achievementCheck?.newAchievements > 0) {
+            console.log(
+              `🎉 New user earned ${achievementCheck.newAchievements} achievement(s) on registration!`,
+            );
+          }
+        } catch (error) {
+          console.error('Achievement check failed after registration:', error);
+        }
+      }, 2000); // 2 second delay to ensure user is fully registered and indexed
+    } catch (error) {
+      console.error(
+        'Achievement check setup failed after registration:',
+        error,
+      );
+    }
+
     return {
       user,
       token: apiData.session.access_token,
       refreshToken: apiData.session.refresh_token || null,
+      achievementCheck, // This will be null initially but set asynchronously
     };
   } catch (error) {
     console.error('Registration service error:', error);
@@ -538,6 +588,144 @@ export async function signInWithFacebook(): Promise<void> {
   return startOAuth('facebook');
 }
 
+// NEW: Get current user with achievement data
+export async function getCurrentUserWithAchievements(): Promise<{
+  user: User | null;
+  achievements?: any[];
+  achievementProgress?: any[];
+  completionPercentage?: number;
+}> {
+  try {
+    const { user } = await getAuthStatus();
+
+    if (!user) {
+      return { user: null };
+    }
+
+    // Get user's achievement data
+    try {
+      const achievementService = await import('./achievementService');
+      const [achievements, achievementProgress] = await Promise.all([
+        achievementService.getUserAchievements(),
+        achievementService.getUserAchievementProgress(),
+      ]);
+
+      // Calculate completion percentage
+      const totalPossible = achievements.length + achievementProgress.length;
+      const completed = achievements.length;
+      const completionPercentage =
+        totalPossible > 0 ? Math.round((completed / totalPossible) * 100) : 0;
+
+      return {
+        user,
+        achievements,
+        achievementProgress,
+        completionPercentage,
+      };
+    } catch (achievementError) {
+      console.error('Error loading achievement data:', achievementError);
+      return { user };
+    }
+  } catch (error) {
+    console.error('Error getting current user with achievements:', error);
+    return { user: null };
+  }
+}
+
+// NEW: Trigger achievement check manually (useful for testing)
+export async function manualAchievementCheck(): Promise<any> {
+  try {
+    console.log('Manual achievement check triggered');
+    const result = await triggerAchievementCheck('manual_check' as any);
+
+    if (result?.newAchievements > 0) {
+      console.log(
+        `🎉 Manual check found ${result.newAchievements} new achievements!`,
+      );
+    } else {
+      console.log('No new achievements found in manual check');
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Manual achievement check failed:', error);
+    throw error;
+  }
+}
+
+// NEW: Check if new user needs onboarding with achievement context
+export async function checkNewUserOnboarding(): Promise<{
+  isNewUser: boolean;
+  shouldShowAchievementIntro: boolean;
+  hasEarnedFirstAchievement: boolean;
+}> {
+  try {
+    const { user } = await getAuthStatus();
+
+    if (!user) {
+      return {
+        isNewUser: false,
+        shouldShowAchievementIntro: false,
+        hasEarnedFirstAchievement: false,
+      };
+    }
+
+    // Check if user registered recently (within last 24 hours)
+    const registrationDate = new Date(user.dateRegistered);
+    const now = new Date();
+    const hoursSinceRegistration =
+      (now.getTime() - registrationDate.getTime()) / (1000 * 60 * 60);
+    const isNewUser = hoursSinceRegistration < 24;
+
+    // Check if user has any achievements
+    let hasEarnedFirstAchievement = false;
+    let shouldShowAchievementIntro = false;
+
+    try {
+      const achievementService = await import('./achievementService');
+      const userAchievements = await achievementService.getUserAchievements();
+
+      hasEarnedFirstAchievement = userAchievements.length > 0;
+      shouldShowAchievementIntro = isNewUser && !hasEarnedFirstAchievement;
+    } catch (achievementError) {
+      console.error(
+        'Error checking achievements for onboarding:',
+        achievementError,
+      );
+    }
+
+    return {
+      isNewUser,
+      shouldShowAchievementIntro,
+      hasEarnedFirstAchievement,
+    };
+  } catch (error) {
+    console.error('Error checking new user onboarding:', error);
+    return {
+      isNewUser: false,
+      shouldShowAchievementIntro: false,
+      hasEarnedFirstAchievement: false,
+    };
+  }
+}
+
+// NEW: Update stored user data (useful when user earns achievements)
+export async function updateStoredUserData(
+  updatedUser: Partial<User>,
+): Promise<void> {
+  try {
+    const { user } = await getAuthStatus();
+
+    if (user) {
+      const mergedUser = { ...user, ...updatedUser };
+      await AsyncStorage.setItem('userData', JSON.stringify(mergedUser));
+      console.log('Stored user data updated');
+    }
+  } catch (error) {
+    console.error('Error updating stored user data:', error);
+  }
+}
+
 // Debug function for development
 export async function debugAuthState(): Promise<void> {
   if (__DEV__) {
@@ -550,6 +738,18 @@ export async function debugAuthState(): Promise<void> {
       console.log('Token exists:', !!token);
       console.log('Token valid:', tokenValid);
       console.log('Is refreshing:', isRefreshing);
+
+      // ENHANCED: Add achievement debug info
+      if (user) {
+        try {
+          const achievementService = await import('./achievementService');
+          const achievements = await achievementService.getUserAchievements();
+          console.log('User achievements:', achievements.length);
+        } catch (achievementError) {
+          console.log('Achievement debug failed:', achievementError);
+        }
+      }
+
       console.log('=====================');
     } catch (error) {
       console.error('Debug auth state error:', error);

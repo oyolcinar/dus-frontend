@@ -1,4 +1,5 @@
 import apiRequest from './apiClient';
+import { handleStudySessionCompleted } from './achievementService'; // Add this import
 import {
   StudySession,
   Question,
@@ -182,7 +183,7 @@ interface StudyStatsPayload {
 }
 
 // ===============================
-// NEW: ENHANCED STUDY TRACKING FUNCTIONS
+// NEW: ENHANCED STUDY TRACKING FUNCTIONS WITH ACHIEVEMENT INTEGRATION
 // ===============================
 
 /**
@@ -206,12 +207,12 @@ export const startStudySession = async (
 };
 
 /**
- * End a study session
+ * End a study session - ENHANCED with achievement checking
  */
 export const endStudySession = async (
   sessionId: number,
   endNotes?: string,
-): Promise<EndStudySessionResponse> => {
+): Promise<EndStudySessionResponse & { achievementCheck?: any }> => {
   const response = await apiRequest<EndStudySessionResponse>(
     `/study/sessions/${sessionId}/end`,
     'POST',
@@ -222,7 +223,19 @@ export const endStudySession = async (
     throw new Error('Failed to end study session: No data returned.');
   }
 
-  return response.data;
+  // Trigger achievement check after successful study session completion
+  let achievementCheck = null;
+  try {
+    achievementCheck = await handleStudySessionCompleted(response.data.session);
+  } catch (error) {
+    console.error('Achievement check failed after study session:', error);
+    // Don't throw - achievement check failure shouldn't break study session
+  }
+
+  return {
+    ...response.data,
+    achievementCheck,
+  };
 };
 
 /**
@@ -277,11 +290,11 @@ export const getUserStudySessions = async (
 };
 
 /**
- * Update user-specific topic details
+ * Update user-specific topic details - ENHANCED with achievement checking
  */
 export const updateUserTopicDetails = async (
   details: UpdateTopicDetailsRequest,
-): Promise<UpdateTopicDetailsResponse> => {
+): Promise<UpdateTopicDetailsResponse & { achievementCheck?: any }> => {
   const response = await apiRequest<UpdateTopicDetailsResponse>(
     '/study/topic-details',
     'POST',
@@ -292,7 +305,23 @@ export const updateUserTopicDetails = async (
     throw new Error('Failed to update topic details: No data returned.');
   }
 
-  return response.data;
+  // If topic is marked as completed, trigger achievement check
+  let achievementCheck = null;
+  if (details.isCompleted) {
+    try {
+      achievementCheck = await handleStudySessionCompleted({
+        topic_id: details.topicId,
+        completed: true,
+      });
+    } catch (error) {
+      console.error('Achievement check failed after topic completion:', error);
+    }
+  }
+
+  return {
+    ...response.data,
+    achievementCheck,
+  };
 };
 
 /**
@@ -403,7 +432,7 @@ export const getUserPreferredCourse =
   };
 
 // ===============================
-// UTILITY FUNCTIONS FOR ENHANCED STUDY TRACKING
+// NEW: ACHIEVEMENT-AWARE UTILITY FUNCTIONS
 // ===============================
 
 /**
@@ -489,8 +518,93 @@ export const getTopicComprehensiveData = async (topicId: number) => {
   }
 };
 
+// FIXED: Complete study session with comprehensive feedback
+export const completeStudySessionWithFeedback = async (
+  sessionId: number,
+  endNotes?: string,
+): Promise<{
+  session: StudySession;
+  achievements?: any;
+  studyStats?: StudyStatistics;
+  message: string;
+}> => {
+  try {
+    // End the study session with achievement checking
+    const sessionResult = await endStudySession(sessionId, endNotes);
+
+    // Get updated study statistics
+    const studyStatsResult = await getUserStudyStatistics();
+
+    // Prepare feedback message
+    let message = 'Study session completed successfully!';
+    if (sessionResult.achievementCheck?.newAchievements > 0) {
+      message += ` 🎉 You earned ${
+        sessionResult.achievementCheck.newAchievements
+      } new achievement${
+        sessionResult.achievementCheck.newAchievements > 1 ? 's' : ''
+      }!`;
+    }
+
+    return {
+      session: sessionResult.session,
+      achievements: sessionResult.achievementCheck,
+      studyStats: studyStatsResult || undefined, // FIXED: Convert null to undefined
+      message,
+    };
+  } catch (error) {
+    console.error('Error completing study session with feedback:', error);
+    throw error;
+  }
+};
+
+// NEW: Get study session summary with achievements
+export const getStudySessionSummary = async (
+  sessionId: number,
+): Promise<{
+  session: StudySession | null;
+  duration: string;
+  achievements: any;
+  nextMilestone?: string;
+}> => {
+  try {
+    const sessions = await getUserStudySessions(1, 50);
+    const session = sessions.sessions.find((s) => s.session_id === sessionId);
+
+    if (!session) {
+      return {
+        session: null,
+        duration: '0m',
+        achievements: null,
+      };
+    }
+
+    const duration = formatSessionDuration(session.duration_seconds || 0);
+
+    // Check for any achievements that might have been earned
+    const achievementService = await import('./achievementService');
+    const userProgress = await achievementService.getUserAchievementProgress();
+
+    // Find the closest achievement to completion
+    const nextMilestone = userProgress
+      .filter((progress) => progress.overall_progress < 100)
+      .sort((a, b) => b.overall_progress - a.overall_progress)[0];
+
+    return {
+      session,
+      duration: duration.formatted,
+      achievements: null, // Would be populated if achievements were earned during this session
+      nextMilestone: nextMilestone
+        ? `${nextMilestone.overall_progress}% complete for "${nextMilestone.name}"`
+        : undefined,
+    };
+  } catch (error) {
+    console.error('Error getting study session summary:', error);
+    throw error;
+  }
+};
+
 // ===============================
-// LEGACY STUDY FUNCTIONS (for backward compatibility)
+// LEGACY STUDY FUNCTIONS (for backward compatibility) - ENHANCED
 // ===============================
 
 export const startStudySessionLegacy = async (
@@ -549,18 +663,39 @@ export const submitAnswer = async (
   return response.data;
 };
 
+// ENHANCED: Legacy end session with achievement checking
 export const endStudySessionLegacy = async (
   sessionId: string,
-): Promise<EndSessionPayload> => {
+): Promise<EndSessionPayload & { achievementCheck?: any }> => {
   const response = await apiRequest<EndSessionPayload>(
     `/study/sessions/${sessionId}/end`,
     'POST',
   );
+
   if (!response.data)
     throw new Error(
       `Failed to end study session ${sessionId}: No data returned.`,
     );
-  return response.data;
+
+  // Trigger achievement check for legacy sessions too
+  let achievementCheck = null;
+  try {
+    achievementCheck = await handleStudySessionCompleted({
+      sessionId,
+      score: response.data.score,
+      timeSpent: response.data.timeSpent,
+    });
+  } catch (error) {
+    console.error(
+      'Achievement check failed after legacy study session:',
+      error,
+    );
+  }
+
+  return {
+    ...response.data,
+    achievementCheck,
+  };
 };
 
 export const getStudyProgress = async (): Promise<StudyProgress | null> => {
