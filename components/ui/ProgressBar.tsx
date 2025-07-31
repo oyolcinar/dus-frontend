@@ -1,5 +1,4 @@
 // components/ui/ProgressBar.tsx
-
 import React from 'react';
 import {
   View,
@@ -22,6 +21,11 @@ export interface ProgressBarProps {
    * Whether to show the percentage text
    */
   showPercentage?: boolean;
+
+  /**
+   * Whether to show percentage inside the progress bar
+   */
+  showPercentageInside?: boolean;
 
   /**
    * Background color of the progress track
@@ -71,6 +75,7 @@ export interface ProgressBarProps {
 const ProgressBar: React.FC<ProgressBarProps> = ({
   progress,
   showPercentage = false,
+  showPercentageInside = false,
   trackColor,
   progressColor,
   height = 8,
@@ -84,16 +89,17 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   const clampedProgress = Math.min(Math.max(progress, 0), 100);
 
   // Derive track and progress colors from theme or props
-  const trackColorValue = trackColor || Colors.gray[200];
-  const progressColorValue = progressColor || Colors.primary.DEFAULT;
+  const trackColorValue = trackColor || Colors.gray?.[200] || '#e5e7eb';
+  const progressColorValue =
+    progressColor || Colors.primary?.DEFAULT || '#3b82f6';
+
+  // Calculate if we should show text inside based on progress and height
+  const shouldShowInside =
+    showPercentageInside && height >= 18 && clampedProgress > 8;
 
   return (
     <View
-      style={[
-        styles.container,
-        { width: width as DimensionValue }, // Cast width to DimensionValue
-        style,
-      ]}
+      style={[styles.container, { width: width as DimensionValue }, style]}
       testID={testID}
       accessibilityRole='progressbar'
       accessibilityValue={{ min: 0, max: 100, now: clampedProgress }}
@@ -120,9 +126,29 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
             animated && styles.animated,
           ]}
         />
+
+        {/* Percentage text inside the progress bar */}
+        {shouldShowInside && (
+          <View style={[styles.insideTextContainer, { height }]}>
+            <Text
+              style={[
+                styles.insidePercentageText,
+                {
+                  fontSize: Math.max(height * 0.55, 10),
+                  lineHeight: height,
+                },
+                textStyle,
+              ]}
+              numberOfLines={1}
+            >
+              {`%${Math.round(clampedProgress)}`}
+            </Text>
+          </View>
+        )}
       </View>
 
-      {showPercentage && (
+      {/* Percentage text outside the progress bar */}
+      {showPercentage && !showPercentageInside && (
         <Text style={[styles.percentageText, textStyle]}>
           {`${Math.round(clampedProgress)}%`}
         </Text>
@@ -138,6 +164,8 @@ type ProgressBarStyles = {
   progress: ViewStyle;
   animated: ViewStyle;
   percentageText: TextStyle;
+  insideTextContainer: ViewStyle;
+  insidePercentageText: TextStyle;
 };
 
 const styles = StyleSheet.create<ProgressBarStyles>({
@@ -148,6 +176,7 @@ const styles = StyleSheet.create<ProgressBarStyles>({
   track: {
     flex: 1,
     overflow: 'hidden',
+    position: 'relative',
   },
   progress: {
     position: 'absolute',
@@ -163,7 +192,27 @@ const styles = StyleSheet.create<ProgressBarStyles>({
     marginLeft: 8,
     fontSize: 12,
     fontWeight: '500',
-    color: Colors.gray[700],
+    color: Colors.gray?.[700] || '#374151',
+  },
+  insideTextContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+    paddingHorizontal: 4,
+  },
+  insidePercentageText: {
+    fontWeight: '700',
+    color: Colors.white || '#ffffff',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
 });
 

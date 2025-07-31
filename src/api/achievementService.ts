@@ -131,6 +131,70 @@ interface MessagePayload {
   message: string;
 }
 
+// --- TURKISH TRANSLATION FUNCTIONS ---
+
+// Turkish requirement name translations
+const getTurkishRequirementName = (key: string): string => {
+  const translations: Record<string, string> = {
+    total_duels: 'Toplam Düello',
+    duels_won: 'Kazanılan Düello',
+    duels_lost: 'Kaybedilen Düello',
+    distinct_study_days: 'Farklı Çalışma Günü',
+    total_study_time_minutes: 'Toplam Çalışma Süresi',
+    current_study_streak: 'Mevcut Çalışma Serisi',
+    longest_study_streak: 'En Uzun Çalışma Serisi',
+    weekly_champion_count: 'Haftalık Şampiyonluk',
+    user_registration: 'Kullanıcı Kaydı',
+    study_sessions_completed: 'Tamamlanan Çalışma Seansı',
+    total_points_earned: 'Kazanılan Toplam Puan',
+    consecutive_daily_logins: 'Ardışık Günlük Giriş',
+    subjects_mastered: 'Uzmanlaşılan Konu',
+    questions_answered: 'Cevaplanan Soru',
+    perfect_scores: 'Mükemmel Skor',
+    help_requests_sent: 'Gönderilen Yardım İsteği',
+    help_provided: 'Sağlanan Yardım',
+    forum_posts: 'Forum Gönderisi',
+    comments_made: 'Yapılan Yorum',
+    likes_received: 'Alınan Beğeni',
+  };
+
+  return (
+    translations[key] ||
+    key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+  );
+};
+
+// Turkish unit translations
+const getTurkishUnit = (key: string, count: number): string => {
+  const units: Record<string, { singular: string; plural: string }> = {
+    total_duels: { singular: 'düello', plural: 'düello' },
+    duels_won: { singular: 'galibiyet', plural: 'galibiyet' },
+    duels_lost: { singular: 'mağlubiyet', plural: 'mağlubiyet' },
+    distinct_study_days: { singular: 'gün', plural: 'gün' },
+    total_study_time_minutes: { singular: 'dakika', plural: 'dakika' },
+    current_study_streak: { singular: 'gün', plural: 'gün' },
+    longest_study_streak: { singular: 'gün', plural: 'gün' },
+    weekly_champion_count: { singular: 'kez', plural: 'kez' },
+    study_sessions_completed: { singular: 'seans', plural: 'seans' },
+    total_points_earned: { singular: 'puan', plural: 'puan' },
+    consecutive_daily_logins: { singular: 'gün', plural: 'gün' },
+    subjects_mastered: { singular: 'konu', plural: 'konu' },
+    questions_answered: { singular: 'soru', plural: 'soru' },
+    perfect_scores: { singular: 'mükemmel skor', plural: 'mükemmel skor' },
+    help_requests_sent: { singular: 'yardım isteği', plural: 'yardım isteği' },
+    help_provided: { singular: 'yardım', plural: 'yardım' },
+    forum_posts: { singular: 'gönderi', plural: 'gönderi' },
+    comments_made: { singular: 'yorum', plural: 'yorum' },
+    likes_received: { singular: 'beğeni', plural: 'beğeni' },
+  };
+
+  const unit = units[key];
+  if (!unit) return '';
+
+  // Turkish doesn't have plural forms like English, so we use the same form
+  return unit.singular;
+};
+
 // --- Service Functions ---
 
 export const getAllAchievements = async (): Promise<AllAchievementsPayload> => {
@@ -392,11 +456,11 @@ export const getUserStatsByUserId = async (
   }
 };
 
-// --- UTILITY FUNCTIONS ---
+// --- UTILITY FUNCTIONS WITH TURKISH SUPPORT ---
 
-// NEW: Format achievement progress percentage
+// UPDATED: Format achievement progress percentage with Turkish
 export const formatProgressPercentage = (progress: number): string => {
-  return `${Math.round(progress)}%`;
+  return `%${Math.round(progress)}`;
 };
 
 // NEW: Check if achievement is completed
@@ -406,7 +470,7 @@ export const isAchievementCompleted = (
   return progress.overall_progress >= 100;
 };
 
-// NEW: Get next milestone for achievement
+// UPDATED: Get next milestone for achievement with Turkish descriptions
 export const getNextMilestone = (
   progress: AchievementProgress,
 ): string | null => {
@@ -434,15 +498,127 @@ export const getNextMilestone = (
     return null;
   }
 
-  const remaining =
-    typeof closestRequirement.required === 'number'
-      ? closestRequirement.required - closestRequirement.current
-      : 'Complete this requirement';
+  if (typeof closestRequirement.required === 'boolean') {
+    return `${getTurkishRequirementName(
+      closestRequirement.key,
+    )} tamamlanması gerekiyor`;
+  }
 
-  return `${remaining} more needed for ${closestRequirement.key.replace(
-    '_',
-    ' ',
-  )}`;
+  const remaining = closestRequirement.required - closestRequirement.current;
+  const requirementName = getTurkishRequirementName(closestRequirement.key);
+  const unit = getTurkishUnit(closestRequirement.key, remaining);
+
+  if (remaining === 1) {
+    return `${requirementName} için ${remaining} ${unit} daha gerekli`;
+  } else {
+    return `${requirementName} için ${remaining} ${unit} daha gerekli`;
+  }
+};
+
+// NEW: Get Turkish requirement detail
+export const getTurkishRequirementDetail = (key: string, req: any): string => {
+  if (typeof req.required === 'boolean') {
+    return req.current ? 'Tamamlandı' : 'Henüz tamamlanmadı';
+  }
+
+  const unit = getTurkishUnit(key, req.required);
+  return `${req.current} / ${req.required} ${unit}`.trim();
+};
+
+// Export the Turkish requirement name function for use in components
+export { getTurkishRequirementName };
+
+// NEW: Get Turkish completion status
+export const getTurkishCompletionStatus = (
+  isCompleted: boolean,
+  progress: number,
+): string => {
+  if (isCompleted) {
+    return 'Tamamlandı';
+  }
+
+  if (progress === 0) {
+    return 'Başlanmadı';
+  }
+
+  if (progress < 25) {
+    return 'Yeni Başlandı';
+  }
+
+  if (progress < 50) {
+    return 'Devam Ediyor';
+  }
+
+  if (progress < 75) {
+    return 'Yarıdan Fazla';
+  }
+
+  if (progress < 100) {
+    return 'Neredeyse Bitti';
+  }
+
+  return 'Tamamlandı';
+};
+
+// NEW: Get Turkish difficulty level
+export const getTurkishDifficultyLevel = (
+  requirements: any,
+): 'Kolay' | 'Orta' | 'Zor' | 'Çok Zor' => {
+  if (!requirements) {
+    return 'Kolay';
+  }
+
+  const requirementCount = Object.keys(requirements).length;
+  const hasHighValues = Object.values(requirements).some(
+    (req: any) => req.minimum && req.minimum > 100,
+  );
+  const hasVeryHighValues = Object.values(requirements).some(
+    (req: any) => req.minimum && req.minimum > 500,
+  );
+
+  if (hasVeryHighValues || requirementCount > 4) {
+    return 'Çok Zor';
+  } else if (hasHighValues || requirementCount > 2) {
+    return 'Zor';
+  } else if (requirementCount > 1) {
+    return 'Orta';
+  } else {
+    return 'Kolay';
+  }
+};
+
+// NEW: Get Turkish category names
+export const getTurkishCategoryName = (category: string): string => {
+  const categoryTranslations: Record<string, string> = {
+    general: 'Genel',
+    learning: 'Öğrenme',
+    social: 'Sosyal',
+    progress: 'İlerleme',
+    special: 'Özel',
+    achievement: 'Başarı',
+    study: 'Çalışma',
+    duel: 'Düello',
+    streak: 'Seri',
+    time: 'Zaman',
+    mastery: 'Uzmanlaşma',
+    community: 'Topluluk',
+    milestone: 'Kilometre Taşı',
+  };
+
+  return categoryTranslations[category] || category;
+};
+
+// NEW: Get Turkish rarity names
+export const getTurkishRarityName = (rarity: string): string => {
+  const rarityTranslations: Record<string, string> = {
+    common: 'Yaygın',
+    uncommon: 'Nadir',
+    rare: 'Ender',
+    epic: 'Efsanevi',
+    legendary: 'Efsane',
+  };
+
+  return rarityTranslations[rarity] || rarity;
 };
 
 // NEW: Calculate overall user achievement completion
@@ -503,46 +679,48 @@ export const getAchievementsByDifficulty = (
   return { easy, medium, hard };
 };
 
-// NEW: Auto-trigger achievement check after study session
+// UPDATED: Auto-trigger achievement check after study session with Turkish messages
 export const handleStudySessionCompleted = async (
   sessionData?: any,
 ): Promise<CheckAchievementsPayload | null> => {
   try {
-    console.log('Triggering achievement check after study session completion');
+    console.log(
+      'Çalışma seansı tamamlandıktan sonra başarı kontrolü yapılıyor',
+    );
     const result = await triggerAchievementCheck('study_session_completed');
 
     if (result.newAchievements > 0) {
       console.log(
-        `🎉 Earned ${result.newAchievements} new achievements!`,
+        `🎉 ${result.newAchievements} yeni başarı kazanıldı!`,
         result.achievements,
       );
     }
 
     return result;
   } catch (error) {
-    console.error('Error handling study session achievement check:', error);
+    console.error('Çalışma seansı başarı kontrolünde hata:', error);
     return null;
   }
 };
 
-// NEW: Auto-trigger achievement check after duel completion
+// UPDATED: Auto-trigger achievement check after duel completion with Turkish messages
 export const handleDuelCompleted = async (
   duelData?: any,
 ): Promise<CheckAchievementsPayload | null> => {
   try {
-    console.log('Triggering achievement check after duel completion');
+    console.log('Düello tamamlandıktan sonra başarı kontrolü yapılıyor');
     const result = await triggerAchievementCheck('duel_completed');
 
     if (result.newAchievements > 0) {
       console.log(
-        `🎉 Earned ${result.newAchievements} new achievements from duel!`,
+        `🎉 Düellodan ${result.newAchievements} yeni başarı kazanıldı!`,
         result.achievements,
       );
     }
 
     return result;
   } catch (error) {
-    console.error('Error handling duel achievement check:', error);
+    console.error('Düello başarı kontrolünde hata:', error);
     return null;
   }
 };

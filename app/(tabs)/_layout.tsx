@@ -136,6 +136,27 @@ export default function TabLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name='courses/index'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name='tests'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name='notifications/index'
+        options={{
+          // This screen is part of the tabs navigator but has no tab button
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

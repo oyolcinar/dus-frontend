@@ -418,6 +418,25 @@ export default function DuelRoomScreen() {
         setError('Bağlantı kesildi. Tekrar bağlanmaya çalışılıyor...');
       }
     });
+    on('duel_error', (data) => {
+      console.log('❌ DUEL ERROR:', data);
+      setError(`Düello hatası: ${data.message || 'Bilinmeyen hata'}`);
+      setPhase('error');
+    });
+
+    on('question_error', (data) => {
+      console.log('❌ QUESTION ERROR:', data);
+      setError(`Soru hatası: ${data.message || 'Soru yüklenemedi'}`);
+    });
+
+    // ADD: Connection health check
+    on('connect_error', (error) => {
+      console.log('❌ CONNECTION ERROR:', error);
+      setError(
+        `Bağlantı hatası: ${error.message || 'Sunucuya bağlanılamıyor'}`,
+      );
+      setPhase('error');
+    });
 
     // Auto-ready for user
     setTimeout(() => {

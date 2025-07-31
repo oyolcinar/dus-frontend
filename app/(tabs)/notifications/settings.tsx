@@ -24,6 +24,7 @@ import {
   updatePreferences,
   sendTestNotification,
   registerDeviceToken,
+  setupPushNotifications,
   isNotificationTypeEnabled,
   getNotificationIcon,
   getNotificationColor,
@@ -114,17 +115,32 @@ const NotificationSettingsScreen: React.FC = () => {
   // Load user preferences and setup push notifications
   const loadPreferences = useCallback(async () => {
     try {
+      console.log('🔄 Starting loadPreferences...');
       setError(null);
 
       // Load preferences from API
+      console.log('📡 Calling getPreferences...');
       const userPreferences = await getPreferences();
+      console.log('✅ getPreferences completed:', userPreferences);
       setPreferences(userPreferences);
 
-      // Setup push notifications
-      await setupPushNotifications();
+      // Setup push notifications using the service function
+      console.log('📱 Calling setupPushNotifications from service...');
+      const pushResult = await setupPushNotifications();
+      console.log('📱 setupPushNotifications result:', pushResult);
+
+      if (pushResult.success && pushResult.token && !pushResult.isDevelopment) {
+        setDeviceToken(pushResult.token);
+        console.log('✅ Real device token set:', pushResult.token);
+      } else if (pushResult.isDevelopment) {
+        setDeviceToken('EXPO_GO_MOCK_TOKEN');
+        console.log('🚀 Development mode - mock token used');
+      }
+
+      console.log('✅ loadPreferences completed successfully');
     } catch (err: any) {
-      console.error('Error loading preferences:', err);
-      setError('Ayarlar yüklenirken bir hata oluştu');
+      console.error('❌ loadPreferences error:', err);
+      setError(`Ayarlar yüklenirken bir hata oluştu: ${err.message}`);
     }
   }, []);
 
@@ -141,45 +157,6 @@ const NotificationSettingsScreen: React.FC = () => {
     await loadPreferences();
     setIsLoading(false);
   }, [loadPreferences]);
-
-  // Setup push notifications and register device token
-  const setupPushNotifications = useCallback(async () => {
-    try {
-      // Request permission for notifications
-      const { status: existingStatus } =
-        await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus !== 'granted') {
-        Alert.alert(
-          'Bildirim İzni',
-          'Push bildirimleri için izin vermeniz gerekiyor.',
-          [{ text: 'Tamam' }],
-        );
-        return;
-      }
-
-      // Get push token
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: process.env.EXPO_PROJECT_ID,
-      });
-
-      setDeviceToken(tokenData.data);
-
-      // Register token with backend
-      await registerDeviceToken(
-        tokenData.data,
-        Platform.OS === 'ios' ? 'ios' : 'android',
-      );
-    } catch (err) {
-      console.error('Error setting up push notifications:', err);
-    }
-  }, []);
 
   // Get preference for specific notification type
   const getPreferenceForType = useCallback(

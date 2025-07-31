@@ -184,7 +184,7 @@ const Badge: React.FC<BadgeProps> = ({
 
   // Determine size-based styling
   const sizeClass = size === 'sm' ? styles.badgeSmall : styles.badgeMedium;
-  const textSizeClass = size === 'sm' ? styles.textSmall : styles.textMedium;
+  const textSizeClass = size === 'sm' ? styles.textSmall : styles.textSmall;
 
   // Determine border radius based on pill option
   const borderRadiusStyle = pill ? styles.pillRadius : styles.standardRadius;
@@ -234,6 +234,7 @@ const styles = StyleSheet.create({
   },
   badgeMedium: {
     paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[0.5],
     minWidth: 20,
     height: 24,
   },

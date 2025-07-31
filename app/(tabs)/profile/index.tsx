@@ -532,7 +532,6 @@ export default function ProfileScreen() {
                   </Row>
                 </SlideInElement>
               )}
-
               {/* Detailed Stats */}
               {duelStats && (
                 <SlideInElement direction='left' delay={400}>
@@ -596,7 +595,6 @@ export default function ProfileScreen() {
                   </PlayfulCard>
                 </SlideInElement>
               )}
-
               {/* Achievements */}
               <SlideInElement direction='right' delay={600}>
                 <PlayfulCard
@@ -605,7 +603,6 @@ export default function ProfileScreen() {
                   variant='playful'
                   style={{ marginBottom: Spacing[6] }}
                   animated
-                  pulseEffect
                 >
                   {achievements.length > 0 ? (
                     <>
@@ -620,63 +617,71 @@ export default function ProfileScreen() {
                           <GlassCard
                             key={achievement.achievement_id}
                             style={{
-                              width: '30%',
-                              alignItems: 'center',
+                              width: '100%', // Keep full width
+                              // flexDirection: 'row',
+                              // alignItems: 'center', // Centers content vertically
                               padding: Spacing[3],
-                              minHeight: 100,
+                              minHeight: 50,
                             }}
+                            shimmerEffect
                           >
                             <View
                               style={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: 20,
-                                backgroundColor:
-                                  getAchievementColor(achievement),
+                                flexDirection: 'row',
                                 alignItems: 'center',
-                                justifyContent: 'center',
-                                marginBottom: Spacing[2],
                               }}
                             >
-                              <FontAwesome
-                                name={getAchievementIcon(achievement) as any}
-                                size={20}
-                                color={Colors.white}
-                              />
+                              <View
+                                style={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: 20,
+                                  backgroundColor:
+                                    getAchievementColor(achievement),
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  marginRight: Spacing[2],
+                                }}
+                              >
+                                <FontAwesome
+                                  name={getAchievementIcon(achievement) as any}
+                                  size={20}
+                                  color={Colors.white}
+                                />
+                              </View>
+                              <Text
+                                style={{
+                                  fontSize: 20,
+                                  flex: 1,
+                                  textAlign: 'center',
+                                  color: isDark ? Colors.white : Colors.white,
+                                  fontFamily: 'SecondaryFont-Bold',
+                                }}
+                                numberOfLines={1}
+                              >
+                                {achievement.name}
+                              </Text>
                             </View>
-                            <Paragraph
-                              style={{
-                                fontSize: 10,
-                                textAlign: 'center',
-                                color: isDark
-                                  ? Colors.gray[700]
-                                  : Colors.gray[700],
-                              }}
-                              numberOfLines={2}
-                            >
-                              {achievement.name}
-                            </Paragraph>
                           </GlassCard>
                         ))}
                       </Row>
 
-                      <Row style={{ gap: Spacing[3] }}>
-                        <PlayfulButton
-                          title='Tüm Başarılar'
-                          onPress={() =>
-                            router.push('/(tabs)/profile/achievements' as any)
-                          }
-                          variant='outline'
-                          style={{ flex: 1 }}
-                          icon='trophy'
-                          animated
-                        />
-                        <Badge
+                      <PlayfulButton
+                        fontFamily='SecondaryFont-Bold'
+                        title='Tüm Başarılar'
+                        onPress={() =>
+                          router.push('/(tabs)/profile/achievements' as any)
+                        }
+                        variant='outline'
+                        style={{ flex: 1 }}
+                        icon='trophy'
+                        animated
+                      />
+                      {/* <Badge
                           text={`${achievements.length} Başarı`}
                           variant='success'
                           size='md'
-                        />
-                      </Row>
+                        /> */}
                     </>
                   ) : (
                     <EmptyState
@@ -698,9 +703,52 @@ export default function ProfileScreen() {
                   )}
                 </PlayfulCard>
               </SlideInElement>
-
+              <SlideInElement direction='right' delay={800}>
+                <PlayfulCard
+                  title='Bildirimler'
+                  titleFontFamily='PrimaryFont'
+                  variant='playful'
+                  style={{ marginBottom: Spacing[6] }}
+                  animated
+                >
+                  <Column style={{ gap: Spacing[2] }}>
+                    <PlayfulButton
+                      title='Bildirimleri Gör'
+                      onPress={() =>
+                        router.push('/(tabs)/notifications' as any)
+                      }
+                      variant='outline'
+                      icon='bell'
+                      fontFamily='SecondaryFont-Bold'
+                      animated
+                    />
+                  </Column>
+                </PlayfulCard>
+              </SlideInElement>
+              <SlideInElement direction='right' delay={1000}>
+                <PlayfulCard
+                  title='Arkadaşlar'
+                  titleFontFamily='PrimaryFont'
+                  variant='playful'
+                  style={{ marginBottom: Spacing[6] }}
+                  animated
+                >
+                  <Column style={{ gap: Spacing[2] }}>
+                    <PlayfulButton
+                      title='Arkadaşlarını Gör'
+                      onPress={() =>
+                        router.push('/(tabs)/profile/friends' as any)
+                      }
+                      variant='outline'
+                      icon='users'
+                      fontFamily='SecondaryFont-Bold'
+                      animated
+                    />
+                  </Column>
+                </PlayfulCard>
+              </SlideInElement>
               {/* Account Settings */}
-              <SlideInElement direction='left' delay={800}>
+              <SlideInElement direction='left' delay={1200}>
                 <PlayfulCard
                   title='Hesap Ayarları'
                   variant='playful'
@@ -732,15 +780,14 @@ export default function ProfileScreen() {
                       title='Bildirim Ayarları'
                       onPress={() => router.push('/notifications' as any)}
                       variant='outline'
-                      icon='bell'
+                      icon='gear'
                       fontFamily='SecondaryFont-Bold'
                       animated
                     />
                   </Column>
                 </PlayfulCard>
               </SlideInElement>
-
-              {/* Quick Actions */}
+              {/* Quick Actions
               <SlideInElement direction='right' delay={1000}>
                 <PlayfulCard
                   title='Hızlı İşlemler'
@@ -774,10 +821,10 @@ export default function ProfileScreen() {
                     />
                   </Row>
                 </PlayfulCard>
-              </SlideInElement>
+              </SlideInElement> */}
 
               {/* App Info & Sign Out */}
-              <SlideInElement direction='up' delay={1200}>
+              <SlideInElement direction='up' delay={1400}>
                 <GlassCard style={{ marginBottom: Spacing[6] }}>
                   <Column style={{ gap: Spacing[3] }}>
                     <Row
@@ -815,7 +862,6 @@ export default function ProfileScreen() {
                   </Column>
                 </GlassCard>
               </SlideInElement>
-
               {/* Error display at bottom if there's an error but data is loaded */}
               {error && !loading && (achievements.length > 0 || duelStats) && (
                 <Alert
@@ -824,7 +870,6 @@ export default function ProfileScreen() {
                   style={{ marginTop: Spacing[4] }}
                 />
               )}
-
               {/* Retry button at bottom for partial failures */}
               {!loading &&
                 achievements.length === 0 &&
