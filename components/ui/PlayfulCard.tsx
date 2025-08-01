@@ -211,13 +211,13 @@ const PlayfulCard: React.FC<CardProps> = ({
             toValue: 1,
             duration: 2000,
             easing: Easing.inOut(Easing.sin),
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
           Animated.timing(glowAnimation, {
             toValue: 0,
             duration: 2000,
             easing: Easing.inOut(Easing.sin),
-            useNativeDriver: false,
+            useNativeDriver: true,
           }),
         ]),
       );
@@ -276,7 +276,7 @@ const PlayfulCard: React.FC<CardProps> = ({
       toValue: newCollapsedState ? 0 : 1,
       duration: 300,
       easing: Easing.inOut(Easing.ease),
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
   };
 
@@ -336,6 +336,11 @@ const PlayfulCard: React.FC<CardProps> = ({
           borderColor: baseBorderColor,
           textColor: baseTextColor,
           gradient: null,
+          // shadow:
+          //   createPlayfulShadow?.(
+          //     Colors.shadows?.medium || Colors.gray[400],
+          //     'heavy',
+          //   ) || {},
         };
       case 'outlined':
         return {
@@ -348,6 +353,11 @@ const PlayfulCard: React.FC<CardProps> = ({
           borderWidth: 2,
           textColor: categoryColors ? baseTextColor : baseBorderColor,
           gradient: null,
+          shadow:
+            createPlayfulShadow?.(
+              Colors.shadows?.medium || Colors.gray[400],
+              'heavy',
+            ) || {},
         };
       case 'elevated':
         return {
@@ -367,8 +377,8 @@ const PlayfulCard: React.FC<CardProps> = ({
           gradient: null,
           shadow:
             createPlayfulShadow?.(
-              Colors.vibrant?.purpleLight || Colors.gray[200],
-              'medium',
+              Colors.shadows?.medium || Colors.gray[400],
+              'heavy',
             ) || {},
         };
       case 'glass':
@@ -382,6 +392,11 @@ const PlayfulCard: React.FC<CardProps> = ({
             ? Colors.white
             : Colors.white,
           gradient: null,
+          shadow:
+            createPlayfulShadow?.(
+              Colors.shadows?.medium || Colors.gray[400],
+              'heavy',
+            ) || {},
         };
       case 'game':
         return {
@@ -401,7 +416,7 @@ const PlayfulCard: React.FC<CardProps> = ({
           gradient: null,
           shadow:
             createPlayfulShadow?.(
-              Colors.vibrant?.blue || Colors.primary.DEFAULT,
+              Colors.shadows?.medium || Colors.gray[400],
               'heavy',
             ) || {},
         };
@@ -415,6 +430,11 @@ const PlayfulCard: React.FC<CardProps> = ({
               Colors.primary.light,
             ],
           ),
+          shadow:
+            createPlayfulShadow?.(
+              Colors.shadows?.medium || Colors.gray[400],
+              'heavy',
+            ) || {},
         };
       default:
         return {
@@ -422,6 +442,11 @@ const PlayfulCard: React.FC<CardProps> = ({
           borderColor: baseBorderColor,
           textColor: baseTextColor,
           gradient: null,
+          shadow:
+            createPlayfulShadow?.(
+              Colors.shadows?.medium || Colors.gray[400],
+              'heavy',
+            ) || {},
         };
     }
   };

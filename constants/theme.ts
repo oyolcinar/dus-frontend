@@ -6,6 +6,7 @@ export const Colors = {
     light: '#d9c5e9',
     DEFAULT: '#722ea5',
     dark: '#5e2587',
+    bg: '#A8D8E6',
   },
   secondary: {
     light: '#ffd580',

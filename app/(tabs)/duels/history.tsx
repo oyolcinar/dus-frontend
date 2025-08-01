@@ -210,6 +210,11 @@ export default function DuelHistoryScreen() {
             : Colors.white,
         alignItems: 'center',
         justifyContent: 'center',
+        shadowColor: Colors.gray[900],
+        shadowOffset: { width: 10, height: 20 },
+        shadowOpacity: 0.8,
+        shadowRadius: 10,
+        elevation: 10,
         minHeight: 36,
       }}
       onPress={() => setActiveTab(filter)}
@@ -269,6 +274,11 @@ export default function DuelHistoryScreen() {
         marginBottom: Spacing[3],
         flex: 1,
         marginHorizontal: Spacing[1],
+        shadowColor: Colors.gray[900],
+        shadowOffset: { width: 10, height: 20 },
+        shadowOpacity: 0.8,
+        shadowRadius: 10,
+        elevation: 10,
       }}
     >
       <Column style={{ alignItems: 'center' }}>
@@ -369,6 +379,11 @@ export default function DuelHistoryScreen() {
         style={{
           marginBottom: Spacing[3],
           backgroundColor: 'rgba(255,255,255,0.95)',
+          shadowColor: Colors.gray[900],
+          shadowOffset: { width: 10, height: 20 },
+          shadowOpacity: 0.8,
+          shadowRadius: 10,
+          elevation: 10,
         }}
       >
         <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
@@ -457,6 +472,11 @@ export default function DuelHistoryScreen() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: Spacing[8],
+            shadowColor: Colors.gray[900],
+            shadowOffset: { width: 10, height: 20 },
+            shadowOpacity: 0.8,
+            shadowRadius: 10,
+            elevation: 10,
           }}
         >
           <ActivityIndicator
@@ -487,6 +507,11 @@ export default function DuelHistoryScreen() {
                     style={{
                       backgroundColor: 'rgba(255,255,255,0.95)',
                       marginBottom: Spacing[4],
+                      shadowColor: Colors.gray[900],
+                      shadowOffset: { width: 10, height: 20 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 10,
+                      elevation: 10,
                     }}
                   >
                     <Column style={{ alignItems: 'center' }}>
@@ -787,7 +812,6 @@ export default function DuelHistoryScreen() {
                   Performansın ve geçmiş düellolarınız
                 </Paragraph>
               </Column>
-              <Avatar size='md' name='📈' bgColor={VIBRANT_COLORS.purple} />
             </Row>
           </PlayfulCard>
         </SlideInElement>

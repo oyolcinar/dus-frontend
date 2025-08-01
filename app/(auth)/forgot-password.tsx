@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Video, ResizeMode } from 'expo-av';
 import { FontAwesome } from '@expo/vector-icons';
 import { requestPasswordReset } from '../../src/api/authService';
 import {
@@ -43,6 +44,7 @@ export default function ForgotPasswordScreen() {
   const router = useRouter();
 
   const logoWhite = require('../../assets/images/logoWhite.jpg');
+  const logoVideo = require('../../assets/videos/heyecanli.mp4');
 
   const handleResetRequest = async () => {
     // Clear previous errors
@@ -117,9 +119,9 @@ export default function ForgotPasswordScreen() {
               <PlayfulCard
                 variant='gradient'
                 style={{
-                  width: 96,
-                  height: 96,
-                  borderRadius: 48,
+                  width: 128,
+                  height: 128,
+                  borderRadius: 64,
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginBottom: Spacing[4],
@@ -133,10 +135,15 @@ export default function ForgotPasswordScreen() {
                 floatingAnimation={true}
                 gradient='warning'
               >
-                <Image
-                  source={logoWhite}
-                  style={styles.logoImage}
-                  resizeMode='cover'
+                <Video
+                  source={logoVideo}
+                  style={styles.logoVideo}
+                  shouldPlay={true}
+                  isLooping={true}
+                  isMuted={true}
+                  resizeMode={ResizeMode.COVER}
+                  useNativeControls={false}
+                  usePoster={false}
                 />
               </PlayfulCard>
 
@@ -401,5 +408,10 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     width: 96,
     height: 96,
+  },
+  logoVideo: {
+    width: 247,
+    height: 247,
+    borderRadius: 20,
   },
 });

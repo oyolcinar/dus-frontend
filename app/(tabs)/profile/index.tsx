@@ -414,7 +414,14 @@ export default function ProfileScreen() {
                 borderGlow
                 animated
                 floatingEffect
-                style={{ marginBottom: Spacing[2] }}
+                style={{
+                  marginBottom: Spacing[2],
+                  shadowColor: Colors.gray[900],
+                  shadowOffset: { width: 10, height: 20 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10,
+                }}
               />
               <PlayfulTitle
                 level={1}
@@ -440,7 +447,11 @@ export default function ProfileScreen() {
               </Text>
 
               {/* User level/score display */}
-              <View style={{ marginTop: Spacing[4] }}>
+              <View
+                style={{
+                  marginTop: Spacing[4],
+                }}
+              >
                 <ScoreDisplay
                   score={duelStats?.wins || 0}
                   maxScore={duelStats?.totalDuels || 1}
@@ -452,6 +463,13 @@ export default function ProfileScreen() {
                   maxScoreFontFamily='SecondaryFont-Bold'
                   animated
                   showProgress={true}
+                  style={{
+                    shadowColor: Colors.gray[900],
+                    shadowOffset: { width: 10, height: 20 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 10,
+                    elevation: 10,
+                  }}
                 />
               </View>
             </Column>
@@ -539,7 +557,14 @@ export default function ProfileScreen() {
                     titleFontFamily='PrimaryFont'
                     title='Detaylı İstatistikler'
                     variant='playful'
-                    style={{ marginBottom: Spacing[6] }}
+                    style={{
+                      marginBottom: Spacing[6],
+                      shadowColor: Colors.gray[900],
+                      shadowOffset: { width: 10, height: 20 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 10,
+                      elevation: 10,
+                    }}
                     animated
                   >
                     <Row style={{ flexWrap: 'wrap', gap: Spacing[3] }}>
@@ -601,7 +626,14 @@ export default function ProfileScreen() {
                   title='Başarılar'
                   titleFontFamily='PrimaryFont'
                   variant='playful'
-                  style={{ marginBottom: Spacing[6] }}
+                  style={{
+                    marginBottom: Spacing[6],
+                    shadowColor: Colors.gray[900],
+                    shadowOffset: { width: 10, height: 20 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 10,
+                    elevation: 10,
+                  }}
                   animated
                 >
                   {achievements.length > 0 ? (
@@ -698,6 +730,11 @@ export default function ProfileScreen() {
                       buttonFontFamily='PrimaryFont'
                       style={{
                         backgroundColor: isDark ? Colors.white : Colors.white,
+                        shadowColor: Colors.gray[900],
+                        shadowOffset: { width: 10, height: 20 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 10,
+                        elevation: 10,
                       }}
                     />
                   )}
@@ -708,7 +745,14 @@ export default function ProfileScreen() {
                   title='Bildirimler'
                   titleFontFamily='PrimaryFont'
                   variant='playful'
-                  style={{ marginBottom: Spacing[6] }}
+                  style={{
+                    marginBottom: Spacing[6],
+                    shadowColor: Colors.gray[900],
+                    shadowOffset: { width: 10, height: 20 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 10,
+                    elevation: 10,
+                  }}
                   animated
                 >
                   <Column style={{ gap: Spacing[2] }}>
@@ -730,7 +774,14 @@ export default function ProfileScreen() {
                   title='Arkadaşlar'
                   titleFontFamily='PrimaryFont'
                   variant='playful'
-                  style={{ marginBottom: Spacing[6] }}
+                  style={{
+                    marginBottom: Spacing[6],
+                    shadowColor: Colors.gray[900],
+                    shadowOffset: { width: 10, height: 20 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 10,
+                    elevation: 10,
+                  }}
                   animated
                 >
                   <Column style={{ gap: Spacing[2] }}>
@@ -754,7 +805,14 @@ export default function ProfileScreen() {
                   variant='playful'
                   gradient='sky'
                   titleFontFamily='PrimaryFont'
-                  style={{ marginBottom: Spacing[6] }}
+                  style={{
+                    marginBottom: Spacing[6],
+                    shadowColor: Colors.gray[900],
+                    shadowOffset: { width: 10, height: 20 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 10,
+                    elevation: 10,
+                  }}
                   animated
                 >
                   <Column style={{ gap: Spacing[2] }}>
@@ -846,6 +904,13 @@ export default function ProfileScreen() {
                         variant='success'
                         size='md'
                         fontFamily='SecondaryFont-Bold'
+                        style={{
+                          shadowColor: Colors.gray[900],
+                          shadowOffset: { width: 10, height: 20 },
+                          shadowOpacity: 0.8,
+                          shadowRadius: 10,
+                          elevation: 10,
+                        }}
                       />
                     </Row>
 
@@ -858,6 +923,13 @@ export default function ProfileScreen() {
                       fontFamily='SecondaryFont-Bold'
                       animated
                       wiggleOnPress
+                      style={{
+                        shadowColor: Colors.gray[900],
+                        shadowOffset: { width: 10, height: 20 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 10,
+                        elevation: 10,
+                      }}
                     />
                   </Column>
                 </GlassCard>

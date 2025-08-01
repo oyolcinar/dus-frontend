@@ -474,6 +474,13 @@ export default function DuelsScreen() {
                 value={activeDuels.length.toString()}
                 color={Colors.vibrant?.orange || Colors.secondary.DEFAULT}
                 titleFontFamily='SecondaryFont-Bold'
+                style={{
+                  shadowColor: Colors.gray[900],
+                  shadowOffset: { width: 10, height: 20 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10,
+                }}
               />
               <StatCard
                 icon='fire'
@@ -481,6 +488,13 @@ export default function DuelsScreen() {
                 value={(userStats?.wins || 0).toString()} // Use wins from user stats
                 color={isDark ? Colors.vibrant.yellow : Colors.vibrant.yellow}
                 titleFontFamily='SecondaryFont-Bold'
+                style={{
+                  shadowColor: Colors.gray[900],
+                  shadowOffset: { width: 10, height: 20 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10,
+                }}
               />
               <StatCard
                 icon='hourglass'
@@ -490,6 +504,13 @@ export default function DuelsScreen() {
                   .length.toString()}
                 color={Colors.vibrant?.mint || Colors.info}
                 titleFontFamily='SecondaryFont-Bold'
+                style={{
+                  shadowColor: Colors.gray[900],
+                  shadowOffset: { width: 10, height: 20 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10,
+                }}
               />
             </Row>
 
@@ -500,7 +521,14 @@ export default function DuelsScreen() {
               variant='secondary'
               gradient='fire'
               animated
-              style={{ marginBottom: Spacing[6] }}
+              style={{
+                marginBottom: Spacing[6],
+                shadowColor: Colors.gray[900],
+                shadowOffset: { width: 10, height: 20 },
+                shadowOpacity: 0.8,
+                shadowRadius: 10,
+                elevation: 10,
+              }}
               icon='plus'
               wiggleOnPress
             />
@@ -592,7 +620,14 @@ export default function DuelsScreen() {
               title='Hızlı İşlemler'
               variant='playful'
               titleFontFamily='PrimaryFont'
-              style={{ marginTop: Spacing[6] }}
+              style={{
+                marginTop: Spacing[6],
+                shadowColor: Colors.gray[900],
+                shadowOffset: { width: 10, height: 20 },
+                shadowOpacity: 0.8,
+                shadowRadius: 10,
+                elevation: 10,
+              }}
               animated
             >
               <Row style={{ justifyContent: 'space-between' }}>

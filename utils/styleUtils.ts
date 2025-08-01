@@ -1,4 +1,4 @@
-// utils/styleUtils.ts
+// utils/styleUtils.ts (FIXED VERSION)
 import {
   StyleSheet,
   Platform,
@@ -24,14 +24,70 @@ export const mergeStyles = (
   return Object.assign({}, ...styles);
 };
 
-// NEW: Utility functions for creating playful styles
+// FIXED: Shadow utility with proper properties and platform handling
+export const createPlayfulShadow = (
+  color: string = '#000000',
+  intensity: 'light' | 'medium' | 'heavy' = 'medium',
+) => {
+  const shadowConfigs = {
+    light: {
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    medium: {
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    heavy: {
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      elevation: 8,
+    },
+  };
+
+  const config = shadowConfigs[intensity];
+
+  // Return platform-specific shadow styles
+  if (Platform.OS === 'ios') {
+    return {
+      shadowColor: color,
+      shadowOffset: config.shadowOffset,
+      shadowOpacity: config.shadowOpacity,
+      shadowRadius: config.shadowRadius,
+    };
+  } else {
+    // Android
+    return {
+      elevation: config.elevation,
+      shadowColor: color, // Android also supports shadowColor for colored shadows
+    };
+  }
+};
+
+// ENHANCED: More reliable shadow presets
+export const shadowPresets = {
+  none: {},
+  light: createPlayfulShadow('#000000', 'light'),
+  medium: createPlayfulShadow('#000000', 'medium'),
+  heavy: createPlayfulShadow('#000000', 'heavy'),
+  colored: {
+    purple: createPlayfulShadow('#8B5CF6', 'medium'),
+    blue: createPlayfulShadow('#3B82F6', 'medium'),
+    green: createPlayfulShadow('#10B981', 'medium'),
+    orange: createPlayfulShadow('#F59E0B', 'medium'),
+    pink: createPlayfulShadow('#EC4899', 'medium'),
+  },
+};
+
+// NEW: Utility functions for creating vibrant styles
 export const createVibrantStyle = (colorKey: keyof typeof Colors.vibrant) => ({
   backgroundColor: Colors.vibrant[colorKey],
-  shadowColor: Colors.vibrant[colorKey],
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.3,
-  shadowRadius: 8,
-  elevation: 5,
+  ...createPlayfulShadow(Colors.vibrant[colorKey], 'medium'),
 });
 
 export const createGradientStyle = (
@@ -41,41 +97,6 @@ export const createGradientStyle = (
   start: { x: 0, y: 0 },
   end: { x: 1, y: 1 },
 });
-
-export const createPlayfulShadow = (
-  color: string = Colors.shadows.medium,
-  intensity: 'light' | 'medium' | 'heavy' = 'medium',
-) => {
-  const shadowConfigs = {
-    light: {
-      offset: { width: 0, height: 2 },
-      opacity: 0.15,
-      radius: 4,
-      elevation: 2,
-    },
-    medium: {
-      offset: { width: 0, height: 4 },
-      opacity: 0.25,
-      radius: 8,
-      elevation: 5,
-    },
-    heavy: {
-      offset: { width: 0, height: 8 },
-      opacity: 0.35,
-      radius: 16,
-      elevation: 10,
-    },
-  };
-
-  const config = shadowConfigs[intensity];
-  return {
-    shadowColor: color,
-    shadowOffset: config.offset,
-    shadowOpacity: config.opacity,
-    shadowRadius: config.radius,
-    elevation: config.elevation,
-  };
-};
 
 export const createAnimatedStyle = (
   animationType: 'bounce' | 'slide' | 'fade' | 'pulse',
@@ -128,22 +149,22 @@ export const createAnimatedStyle = (
   }
 };
 
-// NEW: Color utility functions
+// Color utility functions
 export const getRandomVibrantColor = () => {
-  const colors = Object.values(Colors.vibrant);
-  return colors[Math.floor(Math.random() * colors.length)];
+  const colors = Object.values(Colors.vibrant || {});
+  return colors[Math.floor(Math.random() * colors.length)] || '#8B5CF6';
 };
 
 export const getDifficultyColor = (difficulty: 'easy' | 'medium' | 'hard') => {
   switch (difficulty) {
     case 'easy':
-      return Colors.vibrant.green;
+      return Colors.vibrant?.green || '#10B981';
     case 'medium':
-      return Colors.vibrant.yellow;
+      return Colors.vibrant?.yellow || '#F59E0B';
     case 'hard':
-      return Colors.vibrant.orange;
+      return Colors.vibrant?.orange || '#F97316';
     default:
-      return Colors.vibrant.purple;
+      return Colors.vibrant?.purple || '#8B5CF6';
   }
 };
 
@@ -152,19 +173,19 @@ export const getStatusColor = (
 ) => {
   switch (status) {
     case 'active':
-      return Colors.vibrant.blue;
+      return Colors.vibrant?.blue || '#3B82F6';
     case 'completed':
-      return Colors.vibrant.green;
+      return Colors.vibrant?.green || '#10B981';
     case 'upcoming':
-      return Colors.vibrant.purple;
+      return Colors.vibrant?.purple || '#8B5CF6';
     case 'missed':
-      return Colors.vibrant.orange;
+      return Colors.vibrant?.orange || '#F97316';
     default:
-      return Colors.neutral.gray;
+      return Colors.neutral?.gray || '#6B7280';
   }
 };
 
-// NEW: Animation utility functions
+// Animation utility functions
 export const createBounceAnimation = (
   animatedValue: Animated.Value,
   options?: {
@@ -196,7 +217,7 @@ export const createSlideAnimation = (
 ) => {
   const config = {
     toValue: 1,
-    duration: AnimationConfig.duration.slow,
+    duration: AnimationConfig?.duration?.slow || 500,
     useNativeDriver: true,
     ...options,
   };
@@ -218,7 +239,7 @@ export const createFadeAnimation = (
 ) => {
   const config = {
     toValue: 1,
-    duration: AnimationConfig.duration.normal,
+    duration: AnimationConfig?.duration?.normal || 300,
     useNativeDriver: true,
     ...options,
   };
@@ -236,7 +257,7 @@ export const createPulseAnimation = (
   },
 ) => {
   const config = {
-    duration: AnimationConfig.duration.slow,
+    duration: AnimationConfig?.duration?.slow || 500,
     minValue: 0,
     maxValue: 1,
     useNativeDriver: true,
@@ -259,9 +280,9 @@ export const createPulseAnimation = (
   );
 };
 
-// Enhanced global styles with playful additions
+// Enhanced global styles with fixed shadows
 export const globalStyles = StyleSheet.create({
-  // Layout (your existing styles)
+  // Layout styles
   flexRow: {
     flexDirection: 'row',
   },
@@ -287,481 +308,116 @@ export const globalStyles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
 
-  // Text styles (enhanced with new sizes and weights)
-  textXs: {
-    fontSize: FontSizes.xs,
-  },
-  textSm: {
-    fontSize: FontSizes.sm,
-  },
-  textBase: {
-    fontSize: FontSizes.base,
-  },
-  textLg: {
-    fontSize: FontSizes.lg,
-  },
-  textXl: {
-    fontSize: FontSizes.xl,
-  },
-  text2xl: {
-    fontSize: FontSizes['2xl'],
-  },
-  text3xl: {
-    fontSize: FontSizes['3xl'],
-  },
-  text4xl: {
-    fontSize: FontSizes['4xl'],
-  },
-  // NEW: Additional text sizes
-  text5xl: {
-    fontSize: FontSizes['5xl'],
-  },
-  text6xl: {
-    fontSize: FontSizes['6xl'],
-  },
-  text7xl: {
-    fontSize: FontSizes['7xl'],
-  },
-  text8xl: {
-    fontSize: FontSizes['8xl'],
-  },
-
-  // Font weights (enhanced with proper React Native types)
-  fontLight: {
-    fontWeight: '300' as const,
-  },
-  fontNormal: {
-    fontWeight: '400' as const,
-  },
-  fontMedium: {
-    fontWeight: '500' as const,
-  },
-  fontSemibold: {
-    fontWeight: '600' as const,
-  },
-  fontBold: {
-    fontWeight: '700' as const,
-  },
-  fontExtrabold: {
-    fontWeight: '800' as const,
-  },
-  fontBlack: {
-    fontWeight: '900' as const,
-  },
-
-  // Colors - Text (your existing + new vibrant colors)
-  textWhite: {
-    color: Colors.white,
-  },
-  textPrimary: {
-    color: Colors.primary.DEFAULT,
-  },
-  textGray500: {
-    color: Colors.gray[500],
-  },
-  textGray600: {
-    color: Colors.gray[600],
-  },
-  textGray700: {
-    color: Colors.gray[700],
-  },
-  textGray800: {
-    color: Colors.gray[800],
-  },
-  // NEW: Vibrant text colors
-  textVibrantPurple: {
-    color: Colors.vibrant.purple,
-  },
-  textVibrantOrange: {
-    color: Colors.vibrant.orange,
-  },
-  textVibrantGreen: {
-    color: Colors.vibrant.green,
-  },
-  textVibrantBlue: {
-    color: Colors.vibrant.blue,
-  },
-  textVibrantPink: {
-    color: Colors.vibrant.pink,
-  },
-  textVibrantYellow: {
-    color: Colors.vibrant.yellow,
-  },
-
-  // Colors - Background (your existing + vibrant)
-  bgWhite: {
-    backgroundColor: Colors.white,
-  },
-  bgGray50: {
-    backgroundColor: Colors.gray[50],
-  },
-  bgGray100: {
-    backgroundColor: Colors.gray[100],
-  },
-  bgGray700: {
-    backgroundColor: Colors.gray[700],
-  },
-  bgGray800: {
-    backgroundColor: Colors.gray[800],
-  },
-  bgGray900: {
-    backgroundColor: Colors.gray[900],
-  },
-  bgPrimary: {
-    backgroundColor: Colors.primary.DEFAULT,
-  },
-  bgSecondary: {
-    backgroundColor: Colors.secondary.DEFAULT,
-  },
-  bgSuccess: {
-    backgroundColor: Colors.success,
-  },
-  bgError: {
-    backgroundColor: Colors.error,
-  },
-  // NEW: Vibrant backgrounds
-  bgVibrantPurple: {
-    backgroundColor: Colors.vibrant.purple,
-  },
-  bgVibrantOrange: {
-    backgroundColor: Colors.vibrant.orange,
-  },
-  bgVibrantGreen: {
-    backgroundColor: Colors.vibrant.green,
-  },
-  bgVibrantBlue: {
-    backgroundColor: Colors.vibrant.blue,
-  },
-  bgVibrantPink: {
-    backgroundColor: Colors.vibrant.pink,
-  },
-  bgVibrantYellow: {
-    backgroundColor: Colors.vibrant.yellow,
-  },
-
-  // Margins (your existing)
-  mb1: {
-    marginBottom: Spacing[1],
-  },
-  mb2: {
-    marginBottom: Spacing[2],
-  },
-  mb4: {
-    marginBottom: Spacing[4],
-  },
-  mb6: {
-    marginBottom: Spacing[6],
-  },
-  mb8: {
-    marginBottom: Spacing[8],
-  },
-  mt1: {
-    marginTop: Spacing[1],
-  },
-  mt2: {
-    marginTop: Spacing[2],
-  },
-  mt4: {
-    marginTop: Spacing[4],
-  },
-  my2: {
-    marginVertical: Spacing[2],
-  },
-  my4: {
-    marginVertical: Spacing[4],
-  },
-  my8: {
-    marginVertical: Spacing[8],
-  },
-  mx2: {
-    marginHorizontal: Spacing[2],
-  },
-  mx4: {
-    marginHorizontal: Spacing[4],
-  },
-  // NEW: Additional margins
-  mb12: {
-    marginBottom: Spacing[12],
-  },
-  mb16: {
-    marginBottom: Spacing[16],
-  },
-  mt8: {
-    marginTop: Spacing[8],
-  },
-  mt12: {
-    marginTop: Spacing[12],
-  },
-
-  // Padding (your existing + new)
-  p2: {
-    padding: Spacing[2],
-  },
-  p3: {
-    padding: Spacing[3],
-  },
-  p4: {
-    padding: Spacing[4],
-  },
-  p6: {
-    padding: Spacing[6],
-  },
-  px2: {
-    paddingHorizontal: Spacing[2],
-  },
-  px4: {
-    paddingHorizontal: Spacing[4],
-  },
-  py1: {
-    paddingVertical: Spacing[1],
-  },
-  py2: {
-    paddingVertical: Spacing[2],
-  },
-  py3: {
-    paddingVertical: Spacing[3],
-  },
-  // NEW: Additional padding
-  p8: {
-    padding: Spacing[8],
-  },
-  px6: {
-    paddingHorizontal: Spacing[6],
-  },
-  px8: {
-    paddingHorizontal: Spacing[8],
-  },
-  py4: {
-    paddingVertical: Spacing[4],
-  },
-  py6: {
-    paddingVertical: Spacing[6],
-  },
-
-  // Border radius (enhanced with playful options)
-  roundedLg: {
-    borderRadius: BorderRadius.lg,
-  },
-  roundedXl: {
-    borderRadius: BorderRadius.xl,
-  },
-  rounded2xl: {
-    borderRadius: BorderRadius['2xl'],
-  },
-  rounded3xl: {
-    borderRadius: BorderRadius['3xl'],
-  },
-  roundedFull: {
-    borderRadius: BorderRadius.full,
-  },
-  // NEW: Playful border radius
-  roundedBubble: {
-    borderRadius: BorderRadius.bubble,
-  },
-  roundedCard: {
-    borderRadius: BorderRadius.card,
-  },
-  roundedButton: {
-    borderRadius: BorderRadius.button,
-  },
-
-  // Cards and common components (enhanced)
+  // Cards with proper shadows
   card: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing[4],
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: Colors.white || '#FFFFFF',
+    borderRadius: BorderRadius?.xl || 12,
+    padding: Spacing?.[4] || 16,
+    ...shadowPresets.medium,
   },
-  // NEW: Playful card variants
   playfulCard: {
-    ...CommonStyles.playfulCard,
+    backgroundColor: Colors.white || '#FFFFFF',
+    borderRadius: BorderRadius?.card || BorderRadius?.xl || 12,
+    padding: Spacing?.[4] || 16,
+    ...shadowPresets.heavy,
   },
   gameCard: {
-    ...CommonStyles.gameCard,
+    backgroundColor: Colors.vibrant?.purple || '#8B5CF6',
+    borderRadius: BorderRadius?.button || BorderRadius?.xl || 12,
+    padding: Spacing?.[6] || 24,
+    ...createPlayfulShadow(Colors.vibrant?.purple || '#8B5CF6', 'heavy'),
   },
   glassCard: {
-    ...CommonStyles.glassCard,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: BorderRadius?.card || BorderRadius?.xl || 12,
+    padding: Spacing?.[4] || 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    ...shadowPresets.light,
   },
 
-  // Button styles (enhanced with vibrant options)
-  btnPrimary: {
-    backgroundColor: Colors.primary.DEFAULT,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[2],
-    borderRadius: BorderRadius.lg,
-  },
-  btnSecondary: {
-    backgroundColor: Colors.secondary.DEFAULT,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[2],
-    borderRadius: BorderRadius.lg,
-  },
-  btnSuccess: {
-    backgroundColor: Colors.success,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[2],
-    borderRadius: BorderRadius.lg,
-  },
-  btnError: {
-    backgroundColor: Colors.error,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[2],
-    borderRadius: BorderRadius.lg,
-  },
-  // NEW: Vibrant button styles
+  // Button styles with shadows
   btnVibrant: {
-    backgroundColor: Colors.vibrant.purple,
-    paddingHorizontal: Spacing[6],
-    paddingVertical: Spacing[4],
-    borderRadius: BorderRadius.button,
-    ...createPlayfulShadow(Colors.vibrant.purple, 'medium'),
+    backgroundColor: Colors.vibrant?.purple || '#8B5CF6',
+    paddingHorizontal: Spacing?.[6] || 24,
+    paddingVertical: Spacing?.[4] || 16,
+    borderRadius: BorderRadius?.button || 12,
+    ...createPlayfulShadow(Colors.vibrant?.purple || '#8B5CF6', 'medium'),
   },
   btnPlayful: {
-    backgroundColor: Colors.vibrant.orange,
-    paddingHorizontal: Spacing[6],
-    paddingVertical: Spacing[4],
-    borderRadius: BorderRadius.bubble,
-    ...createPlayfulShadow(Colors.vibrant.orange, 'heavy'),
+    backgroundColor: Colors.vibrant?.orange || '#F97316',
+    paddingHorizontal: Spacing?.[6] || 24,
+    paddingVertical: Spacing?.[4] || 16,
+    borderRadius: BorderRadius?.bubble || 20,
+    ...createPlayfulShadow(Colors.vibrant?.orange || '#F97316', 'heavy'),
   },
   btnFloating: {
-    ...CommonStyles.floatingButton,
-    backgroundColor: Colors.vibrant.blue,
-    paddingHorizontal: Spacing[6],
-    paddingVertical: Spacing[4],
+    backgroundColor: Colors.vibrant?.blue || '#3B82F6',
+    paddingHorizontal: Spacing?.[6] || 24,
+    paddingVertical: Spacing?.[4] || 16,
+    borderRadius: 50,
+    ...shadowPresets.heavy,
   },
 
-  // Form elements (enhanced)
-  input: {
-    backgroundColor: Colors.gray[100],
-    color: Colors.gray[900],
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
-    width: '100%',
-  },
-  inputDark: {
-    backgroundColor: Colors.gray[700],
-    color: Colors.white,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
-    width: '100%',
-  },
-  // NEW: Playful input styles
-  inputPlayful: {
-    backgroundColor: Colors.neutral.offWhite,
-    color: Colors.neutral.darkGray,
-    borderRadius: BorderRadius.button,
-    paddingHorizontal: Spacing[5],
-    paddingVertical: Spacing[4],
-    width: '100%',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  inputFocused: {
-    borderColor: Colors.vibrant.purple,
-    ...createPlayfulShadow(Colors.vibrant.purple, 'light'),
-  },
-
-  // Width and height (your existing)
-  w100: {
-    width: '100%',
-  },
-  w75: {
-    width: '75%',
-  },
-  w50: {
-    width: '50%',
-  },
-  w25: {
-    width: '25%',
-  },
-  h100: {
-    height: '100%',
-  },
-
-  // NEW: Game-specific styles
-  gameScreen: {
-    flex: 1,
-    backgroundColor: Colors.neutral.offWhite,
-    padding: Spacing[4],
-  },
-  gameHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Spacing[4],
-    paddingHorizontal: Spacing[6],
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.card,
-    marginBottom: Spacing[6],
-    ...createPlayfulShadow(Colors.shadows.light, 'medium'),
-  },
-  scoreDisplay: {
-    alignItems: 'center',
-    backgroundColor: Colors.vibrant.purple,
-    paddingVertical: Spacing[3],
-    paddingHorizontal: Spacing[6],
-    borderRadius: BorderRadius.bubble,
-    ...createPlayfulShadow(Colors.vibrant.purple, 'medium'),
-  },
-  questionCard: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.card,
-    padding: Spacing[6],
-    marginVertical: Spacing[4],
-    ...createPlayfulShadow(Colors.shadows.medium, 'heavy'),
-  },
-  answerOption: {
-    backgroundColor: Colors.neutral.offWhite,
-    borderRadius: BorderRadius.button,
-    padding: Spacing[4],
-    marginVertical: Spacing[2],
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  answerOptionSelected: {
-    backgroundColor: Colors.vibrant.purpleLight,
-    borderColor: Colors.vibrant.purple,
-  },
-  answerOptionCorrect: {
-    backgroundColor: Colors.vibrant.greenLight,
-    borderColor: Colors.vibrant.green,
-  },
-  answerOptionIncorrect: {
-    backgroundColor: Colors.vibrant.orangeLight,
-    borderColor: Colors.vibrant.orange,
-  },
-
-  // NEW: Animation preset styles
+  // Animation preset styles with enhanced shadows
   floatingElement: {
-    shadowColor: Colors.shadows.heavy,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 1,
-    shadowRadius: 20,
-    elevation: 12,
+    ...createPlayfulShadow('#000000', 'heavy'),
   },
   pulsingElement: {
-    shadowColor: Colors.vibrant.purple,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 6,
+    ...createPlayfulShadow(Colors.vibrant?.purple || '#8B5CF6', 'medium'),
   },
   glowingElement: {
-    shadowColor: Colors.vibrant.blue,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
-    elevation: 8,
+    ...createPlayfulShadow(Colors.vibrant?.blue || '#3B82F6', 'heavy'),
   },
+
+  // Text styles
+  textXs: { fontSize: FontSizes?.xs || 12 },
+  textSm: { fontSize: FontSizes?.sm || 14 },
+  textBase: { fontSize: FontSizes?.base || 16 },
+  textLg: { fontSize: FontSizes?.lg || 18 },
+  textXl: { fontSize: FontSizes?.xl || 20 },
+  text2xl: { fontSize: FontSizes?.['2xl'] || 24 },
+  text3xl: { fontSize: FontSizes?.['3xl'] || 30 },
+  text4xl: { fontSize: FontSizes?.['4xl'] || 36 },
+
+  // Font weights
+  fontLight: { fontWeight: '300' as const },
+  fontNormal: { fontWeight: '400' as const },
+  fontMedium: { fontWeight: '500' as const },
+  fontSemibold: { fontWeight: '600' as const },
+  fontBold: { fontWeight: '700' as const },
+  fontExtrabold: { fontWeight: '800' as const },
+  fontBlack: { fontWeight: '900' as const },
+
+  // Colors - Background
+  bgWhite: { backgroundColor: Colors.white || '#FFFFFF' },
+  bgVibrantPurple: { backgroundColor: Colors.vibrant?.purple || '#8B5CF6' },
+  bgVibrantOrange: { backgroundColor: Colors.vibrant?.orange || '#F97316' },
+  bgVibrantGreen: { backgroundColor: Colors.vibrant?.green || '#10B981' },
+  bgVibrantBlue: { backgroundColor: Colors.vibrant?.blue || '#3B82F6' },
+  bgVibrantPink: { backgroundColor: Colors.vibrant?.pink || '#EC4899' },
+  bgVibrantYellow: { backgroundColor: Colors.vibrant?.yellow || '#F59E0B' },
+
+  // Spacing
+  mb1: { marginBottom: Spacing?.[1] || 4 },
+  mb2: { marginBottom: Spacing?.[2] || 8 },
+  mb4: { marginBottom: Spacing?.[4] || 16 },
+  mb6: { marginBottom: Spacing?.[6] || 24 },
+  mb8: { marginBottom: Spacing?.[8] || 32 },
+  p2: { padding: Spacing?.[2] || 8 },
+  p4: { padding: Spacing?.[4] || 16 },
+  p6: { padding: Spacing?.[6] || 24 },
+  px4: { paddingHorizontal: Spacing?.[4] || 16 },
+  py2: { paddingVertical: Spacing?.[2] || 8 },
+
+  // Border radius
+  roundedLg: { borderRadius: BorderRadius?.lg || 8 },
+  roundedXl: { borderRadius: BorderRadius?.xl || 12 },
+  rounded2xl: { borderRadius: BorderRadius?.['2xl'] || 16 },
+  roundedFull: { borderRadius: BorderRadius?.full || 9999 },
 });
 
-// Apply dark mode styles (enhanced)
+// Apply dark mode styles
 export function applyDarkMode<T extends object>(
   isDark: boolean,
   lightStyle: T,
@@ -770,7 +426,7 @@ export function applyDarkMode<T extends object>(
   return isDark ? darkStyle : lightStyle;
 }
 
-// NEW: Apply playful styling conditionally
+// Apply playful styling conditionally
 export function applyPlayfulMode<T extends object>(
   isPlayful: boolean,
   defaultStyle: T,
@@ -779,7 +435,7 @@ export function applyPlayfulMode<T extends object>(
   return isPlayful ? playfulStyle : defaultStyle;
 }
 
-// NEW: Create responsive styles based on screen size
+// Create responsive styles based on screen size
 export function createResponsiveStyle(
   baseStyle: ViewStyle | TextStyle,
   screenWidth: number,

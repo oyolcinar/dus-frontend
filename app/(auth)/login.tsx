@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
+import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
@@ -44,6 +45,7 @@ export default function LoginScreen() {
     useAuth();
 
   const logoWhite = require('../../assets/images/logoWhite.jpg');
+  const logoVideo = require('../../assets/videos/heyecanli.mp4');
 
   const handleLogin = async () => {
     setError(null);
@@ -147,9 +149,9 @@ export default function LoginScreen() {
               <PlayfulCard
                 variant='gradient'
                 style={{
-                  width: 96,
-                  height: 96,
-                  borderRadius: 48,
+                  width: 128,
+                  height: 128,
+                  borderRadius: 64,
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginBottom: Spacing[4],
@@ -164,10 +166,15 @@ export default function LoginScreen() {
                 floatingAnimation={true}
                 gradient='purple'
               >
-                <Image
-                  source={logoWhite}
-                  style={styles.logoImage}
-                  resizeMode='cover'
+                <Video
+                  source={logoVideo}
+                  style={styles.logoVideo}
+                  shouldPlay={true}
+                  isLooping={true}
+                  isMuted={true}
+                  resizeMode={ResizeMode.COVER}
+                  useNativeControls={false}
+                  usePoster={false}
                 />
               </PlayfulCard>
 
@@ -508,5 +515,10 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     width: 96,
     height: 96,
+  },
+  logoVideo: {
+    width: 247,
+    height: 247,
+    borderRadius: 20,
   },
 });

@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FontAwesome } from '@expo/vector-icons';
+import { Video, ResizeMode } from 'expo-av';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Input, TextLink, Alert } from '../../components/ui';
 import { PlayfulButton, GlassCard, PlayfulCard } from '../../components/ui';
@@ -37,6 +38,7 @@ export default function RegisterScreen() {
     useAuth();
 
   const logoWhite = require('../../assets/images/logoWhite.jpg');
+  const logoVideo = require('../../assets/videos/heyecanli.mp4');
 
   const handleRegister = async () => {
     setError(null);
@@ -146,9 +148,9 @@ export default function RegisterScreen() {
               <PlayfulCard
                 variant='playful'
                 style={{
-                  width: 96,
-                  height: 96,
-                  borderRadius: 48,
+                  width: 128,
+                  height: 128,
+                  borderRadius: 64,
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginBottom: Spacing[4],
@@ -162,10 +164,15 @@ export default function RegisterScreen() {
                 floatingAnimation={true}
                 pulseEffect={true}
               >
-                <Image
-                  source={logoWhite}
-                  style={styles.logoImage}
-                  resizeMode='cover'
+                <Video
+                  source={logoVideo}
+                  style={styles.logoVideo}
+                  shouldPlay={true}
+                  isLooping={true}
+                  isMuted={true}
+                  resizeMode={ResizeMode.COVER}
+                  useNativeControls={false}
+                  usePoster={false}
                 />
               </PlayfulCard>
 
@@ -182,7 +189,7 @@ export default function RegisterScreen() {
                   },
                 ]}
               >
-                DUS Sınav Hazırlığına Katıl
+                DUSPORT ile Sınav Hazırlığına Katıl
               </Text>
 
               <Text
@@ -566,5 +573,10 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     width: 96,
     height: 96,
+  },
+  logoVideo: {
+    width: 247,
+    height: 247,
+    borderRadius: 20,
   },
 });

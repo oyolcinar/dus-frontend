@@ -380,6 +380,11 @@ const NotificationSettingsScreen: React.FC = () => {
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: 36,
+        shadowColor: Colors.gray[900],
+        shadowOffset: { width: 10, height: 20 },
+        shadowOpacity: 0.8,
+        shadowRadius: 10,
+        elevation: 10,
       }}
       onPress={() => setSelectedFilter(filter)}
     >
@@ -629,7 +634,14 @@ const NotificationSettingsScreen: React.FC = () => {
           onPress={handleRetry}
           variant='primary'
           size='medium'
-          style={{ marginTop: Spacing[4] }}
+          style={{
+            marginTop: Spacing[4],
+            shadowColor: Colors.gray[900],
+            shadowOffset: { width: 10, height: 20 },
+            shadowOpacity: 0.8,
+            shadowRadius: 10,
+            elevation: 10,
+          }}
         />
       </View>
     );
@@ -808,12 +820,22 @@ const styles = StyleSheet.create({
   },
   quickActionsCard: {
     marginBottom: Spacing[4],
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 10, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   quickActions: {
     justifyContent: 'space-between',
   },
   settingCard: {
     marginBottom: Spacing[4],
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 10, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   settingHeader: {
     flexDirection: 'row',
@@ -878,6 +900,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.vibrant.coral,
     borderRadius: BorderRadius.lg,
     marginTop: Spacing[2],
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 10, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   frequencyInfo: {
     alignItems: 'center',

@@ -179,6 +179,11 @@ const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
               Colors.vibrant?.orange || '#FF6B6B',
             ],
           ),
+          shadow:
+            createPlayfulShadow?.(
+              Colors.shadows?.medium || Colors.gray[400],
+              'heavy',
+            ) || {},
           transparent: false,
           horizontal: false, // This is its own layout now
         };

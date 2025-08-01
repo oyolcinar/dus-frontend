@@ -488,7 +488,14 @@ function HomeScreenContent() {
         <SlideInElement direction='right' delay={400}>
           <PlayfulCard
             title='Genel Performans Özeti'
-            style={{ marginBottom: Spacing[6] }}
+            style={{
+              marginBottom: Spacing[6],
+              shadowColor: Colors.gray[900],
+              shadowOffset: { width: 20, height: 40 },
+              shadowOpacity: 0.9,
+              shadowRadius: 20,
+              elevation: 20,
+            }}
             titleFontFamily='PrimaryFont'
             variant='elevated'
             category={(preferredCourse as any)?.category}
@@ -1693,7 +1700,14 @@ function HomeScreenContent() {
                   courseTitle={preferredCourse.title}
                   category={(preferredCourse as any)?.category}
                   variant='elevated'
-                  style={{ flex: 1 }}
+                  style={{
+                    flex: 1,
+                    shadowColor: Colors.gray[900],
+                    shadowOffset: { width: 10, height: 20 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 10,
+                    elevation: 10,
+                  }}
                   maxWidth='100%'
                 />
               )}
@@ -1740,7 +1754,14 @@ function HomeScreenContent() {
                   }
                   borderGlow
                   animated
-                  style={{ marginBottom: Spacing[2] }}
+                  style={{
+                    marginBottom: Spacing[2],
+                    shadowColor: Colors.gray[900],
+                    shadowOffset: { width: 10, height: 20 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 10,
+                    elevation: 10,
+                  }}
                 />
 
                 <FloatingElement>
@@ -1757,6 +1778,11 @@ function HomeScreenContent() {
                         paddingVertical: Spacing[2],
                         minWidth: 80,
                         justifyContent: 'center',
+                        shadowColor: Colors.gray[900],
+                        shadowOffset: { width: 10, height: 20 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 10,
+                        elevation: 10,
                       }}
                     >
                       <FontAwesome
@@ -1816,7 +1842,14 @@ function HomeScreenContent() {
             <SlideInElement direction='left' delay={200}>
               <PlayfulCard
                 title='Çalışmaya Devam Et'
-                style={{ marginBottom: Spacing[6] }}
+                style={{
+                  marginBottom: Spacing[6],
+                  shadowColor: Colors.gray[900],
+                  shadowOffset: { width: 10, height: 20 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10,
+                }}
                 titleFontFamily='PrimaryFont'
                 variant='elevated'
                 category={(preferredCourse as any)?.category}

@@ -982,6 +982,11 @@ const styles = StyleSheet.create({
   filterCard: {
     margin: Spacing?.[4] || 16,
     marginBottom: Spacing?.[3] || 12,
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 10, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   filterContent: {
     gap: Spacing?.[3] || 12,
@@ -1132,6 +1137,11 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     marginBottom: Spacing?.[4] || 16,
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 10, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   progressContent: {
     gap: Spacing?.[3] || 12,
@@ -1241,5 +1251,10 @@ const styles = StyleSheet.create({
   },
   relatedItemBadge: {
     alignSelf: 'flex-start',
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 10, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
 });

@@ -229,12 +229,7 @@ const NotificationsScreen: React.FC = () => {
           initialNumToRender={15}
           ListHeaderComponent={
             <SlideInElement delay={0}>
-              <PlayfulCard
-                style={styles.headerCard}
-                variant='elevated'
-                animated
-                floatingAnimation
-              >
+              <PlayfulCard style={styles.headerCard} animated floatingAnimation>
                 {/* Title Row */}
                 <Row style={styles.headerRow}>
                   <Column style={{ flex: 1 }}>
@@ -315,6 +310,11 @@ const NotificationsScreen: React.FC = () => {
                       style={{
                         flex: 1,
                         marginRight: unreadCount > 0 ? Spacing[2] : 0,
+                        shadowColor: Colors.gray[900],
+                        shadowOffset: { width: 10, height: 20 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 10,
+                        elevation: 10,
                       }}
                     />
                   )}
@@ -331,6 +331,11 @@ const NotificationsScreen: React.FC = () => {
                       flex: unreadCount > 0 ? 0 : 1,
                       marginLeft: unreadCount > 0 ? Spacing[2] : 0,
                       minWidth: unreadCount > 0 ? 100 : 'auto',
+                      shadowColor: Colors.gray[900],
+                      shadowOffset: { width: 10, height: 20 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 10,
+                      elevation: 10,
                     }}
                   />
                 </Row>
@@ -435,6 +440,11 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     padding: Spacing[1],
     flex: 1,
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 10, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   quickSettingsButton: {
     width: 40,
@@ -444,14 +454,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: Spacing[2],
-    shadowColor: Colors.black,
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 10, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   filterButton: {
     flex: 1,
