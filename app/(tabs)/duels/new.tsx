@@ -1,4 +1,4 @@
-// app/(tabs)/duels/new.tsx - Complete fix with auth + socket integration
+// app/(tabs)/duels/new.tsx - Complete fix with auth + socket integration + context colors + consistent opponent styling
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -59,6 +59,12 @@ import { globalStyles } from '../../../utils/styleUtils';
 // Import auth context
 import { useAuth } from '../../../context/AuthContext';
 
+// Import preferred course context
+import {
+  usePreferredCourse,
+  PreferredCourseProvider,
+} from '../../../context/PreferredCourseContext';
+
 // Socket service imports - handle gracefully if not available
 let challengeBotViaSocket:
   | ((testId: number, difficulty: number) => Promise<void>)
@@ -99,7 +105,8 @@ try {
 type DuelHubTab = 'find' | 'friends' | 'leaderboard' | 'bots';
 type ChallengeStep = 'selectOpponent' | 'selectCourse' | 'confirm';
 
-export default function NewDuelScreen() {
+// Main New Duel Screen Component (wrapped with context)
+function NewDuelScreenContent() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -110,6 +117,19 @@ export default function NewDuelScreen() {
     isLoading: authLoading,
     isSessionValid,
   } = useAuth();
+
+  // Use the preferred course context
+  const {
+    preferredCourse,
+    isLoading: courseLoading,
+    getCourseColor,
+  } = usePreferredCourse();
+
+  // Get the current context color
+  const contextColor =
+    ((preferredCourse as any)?.category &&
+      getCourseColor((preferredCourse as any).category)) ||
+    VIBRANT_COLORS.purple;
 
   // Main state
   const [activeTab, setActiveTab] = useState<DuelHubTab>('find');
@@ -285,6 +305,7 @@ export default function NewDuelScreen() {
         friendsData.map((f: any) => ({
           id: f.friend_id,
           username: f.friend_username || 'Bilinmeyen Kullanıcı',
+          winRate: f.winRate || 0, // Add winRate if available, default to 0
         })),
       );
 
@@ -601,6 +622,7 @@ export default function NewDuelScreen() {
     }
   };
 
+  // Updated FilterButton with context color
   const FilterButton = ({
     filter,
     title,
@@ -617,13 +639,18 @@ export default function NewDuelScreen() {
         borderRadius: BorderRadius.button,
         backgroundColor:
           activeTab === filter
-            ? VIBRANT_COLORS.purple
+            ? contextColor // Use context color for active filter
             : isDark
             ? Colors.white
             : Colors.white,
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: 36,
+        shadowColor: Colors.gray[900],
+        shadowOffset: { width: 10, height: 20 },
+        shadowOpacity: 0.8,
+        shadowRadius: 10,
+        elevation: 10,
       }}
       onPress={() => setActiveTab(filter)}
     >
@@ -678,7 +705,7 @@ export default function NewDuelScreen() {
         case 4:
           return Colors.vibrant.coral;
         case 5:
-          return Colors.vibrant.purple;
+          return contextColor; // Use context color for highest difficulty
         default:
           return Colors.gray[500];
       }
@@ -689,16 +716,15 @@ export default function NewDuelScreen() {
         style={{
           marginBottom: Spacing[3],
           backgroundColor: 'rgba(255,255,255,0.95)',
+          shadowColor: Colors.gray[900],
+          shadowOffset: { width: 10, height: 20 },
+          shadowOpacity: 0.8,
+          shadowRadius: 10,
+          elevation: 10,
         }}
       >
         <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
           <Row style={{ alignItems: 'center', flex: 1 }}>
-            <Avatar
-              size='md'
-              name={bot.avatar}
-              bgColor={getDifficultyColor(bot.difficultyLevel)}
-              style={{ marginRight: Spacing[3] }}
-            />
             <Column style={{ flex: 1 }}>
               <Text
                 style={{
@@ -733,12 +759,6 @@ export default function NewDuelScreen() {
                     fontFamily: 'SecondaryFont-Bold',
                   }}
                 />
-                {/* Show connection status */}
-                {/* <Badge
-                  text={socketConnected ? 'Gerçek Zamanlı' : 'Standart'}
-                  variant={socketConnected ? 'success' : 'warning'}
-                  // style={{ fontSize: 10 }}
-                /> */}
               </Row>
             </Column>
           </Row>
@@ -766,119 +786,61 @@ export default function NewDuelScreen() {
     );
   };
 
-  // Enhanced Auth + Socket status component
-  // const AuthSocketStatus = () => {
-  //   if (!challengeBotViaSocket) return null;
-
-  //   return (
-  //     <View
-  //       style={{
-  //         backgroundColor: 'rgba(255,255,255,0.1)',
-  //         borderRadius: BorderRadius.md,
-  //         padding: Spacing[2],
-  //         marginBottom: Spacing[3],
-  //       }}
-  //     >
-  //       {/* Auth Status */}
-  //       {/* <Row style={{ alignItems: 'center', marginBottom: Spacing[1] }}>
-  //         <View
-  //           style={{
-  //             width: 6,
-  //             height: 6,
-  //             borderRadius: 3,
-  //             backgroundColor: isAuthenticated
-  //               ? Colors.vibrant.mint
-  //               : Colors.vibrant.coral,
-  //             marginRight: Spacing[2],
-  //           }}
-  //         />
-  //         <Text
-  //           style={{
-  //             fontSize: 11,
-  //             color: Colors.white,
-  //             fontFamily: 'SecondaryFont-Regular',
-  //           }}
-  //         >
-  //           Kimlik:{' '}
-  //           {isCheckingAuth
-  //             ? 'Kontrol ediliyor...'
-  //             : isAuthenticated
-  //             ? 'Doğrulandı'
-  //             : 'Doğrulanmadı'}
-  //         </Text>
-  //       </Row> */}
-
-  //       {/* Socket Status */}
-  //       <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-  //         <Row style={{ alignItems: 'center', flex: 1 }}>
-  //           <View
-  //             style={{
-  //               width: 6,
-  //               height: 6,
-  //               borderRadius: 3,
-  //               backgroundColor: socketConnected
-  //                 ? Colors.vibrant.mint
-  //                 : Colors.vibrant.coral,
-  //               marginRight: Spacing[2],
-  //             }}
-  //           />
-  //           <Text
-  //             style={{
-  //               fontSize: 11,
-  //               color: Colors.white,
-  //               fontFamily: 'SecondaryFont-Regular',
-  //             }}
-  //           >
-  //             {isConnectingSocket
-  //               ? 'Bağlanıyor...'
-  //               : socketConnected
-  //               ? 'Gerçek zamanlı'
-  //               : 'Standart mod'}
-  //           </Text>
-  //         </Row>
-
-  //         {!socketConnected &&
-  //           !isConnectingSocket &&
-  //           !isCheckingAuth &&
-  //           isAuthenticated && (
-  //             <TouchableOpacity
-  //               onPress={retrySocketConnection}
-  //               style={{
-  //                 backgroundColor: 'rgba(255,255,255,0.2)',
-  //                 borderRadius: BorderRadius.sm,
-  //                 paddingHorizontal: Spacing[1],
-  //                 paddingVertical: 2,
-  //               }}
-  //             >
-  //               <Text
-  //                 style={{
-  //                   fontSize: 9,
-  //                   color: Colors.white,
-  //                   fontFamily: 'SecondaryFont-Bold',
-  //                 }}
-  //               >
-  //                 Yeniden Bağlan
-  //               </Text>
-  //             </TouchableOpacity>
-  //           )}
-  //       </Row>
-
-  //       {/* Error display */}
-  //       {socketError && (
-  //         <Text
-  //           style={{
-  //             fontSize: 9,
-  //             color: Colors.vibrant.coral,
-  //             fontFamily: 'SecondaryFont-Regular',
-  //             marginTop: 2,
-  //           }}
-  //         >
-  //           {socketError}
-  //         </Text>
-  //       )}
-  //     </View>
-  //   );
-  // };
+  // NEW: Enhanced OpponentListItem with same styling as BotListItem
+  const StyledOpponentListItem = ({ opponent }: { opponent: Opponent }) => {
+    return (
+      <PlayfulCard
+        style={{
+          marginBottom: Spacing[3],
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          shadowColor: Colors.gray[900],
+          shadowOffset: { width: 10, height: 20 },
+          shadowOpacity: 0.8,
+          shadowRadius: 10,
+          elevation: 10,
+        }}
+      >
+        <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+          <Row style={{ alignItems: 'center', flex: 1 }}>
+            <Column style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: 'bold',
+                  color: Colors.gray[800],
+                  fontFamily: 'SecondaryFont-Bold',
+                }}
+              >
+                {opponent.username}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: Colors.gray[600],
+                  fontFamily: 'SecondaryFont-Regular',
+                }}
+              >
+                Kazanma Oranı: {((opponent.winRate || 0) * 100).toFixed(0)}%
+              </Text>
+            </Column>
+          </Row>
+          <Button
+            title={!isAuthenticated ? 'Giriş Gerekli' : 'Meydan Oku'}
+            variant='primary'
+            size='small'
+            onPress={() => handleOpenChallengeModal(opponent)}
+            disabled={!isAuthenticated}
+            style={{
+              backgroundColor: !isAuthenticated
+                ? Colors.gray[500]
+                : Colors.vibrant.coral, // Use vibrant.coral as requested
+            }}
+            textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
+          />
+        </Row>
+      </PlayfulCard>
+    );
+  };
 
   const renderTabContent = () => {
     if (isLoading) {
@@ -890,10 +852,7 @@ export default function NewDuelScreen() {
             padding: Spacing[8],
           }}
         >
-          <ActivityIndicator
-            size='large'
-            color={isDark ? Colors.vibrant.coral : Colors.vibrant.coral}
-          />
+          <ActivityIndicator size='large' color={contextColor} />
           <Text
             style={{
               marginTop: Spacing[3],
@@ -912,7 +871,10 @@ export default function NewDuelScreen() {
         return (
           <>
             <SlideInElement delay={0} key={`${activeTab}-search`}>
-              <UsernameSearch onChallenge={handleOpenChallengeModal} />
+              <UsernameSearch
+                onChallenge={handleOpenChallengeModal}
+                contextColor={contextColor}
+              />
             </SlideInElement>
             <SlideInElement delay={100} key={`${activeTab}-title`}>
               <Text
@@ -920,7 +882,7 @@ export default function NewDuelScreen() {
                   globalStyles.textLg,
                   globalStyles.fontSemibold,
                   {
-                    color: isDark ? Colors.gray[800] : Colors.gray[800],
+                    color: isDark ? Colors.white : Colors.white,
                     marginTop: Spacing[6],
                     marginBottom: Spacing[2],
                     fontFamily: 'SecondaryFont-Bold',
@@ -936,10 +898,7 @@ export default function NewDuelScreen() {
                   key={`${activeTab}-rec-${user.id}`}
                   delay={200 + index * 100}
                 >
-                  <OpponentListItem
-                    user={user}
-                    onChallenge={handleOpenChallengeModal}
-                  />
+                  <StyledOpponentListItem opponent={user} />
                 </SlideInElement>
               ))
             ) : (
@@ -958,10 +917,7 @@ export default function NewDuelScreen() {
               key={`${activeTab}-friend-${user.id}`}
               delay={index * 100}
             >
-              <OpponentListItem
-                user={user}
-                onChallenge={handleOpenChallengeModal}
-              />
+              <StyledOpponentListItem opponent={user} />
             </SlideInElement>
           ))
         ) : (
@@ -983,10 +939,7 @@ export default function NewDuelScreen() {
               key={`${activeTab}-lead-${user.id}`}
               delay={index * 100}
             >
-              <OpponentListItem
-                user={user}
-                onChallenge={handleOpenChallengeModal}
-              />
+              <StyledOpponentListItem opponent={user} />
             </SlideInElement>
           ))
         ) : (
@@ -1001,54 +954,6 @@ export default function NewDuelScreen() {
       case 'bots':
         return bots.length > 0 ? (
           <>
-            {/* Auth + Socket status indicator */}
-            {/* {isAuthenticated && (
-              <SlideInElement delay={0} key={`${activeTab}-socket-status`}>
-                <AuthSocketStatus />
-              </SlideInElement>
-            )} */}
-
-            {/* <SlideInElement delay={50} key={`${activeTab}-bot-title`}>
-              <Text
-                style={[
-                  globalStyles.textLg,
-                  globalStyles.fontSemibold,
-                  {
-                    color: isDark ? Colors.gray[800] : Colors.gray[800],
-                    marginBottom: Spacing[2],
-                    fontFamily: 'SecondaryFont-Bold',
-                  },
-                ]}
-              >
-                Botlara Meydan Oku 🤖
-              </Text>
-              <Paragraph
-                style={{
-                  fontFamily: 'SecondaryFont-Regular',
-                  color: Colors.gray[600],
-                  marginBottom: Spacing[4],
-                }}
-              >
-                Zorluk seviyene göre bot seç ve hemen oynamaya başla!
-                {isAuthenticated
-                  ? socketConnected
-                    ? ' ⚡ Gerçek zamanlı düello aktif!'
-                    : ' 📡 Standart mod aktif.'
-                  : ' 🔒 Giriş yapmanız gerekiyor.'}
-              </Paragraph>
-            </SlideInElement> */}
-
-            {/* Show authentication warning if not authenticated */}
-            {/* {!isAuthenticated && !isCheckingAuth && (
-              <SlideInElement delay={100} key={`${activeTab}-auth-warning`}>
-                <Alert
-                  type='warning'
-                  message='Bot meydan okumak için giriş yapmanız gerekiyor.'
-                  style={{ marginBottom: Spacing[4] }}
-                />
-              </SlideInElement>
-            )} */}
-
             {/* Show bots only if authenticated or checking auth */}
             {(isAuthenticated || isCheckingAuth) &&
               bots.map((bot, index) => (
@@ -1104,7 +1009,7 @@ export default function NewDuelScreen() {
       >
         <View
           style={{
-            backgroundColor: Colors.vibrant.purple,
+            backgroundColor: contextColor, // Use context color for modal background
             padding: Spacing[4],
             minHeight: 300,
           }}
@@ -1243,8 +1148,6 @@ export default function NewDuelScreen() {
             </>
           )}
 
-          {/* REMOVED: Test Selection Step - No longer needed */}
-
           {/* Confirmation Step */}
           {challengeStep === 'confirm' && selectedCourse && (
             <>
@@ -1382,7 +1285,7 @@ export default function NewDuelScreen() {
           justifyContent: 'center',
           alignItems: 'center',
           padding: Spacing[4],
-          backgroundColor: '#A29BFE',
+          backgroundColor: contextColor,
         }}
       >
         <ActivityIndicator size='large' color={Colors.white} />
@@ -1408,7 +1311,7 @@ export default function NewDuelScreen() {
           justifyContent: 'center',
           alignItems: 'center',
           padding: Spacing[4],
-          backgroundColor: '#A29BFE',
+          backgroundColor: contextColor,
         }}
       >
         <Alert
@@ -1422,6 +1325,12 @@ export default function NewDuelScreen() {
           variant='primary'
           onPress={handleRetry}
           icon='refresh'
+          style={{
+            backgroundColor: Colors.white,
+          }}
+          textStyle={{
+            color: contextColor,
+          }}
         />
       </Container>
     );
@@ -1436,8 +1345,8 @@ export default function NewDuelScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={Colors.primary.DEFAULT}
-            colors={[Colors.primary.DEFAULT]}
+            tintColor={contextColor}
+            colors={[contextColor]}
           />
         }
       >
@@ -1453,12 +1362,12 @@ export default function NewDuelScreen() {
                 <PlayfulTitle
                   level={1}
                   gradient='primary'
-                  style={{ fontFamily: 'PrimaryFont', color: 'white' }}
+                  style={{ fontFamily: 'PrimaryFont', color: Colors.gray[900] }}
                 >
                   Yeni Düello ⚔️
                 </PlayfulTitle>
                 <Paragraph
-                  color={isDark ? Colors.gray[100] : Colors.gray[100]}
+                  color={isDark ? Colors.gray[700] : Colors.gray[700]}
                   style={{
                     fontFamily: 'SecondaryFont-Regular',
                   }}
@@ -1468,7 +1377,6 @@ export default function NewDuelScreen() {
                     : 'Meydan okumak için giriş yapın'}
                 </Paragraph>
               </Column>
-              <Avatar size='md' name='⚔️' bgColor={VIBRANT_COLORS.purple} />
             </Row>
           </PlayfulCard>
         </SlideInElement>
@@ -1497,9 +1405,14 @@ export default function NewDuelScreen() {
             <GlassCard
               style={[
                 {
-                  backgroundColor: Colors.vibrant.orangeLight,
+                  backgroundColor: contextColor, // Use context color instead of orangeLight
                   marginBottom: Spacing[4],
                   overflow: 'hidden',
+                  shadowColor: Colors.gray[900],
+                  shadowOffset: { width: 10, height: 20 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10,
                 },
               ]}
               animated
@@ -1518,49 +1431,6 @@ export default function NewDuelScreen() {
           />
         )}
 
-        {/* Enhanced debug info */}
-        {/* {__DEV__ && (
-          <View
-            style={{
-              backgroundColor: 'rgba(0,0,0,0.1)',
-              padding: Spacing[2],
-              borderRadius: BorderRadius.md,
-              marginTop: Spacing[4],
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 10,
-                color: Colors.white,
-                fontFamily: 'SecondaryFont-Regular',
-              }}
-            >
-              🔧 Context: User {contextUser ? '✅' : '❌'} | Valid{' '}
-              {isSessionValid ? '✅' : '❌'} | Loading{' '}
-              {authLoading ? '⏳' : '✅'}
-            </Text>
-            <Text
-              style={{
-                fontSize: 10,
-                color: Colors.white,
-                fontFamily: 'SecondaryFont-Regular',
-              }}
-            >
-              🔧 Local: Auth {isAuthenticated ? '✅' : '❌'} | Socket{' '}
-              {socketConnected ? '✅' : '❌'} | Token {authToken ? '✅' : '❌'}
-            </Text>
-            <Text
-              style={{
-                fontSize: 10,
-                color: Colors.white,
-                fontFamily: 'SecondaryFont-Regular',
-              }}
-            >
-              🔧 Error: {socketError || 'None'}
-            </Text>
-          </View>
-        )} */}
-
         {/* Bottom spacing to ensure content is fully visible */}
         <View style={{ height: Spacing[8] }} />
       </ScrollView>
@@ -1571,10 +1441,21 @@ export default function NewDuelScreen() {
   );
 }
 
+// Main component with context provider
+export default function NewDuelScreen() {
+  return (
+    <PreferredCourseProvider>
+      <NewDuelScreenContent />
+    </PreferredCourseProvider>
+  );
+}
+
 const UsernameSearch = ({
   onChallenge,
+  contextColor,
 }: {
   onChallenge: (user: Opponent) => void;
+  contextColor: string;
 }) => {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
@@ -1613,8 +1494,14 @@ const UsernameSearch = ({
         title='Ara ve Meydan Oku'
         onPress={handleSearch}
         loading={loading}
-        style={{ marginTop: Spacing[2] }}
-        textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
+        style={{
+          marginTop: Spacing[2],
+          backgroundColor: contextColor, // Use context color
+        }}
+        textStyle={{
+          fontFamily: 'SecondaryFont-Bold',
+          color: Colors.white, // Ensure text is white for visibility
+        }}
       />
       {error && (
         <Alert type='error' message={error} style={{ marginTop: Spacing[2] }} />

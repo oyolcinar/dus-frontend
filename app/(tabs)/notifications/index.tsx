@@ -33,8 +33,16 @@ import {
   NotificationBadge,
 } from '../../../components/ui';
 import { Colors, Spacing, BorderRadius } from '../../../constants/theme';
+import {
+  usePreferredCourse,
+  PreferredCourseProvider,
+} from '../../../context/PreferredCourseContext';
 
-const NotificationsScreen: React.FC = () => {
+// Use the theme constants correctly
+const VIBRANT_COLORS = Colors.vibrant;
+
+// Main Notifications Screen Component (wrapped with context)
+function NotificationsScreenContent() {
   const {
     notifications,
     unreadCount,
@@ -49,12 +57,24 @@ const NotificationsScreen: React.FC = () => {
   } = useNotifications();
 
   const { navigateFromNotification } = useNotificationNavigation();
+
+  const {
+    preferredCourse,
+    isLoading: courseLoading,
+    getCourseColor,
+  } = usePreferredCourse();
+
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+
+  // Get the current context color
+  const contextColor =
+    (preferredCourse as any)?.category &&
+    getCourseColor((preferredCourse as any).category);
 
   // Filter notifications based on current filter
   const filteredNotifications = notifications.filter((notification) => {
@@ -113,7 +133,13 @@ const NotificationsScreen: React.FC = () => {
     isActive: boolean;
   }) => (
     <TouchableOpacity
-      style={[styles.filterButton, isActive && styles.activeFilterButton]}
+      style={[
+        styles.filterButton,
+        isActive && {
+          ...styles.activeFilterButton,
+          backgroundColor: contextColor, // Use context color for active filter
+        },
+      ]}
       onPress={() => setFilter(filterType)}
     >
       <Text
@@ -151,7 +177,7 @@ const NotificationsScreen: React.FC = () => {
     if (!isLoading) return null;
     return (
       <View style={styles.loadingFooter}>
-        <ActivityIndicator size='small' color={Colors.primary.DEFAULT} />
+        <ActivityIndicator size='small' color={contextColor} />
       </View>
     );
   };
@@ -195,7 +221,10 @@ const NotificationsScreen: React.FC = () => {
               animated
               icon='refresh'
               size='medium'
-              style={{ marginTop: Spacing[4] }}
+              style={{
+                marginTop: Spacing[4],
+                backgroundColor: contextColor,
+              }}
             />
           </View>
         </View>
@@ -215,8 +244,8 @@ const NotificationsScreen: React.FC = () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[Colors.primary.DEFAULT]}
-              tintColor={Colors.primary.DEFAULT}
+              colors={[contextColor]}
+              tintColor={contextColor}
             />
           }
           onEndReached={loadMoreNotifications}
@@ -229,19 +258,27 @@ const NotificationsScreen: React.FC = () => {
           initialNumToRender={15}
           ListHeaderComponent={
             <SlideInElement delay={0}>
-              <PlayfulCard style={styles.headerCard} animated floatingAnimation>
+              <PlayfulCard
+                style={styles.headerCard}
+                animated
+                floatingAnimation
+                category={(preferredCourse as any)?.category}
+              >
                 {/* Title Row */}
                 <Row style={styles.headerRow}>
                   <Column style={{ flex: 1 }}>
                     <PlayfulTitle
                       level={1}
                       gradient='primary'
-                      style={{ fontFamily: 'PrimaryFont', color: 'white' }}
+                      style={{
+                        fontFamily: 'PrimaryFont',
+                        color: Colors.gray[900],
+                      }}
                     >
                       Bildirimler
                     </PlayfulTitle>
                     <Paragraph
-                      color={isDark ? Colors.gray[100] : Colors.gray[100]}
+                      color={isDark ? Colors.gray[700] : Colors.gray[700]}
                       style={{
                         fontFamily: 'SecondaryFont-Regular',
                       }}
@@ -252,21 +289,17 @@ const NotificationsScreen: React.FC = () => {
                       <Row
                         style={{ alignItems: 'center', marginTop: Spacing[1] }}
                       >
-                        <Feather name='bell' size={16} color={Colors.white} />
+                        <Feather
+                          name='bell'
+                          size={16}
+                          color={Colors.gray[700]}
+                        />
                         <Text style={styles.unreadText}>
                           {unreadCount} yeni bildirim
                         </Text>
                       </Row>
                     )}
                   </Column>
-
-                  {/* Settings Button */}
-                  <TouchableOpacity
-                    style={styles.settingsButton}
-                    onPress={handleNavigateToSettings}
-                  >
-                    <Feather name='settings' size={24} color={Colors.white} />
-                  </TouchableOpacity>
                 </Row>
 
                 {/* Filter Buttons */}
@@ -315,29 +348,10 @@ const NotificationsScreen: React.FC = () => {
                         shadowOpacity: 0.8,
                         shadowRadius: 10,
                         elevation: 10,
+                        backgroundColor: contextColor, // Use context color
                       }}
                     />
                   )}
-
-                  <PlayfulButton
-                    title='Ayarlar'
-                    onPress={handleNavigateToSettings}
-                    variant='outline'
-                    size='medium'
-                    icon='gear'
-                    fontFamily='SecondaryFont-Bold'
-                    animated
-                    style={{
-                      flex: unreadCount > 0 ? 0 : 1,
-                      marginLeft: unreadCount > 0 ? Spacing[2] : 0,
-                      minWidth: unreadCount > 0 ? 100 : 'auto',
-                      shadowColor: Colors.gray[900],
-                      shadowOffset: { width: 10, height: 20 },
-                      shadowOpacity: 0.8,
-                      shadowRadius: 10,
-                      elevation: 10,
-                    }}
-                  />
                 </Row>
               </PlayfulCard>
             </SlideInElement>
@@ -383,10 +397,7 @@ const NotificationsScreen: React.FC = () => {
         {/* Loading state overlay */}
         {isLoading && filteredNotifications.length === 0 && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator
-              size='large'
-              color={Colors.vibrant?.coral || Colors.primary.DEFAULT}
-            />
+            <ActivityIndicator size='large' color={contextColor} />
             <Text style={styles.loadingText}>Bildirimler yükleniyor...</Text>
           </View>
         )}
@@ -395,7 +406,10 @@ const NotificationsScreen: React.FC = () => {
         <SlideInElement delay={1000}>
           <FloatingElement>
             <TouchableOpacity
-              style={styles.floatingSettingsButton}
+              style={[
+                styles.floatingSettingsButton,
+                { backgroundColor: contextColor }, // Use context color
+              ]}
               onPress={handleNavigateToSettings}
             >
               <Feather name='settings' size={24} color={Colors.white} />
@@ -405,7 +419,7 @@ const NotificationsScreen: React.FC = () => {
       </View>
     </GestureHandlerRootView>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -470,7 +484,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   activeFilterButton: {
-    backgroundColor: Colors.vibrant?.purple || Colors.primary.DEFAULT,
+    // backgroundColor will be set dynamically using context color
     shadowColor: Colors.black,
     shadowOffset: {
       width: 0,
@@ -492,7 +506,7 @@ const styles = StyleSheet.create({
     fontFamily: 'SecondaryFont-Bold',
   },
   unreadText: {
-    color: Colors.white,
+    color: Colors.gray[700],
     fontSize: 14,
     fontFamily: 'SecondaryFont-Regular',
     marginLeft: Spacing[1],
@@ -527,7 +541,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.vibrant?.purple || Colors.primary.DEFAULT,
+    // backgroundColor will be set dynamically using context color
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: Colors.black,
@@ -560,5 +574,14 @@ const styles = StyleSheet.create({
     fontFamily: 'SecondaryFont-Regular',
   },
 });
+
+// Main component with context provider
+const NotificationsScreen: React.FC = () => {
+  return (
+    <PreferredCourseProvider>
+      <NotificationsScreenContent />
+    </PreferredCourseProvider>
+  );
+};
 
 export default NotificationsScreen;

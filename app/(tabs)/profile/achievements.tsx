@@ -47,6 +47,10 @@ import {
   type UserAchievement,
   type AchievementProgress,
 } from '../../../src/api/achievementService';
+import {
+  usePreferredCourse,
+  PreferredCourseProvider,
+} from '../../../context/PreferredCourseContext';
 
 // Enhanced achievement interface combining all data sources
 interface EnhancedAchievement extends Achievement {
@@ -58,11 +62,18 @@ interface EnhancedAchievement extends Achievement {
   next_milestone?: string | null;
 }
 
-export default function AchievementScreen() {
+function AchievementScreenContent() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+
+  // Use the preferred course context
+  const {
+    preferredCourse,
+    isLoading: courseLoading,
+    getCourseColor,
+  } = usePreferredCourse();
 
   // Determine if this is list mode or detail mode
   const isListMode = !id;
@@ -88,9 +99,16 @@ export default function AchievementScreen() {
   const [error, setError] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
 
+  // Get the current context color
+  const contextColor =
+    ((preferredCourse as any)?.category &&
+      getCourseColor((preferredCourse as any).category)) ||
+    Colors.vibrant?.purple ||
+    '#702963';
+
   // Safe color fallbacks
   const getHeaderColor = () => {
-    return Colors.primary?.DEFAULT || '#3b82f6';
+    return contextColor;
   };
 
   const getCoralColor = () => {
@@ -124,7 +142,7 @@ export default function AchievementScreen() {
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case 'common':
-        return Colors.gray?.[500] || '#6b7280';
+        return contextColor || '#6b7280';
       case 'uncommon':
         return Colors.vibrant?.green || Colors.success || '#10b981';
       case 'rare':
@@ -338,8 +356,10 @@ export default function AchievementScreen() {
     }
   }, []);
 
-  // Filter achievements
+  // Filter achievements - immediate without delays
   const filterAchievements = useCallback(() => {
+    if (achievements.length === 0) return;
+
     let filtered = [...achievements];
 
     // Filter by category
@@ -418,7 +438,7 @@ export default function AchievementScreen() {
               progress={req.progress}
               height={22}
               width='100%'
-              trackColor={Colors.gray?.[200] || '#e5e7eb'}
+              trackColor={contextColor || '#e5e7eb'}
               progressColor={getRarityColor(
                 progressData.overall_progress >= 100 ? 'legendary' : 'rare',
               )}
@@ -594,43 +614,97 @@ export default function AchievementScreen() {
           style={styles.listContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* Filter Section */}
+          {/* Filter Section - Updated to match the example */}
           <SlideInElement delay={0}>
-            <PlayfulCard style={styles.filterCard} variant='playful' animated>
-              <Column style={styles.filterContent}>
-                <Text style={styles.filterTitle}>Başarılar</Text>
+            <PlayfulCard
+              title='Başarılar'
+              variant='playful'
+              titleFontFamily='PrimaryFont'
+              category={(preferredCourse as any)?.category}
+              style={{
+                margin: Spacing?.[4] || 16,
+                marginBottom: Spacing?.[3] || 12,
+                shadowColor: Colors.gray[900],
+                shadowOffset: { width: 10, height: 20 },
+                shadowOpacity: 0.8,
+                shadowRadius: 10,
+                elevation: 10,
+                backgroundColor: contextColor,
+              }}
+              animated
+              floatingAnimation
+            >
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => setSelectedStatus('all')}
+                  style={[
+                    styles.filterButton,
+                    selectedStatus === 'all'
+                      ? styles.filterButtonActive
+                      : styles.filterButtonInactive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterButtonText,
+                      selectedStatus === 'all'
+                        ? { color: contextColor }
+                        : { color: '#FFFFFF' },
+                    ]}
+                  >
+                    Tümü
+                  </Text>
+                </TouchableOpacity>
 
-                {/* Status Filter */}
-                <Column style={styles.statusFilterContainer}>
-                  <Row style={styles.statusFilterRow}>
-                    {[
-                      { key: 'all', label: 'Tümü' },
-                      { key: 'unlocked', label: 'Tamamlanan' },
-                      { key: 'locked', label: 'Devam Eden' },
-                    ].map((status) => (
-                      <TouchableOpacity
-                        key={status.key}
-                        onPress={() => setSelectedStatus(status.key)}
-                        style={[
-                          styles.statusButton,
-                          selectedStatus === status.key &&
-                            styles.statusButtonActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.statusButtonText,
-                            selectedStatus === status.key &&
-                              styles.statusButtonTextActive,
-                          ]}
-                        >
-                          {status.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </Row>
-                </Column>
-              </Column>
+                <TouchableOpacity
+                  onPress={() => setSelectedStatus('unlocked')}
+                  style={[
+                    styles.filterButton,
+                    { marginHorizontal: 4 },
+                    selectedStatus === 'unlocked'
+                      ? styles.filterButtonActive
+                      : styles.filterButtonInactive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterButtonText,
+                      selectedStatus === 'unlocked'
+                        ? { color: contextColor }
+                        : { color: '#FFFFFF' },
+                    ]}
+                  >
+                    Tamamlanan
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setSelectedStatus('locked')}
+                  style={[
+                    styles.filterButton,
+                    selectedStatus === 'locked'
+                      ? styles.filterButtonActive
+                      : styles.filterButtonInactive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterButtonText,
+                      selectedStatus === 'locked'
+                        ? { color: contextColor }
+                        : { color: '#FFFFFF' },
+                    ]}
+                  >
+                    Devam Eden
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </PlayfulCard>
           </SlideInElement>
 
@@ -660,7 +734,7 @@ export default function AchievementScreen() {
     );
   }
 
-  // Detail Mode Render
+  // Detail Mode Render (rest of the component remains the same)
   return (
     <View style={styles.container}>
       <Stack.Screen
@@ -979,57 +1053,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.primary?.dark || '#1e3a8a',
   },
-  filterCard: {
-    margin: Spacing?.[4] || 16,
-    marginBottom: Spacing?.[3] || 12,
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 10, height: 20 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  filterContent: {
-    gap: Spacing?.[3] || 12,
-  },
-  filterTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.white || '#ffffff',
-    fontFamily: 'PrimaryFont',
-    marginBottom: Spacing?.[2] || 8,
-  },
-  statusFilterContainer: {
-    gap: Spacing?.[2] || 8,
-  },
-  statusFilterRow: {
-    gap: Spacing?.[2] || 8,
-  },
-  statusButton: {
-    flex: 1,
-    paddingVertical: Spacing?.[2] || 8,
-    paddingHorizontal: Spacing?.[2] || 8,
-    borderRadius: BorderRadius?.md || 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    minHeight: 36,
-    justifyContent: 'center',
-  },
-  statusButtonActive: {
-    backgroundColor: Colors.white || '#ffffff',
-    borderColor: Colors.white || '#ffffff',
-  },
-  statusButtonText: {
-    fontSize: 14,
-    color: Colors.white || '#ffffff',
-    fontFamily: 'SecondaryFont-Regular',
-    textAlign: 'center',
-  },
-  statusButtonTextActive: {
-    color: Colors.primary?.dark || '#1e3a8a',
-    fontFamily: 'SecondaryFont-Regular',
-  },
   listContent: {
     paddingHorizontal: Spacing?.[4] || 16,
   },
@@ -1085,6 +1108,32 @@ const styles = StyleSheet.create({
   listItemProgress: {
     marginTop: Spacing?.[2] || 8,
     marginBottom: Spacing?.[1] || 4,
+  },
+
+  // Filter Button Styles - Static to avoid render delays
+  filterButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+  },
+  filterButtonActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  filterButtonInactive: {
+    backgroundColor: 'transparent',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  filterButtonText: {
+    fontSize: 11,
+    fontFamily: 'PrimaryFont',
+    textAlign: 'center',
+    fontWeight: '500',
   },
 
   // Detail Mode Styles
@@ -1258,3 +1307,8 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
 });
+
+// Main component with context provider
+export default function AchievementScreen() {
+  return <AchievementScreenContent />;
+}

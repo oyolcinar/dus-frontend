@@ -32,9 +32,17 @@ import {
   SlideInElement,
   PlayfulTitle,
   EmptyState,
+  CourseSelectionModal, // Import CourseSelectionModal
 } from '../../../components/ui';
 import { Colors, Spacing, FontSizes } from '../../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  usePreferredCourse,
+  PreferredCourseProvider,
+} from '../../../context/PreferredCourseContext';
+
+// Use the theme constants correctly
+const VIBRANT_COLORS = Colors.vibrant;
 
 // Define interface for Achievement since it's not exported from models
 interface Achievement {
@@ -59,11 +67,19 @@ interface DuelStats {
   currentLosingStreak: number;
 }
 
-export default function ProfileScreen() {
+// Main Profile Screen Component (wrapped with context)
+function ProfileScreenContent() {
   const { user, signOut, refreshSession } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+
+  // Use the preferred course context
+  const {
+    preferredCourse,
+    isLoading: courseLoading,
+    getCourseColor,
+  } = usePreferredCourse();
 
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [duelStats, setDuelStats] = useState<DuelStats | null>(null);
@@ -71,6 +87,9 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userData, setUserData] = useState<{ username?: string } | null>(null);
+
+  // Add state for course modal visibility
+  const [showCourseModal, setShowCourseModal] = useState(false);
 
   // Load user data from AsyncStorage
   useEffect(() => {
@@ -297,7 +316,7 @@ export default function ProfileScreen() {
     return 'certificate';
   };
 
-  // Get achievement category color
+  // Get achievement category color - now uses context colors as fallback
   const getAchievementColor = (achievement: Achievement): string => {
     const category = achievement.category?.toLowerCase() || '';
 
@@ -307,11 +326,21 @@ export default function ProfileScreen() {
     if (category.includes('duel'))
       return Colors.vibrant?.orange || Colors.warning;
     if (category.includes('test'))
-      return Colors.vibrant?.purple || Colors.primary.DEFAULT;
+      return (
+        ((preferredCourse as any)?.category &&
+          getCourseColor((preferredCourse as any).category)) ||
+        Colors.vibrant?.purple ||
+        Colors.primary.DEFAULT
+      );
     if (category.includes('streak'))
       return Colors.vibrant?.pink || Colors.error;
 
-    return Colors.vibrant?.yellow || Colors.secondary.DEFAULT;
+    return (
+      ((preferredCourse as any)?.category &&
+        getCourseColor((preferredCourse as any).category)) ||
+      Colors.vibrant?.yellow ||
+      Colors.secondary.DEFAULT
+    );
   };
 
   const handleSignOut = async () => {
@@ -322,6 +351,27 @@ export default function ProfileScreen() {
       console.error('Error signing out:', error);
     }
   };
+
+  // Handler for showing course modal
+  const handleShowCourseModal = () => {
+    setShowCourseModal(true);
+  };
+
+  // Handler for closing course modal
+  const handleCourseModalClose = () => {
+    setShowCourseModal(false);
+  };
+
+  // Handler for course selection
+  const handleCourseSelected = () => {
+    setShowCourseModal(false);
+  };
+
+  // Get the current context color
+  const contextColor =
+    ((preferredCourse as any)?.category &&
+      getCourseColor((preferredCourse as any).category)) ||
+    VIBRANT_COLORS.purple;
 
   // Enhanced error screen with better retry options
   if (error && !loading) {
@@ -368,7 +418,10 @@ export default function ProfileScreen() {
               animated
               icon='refresh'
               size='medium'
-              style={{ width: '100%' }}
+              style={{
+                width: '100%',
+                backgroundColor: contextColor,
+              }}
             />
 
             <PlayfulButton
@@ -393,8 +446,8 @@ export default function ProfileScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={Colors.primary.DEFAULT}
-            colors={[Colors.primary.DEFAULT]}
+            tintColor={contextColor}
+            colors={[contextColor]}
             title='Yenileniyor...'
             titleColor={isDark ? Colors.gray[600] : Colors.gray[600]}
           />
@@ -409,7 +462,7 @@ export default function ProfileScreen() {
               <Avatar
                 name={(user?.username || userData?.username)?.[0] || 'U'}
                 size='xl'
-                bgColor={Colors.white}
+                bgColor={contextColor}
                 gradient='sunset'
                 borderGlow
                 animated
@@ -426,7 +479,7 @@ export default function ProfileScreen() {
               <PlayfulTitle
                 level={1}
                 style={{
-                  color: Colors.white,
+                  color: Colors.gray[900],
                   marginBottom: Spacing[1],
                   fontSize: FontSizes['3xl'],
                   textAlign: 'center',
@@ -437,7 +490,7 @@ export default function ProfileScreen() {
               </PlayfulTitle>
               <Text
                 style={{
-                  color: Colors.white,
+                  color: Colors.gray[700],
                   opacity: 0.9,
                   textAlign: 'center',
                   fontFamily: 'PrimaryFont',
@@ -469,6 +522,7 @@ export default function ProfileScreen() {
                     shadowOpacity: 0.8,
                     shadowRadius: 10,
                     elevation: 10,
+                    backgroundColor: contextColor,
                   }}
                 />
               </View>
@@ -485,10 +539,7 @@ export default function ProfileScreen() {
                 padding: Spacing[8],
               }}
             >
-              <ActivityIndicator
-                size='large'
-                color={isDark ? Colors.vibrant.coral : Colors.vibrant.coral}
-              />
+              <ActivityIndicator size='large' color={contextColor} />
               <Text
                 style={{
                   marginTop: Spacing[4],
@@ -527,29 +578,33 @@ export default function ProfileScreen() {
                       icon='trophy'
                       title='Toplam Düello'
                       value={duelStats.totalDuels.toString()}
-                      color={Colors.secondary?.light || Colors.primary.DEFAULT}
+                      color={Colors.white}
                       size='medium'
                       titleFontFamily='SecondaryFont-Bold'
+                      style={{ backgroundColor: contextColor }}
                     />
                     <StatCard
                       icon='check-circle'
                       title='Kazanılan'
                       value={duelStats.wins.toString()}
-                      color={Colors.vibrant?.green || Colors.success}
+                      color={Colors.white}
                       size='medium'
                       titleFontFamily='SecondaryFont-Bold'
+                      style={{ backgroundColor: contextColor }}
                     />
                     <StatCard
                       icon='fire'
                       title='Kazanma Oranı'
                       value={`${Math.round(duelStats.winRate)}%`}
-                      color={Colors.vibrant?.orange || Colors.warning}
+                      color={Colors.white}
                       size='medium'
                       titleFontFamily='SecondaryFont-Bold'
+                      style={{ backgroundColor: contextColor }}
                     />
                   </Row>
                 </SlideInElement>
               )}
+
               {/* Detailed Stats */}
               {duelStats && (
                 <SlideInElement direction='left' delay={400}>
@@ -557,6 +612,7 @@ export default function ProfileScreen() {
                     titleFontFamily='PrimaryFont'
                     title='Detaylı İstatistikler'
                     variant='playful'
+                    category={(preferredCourse as any)?.category}
                     style={{
                       marginBottom: Spacing[6],
                       shadowColor: Colors.gray[900],
@@ -564,8 +620,10 @@ export default function ProfileScreen() {
                       shadowOpacity: 0.8,
                       shadowRadius: 10,
                       elevation: 10,
+                      backgroundColor: contextColor,
                     }}
                     animated
+                    floatingAnimation
                   >
                     <Row style={{ flexWrap: 'wrap', gap: Spacing[3] }}>
                       <View style={{ flex: 1, minWidth: '45%' }}>
@@ -620,12 +678,14 @@ export default function ProfileScreen() {
                   </PlayfulCard>
                 </SlideInElement>
               )}
+
               {/* Achievements */}
               <SlideInElement direction='right' delay={600}>
                 <PlayfulCard
                   title='Başarılar'
                   titleFontFamily='PrimaryFont'
                   variant='playful'
+                  category={(preferredCourse as any)?.category}
                   style={{
                     marginBottom: Spacing[6],
                     shadowColor: Colors.gray[900],
@@ -633,8 +693,10 @@ export default function ProfileScreen() {
                     shadowOpacity: 0.8,
                     shadowRadius: 10,
                     elevation: 10,
+                    backgroundColor: contextColor,
                   }}
                   animated
+                  floatingAnimation
                 >
                   {achievements.length > 0 ? (
                     <>
@@ -649,9 +711,7 @@ export default function ProfileScreen() {
                           <GlassCard
                             key={achievement.achievement_id}
                             style={{
-                              width: '100%', // Keep full width
-                              // flexDirection: 'row',
-                              // alignItems: 'center', // Centers content vertically
+                              width: '100%',
                               padding: Spacing[3],
                               minHeight: 50,
                             }}
@@ -709,11 +769,6 @@ export default function ProfileScreen() {
                         icon='trophy'
                         animated
                       />
-                      {/* <Badge
-                          text={`${achievements.length} Başarı`}
-                          variant='success'
-                          size='md'
-                        /> */}
                     </>
                   ) : (
                     <EmptyState
@@ -740,11 +795,13 @@ export default function ProfileScreen() {
                   )}
                 </PlayfulCard>
               </SlideInElement>
+
               <SlideInElement direction='right' delay={800}>
                 <PlayfulCard
                   title='Bildirimler'
                   titleFontFamily='PrimaryFont'
                   variant='playful'
+                  category={(preferredCourse as any)?.category}
                   style={{
                     marginBottom: Spacing[6],
                     shadowColor: Colors.gray[900],
@@ -752,8 +809,10 @@ export default function ProfileScreen() {
                     shadowOpacity: 0.8,
                     shadowRadius: 10,
                     elevation: 10,
+                    backgroundColor: contextColor,
                   }}
                   animated
+                  floatingAnimation
                 >
                   <Column style={{ gap: Spacing[2] }}>
                     <PlayfulButton
@@ -769,11 +828,13 @@ export default function ProfileScreen() {
                   </Column>
                 </PlayfulCard>
               </SlideInElement>
+
               <SlideInElement direction='right' delay={1000}>
                 <PlayfulCard
                   title='Arkadaşlar'
                   titleFontFamily='PrimaryFont'
                   variant='playful'
+                  category={(preferredCourse as any)?.category}
                   style={{
                     marginBottom: Spacing[6],
                     shadowColor: Colors.gray[900],
@@ -781,8 +842,10 @@ export default function ProfileScreen() {
                     shadowOpacity: 0.8,
                     shadowRadius: 10,
                     elevation: 10,
+                    backgroundColor: contextColor,
                   }}
                   animated
+                  floatingAnimation
                 >
                   <Column style={{ gap: Spacing[2] }}>
                     <PlayfulButton
@@ -798,6 +861,7 @@ export default function ProfileScreen() {
                   </Column>
                 </PlayfulCard>
               </SlideInElement>
+
               {/* Account Settings */}
               <SlideInElement direction='left' delay={1200}>
                 <PlayfulCard
@@ -805,6 +869,7 @@ export default function ProfileScreen() {
                   variant='playful'
                   gradient='sky'
                   titleFontFamily='PrimaryFont'
+                  category={(preferredCourse as any)?.category}
                   style={{
                     marginBottom: Spacing[6],
                     shadowColor: Colors.gray[900],
@@ -812,13 +877,15 @@ export default function ProfileScreen() {
                     shadowOpacity: 0.8,
                     shadowRadius: 10,
                     elevation: 10,
+                    backgroundColor: contextColor,
                   }}
                   animated
+                  floatingAnimation
                 >
                   <Column style={{ gap: Spacing[2] }}>
                     <PlayfulButton
                       title='Profil Düzenle'
-                      onPress={() => router.push('/edit-profile' as any)}
+                      onPress={handleShowCourseModal} // Changed to show course modal
                       variant='outline'
                       icon='user'
                       fontFamily='SecondaryFont-Bold'
@@ -845,45 +912,15 @@ export default function ProfileScreen() {
                   </Column>
                 </PlayfulCard>
               </SlideInElement>
-              {/* Quick Actions
-              <SlideInElement direction='right' delay={1000}>
-                <PlayfulCard
-                  title='Hızlı İşlemler'
-                  variant='playful'
-                  titleFontFamily='PrimaryFont'
-                  style={{ marginBottom: Spacing[6] }}
-                  animated
-                >
-                  <Row style={{ justifyContent: 'space-between' }}>
-                    <PlayfulButton
-                      title='Test Geçmişi'
-                      onPress={() => router.push('/test-history' as any)}
-                      variant='outline'
-                      style={{ flex: 1 }}
-                      icon='history'
-                      gradient='purple'
-                      fontFamily='PrimaryFont'
-                      size='small'
-                      animated
-                    />
-                    <PlayfulButton
-                      title='Düello Geçmişi'
-                      onPress={() => router.push('/duel-history' as any)}
-                      variant='outline'
-                      style={{ flex: 1 }}
-                      icon='list'
-                      gradient='fire'
-                      fontFamily='PrimaryFont'
-                      size='small'
-                      animated
-                    />
-                  </Row>
-                </PlayfulCard>
-              </SlideInElement> */}
 
               {/* App Info & Sign Out */}
               <SlideInElement direction='up' delay={1400}>
-                <GlassCard style={{ marginBottom: Spacing[6] }}>
+                <GlassCard
+                  style={{
+                    marginBottom: Spacing[6],
+                    backgroundColor: `${contextColor}80`, // Semi-transparent context color
+                  }}
+                >
                   <Column style={{ gap: Spacing[3] }}>
                     <Row
                       style={{
@@ -910,6 +947,7 @@ export default function ProfileScreen() {
                           shadowOpacity: 0.8,
                           shadowRadius: 10,
                           elevation: 10,
+                          backgroundColor: Colors.vibrant.green,
                         }}
                       />
                     </Row>
@@ -929,11 +967,13 @@ export default function ProfileScreen() {
                         shadowOpacity: 0.8,
                         shadowRadius: 10,
                         elevation: 10,
+                        backgroundColor: Colors.vibrant.coral,
                       }}
                     />
                   </Column>
                 </GlassCard>
               </SlideInElement>
+
               {/* Error display at bottom if there's an error but data is loaded */}
               {error && !loading && (achievements.length > 0 || duelStats) && (
                 <Alert
@@ -942,6 +982,7 @@ export default function ProfileScreen() {
                   style={{ marginTop: Spacing[4] }}
                 />
               )}
+
               {/* Retry button at bottom for partial failures */}
               {!loading &&
                 achievements.length === 0 &&
@@ -951,9 +992,7 @@ export default function ProfileScreen() {
                     style={{
                       alignItems: 'center',
                       padding: Spacing[6],
-                      backgroundColor: isDark
-                        ? 'rgba(0,0,0,0.05)'
-                        : 'rgba(0,0,0,0.05)',
+                      backgroundColor: `${contextColor}20`, // Very light context color
                       borderRadius: 12,
                       marginTop: Spacing[4],
                     }}
@@ -961,7 +1000,7 @@ export default function ProfileScreen() {
                     <FontAwesome
                       name='wifi'
                       size={48}
-                      color={Colors.gray[400]}
+                      color={contextColor}
                       style={{ marginBottom: Spacing[3] }}
                     />
                     <Text
@@ -982,6 +1021,9 @@ export default function ProfileScreen() {
                       size='medium'
                       animated
                       icon='refresh'
+                      style={{
+                        backgroundColor: contextColor,
+                      }}
                     />
                   </View>
                 )}
@@ -992,6 +1034,22 @@ export default function ProfileScreen() {
         {/* Bottom spacing to ensure content is fully visible */}
         <View style={{ height: Spacing[8] }} />
       </ScrollView>
+
+      {/* Add Course Selection Modal */}
+      <CourseSelectionModal
+        visible={showCourseModal}
+        onClose={handleCourseModalClose}
+        onCourseSelected={handleCourseSelected}
+      />
     </View>
+  );
+}
+
+// Main component with context provider
+export default function ProfileScreen() {
+  return (
+    <PreferredCourseProvider>
+      <ProfileScreenContent />
+    </PreferredCourseProvider>
   );
 }

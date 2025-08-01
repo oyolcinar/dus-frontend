@@ -39,12 +39,27 @@ import {
 } from '../../../components/ui';
 import { Colors, Spacing, FontSizes } from '../../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  usePreferredCourse,
+  PreferredCourseProvider,
+} from '../../../context/PreferredCourseContext';
 
-export default function DuelsScreen() {
+// Use the theme constants correctly
+const VIBRANT_COLORS = Colors.vibrant;
+
+// Main Duels Screen Component (wrapped with context)
+function DuelsScreenContent() {
   const router = useRouter();
   const { refreshSession } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+
+  // Use the preferred course context
+  const {
+    preferredCourse,
+    isLoading: courseLoading,
+    getCourseColor,
+  } = usePreferredCourse();
 
   const [activeDuels, setActiveDuels] = useState<Duel[]>([]);
   const [userStats, setUserStats] = useState<UserDuelStatsPayload | null>(null); // Add user stats state
@@ -52,6 +67,12 @@ export default function DuelsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userData, setUserData] = useState<{ username?: string } | null>(null);
+
+  // Get the current context color
+  const contextColor =
+    ((preferredCourse as any)?.category &&
+      getCourseColor((preferredCourse as any).category)) ||
+    VIBRANT_COLORS.purple;
 
   // Load user data from AsyncStorage
   useEffect(() => {
@@ -363,7 +384,10 @@ export default function DuelsScreen() {
               animated
               icon='refresh'
               size='medium'
-              style={{ width: '100%' }}
+              style={{
+                width: '100%',
+                backgroundColor: contextColor,
+              }}
             />
 
             <PlayfulButton
@@ -388,8 +412,8 @@ export default function DuelsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={Colors.primary.DEFAULT}
-            colors={[Colors.primary.DEFAULT]}
+            tintColor={contextColor}
+            colors={[contextColor]}
             title='Yenileniyor...'
             titleColor={isDark ? Colors.gray[600] : Colors.gray[600]}
           />
@@ -407,12 +431,12 @@ export default function DuelsScreen() {
                 <PlayfulTitle
                   level={1}
                   gradient='primary'
-                  style={{ fontFamily: 'PrimaryFont', color: 'white' }}
+                  style={{ fontFamily: 'PrimaryFont', color: Colors.gray[900] }}
                 >
                   Düellolar ⚔️
                 </PlayfulTitle>
                 <Paragraph
-                  color={isDark ? Colors.gray[100] : Colors.gray[100]}
+                  color={isDark ? Colors.gray[700] : Colors.gray[700]}
                   style={{
                     fontFamily: 'SecondaryFont-Regular',
                   }}
@@ -432,10 +456,7 @@ export default function DuelsScreen() {
               padding: Spacing[8],
             }}
           >
-            <ActivityIndicator
-              size='large'
-              color={isDark ? Colors.vibrant.coral : Colors.vibrant.coral}
-            />
+            <ActivityIndicator size='large' color={contextColor} />
             <Text
               style={{
                 marginTop: Spacing[4],
@@ -460,7 +481,7 @@ export default function DuelsScreen() {
           </View>
         ) : (
           <>
-            {/* Stats Cards */}
+            {/* Stats Cards - Apply context color */}
             <Row
               style={{
                 justifyContent: 'space-between',
@@ -472,7 +493,7 @@ export default function DuelsScreen() {
                 icon='trophy'
                 title='Aktif Düellolar'
                 value={activeDuels.length.toString()}
-                color={Colors.vibrant?.orange || Colors.secondary.DEFAULT}
+                color={Colors.white}
                 titleFontFamily='SecondaryFont-Bold'
                 style={{
                   shadowColor: Colors.gray[900],
@@ -480,13 +501,14 @@ export default function DuelsScreen() {
                   shadowOpacity: 0.8,
                   shadowRadius: 10,
                   elevation: 10,
+                  backgroundColor: contextColor, // Use context color
                 }}
               />
               <StatCard
                 icon='fire'
                 title='Kazanılan'
                 value={(userStats?.wins || 0).toString()} // Use wins from user stats
-                color={isDark ? Colors.vibrant.yellow : Colors.vibrant.yellow}
+                color={Colors.white}
                 titleFontFamily='SecondaryFont-Bold'
                 style={{
                   shadowColor: Colors.gray[900],
@@ -494,6 +516,7 @@ export default function DuelsScreen() {
                   shadowOpacity: 0.8,
                   shadowRadius: 10,
                   elevation: 10,
+                  backgroundColor: contextColor, // Keep this as yellow for contrast
                 }}
               />
               <StatCard
@@ -502,7 +525,7 @@ export default function DuelsScreen() {
                 value={activeDuels
                   .filter((d) => d.status === 'pending')
                   .length.toString()}
-                color={Colors.vibrant?.mint || Colors.info}
+                color={Colors.white}
                 titleFontFamily='SecondaryFont-Bold'
                 style={{
                   shadowColor: Colors.gray[900],
@@ -510,11 +533,12 @@ export default function DuelsScreen() {
                   shadowOpacity: 0.8,
                   shadowRadius: 10,
                   elevation: 10,
+                  backgroundColor: contextColor, // Keep this as mint for contrast
                 }}
               />
             </Row>
 
-            {/* Create New Duel Button */}
+            {/* Create New Duel Button - Apply context color */}
             <PlayfulButton
               title='Yeni Düello Başlat'
               onPress={() => router.push('/(tabs)/duels/new' as any)}
@@ -528,6 +552,7 @@ export default function DuelsScreen() {
                 shadowOpacity: 0.8,
                 shadowRadius: 10,
                 elevation: 10,
+                backgroundColor: contextColor, // Use context color
               }}
               icon='plus'
               wiggleOnPress
@@ -557,9 +582,7 @@ export default function DuelsScreen() {
                           <Avatar
                             name={getOpponentAvatarInitial(duel)}
                             size='lg'
-                            bgColor={
-                              Colors.vibrant?.purple || Colors.primary.DEFAULT
-                            }
+                            bgColor={contextColor} // Use context color for avatar
                             style={{ marginRight: Spacing[3] }}
                             borderGlow
                             animated
@@ -615,11 +638,12 @@ export default function DuelsScreen() {
               </PlayfulCard>
             )}
 
-            {/* Quick Actions */}
+            {/* Quick Actions - Apply context color to background */}
             <PlayfulCard
               title='Hızlı İşlemler'
               variant='playful'
               titleFontFamily='PrimaryFont'
+              category={(preferredCourse as any)?.category}
               style={{
                 marginTop: Spacing[6],
                 shadowColor: Colors.gray[900],
@@ -627,8 +651,10 @@ export default function DuelsScreen() {
                 shadowOpacity: 0.8,
                 shadowRadius: 10,
                 elevation: 10,
+                backgroundColor: contextColor, // Use context color
               }}
               animated
+              floatingAnimation
             >
               <Row style={{ justifyContent: 'space-between' }}>
                 <PlayfulButton
@@ -669,9 +695,7 @@ export default function DuelsScreen() {
                 style={{
                   alignItems: 'center',
                   padding: Spacing[6],
-                  backgroundColor: isDark
-                    ? 'rgba(0,0,0,0.05)'
-                    : 'rgba(0,0,0,0.05)',
+                  backgroundColor: `${contextColor}20`, // Very light context color
                   borderRadius: 12,
                   marginTop: Spacing[4],
                 }}
@@ -679,7 +703,7 @@ export default function DuelsScreen() {
                 <FontAwesome
                   name='wifi'
                   size={48}
-                  color={Colors.gray[400]}
+                  color={contextColor}
                   style={{ marginBottom: Spacing[3] }}
                 />
                 <Text
@@ -700,6 +724,9 @@ export default function DuelsScreen() {
                   size='medium'
                   animated
                   icon='refresh'
+                  style={{
+                    backgroundColor: contextColor,
+                  }}
                 />
               </View>
             )}
@@ -710,5 +737,14 @@ export default function DuelsScreen() {
         <View style={{ height: Spacing[8] }} />
       </ScrollView>
     </View>
+  );
+}
+
+// Main component with context provider
+export default function DuelsScreen() {
+  return (
+    <PreferredCourseProvider>
+      <DuelsScreenContent />
+    </PreferredCourseProvider>
   );
 }

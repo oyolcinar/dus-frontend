@@ -531,7 +531,14 @@ function HomeScreenContent() {
         <SlideInElement direction='right' delay={400}>
           <PlayfulCard
             title='Genel Performans Özeti'
-            style={{ marginBottom: Spacing[6] }}
+            style={{
+              marginBottom: Spacing[6],
+              shadowColor: Colors.gray[900],
+              shadowOffset: { width: 20, height: 40 },
+              shadowOpacity: 0.9,
+              shadowRadius: 20,
+              elevation: 20,
+            }}
             titleFontFamily='PrimaryFont'
             variant='elevated'
             category={(preferredCourse as any)?.category}
@@ -555,7 +562,14 @@ function HomeScreenContent() {
       <SlideInElement direction='right' delay={400}>
         <PlayfulCard
           title='Genel Performans Özeti'
-          style={{ marginBottom: Spacing[6] }}
+          style={{
+            marginBottom: Spacing[6],
+            shadowColor: Colors.gray[900],
+            shadowOffset: { width: 20, height: 40 },
+            shadowOpacity: 0.9,
+            shadowRadius: 20,
+            elevation: 20,
+          }}
           titleFontFamily='PrimaryFont'
           variant='elevated'
           category={(preferredCourse as any)?.category}

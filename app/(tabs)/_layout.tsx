@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { useColorScheme, View, Text } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Video, ResizeMode } from 'expo-av';
+import { usePreferredCourse } from '../../context/PreferredCourseContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -23,32 +25,6 @@ function VideoTabIcon({ color, focused }: { color: string; focused: boolean }) {
         alignItems: 'center',
       }}
     >
-      {/* Custom title above the video button */}
-      {/* <View
-        style={{
-          position: 'absolute',
-          bottom: -22, // Position above the video button
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1001,
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 10,
-            fontWeight: '600',
-            color: focused ? '#FF7675' : color,
-            textAlign: 'center',
-            paddingHorizontal: 4,
-            paddingVertical: 8,
-            borderRadius: 8,
-            overflow: 'hidden',
-          }}
-        >
-          Düellolar
-        </Text>
-      </View> */}
-
       {/* The actual floating video button */}
       <View
         style={{
@@ -112,11 +88,44 @@ function VideoTabIcon({ color, focused }: { color: string; focused: boolean }) {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { preferredCourse, getCourseColor, isLoading } = usePreferredCourse();
+  const [activeColor, setActiveColor] = useState<string>('#FF7675'); // Default color
+
+  // Function to check AsyncStorage directly for fastest possible color
+  const checkStoredCourse = async () => {
+    try {
+      const storedCourse = await AsyncStorage.getItem('selectedCourse');
+      if (storedCourse) {
+        const parsedCourse = JSON.parse(storedCourse);
+        if (parsedCourse.category) {
+          const courseColor = getCourseColor(parsedCourse.category);
+          console.log('Tab color from AsyncStorage:', courseColor);
+          setActiveColor(courseColor);
+        }
+      }
+    } catch (error) {
+      console.error('Error reading course from AsyncStorage:', error);
+    }
+  };
+
+  // First, try to get color from AsyncStorage (fastest)
+  useEffect(() => {
+    checkStoredCourse();
+  }, []);
+
+  // Then, update from context when it's ready
+  useEffect(() => {
+    if (!isLoading && preferredCourse?.category) {
+      const courseColor = getCourseColor(preferredCourse.category);
+      console.log('Tab color from context:', courseColor);
+      setActiveColor(courseColor);
+    }
+  }, [preferredCourse, isLoading, getCourseColor]);
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colorScheme === 'dark' ? '#FF7675' : '#FF7675',
+        tabBarActiveTintColor: activeColor, // Use the dynamic active color
         headerShown: false,
         tabBarStyle: {
           backgroundColor: colorScheme === 'dark' ? '#FFFFFF' : '#FFFFFF',

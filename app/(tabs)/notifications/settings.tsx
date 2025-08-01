@@ -673,12 +673,12 @@ const NotificationSettingsScreen: React.FC = () => {
                 <PlayfulTitle
                   level={1}
                   gradient='primary'
-                  style={{ fontFamily: 'PrimaryFont', color: 'white' }}
+                  style={{ fontFamily: 'PrimaryFont', color: Colors.gray[900] }}
                 >
                   Bildirim Ayarları
                 </PlayfulTitle>
                 <Paragraph
-                  color={isDark ? Colors.gray[100] : Colors.gray[100]}
+                  color={isDark ? Colors.gray[700] : Colors.gray[700]}
                   style={{
                     fontFamily: 'SecondaryFont-Regular',
                   }}
@@ -813,7 +813,7 @@ const styles = StyleSheet.create({
   },
   deviceTokenText: {
     marginTop: Spacing[2],
-    color: Colors.white,
+    color: Colors.gray[700],
     fontSize: 12,
     fontFamily: 'SecondaryFont-Regular',
     opacity: 0.8,
