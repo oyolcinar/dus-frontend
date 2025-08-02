@@ -101,10 +101,8 @@ function AchievementScreenContent() {
 
   // Get the current context color
   const contextColor =
-    ((preferredCourse as any)?.category &&
-      getCourseColor((preferredCourse as any).category)) ||
-    Colors.vibrant?.purple ||
-    '#702963';
+    (preferredCourse as any)?.category &&
+    getCourseColor((preferredCourse as any).category);
 
   // Safe color fallbacks
   const getHeaderColor = () => {

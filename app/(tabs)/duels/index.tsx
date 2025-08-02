@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   useColorScheme,
   RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -20,7 +21,6 @@ import { checkAndRefreshSession } from '../../../src/api/authService';
 import { Duel } from '../../../src/types/models';
 import {
   PlayfulCard,
-  GameCard,
   PlayfulButton,
   EmptyState,
   Avatar,
@@ -70,9 +70,8 @@ function DuelsScreenContent() {
 
   // Get the current context color
   const contextColor =
-    ((preferredCourse as any)?.category &&
-      getCourseColor((preferredCourse as any).category)) ||
-    VIBRANT_COLORS.purple;
+    (preferredCourse as any)?.category &&
+    getCourseColor((preferredCourse as any).category);
 
   // Load user data from AsyncStorage
   useEffect(() => {
@@ -291,51 +290,96 @@ function DuelsScreenContent() {
     return displayName.charAt(0).toUpperCase();
   };
 
+  // Helper function to get course name from duel
+  const getDuelCourseName = (duel: Duel): string => {
+    // Try different possible course name properties
+    if ((duel as any).course_name) {
+      return (duel as any).course_name;
+    }
+    if ((duel as any).course_title) {
+      return (duel as any).course_title;
+    }
+    if ((duel as any).subject) {
+      return (duel as any).subject;
+    }
+    if ((duel as any).category) {
+      return (duel as any).category;
+    }
+    if ((duel as any).course) {
+      return (duel as any).course;
+    }
+    if ((duel as any).topic) {
+      return (duel as any).topic;
+    }
+    // Fallback to default
+    return 'Tıp Bilgisi Düellosu';
+  };
+
   // Render badge for duel status
   const renderDuelStatusBadge = (status?: string) => {
     if (status === 'pending') {
-      return <Badge text='Bekliyor' variant='info' size='sm' />;
+      return (
+        <Badge
+          text='Bekliyor'
+          variant='info'
+          size='md'
+          fontFamily='SecondaryFont-Bold'
+        />
+      );
     } else if (status === 'active') {
-      return <Badge text='Senin Sıran' variant='warning' size='sm' />;
+      return (
+        <Badge
+          text='Senin Sıran'
+          variant='warning'
+          size='md'
+          fontFamily='SecondaryFont-Bold'
+        />
+      );
     } else if (status === 'completed') {
-      return <Badge text='Tamamlandı' variant='success' size='sm' />;
+      return (
+        <Badge
+          text='Tamamlandı'
+          variant='success'
+          size='md'
+          fontFamily='SecondaryFont-Bold'
+        />
+      );
     }
     return null;
   };
 
-  // Get status-specific properties for GameCard
+  // Get PlayfulCard variant and props based on duel status
   const getDuelCardProps = (duel: Duel) => {
     const status = duel.status;
 
     if (status === 'active') {
       return {
-        status: 'active' as const,
+        variant: 'playful' as const,
         animated: true,
         pulseEffect: true,
-        icon: 'sword' as any, // This will fallback to 'gamepad' in GameCard
-        onPlay: () => router.push(`/(tabs)/duels/${duel.duel_id}` as any),
+        borderGlow: true,
       };
     } else if (status === 'completed') {
       return {
-        status: 'completed' as const,
+        variant: 'elevated' as const,
         animated: false,
-        icon: 'check-circle' as any,
-        onPlay: () => router.push(`/(tabs)/duels/${duel.duel_id}` as any),
+        pulseEffect: false,
+        borderGlow: false,
       };
     } else if (status === 'pending') {
       return {
-        status: 'waiting' as const,
+        variant: 'glass' as const,
         animated: false,
-        icon: 'clock' as any,
-        onPlay: () => router.push(`/(tabs)/duels/${duel.duel_id}` as any),
+        pulseEffect: false,
+        borderGlow: false,
       };
     }
 
     return {
-      status: 'waiting' as const,
+      variant: 'default' as const,
       animated: false,
-      icon: 'gamepad' as any,
-      onPlay: () => router.push(`/(tabs)/duels/${duel.duel_id}` as any),
+      pulseEffect: false,
+      borderGlow: false,
     };
   };
 
@@ -564,55 +608,69 @@ function DuelsScreenContent() {
                   const cardProps = getDuelCardProps(duel);
 
                   return (
-                    <GameCard
+                    <TouchableOpacity
                       key={duel.duel_id}
-                      title={getOpponentDisplayName(duel)}
-                      playerName={`vs ${getOpponentDisplayName(duel)}`}
-                      gameType='Tıp Bilgisi Düellosu'
-                      style={{ marginBottom: Spacing[4] }}
-                      {...cardProps}
+                      onPress={() =>
+                        router.push(`/(tabs)/duels/${duel.duel_id}` as any)
+                      }
+                      activeOpacity={0.8}
                     >
-                      <Row
+                      <PlayfulCard
+                        title={`${getOpponentDisplayName(duel)} ile Düello`}
+                        titleFontFamily='PrimaryFont'
+                        category={(preferredCourse as any)?.category}
                         style={{
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
+                          marginBottom: Spacing[4],
+                          backgroundColor: contextColor,
                         }}
+                        {...cardProps}
                       >
-                        <Row style={{ alignItems: 'center', flex: 1 }}>
-                          <Avatar
-                            name={getOpponentAvatarInitial(duel)}
-                            size='lg'
-                            bgColor={contextColor} // Use context color for avatar
-                            style={{ marginRight: Spacing[3] }}
-                            borderGlow
-                            animated
-                          />
-                          <Column style={{ flex: 1 }}>
-                            <Title
-                              level={3}
-                              style={{
-                                color: Colors.white,
-                                marginBottom: Spacing[1],
-                              }}
-                            >
-                              {getOpponentDisplayName(duel)}
-                            </Title>
-                            {renderDuelStatusBadge(duel.status)}
-                          </Column>
-                        </Row>
+                        <Row
+                          style={{
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                          }}
+                        >
+                          <Row style={{ alignItems: 'center', flex: 1 }}>
+                            <Column style={{ flex: 1 }}>
+                              <Title
+                                level={3}
+                                style={{
+                                  color: Colors.white,
+                                  marginBottom: Spacing[1],
+                                  fontFamily: 'SecondaryFont-Bold',
+                                }}
+                              >
+                                {getOpponentDisplayName(duel)}
+                              </Title>
+                              <Text
+                                style={{
+                                  color: Colors.white,
+                                  opacity: 0.8,
+                                  fontSize: FontSizes.sm,
+                                  fontFamily: 'SecondaryFont-Regular',
+                                  marginBottom: Spacing[1],
+                                }}
+                              >
+                                {getDuelCourseName(duel)}
+                              </Text>
+                              {renderDuelStatusBadge(duel.status)}
+                            </Column>
+                          </Row>
 
-                        {/* Score Display if available */}
-                        {(duel as any).your_score !== undefined && (
-                          <ScoreDisplay
-                            score={(duel as any).your_score || 0}
-                            maxScore={(duel as any).max_score || 100}
-                            variant='gradient'
-                            size='small'
-                            animated
-                          />
-                        )}
-                      </Row>
-                    </GameCard>
+                          {/* Score Display if available */}
+                          {(duel as any).your_score !== undefined && (
+                            <ScoreDisplay
+                              score={(duel as any).your_score || 0}
+                              maxScore={(duel as any).max_score || 100}
+                              variant='gradient'
+                              size='small'
+                              animated
+                            />
+                          )}
+                        </Row>
+                      </PlayfulCard>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -659,9 +717,13 @@ function DuelsScreenContent() {
               <Row style={{ justifyContent: 'space-between' }}>
                 <PlayfulButton
                   title='Tüm Düellolar'
-                  onPress={() => router.push('/(tabs)/duels/all' as any)}
+                  onPress={() => router.push('/(tabs)/duels/history' as any)}
                   variant='outline'
-                  style={{ flex: 1 }}
+                  style={{
+                    flex: 1,
+                    marginRight: Spacing[2],
+                    borderColor: Colors.white,
+                  }}
                   icon='list'
                   animated
                   size='xs'
@@ -671,7 +733,11 @@ function DuelsScreenContent() {
                   title='Düello Geçmişi'
                   onPress={() => router.push('/(tabs)/duels/history' as any)}
                   variant='outline'
-                  style={{ flex: 1 }}
+                  style={{
+                    flex: 1,
+                    marginLeft: Spacing[2],
+                    borderColor: Colors.white,
+                  }}
                   icon='history'
                   animated
                   size='xs'

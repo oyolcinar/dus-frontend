@@ -506,9 +506,8 @@ function HomeScreenContent() {
               <ActivityIndicator
                 size='small'
                 color={
-                  ((preferredCourse as any)?.category &&
-                    getCourseColor((preferredCourse as any).category)) ||
-                  Colors.primary.DEFAULT
+                  (preferredCourse as any)?.category &&
+                  getCourseColor((preferredCourse as any).category)
                 }
               />
               <Text
@@ -1688,8 +1687,14 @@ function HomeScreenContent() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={Colors.primary.DEFAULT}
-            colors={[Colors.primary.DEFAULT]}
+            tintColor={
+              (preferredCourse as any)?.category &&
+              getCourseColor((preferredCourse as any).category)
+            }
+            colors={[
+              (preferredCourse as any)?.category &&
+                getCourseColor((preferredCourse as any).category),
+            ]}
             title='Yenileniyor...'
             titleColor={isDark ? Colors.gray[600] : Colors.gray[600]}
           />
@@ -1762,9 +1767,8 @@ function HomeScreenContent() {
                   name={userData?.username?.charAt(0).toUpperCase() || 'Ö'}
                   size='lg'
                   bgColor={
-                    ((preferredCourse as any)?.category &&
-                      getCourseColor((preferredCourse as any).category)) ||
-                    VIBRANT_COLORS.purple
+                    (preferredCourse as any)?.category &&
+                    getCourseColor((preferredCourse as any).category)
                   }
                   borderGlow
                   animated
@@ -1837,7 +1841,10 @@ function HomeScreenContent() {
           >
             <ActivityIndicator
               size='large'
-              color={isDark ? Colors.vibrant.coral : Colors.vibrant.coral}
+              color={
+                (preferredCourse as any)?.category &&
+                getCourseColor((preferredCourse as any).category)
+              }
             />
             <Text
               style={{
@@ -1982,11 +1989,8 @@ function HomeScreenContent() {
                           <ActivityIndicator
                             size='small'
                             color={
-                              ((preferredCourse as any)?.category &&
-                                getCourseColor(
-                                  (preferredCourse as any).category,
-                                )) ||
-                              Colors.primary.DEFAULT
+                              (preferredCourse as any)?.category &&
+                              getCourseColor((preferredCourse as any).category)
                             }
                           />
                           <Text
@@ -2076,11 +2080,10 @@ function HomeScreenContent() {
                               height: 40,
                               borderRadius: 20,
                               backgroundColor:
-                                ((preferredCourse as any)?.category &&
-                                  getCourseColor(
-                                    (preferredCourse as any).category,
-                                  )) ||
-                                VIBRANT_COLORS.purple,
+                                (preferredCourse as any)?.category &&
+                                getCourseColor(
+                                  (preferredCourse as any).category,
+                                ),
                               alignItems: 'center',
                               justifyContent: 'center',
                               marginRight: Spacing[3],
@@ -2130,11 +2133,10 @@ function HomeScreenContent() {
                               width='100%'
                               trackColor={isDark ? Colors.white : Colors.white}
                               progressColor={
-                                ((preferredCourse as any)?.category &&
-                                  getCourseColor(
-                                    (preferredCourse as any).category,
-                                  )) ||
-                                VIBRANT_COLORS.purple
+                                (preferredCourse as any)?.category &&
+                                getCourseColor(
+                                  (preferredCourse as any).category,
+                                )
                               }
                               style={{ borderRadius: 4 }}
                               animated

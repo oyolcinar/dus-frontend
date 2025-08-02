@@ -327,10 +327,8 @@ function ProfileScreenContent() {
       return Colors.vibrant?.orange || Colors.warning;
     if (category.includes('test'))
       return (
-        ((preferredCourse as any)?.category &&
-          getCourseColor((preferredCourse as any).category)) ||
-        Colors.vibrant?.purple ||
-        Colors.primary.DEFAULT
+        (preferredCourse as any)?.category &&
+        getCourseColor((preferredCourse as any).category)
       );
     if (category.includes('streak'))
       return Colors.vibrant?.pink || Colors.error;

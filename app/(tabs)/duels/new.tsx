@@ -127,9 +127,8 @@ function NewDuelScreenContent() {
 
   // Get the current context color
   const contextColor =
-    ((preferredCourse as any)?.category &&
-      getCourseColor((preferredCourse as any).category)) ||
-    VIBRANT_COLORS.purple;
+    (preferredCourse as any)?.category &&
+    getCourseColor((preferredCourse as any).category);
 
   // Main state
   const [activeTab, setActiveTab] = useState<DuelHubTab>('find');
