@@ -6,6 +6,7 @@ import { User, AuthResponse } from '../types/models';
 
 // Achievement integration
 import { triggerAchievementCheck } from './achievementService';
+import { router } from 'expo-router';
 
 // This is a standard part of Expo's OAuth flow, keep it.
 WebBrowser.maybeCompleteAuthSession();
@@ -55,7 +56,7 @@ function normalizeUser(apiUser: any): User {
   };
 }
 
-// Enhanced token validation using your actual /me endpoint
+// SIMPLIFIED: Just check if token exists - let API calls handle validation
 export async function isTokenValid(): Promise<boolean> {
   try {
     const token = await AsyncStorage.getItem('userToken');
@@ -64,75 +65,36 @@ export async function isTokenValid(): Promise<boolean> {
       return false;
     }
 
-    // First try to decode the token to check expiration (quick check)
-    try {
-      const parts = token.split('.');
-      if (parts.length === 3) {
-        const payload = JSON.parse(atob(parts[1]));
-        const currentTime = Math.floor(Date.now() / 1000);
-
-        // If token expires within the next 5 minutes, consider it invalid
-        if (payload.exp && payload.exp < currentTime + 300) {
-          console.log('Token is expired or expiring soon');
-          return false;
-        }
-      }
-    } catch (e) {
-      // If we can't decode JWT, we'll test with API call below
-      console.log('Could not decode token, will test with API call');
-    }
-
-    // Test token with your actual /me endpoint
-    try {
-      await apiRequest('/auth/me', 'GET');
-      console.log('Token validated successfully via /auth/me');
-      return true;
-    } catch (apiError) {
-      console.log('Token validation failed via /auth/me:', apiError);
-      return false;
-    }
+    // Don't make API calls here - just check if token exists
+    // API calls will handle 401s and redirect to login if needed
+    console.log('Token exists in storage');
+    return true;
   } catch (error) {
     console.error('Error checking token validity:', error);
     return false;
   }
 }
 
-// FIXED session check that doesn't create loops
+// SIMPLIFIED: Just check if token exists - don't try to refresh
 export async function checkAndRefreshSession(): Promise<boolean> {
   try {
     const token = await AsyncStorage.getItem('userToken');
     if (!token) {
       console.log('No token found during session check');
+      router.replace('/(auth)/login');
       return false;
     }
 
-    // Check if token is valid
-    const tokenValid = await isTokenValid();
-    if (tokenValid) {
-      console.log('Session is valid');
-      return true;
-    }
-
-    console.log('Token invalid, attempting refresh...');
-
-    // Try to refresh the token
-    try {
-      await refreshAuthToken();
-      console.log('Session refreshed successfully');
-      return true;
-    } catch (error) {
-      console.error('Session refresh failed:', error);
-      // Clear invalid tokens
-      await logout();
-      return false;
-    }
+    // Token exists, assume it's valid until an API call says otherwise
+    console.log('Session token exists');
+    return true;
   } catch (error) {
     console.error('Error checking session:', error);
     return false;
   }
 }
 
-// Simple wrapper function to handle API requests with better error messages
+// Simple wrapper function with better error messages
 export async function safeApiRequest<T>(
   endpoint: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
@@ -143,9 +105,10 @@ export async function safeApiRequest<T>(
   } catch (error) {
     console.error(`API request failed for ${endpoint}:`, error);
 
-    // Enhance error messages for better user experience
     if (error instanceof ApiError) {
       if (error.status === 401) {
+        // For infinite tokens, 401 means user needs to login again
+        await logout();
         throw new Error('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
       } else if (error.status === 403) {
         throw new Error('Bu işlem için yetkiniz bulunmuyor.');
@@ -181,24 +144,26 @@ export async function login(
       throw new Error('Geçersiz giriş yanıtı sunucudan alındı');
     }
     const user: User = normalizeUser(apiData.user);
+
+    // Store the infinite token
     await AsyncStorage.setItem('userToken', apiData.session.access_token);
     await AsyncStorage.setItem('authToken', apiData.session.access_token);
+
+    // Only store refresh token if provided (for backward compatibility)
     if (apiData.session.refresh_token) {
       await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
     }
+
     await AsyncStorage.setItem('userData', JSON.stringify(user));
     console.log('Login successful, user data stored');
 
-    // ENHANCED: Check for daily login achievements (optional)
+    // Achievement check for login
     try {
-      // You can add achievement checking for login streaks or daily login bonuses
-      // For now, we'll skip this to avoid overwhelming the user on every login
       console.log(
         'User logged in successfully - achievement check skipped for login',
       );
     } catch (achievementError) {
       console.error('Achievement check failed after login:', achievementError);
-      // Don't throw - achievement check failure shouldn't break login
     }
 
     return {
@@ -224,7 +189,6 @@ export async function login(
   }
 }
 
-// ENHANCED: Register function with achievement integration
 export async function register(
   username: string,
   email: string,
@@ -241,20 +205,22 @@ export async function register(
       throw new Error('Geçersiz kayıt yanıtı sunucudan alındı');
     }
     const user: User = normalizeUser(apiData.user);
+
+    // Store the infinite token
     await AsyncStorage.setItem('userToken', apiData.session.access_token);
     await AsyncStorage.setItem('authToken', apiData.session.access_token);
+
     if (apiData.session.refresh_token) {
       await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
     }
+
     await AsyncStorage.setItem('userData', JSON.stringify(user));
     console.log('Registration successful, user data stored');
 
-    // ENHANCED: Check for registration achievement (should award "Acemi Dusiyer")
+    // Achievement check for registration
     let achievementCheck = null;
     try {
       console.log('🎉 Checking achievements after user registration');
-
-      // Give the backend a moment to process the registration
       setTimeout(async () => {
         try {
           achievementCheck = await triggerAchievementCheck('user_registered');
@@ -262,7 +228,6 @@ export async function register(
             'Registration achievement check result:',
             achievementCheck,
           );
-
           if (achievementCheck?.newAchievements > 0) {
             console.log(
               `🎉 New user earned ${achievementCheck.newAchievements} achievement(s) on registration!`,
@@ -271,7 +236,7 @@ export async function register(
         } catch (error) {
           console.error('Achievement check failed after registration:', error);
         }
-      }, 2000); // 2 second delay to ensure user is fully registered and indexed
+      }, 2000);
     } catch (error) {
       console.error(
         'Achievement check setup failed after registration:',
@@ -283,7 +248,7 @@ export async function register(
       user,
       token: apiData.session.access_token,
       refreshToken: apiData.session.refresh_token || null,
-      achievementCheck, // This will be null initially but set asynchronously
+      achievementCheck,
     };
   } catch (error) {
     console.error('Registration service error:', error);
@@ -318,7 +283,12 @@ export async function logout(): Promise<void> {
     isRefreshing = false;
     refreshPromise = null;
 
-    await AsyncStorage.multiRemove(['userToken', 'refreshToken', 'userData']);
+    await AsyncStorage.multiRemove([
+      'userToken',
+      'refreshToken',
+      'userData',
+      'authToken',
+    ]);
     console.log('User tokens and data cleared from AsyncStorage.');
   }
 }
@@ -352,7 +322,7 @@ export async function requestPasswordReset(
         throw new Error('Bu e-posta adresiyle kayıtlı kullanıcı bulunamadı.');
       } else if (error.status === 429) {
         throw new Error(
-          'Çok fazla şifre sıfırlama talebi gönderdينiz. Lütfen daha sonra tekrar deneyin.',
+          'Çok fazla şifre sıfırlama talebi gönderdินiz. Lütfen daha sonra tekrar deneyin.',
         );
       }
       throw error;
@@ -365,36 +335,8 @@ export async function requestPasswordReset(
   }
 }
 
-// FIXED refresh token function with better error handling and loop prevention
+// OPTIONAL: Simple refresh token function (only call when explicitly needed)
 export async function refreshAuthToken(): Promise<{
-  token: string;
-  refreshToken: string | null;
-}> {
-  // Prevent multiple simultaneous refresh attempts
-  if (isRefreshing && refreshPromise) {
-    console.log('Token refresh already in progress, waiting...');
-    return refreshPromise;
-  }
-
-  isRefreshing = true;
-  refreshPromise = performTokenRefresh();
-
-  try {
-    const result = await refreshPromise;
-    console.log('Token refresh completed successfully');
-    return result;
-  } catch (error) {
-    console.error('Token refresh failed, clearing tokens:', error);
-    // Clear tokens on refresh failure to prevent loops
-    await AsyncStorage.multiRemove(['userToken', 'refreshToken', 'userData']);
-    throw error;
-  } finally {
-    isRefreshing = false;
-    refreshPromise = null;
-  }
-}
-
-async function performTokenRefresh(): Promise<{
   token: string;
   refreshToken: string | null;
 }> {
@@ -410,7 +352,7 @@ async function performTokenRefresh(): Promise<{
       '/auth/refresh-token',
       'POST',
       {
-        refreshToken: currentRefreshToken, // This matches your backend expectation
+        refreshToken: currentRefreshToken,
       },
     );
 
@@ -429,6 +371,7 @@ async function performTokenRefresh(): Promise<{
     }
 
     await AsyncStorage.setItem('userToken', apiData.session.access_token);
+    await AsyncStorage.setItem('authToken', apiData.session.access_token);
     if (apiData.session.refresh_token) {
       await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
     }
@@ -440,6 +383,13 @@ async function performTokenRefresh(): Promise<{
     };
   } catch (error) {
     console.error('Token refresh failed:', error);
+    // Clear tokens on refresh failure
+    await AsyncStorage.multiRemove([
+      'userToken',
+      'refreshToken',
+      'userData',
+      'authToken',
+    ]);
 
     if (error instanceof ApiError) {
       if (error.status === 401 || error.status === 403) {
@@ -453,33 +403,26 @@ async function performTokenRefresh(): Promise<{
   }
 }
 
-// FIXED API request wrapper with automatic token refresh - no loops
+// SIMPLIFIED: API request wrapper without automatic token refresh loops
 export async function authenticatedRequest<T>(
   endpoint: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
   data?: any,
-  retryCount = 0,
 ): Promise<ApiResponse<T>> {
   try {
     return await apiRequest<T>(endpoint, method, data);
   } catch (error) {
-    // If we get a 401 and haven't retried yet, try refreshing the token
-    if (error instanceof ApiError && error.status === 401 && retryCount === 0) {
-      console.log('Received 401, attempting token refresh...');
-      try {
-        await refreshAuthToken();
-        return await authenticatedRequest<T>(endpoint, method, data, 1);
-      } catch (refreshError) {
-        console.error('Token refresh failed during API request:', refreshError);
-        throw new Error('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
-      }
+    // If we get a 401, the token is expired - user needs to login again
+    if (error instanceof ApiError && error.status === 401) {
+      console.log('Received 401 - token expired, clearing session');
+      await logout();
+      throw new Error('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
     }
-
     throw error;
   }
 }
 
-// FIXED utility function to validate session without loops
+// SIMPLIFIED: Session validation without refresh attempts
 export async function validateSession(): Promise<{
   isValid: boolean;
   message?: string;
@@ -494,26 +437,10 @@ export async function validateSession(): Promise<{
       };
     }
 
-    const tokenValid = await isTokenValid();
-    if (!tokenValid) {
-      // Try to refresh only once
-      try {
-        await refreshAuthToken();
-        return {
-          isValid: true,
-          message: 'Oturum yenilendi.',
-        };
-      } catch (refreshError) {
-        return {
-          isValid: false,
-          message: 'Oturum süresi doldu. Lütfen tekrar giriş yapın.',
-        };
-      }
-    }
-
+    // Just return true if token exists - let API calls handle validation
     return {
       isValid: true,
-      message: 'Oturum geçerli.',
+      message: 'Oturum var.',
     };
   } catch (error) {
     console.error('Session validation error:', error);
@@ -524,14 +451,13 @@ export async function validateSession(): Promise<{
   }
 }
 
-// OAuth functions with enhanced error handling
+// OAuth functions remain the same
 async function startOAuth(
   provider: 'google' | 'apple' | 'facebook',
 ): Promise<void> {
   try {
     console.log(`Starting ${provider} OAuth flow from authService`);
 
-    // 1. Get the OAuth URL from your backend
     const response = await apiRequest<{ url: string; message: string }>(
       `/auth/oauth/${provider}`,
       'GET',
@@ -541,14 +467,10 @@ async function startOAuth(
       throw new Error(`${provider} OAuth URL alınamadı sunucudan.`);
     }
 
-    // 2. Open the URL in a special browser session designed for authentication.
     console.log(`Opening ${provider} OAuth URL...`);
     await WebBrowser.openAuthSessionAsync(response.data.url);
     console.log(`${provider} OAuth browser session completed`);
-
-    // 3. That's it. The function is done.
   } catch (error) {
-    // This will only catch errors in the process of starting the flow.
     console.error(`Error in authService startOAuth for ${provider}:`, error);
     if (error instanceof ApiError) {
       if (error.status === 500) {
@@ -556,9 +478,8 @@ async function startOAuth(
           `${provider} giriş servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.`,
         );
       }
-      throw error; // Re-throw API errors
+      throw error;
     }
-    // Don't rethrow user cancellation errors
     if (error instanceof Error && error.message.includes('cancelled')) {
       console.log('OAuth flow cancelled by user.');
       return;
@@ -567,28 +488,19 @@ async function startOAuth(
   }
 }
 
-/**
- * Google OAuth: Kicks off the sign-in process.
- */
 export async function signInWithGoogle(): Promise<void> {
   return startOAuth('google');
 }
 
-/**
- * Apple OAuth: Kicks off the sign-in process.
- */
 export async function signInWithApple(): Promise<void> {
   return startOAuth('apple');
 }
 
-/**
- * Facebook OAuth: Kicks off the sign-in process.
- */
 export async function signInWithFacebook(): Promise<void> {
   return startOAuth('facebook');
 }
 
-// NEW: Get current user with achievement data
+// Rest of the functions remain the same...
 export async function getCurrentUserWithAchievements(): Promise<{
   user: User | null;
   achievements?: any[];
@@ -602,7 +514,6 @@ export async function getCurrentUserWithAchievements(): Promise<{
       return { user: null };
     }
 
-    // Get user's achievement data
     try {
       const achievementService = await import('./achievementService');
       const [achievements, achievementProgress] = await Promise.all([
@@ -610,7 +521,6 @@ export async function getCurrentUserWithAchievements(): Promise<{
         achievementService.getUserAchievementProgress(),
       ]);
 
-      // Calculate completion percentage
       const totalPossible = achievements.length + achievementProgress.length;
       const completed = achievements.length;
       const completionPercentage =
@@ -632,7 +542,6 @@ export async function getCurrentUserWithAchievements(): Promise<{
   }
 }
 
-// NEW: Trigger achievement check manually (useful for testing)
 export async function manualAchievementCheck(): Promise<any> {
   try {
     console.log('Manual achievement check triggered');
@@ -653,7 +562,6 @@ export async function manualAchievementCheck(): Promise<any> {
   }
 }
 
-// NEW: Check if new user needs onboarding with achievement context
 export async function checkNewUserOnboarding(): Promise<{
   isNewUser: boolean;
   shouldShowAchievementIntro: boolean;
@@ -670,14 +578,12 @@ export async function checkNewUserOnboarding(): Promise<{
       };
     }
 
-    // Check if user registered recently (within last 24 hours)
     const registrationDate = new Date(user.dateRegistered);
     const now = new Date();
     const hoursSinceRegistration =
       (now.getTime() - registrationDate.getTime()) / (1000 * 60 * 60);
     const isNewUser = hoursSinceRegistration < 24;
 
-    // Check if user has any achievements
     let hasEarnedFirstAchievement = false;
     let shouldShowAchievementIntro = false;
 
@@ -709,7 +615,6 @@ export async function checkNewUserOnboarding(): Promise<{
   }
 }
 
-// NEW: Update stored user data (useful when user earns achievements)
 export async function updateStoredUserData(
   updatedUser: Partial<User>,
 ): Promise<void> {
@@ -726,7 +631,6 @@ export async function updateStoredUserData(
   }
 }
 
-// Debug function for development
 export async function debugAuthState(): Promise<void> {
   if (__DEV__) {
     try {
@@ -739,7 +643,6 @@ export async function debugAuthState(): Promise<void> {
       console.log('Token valid:', tokenValid);
       console.log('Is refreshing:', isRefreshing);
 
-      // ENHANCED: Add achievement debug info
       if (user) {
         try {
           const achievementService = await import('./achievementService');

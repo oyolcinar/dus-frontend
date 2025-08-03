@@ -234,11 +234,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   btnSecondary: {
-    backgroundColor: Colors.secondary.DEFAULT,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: Colors.white,
   },
   btnTextSecondary: {
     color: Colors.white,
-    fontWeight: '500',
+    fontFamily: 'SecondaryFont-Bold',
   },
   btnSuccess: {
     backgroundColor: Colors.success,
@@ -264,11 +266,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   btnGhost: {
-    backgroundColor: 'transparent',
+    backgroundColor: Colors.vibrant.orangeLight,
   },
   btnTextGhost: {
-    color: Colors.primary.DEFAULT,
-    fontWeight: '500',
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Bold',
   },
   disabled: {
     opacity: 0.5,

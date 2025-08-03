@@ -30,6 +30,7 @@ import {
   Button,
   Input,
   Checkbox,
+  Row,
 } from '../../components/ui';
 import { courseService, analyticsService, studyService } from '../../src/api';
 // Add these new imports for analytics functions
@@ -397,21 +398,25 @@ function HomeScreenContent() {
     [fetchTopicDetails],
   );
 
-  // Handle edit topic details
+  // Updated handle edit topic details with proper array initialization for text inputs
   const handleEditTopicDetails = useCallback((topic: TopicWithAnalytics) => {
     setEditingTopicId(topic.topic_id);
     setEditingDetails({
       topic_id: topic.topic_id,
       tekrar_sayisi: topic.details?.tekrar_sayisi || 0,
-      konu_kaynaklari: topic.details?.konu_kaynaklari || [],
-      soru_bankasi_kaynaklari: topic.details?.soru_bankasi_kaynaklari || [],
+      konu_kaynaklari: topic.details?.konu_kaynaklari
+        ? [...topic.details.konu_kaynaklari]
+        : [],
+      soru_bankasi_kaynaklari: topic.details?.soru_bankasi_kaynaklari
+        ? [...topic.details.soru_bankasi_kaynaklari]
+        : [],
       difficulty_rating: topic.details?.difficulty_rating || 1,
       notes: topic.details?.notes || '',
       is_completed: topic.details?.is_completed || false,
     });
   }, []);
 
-  // Handle save topic details
+  // Handle save topic details (updated to remove unused state resets)
   const handleSaveTopicDetails = useCallback(async () => {
     if (!editingTopicId || !editingDetails.topic_id) return;
 
@@ -443,7 +448,7 @@ function HomeScreenContent() {
     }
   }, [editingTopicId, editingDetails, fetchTopicDetails]);
 
-  // Handle cancel edit
+  // Handle cancel edit (updated to remove unused state resets)
   const handleCancelEdit = useCallback(() => {
     setEditingTopicId(null);
     setEditingDetails({});
@@ -452,13 +457,13 @@ function HomeScreenContent() {
   // NEW: Helper functions for performance data
   const formatTimeForDisplay = (minutes: number): string => {
     if (minutes < 60) {
-      return `${Math.round(minutes)}m`;
+      return `${Math.round(minutes)}dk`;
     }
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = Math.round(minutes % 60);
     return remainingMinutes > 0
-      ? `${hours}h ${remainingMinutes}m`
-      : `${hours}h`;
+      ? `${hours}sa ${remainingMinutes}dk`
+      : `${hours}sa`;
   };
 
   const formatTimeFromSeconds = (seconds: number): string => {
@@ -577,11 +582,11 @@ function HomeScreenContent() {
         >
           <View>
             {/* En Uzun Kronometre Süresi */}
-            <View style={{ marginBottom: Spacing[5] }}>
+            <View style={{ marginBottom: Spacing[10] }}>
               <Text
                 style={{
                   fontSize: 16,
-                  fontWeight: 'bold',
+
                   color: isDark ? Colors.white : Colors.white,
                   marginBottom: Spacing[3],
                   fontFamily: 'SecondaryFont-Bold',
@@ -592,17 +597,21 @@ function HomeScreenContent() {
 
               <View
                 style={{
-                  backgroundColor: Colors.vibrant.blue,
+                  backgroundColor: Colors.white,
                   padding: Spacing[4],
                   borderRadius: 12,
                   alignItems: 'center',
+                  shadowColor: Colors.gray[900],
+                  shadowOffset: { width: 10, height: 20 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10,
                 }}
               >
                 <Text
                   style={{
                     fontSize: 28,
-                    fontWeight: 'bold',
-                    color: Colors.white,
+                    color: Colors.gray[900],
                     fontFamily: 'PrimaryFont',
                     marginBottom: Spacing[1],
                   }}
@@ -612,7 +621,7 @@ function HomeScreenContent() {
                 <Text
                   style={{
                     fontSize: 12,
-                    color: Colors.white,
+                    color: Colors.gray[700],
                     fontFamily: 'SecondaryFont-Regular',
                     opacity: 0.8,
                   }}
@@ -623,11 +632,11 @@ function HomeScreenContent() {
             </View>
 
             {/* Günlük İlerleme Grafiği */}
-            <View style={{ marginBottom: Spacing[5] }}>
+            <View style={{ marginBottom: Spacing[10] }}>
               <Text
                 style={{
                   fontSize: 16,
-                  fontWeight: 'bold',
+
                   color: isDark ? Colors.white : Colors.white,
                   marginBottom: Spacing[3],
                   fontFamily: 'SecondaryFont-Bold',
@@ -661,12 +670,8 @@ function HomeScreenContent() {
                           style={{
                             backgroundColor:
                               day.daily_study_minutes > 0
-                                ? ((preferredCourse as any)?.category &&
-                                    getCourseColor(
-                                      (preferredCourse as any).category,
-                                    )) ||
-                                  Colors.vibrant.green
-                                : Colors.gray[600],
+                                ? Colors.vibrant.green
+                                : Colors.white,
                             height: Math.max(
                               ensureSafeNumber(day.percentage * 0.8),
                               4,
@@ -680,7 +685,7 @@ function HomeScreenContent() {
                         <Text
                           style={{
                             fontSize: 10,
-                            color: isDark ? Colors.gray[400] : Colors.gray[400],
+                            color: isDark ? Colors.gray[900] : Colors.gray[900],
                             fontFamily: 'SecondaryFont-Regular',
                             textAlign: 'center',
                           }}
@@ -690,13 +695,13 @@ function HomeScreenContent() {
                         <Text
                           style={{
                             fontSize: 9,
-                            color: isDark ? Colors.gray[500] : Colors.gray[500],
+                            color: isDark ? Colors.gray[700] : Colors.gray[700],
                             fontFamily: 'SecondaryFont-Regular',
                             textAlign: 'center',
                           }}
                         >
                           {day.daily_study_minutes > 0
-                            ? `${ensureSafeNumber(day.daily_study_minutes)}m`
+                            ? `${ensureSafeNumber(day.daily_study_minutes)}dk`
                             : '0'}
                         </Text>
                       </View>
@@ -713,6 +718,11 @@ function HomeScreenContent() {
                         : Colors.gray[700],
                       padding: Spacing[3],
                       borderRadius: 8,
+                      shadowColor: Colors.gray[900],
+                      shadowOffset: { width: 10, height: 20 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 10,
+                      elevation: 10,
                     }}
                   >
                     <View style={{ alignItems: 'center' }}>
@@ -728,7 +738,6 @@ function HomeScreenContent() {
                       <Text
                         style={{
                           fontSize: 14,
-                          fontWeight: 'bold',
                           color: isDark ? Colors.white : Colors.white,
                           fontFamily: 'SecondaryFont-Bold',
                         }}
@@ -755,7 +764,6 @@ function HomeScreenContent() {
                       <Text
                         style={{
                           fontSize: 14,
-                          fontWeight: 'bold',
                           color: isDark ? Colors.white : Colors.white,
                           fontFamily: 'SecondaryFont-Bold',
                         }}
@@ -782,7 +790,6 @@ function HomeScreenContent() {
                       <Text
                         style={{
                           fontSize: 14,
-                          fontWeight: 'bold',
                           color: isDark ? Colors.white : Colors.white,
                           fontFamily: 'SecondaryFont-Bold',
                         }}
@@ -801,9 +808,7 @@ function HomeScreenContent() {
                   title='Veri bulunamadı'
                   message='Son 7 günde çalışma verisi bulunmuyor.'
                   style={{
-                    backgroundColor: isDark
-                      ? Colors.gray[700]
-                      : Colors.gray[700],
+                    backgroundColor: isDark ? Colors.white : Colors.white,
                     padding: Spacing[4],
                     borderRadius: 8,
                   }}
@@ -816,7 +821,6 @@ function HomeScreenContent() {
               <Text
                 style={{
                   fontSize: 16,
-                  fontWeight: 'bold',
                   color: isDark ? Colors.white : Colors.white,
                   marginBottom: Spacing[3],
                   fontFamily: 'SecondaryFont-Bold',
@@ -828,9 +832,14 @@ function HomeScreenContent() {
               {topCourse ? (
                 <View
                   style={{
-                    backgroundColor: Colors.vibrant.purple,
+                    backgroundColor: Colors.gray[700],
                     padding: Spacing[4],
                     borderRadius: 12,
+                    shadowColor: Colors.gray[900],
+                    shadowOffset: { width: 10, height: 20 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 10,
+                    elevation: 10,
                   }}
                 >
                   <View
@@ -844,7 +853,7 @@ function HomeScreenContent() {
                     <Text
                       style={{
                         fontSize: 18,
-                        fontWeight: 'bold',
+
                         color: Colors.white,
                         fontFamily: 'SecondaryFont-Bold',
                         flex: 1,
@@ -855,7 +864,6 @@ function HomeScreenContent() {
                     <Text
                       style={{
                         fontSize: 16,
-                        fontWeight: 'bold',
                         color: Colors.white,
                         fontFamily: 'PrimaryFont',
                       }}
@@ -885,7 +893,6 @@ function HomeScreenContent() {
                       <Text
                         style={{
                           fontSize: 14,
-                          fontWeight: 'bold',
                           color: Colors.white,
                           fontFamily: 'SecondaryFont-Bold',
                         }}
@@ -905,12 +912,11 @@ function HomeScreenContent() {
                           opacity: 0.8,
                         }}
                       >
-                        Duello
+                        Düello
                       </Text>
                       <Text
                         style={{
                           fontSize: 14,
-                          fontWeight: 'bold',
                           color: Colors.white,
                           fontFamily: 'SecondaryFont-Bold',
                         }}
@@ -933,7 +939,6 @@ function HomeScreenContent() {
                       <Text
                         style={{
                           fontSize: 14,
-                          fontWeight: 'bold',
                           color: Colors.white,
                           fontFamily: 'SecondaryFont-Bold',
                         }}
@@ -973,9 +978,7 @@ function HomeScreenContent() {
                   title='Veri bulunamadı'
                   message='Henüz branş bazında çalışma verisi bulunmuyor.'
                   style={{
-                    backgroundColor: isDark
-                      ? Colors.gray[700]
-                      : Colors.gray[700],
+                    backgroundColor: isDark ? Colors.white : Colors.white,
                     padding: Spacing[4],
                     borderRadius: 8,
                   }}
@@ -1226,15 +1229,15 @@ function HomeScreenContent() {
   const getDifficultyColor = (rating: number) => {
     switch (rating) {
       case 1:
-        return Colors.vibrant.green;
-      case 2:
         return Colors.vibrant.greenLight;
+      case 2:
+        return Colors.vibrant.green;
       case 3:
-        return Colors.vibrant.orange;
+        return Colors.vibrant.yellowLight;
       case 4:
-        return Colors.vibrant.orangeLight;
+        return Colors.vibrant.yellow;
       case 5:
-        return Colors.vibrant.coral;
+        return Colors.vibrant.pink;
       default:
         return Colors.gray[400];
     }
@@ -1290,6 +1293,11 @@ function HomeScreenContent() {
               paddingHorizontal: Spacing[3],
               paddingVertical: Spacing[2],
               borderRadius: 12,
+              shadowColor: Colors.gray[900],
+              shadowOffset: { width: 10, height: 20 },
+              shadowOpacity: 0.8,
+              shadowRadius: 10,
+              elevation: 10,
             }}
           >
             <Text
@@ -1310,6 +1318,11 @@ function HomeScreenContent() {
               paddingHorizontal: Spacing[3],
               paddingVertical: Spacing[2],
               borderRadius: 12,
+              shadowColor: Colors.gray[900],
+              shadowOffset: { width: 10, height: 20 },
+              shadowOpacity: 0.8,
+              shadowRadius: 10,
+              elevation: 10,
             }}
           >
             <Text
@@ -1330,6 +1343,11 @@ function HomeScreenContent() {
               paddingHorizontal: Spacing[3],
               paddingVertical: Spacing[2],
               borderRadius: 12,
+              shadowColor: Colors.gray[900],
+              shadowOffset: { width: 10, height: 20 },
+              shadowOpacity: 0.8,
+              shadowRadius: 10,
+              elevation: 10,
             }}
           >
             <Text
@@ -1371,7 +1389,7 @@ function HomeScreenContent() {
           <Text
             style={{
               fontSize: 12,
-              color: isDark ? Colors.gray[400] : Colors.gray[400],
+              color: isDark ? Colors.gray[700] : Colors.gray[700],
               fontFamily: 'SecondaryFont-Regular',
             }}
           >
@@ -1383,7 +1401,7 @@ function HomeScreenContent() {
     );
   };
 
-  // Render topic details editing form
+  // ENHANCED: Render topic details editing form with simple text inputs like notes
   const renderTopicDetailsForm = (topic: TopicWithAnalytics) => {
     const isEditing = editingTopicId === topic.topic_id;
     const isUpdating = updatingTopic === topic.topic_id;
@@ -1405,58 +1423,70 @@ function HomeScreenContent() {
     }
 
     return (
-      <View style={{ padding: Spacing[4] }}>
+      <View style={{}}>
         {!isEditing ? (
           // View mode
           <View>
             <View style={{ marginBottom: Spacing[4] }}>
               <Text
                 style={{
-                  fontWeight: 'bold',
                   marginBottom: Spacing[2],
                   color: isDark ? Colors.white : Colors.white,
                   fontFamily: 'SecondaryFont-Bold',
                 }}
               >
-                Konu Detayları
+                Konu Detayları:
               </Text>
-
               <View
                 style={{
-                  flexDirection: 'row',
+                  borderBottomColor: Colors.white,
+                  borderBottomWidth: 1,
+                  marginBottom: Spacing[2],
+                  width: '100%',
+                }}
+              />
+              <View
+                style={{
+                  flexDirection: 'column',
                   flexWrap: 'wrap',
                   gap: Spacing[2],
                 }}
               >
                 <Text
                   style={{
-                    color: isDark ? Colors.gray[300] : Colors.gray[300],
+                    color: isDark ? Colors.white : Colors.white,
                     fontFamily: 'SecondaryFont-Regular',
                   }}
                 >
                   Tekrar Sayısı: {topic.details?.tekrar_sayisi || 0}
                 </Text>
+                <View
+                  style={{
+                    borderBottomColor: Colors.white,
+                    borderBottomWidth: 1,
+                    marginBottom: Spacing[2],
+                    width: '100%',
+                  }}
+                />
+
+                <Text
+                  style={{
+                    color: Colors.white,
+                    fontFamily: 'SecondaryFont-Regular',
+                  }}
+                >
+                  Zorluk:{' '}
+                  {getDifficultyText(topic.details?.difficulty_rating || 1)}
+                </Text>
 
                 <View
                   style={{
-                    backgroundColor: getDifficultyColor(
-                      topic.details?.difficulty_rating || 1,
-                    ),
-                    paddingHorizontal: Spacing[2],
-                    paddingVertical: Spacing[1],
-                    borderRadius: 12,
+                    borderBottomColor: Colors.white,
+                    borderBottomWidth: 1,
+                    marginBottom: Spacing[2],
+                    width: '100%',
                   }}
-                >
-                  <Text
-                    style={{
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontFamily: 'SecondaryFont-Bold',
-                    }}
-                  >
-                    {getDifficultyText(topic.details?.difficulty_rating || 1)}
-                  </Text>
-                </View>
+                />
 
                 {topic.details?.is_completed && (
                   <View
@@ -1481,11 +1511,58 @@ function HomeScreenContent() {
               </View>
             </View>
 
+            {/* Render Konu Kaynakları like Notes */}
+            {topic.details?.konu_kaynaklari &&
+              topic.details.konu_kaynaklari.length > 0 && (
+                <View style={{ marginBottom: Spacing[4] }}>
+                  <Text
+                    style={{
+                      marginBottom: Spacing[2],
+                      color: isDark ? Colors.white : Colors.white,
+                      fontFamily: 'SecondaryFont-Bold',
+                    }}
+                  >
+                    Konu Kaynakları
+                  </Text>
+                  <Text
+                    style={{
+                      color: isDark ? Colors.gray[300] : Colors.gray[300],
+                      fontFamily: 'SecondaryFont-Regular',
+                    }}
+                  >
+                    {topic.details.konu_kaynaklari.join('\n')}
+                  </Text>
+                </View>
+              )}
+
+            {/* Render Soru Bankası Kaynakları like Notes */}
+            {topic.details?.soru_bankasi_kaynaklari &&
+              topic.details.soru_bankasi_kaynaklari.length > 0 && (
+                <View style={{ marginBottom: Spacing[4] }}>
+                  <Text
+                    style={{
+                      marginBottom: Spacing[2],
+                      color: isDark ? Colors.white : Colors.white,
+                      fontFamily: 'SecondaryFont-Bold',
+                    }}
+                  >
+                    Soru Bankası Kaynakları
+                  </Text>
+                  <Text
+                    style={{
+                      color: isDark ? Colors.gray[300] : Colors.gray[300],
+                      fontFamily: 'SecondaryFont-Regular',
+                    }}
+                  >
+                    {topic.details.soru_bankasi_kaynaklari.join('\n')}
+                  </Text>
+                </View>
+              )}
+
             {topic.details?.notes && (
               <View style={{ marginBottom: Spacing[4] }}>
                 <Text
                   style={{
-                    fontWeight: 'bold',
                     marginBottom: Spacing[2],
                     color: isDark ? Colors.white : Colors.white,
                     fontFamily: 'SecondaryFont-Bold',
@@ -1507,7 +1584,7 @@ function HomeScreenContent() {
             <Button
               title='Düzenle'
               onPress={() => handleEditTopicDetails(topic)}
-              variant='outline'
+              variant='secondary'
               size='small'
               style={{ alignSelf: 'flex-start' }}
             />
@@ -1517,7 +1594,6 @@ function HomeScreenContent() {
           <View>
             <Text
               style={{
-                fontWeight: 'bold',
                 marginBottom: Spacing[4],
                 color: isDark ? Colors.white : Colors.white,
                 fontFamily: 'SecondaryFont-Bold',
@@ -1525,9 +1601,16 @@ function HomeScreenContent() {
             >
               Konu Detaylarını Düzenle
             </Text>
-
+            <View
+              style={{
+                borderBottomColor: Colors.white,
+                borderBottomWidth: 1,
+                marginBottom: Spacing[2],
+                width: '100%',
+              }}
+            />
             <Input
-              label='Tekrar Sayısı'
+              label='Tekrar Sayısı:'
               value={editingDetails.tekrar_sayisi?.toString() || '0'}
               onChangeText={(text) =>
                 setEditingDetails((prev) => ({
@@ -1535,10 +1618,25 @@ function HomeScreenContent() {
                   tekrar_sayisi: parseInt(text) || 0,
                 }))
               }
+              labelStyle={{
+                fontFamily: 'SecondaryFont-Bold',
+                color: Colors.white,
+              }}
+              inputStyle={{
+                fontFamily: 'SecondaryFont-Regular',
+                color: Colors.white,
+              }}
               inputMode='numeric'
               containerStyle={{ marginBottom: Spacing[3] }}
             />
-
+            <View
+              style={{
+                borderBottomColor: Colors.white,
+                borderBottomWidth: 1,
+                marginBottom: Spacing[2],
+                width: '100%',
+              }}
+            />
             <View style={{ marginBottom: Spacing[3] }}>
               <Text
                 style={{
@@ -1547,7 +1645,7 @@ function HomeScreenContent() {
                   fontFamily: 'SecondaryFont-Bold',
                 }}
               >
-                Zorluk Derecesi
+                Zorluk Derecesi:
               </Text>
               <View style={{ flexDirection: 'row', gap: Spacing[2] }}>
                 {[1, 2, 3, 4, 5].map((rating) => (
@@ -1584,9 +1682,93 @@ function HomeScreenContent() {
                 ))}
               </View>
             </View>
+            <View
+              style={{
+                borderBottomColor: Colors.white,
+                borderBottomWidth: 1,
+                marginBottom: Spacing[2],
+                width: '100%',
+              }}
+            />
+
+            {/* Konu Kaynakları as text input like Notes */}
+            <Input
+              label='Konu Kaynakları:'
+              value={
+                Array.isArray(editingDetails.konu_kaynaklari)
+                  ? editingDetails.konu_kaynaklari.join('\n')
+                  : ''
+              }
+              onChangeText={(text) =>
+                setEditingDetails((prev) => ({
+                  ...prev,
+                  konu_kaynaklari: text
+                    ? text.split('\n').filter((item) => item.trim() !== '')
+                    : [],
+                }))
+              }
+              labelStyle={{
+                fontFamily: 'SecondaryFont-Bold',
+                color: Colors.white,
+              }}
+              inputStyle={{
+                fontFamily: 'SecondaryFont-Regular',
+                color: Colors.white,
+              }}
+              multiline
+              numberOfLines={3}
+              placeholder='Her satıra bir kaynak yazın...'
+              containerStyle={{ marginBottom: Spacing[3] }}
+            />
+            <View
+              style={{
+                borderBottomColor: Colors.white,
+                borderBottomWidth: 1,
+                marginBottom: Spacing[2],
+                width: '100%',
+              }}
+            />
+
+            {/* Soru Bankası Kaynakları as text input like Notes */}
+            <Input
+              label='Soru Bankası Kaynakları:'
+              value={
+                Array.isArray(editingDetails.soru_bankasi_kaynaklari)
+                  ? editingDetails.soru_bankasi_kaynaklari.join('\n')
+                  : ''
+              }
+              onChangeText={(text) =>
+                setEditingDetails((prev) => ({
+                  ...prev,
+                  soru_bankasi_kaynaklari: text
+                    ? text.split('\n').filter((item) => item.trim() !== '')
+                    : [],
+                }))
+              }
+              labelStyle={{
+                fontFamily: 'SecondaryFont-Bold',
+                color: Colors.white,
+              }}
+              inputStyle={{
+                fontFamily: 'SecondaryFont-Regular',
+                color: Colors.white,
+              }}
+              multiline
+              numberOfLines={3}
+              placeholder='Her satıra bir soru bankası yazın...'
+              containerStyle={{ marginBottom: Spacing[3] }}
+            />
+            <View
+              style={{
+                borderBottomColor: Colors.white,
+                borderBottomWidth: 1,
+                marginBottom: Spacing[2],
+                width: '100%',
+              }}
+            />
 
             <Input
-              label='Notlar'
+              label='Notlar:'
               value={editingDetails.notes || ''}
               onChangeText={(text) =>
                 setEditingDetails((prev) => ({
@@ -1594,9 +1776,25 @@ function HomeScreenContent() {
                   notes: text,
                 }))
               }
+              labelStyle={{
+                fontFamily: 'SecondaryFont-Bold',
+                color: Colors.white,
+              }}
+              inputStyle={{
+                fontFamily: 'SecondaryFont-Regular',
+                color: Colors.white,
+              }}
               multiline
               numberOfLines={3}
               containerStyle={{ marginBottom: Spacing[3] }}
+            />
+            <View
+              style={{
+                borderBottomColor: Colors.white,
+                borderBottomWidth: 1,
+                marginBottom: Spacing[4],
+                width: '100%',
+              }}
             />
 
             <Checkbox
@@ -1607,8 +1805,17 @@ function HomeScreenContent() {
                   is_completed: !prev.is_completed,
                 }))
               }
+              labelStyle={{ fontFamily: 'SecondaryFont-Bold' }}
               label='Konu tamamlandı'
               style={{ marginBottom: Spacing[4] }}
+            />
+            <View
+              style={{
+                borderBottomColor: Colors.white,
+                borderBottomWidth: 1,
+                marginBottom: Spacing[2],
+                width: '100%',
+              }}
             />
 
             <View style={{ flexDirection: 'row', gap: Spacing[2] }}>
@@ -1617,13 +1824,13 @@ function HomeScreenContent() {
                 onPress={handleSaveTopicDetails}
                 loading={isUpdating}
                 disabled={isUpdating}
-                variant='primary'
+                variant='secondary'
                 style={{ flex: 1 }}
               />
               <Button
                 title='İptal'
                 onPress={handleCancelEdit}
-                variant='outline'
+                variant='secondary'
                 disabled={isUpdating}
                 style={{ flex: 1 }}
               />
@@ -1655,7 +1862,6 @@ function HomeScreenContent() {
           <Text
             style={{
               fontSize: 18,
-              fontWeight: 'bold',
               color: isDark ? Colors.gray[800] : Colors.gray[800],
               textAlign: 'center',
               marginBottom: Spacing[2],
@@ -1700,134 +1906,151 @@ function HomeScreenContent() {
           />
         }
       >
-        {/* Header with chronometer on left, user info on right */}
+        {/* Header with rearranged layout */}
         <SlideInElement direction='down' delay={0}>
           <View
             style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
+              flexDirection: 'column',
               marginBottom: Spacing[6],
             }}
           >
-            {/* Left side - Chronometer */}
-            <View style={{ flex: 1, marginRight: Spacing[4] }}>
-              {preferredCourse && courses.length > 0 && (
-                <StudyChronometer
-                  topicId={courses[0]?.course_id || 1}
-                  topicTitle={courses[0]?.title || 'Çalışma'}
-                  courseTitle={preferredCourse.title}
-                  category={(preferredCourse as any)?.category}
-                  variant='elevated'
-                  style={{
-                    flex: 1,
-                    shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 10, height: 20 },
-                    shadowOpacity: 0.8,
-                    shadowRadius: 10,
-                    elevation: 10,
-                  }}
-                  maxWidth='100%'
-                />
-              )}
+            {/* User info text */}
+            <View
+              style={{
+                alignItems: 'flex-end',
+                marginBottom: Spacing[3],
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  color: isDark ? Colors.gray[900] : Colors.gray[900],
+                  textAlign: 'right',
+                  fontFamily: 'PrimaryFont',
+                  marginBottom: Spacing[1],
+                }}
+              >
+                Merhaba {userData?.username || 'Öğrenci'}!
+              </Text>
+              <Paragraph
+                color={isDark ? Colors.gray[700] : Colors.gray[700]}
+                style={{
+                  fontFamily: 'SecondaryFont-Regular',
+                  textAlign: 'right',
+                  fontSize: 12,
+                }}
+              >
+                DUS sınavına hazırlanmaya devam edelim
+              </Paragraph>
             </View>
 
-            {/* Right side - User info and streak */}
-            <View style={{ alignItems: 'flex-end' }}>
-              <View
-                style={{ alignItems: 'flex-end', marginBottom: Spacing[3] }}
-              >
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 'bold',
-                    color: isDark ? Colors.white : Colors.white,
-                    textAlign: 'right',
-                    fontFamily: 'PrimaryFont',
-                    marginBottom: Spacing[1],
-                  }}
-                >
-                  Merhaba {userData?.username || 'Öğrenci'}!
-                </Text>
-                <Paragraph
-                  color={isDark ? Colors.gray[100] : Colors.gray[100]}
-                  style={{
-                    fontFamily: 'SecondaryFont-Regular',
-                    textAlign: 'right',
-                    fontSize: 12,
-                  }}
-                >
-                  DUS sınavına hazırlanmaya devam edelim
-                </Paragraph>
-              </View>
-
-              {/* Avatar and streak */}
-              <View style={{ alignItems: 'center' }}>
-                <Avatar
-                  name={userData?.username?.charAt(0).toUpperCase() || 'Ö'}
-                  size='lg'
-                  bgColor={
-                    (preferredCourse as any)?.category &&
-                    getCourseColor((preferredCourse as any).category)
-                  }
-                  borderGlow
-                  animated
-                  style={{
-                    marginBottom: Spacing[2],
-                    shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 10, height: 20 },
-                    shadowOpacity: 0.8,
-                    shadowRadius: 10,
-                    elevation: 10,
-                  }}
-                />
-
-                <FloatingElement>
-                  <PulseElement>
-                    <View
+            {/* Bottom row - Streak (left) and Avatar (right) at same level */}
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: Spacing[4],
+              }}
+            >
+              {/* Left side - Streak */}
+              <FloatingElement>
+                <PulseElement>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: isDark
+                        ? Colors.vibrant.orange
+                        : Colors.vibrant.orange,
+                      borderRadius: 999,
+                      paddingHorizontal: Spacing[3],
+                      paddingVertical: Spacing[2],
+                      minWidth: 80,
+                      justifyContent: 'center',
+                      shadowColor: Colors.gray[900],
+                      shadowOffset: { width: 10, height: 20 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 10,
+                      elevation: 10,
+                    }}
+                  >
+                    <FontAwesome
+                      name='fire'
+                      size={16}
+                      color={
+                        isDark ? Colors.secondary.light : Colors.secondary.light
+                      }
+                    />
+                    <Text
                       style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        backgroundColor: isDark
-                          ? Colors.vibrant.orange
-                          : Colors.vibrant.orange,
-                        borderRadius: 999,
-                        paddingHorizontal: Spacing[3],
-                        paddingVertical: Spacing[2],
-                        minWidth: 80,
-                        justifyContent: 'center',
-                        shadowColor: Colors.gray[900],
-                        shadowOffset: { width: 10, height: 20 },
-                        shadowOpacity: 0.8,
-                        shadowRadius: 10,
-                        elevation: 10,
+                        marginLeft: Spacing[2],
+                        color: isDark ? Colors.gray[800] : Colors.gray[800],
+                        fontSize: 14,
+                        fontFamily: 'SecondaryFont-Bold',
                       }}
                     >
-                      <FontAwesome
-                        name='fire'
-                        size={16}
-                        color={
-                          isDark
-                            ? Colors.secondary.light
-                            : Colors.secondary.light
-                        }
-                      />
-                      <Text
-                        style={{
-                          marginLeft: Spacing[2],
-                          fontWeight: '500',
-                          color: isDark ? Colors.gray[800] : Colors.gray[800],
-                          fontSize: 14,
-                          fontFamily: 'SecondaryFont-Bold',
-                        }}
-                      >
-                        {analyticsData?.studySessions || 0} gün
-                      </Text>
-                    </View>
-                  </PulseElement>
-                </FloatingElement>
-              </View>
+                      {analyticsData?.studySessions || 0} gün
+                    </Text>
+                  </View>
+                </PulseElement>
+              </FloatingElement>
+
+              {/* Right side - Avatar */}
+              <Avatar
+                name={userData?.username?.charAt(0).toUpperCase() || 'Ö'}
+                size='lg'
+                bgColor={
+                  (preferredCourse as any)?.category &&
+                  getCourseColor((preferredCourse as any).category)
+                }
+                borderGlow
+                animated
+                style={{
+                  shadowColor: Colors.gray[900],
+                  shadowOffset: { width: 10, height: 20 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10,
+                }}
+              />
             </View>
+
+            {/* Bottom - Full width Chronometer */}
+            {preferredCourse && (
+              <StudyChronometer
+                courseId={preferredCourse.course_id}
+                courseTitle={preferredCourse.title}
+                category={(preferredCourse as any)?.category}
+                variant='elevated'
+                style={{
+                  width: '100%',
+                  alignSelf: 'stretch',
+                  shadowColor: Colors.gray[900],
+                  shadowOffset: { width: 10, height: 20 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10,
+                }}
+                maxWidth='100%'
+                onTopicChange={(topicId, topicTitle) => {
+                  console.log('Selected topic changed:', topicId, topicTitle);
+                }}
+                onSessionStart={(sessionId, topicId) => {
+                  console.log(
+                    'Study session started:',
+                    sessionId,
+                    'for topic:',
+                    topicId,
+                  );
+                }}
+                onSessionEnd={(sessionData) => {
+                  console.log('Study session ended:', sessionData);
+                  // Optionally refresh analytics data here
+                  fetchPerformanceData();
+                }}
+              />
+            )}
           </View>
         </SlideInElement>
 
@@ -1887,7 +2110,7 @@ function HomeScreenContent() {
                       <Text
                         style={{
                           fontSize: 16,
-                          fontWeight: 'bold',
+
                           color: isDark ? Colors.white : Colors.white,
                           marginBottom: Spacing[3],
                           fontFamily: 'SecondaryFont-Bold',
@@ -1911,6 +2134,11 @@ function HomeScreenContent() {
                               paddingHorizontal: Spacing[3],
                               paddingVertical: Spacing[2],
                               borderRadius: 12,
+                              shadowColor: Colors.gray[900],
+                              shadowOffset: { width: 10, height: 20 },
+                              shadowOpacity: 0.8,
+                              shadowRadius: 10,
+                              elevation: 10,
                             }}
                           >
                             <Text
@@ -1923,7 +2151,7 @@ function HomeScreenContent() {
                               {ensureSafeNumber(
                                 studyStatistics.total_study_hours,
                               )}
-                              h çalışma
+                              saat çalışma
                             </Text>
                           </View>
 
@@ -1933,6 +2161,11 @@ function HomeScreenContent() {
                               paddingHorizontal: Spacing[3],
                               paddingVertical: Spacing[2],
                               borderRadius: 12,
+                              shadowColor: Colors.gray[900],
+                              shadowOffset: { width: 10, height: 20 },
+                              shadowOpacity: 0.8,
+                              shadowRadius: 10,
+                              elevation: 10,
                             }}
                           >
                             <Text
@@ -1952,6 +2185,11 @@ function HomeScreenContent() {
                               paddingHorizontal: Spacing[3],
                               paddingVertical: Spacing[2],
                               borderRadius: 12,
+                              shadowColor: Colors.gray[900],
+                              shadowOffset: { width: 10, height: 20 },
+                              shadowOpacity: 0.8,
+                              shadowRadius: 10,
+                              elevation: 10,
                             }}
                           >
                             <Text
@@ -1973,7 +2211,7 @@ function HomeScreenContent() {
                       <Text
                         style={{
                           fontSize: 16,
-                          fontWeight: 'bold',
+
                           color: isDark ? Colors.white : Colors.white,
                           marginBottom: Spacing[3],
                           fontFamily: 'SecondaryFont-Bold',
@@ -2017,7 +2255,14 @@ function HomeScreenContent() {
                                 title={topic.title}
                                 variant='outlined'
                                 category={(preferredCourse as any)?.category}
-                                style={{ marginBottom: Spacing[3] }}
+                                style={{
+                                  marginBottom: Spacing[3],
+                                  shadowColor: Colors.gray[900],
+                                  shadowOffset: { width: 10, height: 20 },
+                                  shadowOpacity: 0.8,
+                                  shadowRadius: 10,
+                                  elevation: 10,
+                                }}
                                 titleFontFamily='SecondaryFont-Bold'
                                 collapsible
                                 defaultCollapsed={!topic.isDetailsExpanded}
@@ -2044,8 +2289,8 @@ function HomeScreenContent() {
                           message='Bu kurs için henüz konu tanımlanmamış.'
                           style={{
                             backgroundColor: isDark
-                              ? Colors.gray[700]
-                              : Colors.gray[700],
+                              ? Colors.white
+                              : Colors.white,
                             padding: Spacing[4],
                             borderRadius: 8,
                           }}
@@ -2098,7 +2343,6 @@ function HomeScreenContent() {
                           <View style={{ flex: 1 }}>
                             <Text
                               style={{
-                                fontWeight: '600',
                                 color: isDark
                                   ? Colors.gray[800]
                                   : Colors.gray[800],

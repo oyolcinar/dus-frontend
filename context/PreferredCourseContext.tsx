@@ -13,7 +13,6 @@ import {
 } from '../src/api/studyService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Course category type based on your actual database courses
 export type CourseCategory =
   | 'radyoloji'
   | 'restoratif'
@@ -24,16 +23,14 @@ export type CourseCategory =
   | 'cerrahi'
   | 'ortodonti';
 
-// Course data interface
 export interface PreferredCourse {
   course_id: number;
   title: string;
   description?: string;
   category?: CourseCategory;
-  selectedAt?: string; // Timestamp when the course was selected
+  selectedAt?: string;
 }
 
-// Context interface
 interface PreferredCourseContextType {
   preferredCourse: PreferredCourse | null;
   isLoading: boolean;
@@ -50,7 +47,6 @@ interface PreferredCourseContextType {
   forceRefresh: () => void;
 }
 
-// Course category mapping based on your database course titles
 const COURSE_CATEGORY_MAPPING: Record<string, CourseCategory> = {
   radyoloji: 'radyoloji',
   restoratif: 'restoratif',
@@ -62,7 +58,6 @@ const COURSE_CATEGORY_MAPPING: Record<string, CourseCategory> = {
   ortodonti: 'ortodonti',
 };
 
-// Color mapping for each category (your provided colors)
 export const CATEGORY_COLORS: Record<CourseCategory, string> = {
   radyoloji: '#FF7675',
   restoratif: '#4285F4',
@@ -74,12 +69,10 @@ export const CATEGORY_COLORS: Record<CourseCategory, string> = {
   ortodonti: '#702963',
 };
 
-// Create context
 const PreferredCourseContext = createContext<
   PreferredCourseContextType | undefined
 >(undefined);
 
-// Provider component
 interface PreferredCourseProviderProps {
   children: ReactNode;
 }
@@ -96,13 +89,11 @@ export const PreferredCourseProvider: React.FC<
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Force refresh function
   const forceRefresh = () => {
     console.log('Force refreshing PreferredCourseContext');
     setRefreshTrigger((prev) => prev + 1);
   };
 
-  // Helper function to get category from course title
   const getCourseCategory = (
     courseTitle: string,
   ): CourseCategory | undefined => {
@@ -117,13 +108,12 @@ export const PreferredCourseProvider: React.FC<
     return undefined;
   };
 
-  // Helper function to get color for category
   const getCourseColor = (category: CourseCategory | undefined): string => {
-    if (!category) return '#4285F4'; // Default blue
+    if (!category) return '#4285F4';
     return CATEGORY_COLORS[category];
   };
 
-  // Load available courses
+  // SIMPLIFIED: Load courses with basic error handling
   const refreshCourses = async () => {
     try {
       console.log('Refreshing courses...');
@@ -143,7 +133,9 @@ export const PreferredCourseProvider: React.FC<
       setAvailableCourses(mappedCourses);
     } catch (err) {
       console.error('Error loading available courses:', err);
-      // Fallback to predefined courses based on your database
+
+      // SIMPLIFIED: Just use fallback courses on any error
+      // Don't check for session expiry here - let the API client handle it
       setAvailableCourses([
         {
           course_id: 29,
@@ -197,7 +189,7 @@ export const PreferredCourseProvider: React.FC<
     }
   };
 
-  // Check for course in AsyncStorage first
+  // SIMPLIFIED: Check AsyncStorage first
   const checkAsyncStorage = async () => {
     try {
       const storedCourse = await AsyncStorage.getItem('selectedCourse');
@@ -205,7 +197,6 @@ export const PreferredCourseProvider: React.FC<
         const parsedCourse = JSON.parse(storedCourse) as PreferredCourse;
         console.log('Found course in AsyncStorage:', parsedCourse.title);
 
-        // Set the course from AsyncStorage
         const category = getCourseCategory(parsedCourse.title);
         setPreferredCourseState({
           ...parsedCourse,
@@ -220,7 +211,7 @@ export const PreferredCourseProvider: React.FC<
     return false;
   };
 
-  // Load preferred course on mount or when refreshTrigger changes
+  // SIMPLIFIED: Load preferred course
   useEffect(() => {
     const loadPreferredCourse = async () => {
       try {
@@ -231,26 +222,31 @@ export const PreferredCourseProvider: React.FC<
         setIsLoading(true);
         setError(null);
 
-        // First check AsyncStorage for most recent selection
+        // First check AsyncStorage
         const foundInStorage = await checkAsyncStorage();
 
         if (!foundInStorage) {
-          // If not in AsyncStorage, load from API
-          const course = await getUserPreferredCourse();
+          // If not in AsyncStorage, try to load from API
+          try {
+            const course = await getUserPreferredCourse();
 
-          if (course) {
-            console.log('Preferred course loaded from API:', course.title);
-            const category = getCourseCategory(course.title);
-            setPreferredCourseState({
-              ...course,
-              category,
-            });
-          } else {
-            console.log('No preferred course found');
+            if (course) {
+              console.log('Preferred course loaded from API:', course.title);
+              const category = getCourseCategory(course.title);
+              setPreferredCourseState({
+                ...course,
+                category,
+              });
+            } else {
+              console.log('No preferred course found');
+            }
+          } catch (apiError) {
+            console.error('Error loading from API:', apiError);
+            // Don't show error for this - just continue without preferred course
           }
         }
 
-        // Load available courses regardless
+        // Load available courses
         await refreshCourses();
       } catch (err) {
         console.error('Error loading preferred course:', err);
@@ -267,7 +263,7 @@ export const PreferredCourseProvider: React.FC<
     loadPreferredCourse();
   }, [refreshTrigger]);
 
-  // Set preferred course using your existing service
+  // SIMPLIFIED: Set preferred course
   const setPreferredCourse = async (
     courseId: number,
     courseData: PreferredCourse,
@@ -276,7 +272,17 @@ export const PreferredCourseProvider: React.FC<
       console.log('Setting preferred course:', courseData.title);
       setError(null);
 
-      await setUserPreferredCourse(courseId);
+      // Try to set via API, but don't fail if it doesn't work
+      try {
+        await setUserPreferredCourse(courseId);
+        console.log('Preferred course set via API');
+      } catch (apiError) {
+        console.error(
+          'API set failed, continuing with local storage:',
+          apiError,
+        );
+        // Continue anyway - at least save locally
+      }
 
       const category = getCourseCategory(courseData.title);
       const updatedCourse = {
@@ -287,7 +293,7 @@ export const PreferredCourseProvider: React.FC<
 
       setPreferredCourseState(updatedCourse);
 
-      // Also save to AsyncStorage for immediate access
+      // Always save to AsyncStorage
       await AsyncStorage.setItem(
         'selectedCourse',
         JSON.stringify(updatedCourse),
@@ -303,10 +309,8 @@ export const PreferredCourseProvider: React.FC<
     }
   };
 
-  // Clear preferred course
   const clearPreferredCourse = () => {
     setPreferredCourseState(null);
-    // Also clear from AsyncStorage
     AsyncStorage.removeItem('selectedCourse');
   };
 
@@ -330,7 +334,6 @@ export const PreferredCourseProvider: React.FC<
   );
 };
 
-// Hook to use the context
 export const usePreferredCourse = (): PreferredCourseContextType => {
   const context = useContext(PreferredCourseContext);
 

@@ -2,13 +2,11 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import * as Linking from 'expo-linking';
-import { Buffer } from 'buffer'; // Import Buffer for robust atob
+import { Buffer } from 'buffer';
 
-// Import authentication services
 import * as authService from '../src/api/authService';
 import { User, AuthResponse } from '../src/types/models';
 
-// --- HELPER FUNCTIONS ---
 const getParamsFromUrl = (url: string): Record<string, string> | null => {
   const fragment = url.split('#')[1];
   if (!fragment) {
@@ -32,7 +30,6 @@ function jwt_decode(token: string): any {
   try {
     const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    // Use Buffer for cross-platform base64 decoding
     const jsonPayload = Buffer.from(base64, 'base64').toString('utf8');
     return JSON.parse(jsonPayload);
   } catch (e) {
@@ -41,7 +38,6 @@ function jwt_decode(token: string): any {
   }
 }
 
-// Enhanced AuthContext type with new methods
 type AuthContextType = {
   user: User | null;
   isLoading: boolean;
@@ -52,13 +48,11 @@ type AuthContextType = {
   signInWithFacebook: () => Promise<void>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
-  // Enhanced methods
   refreshSession: () => Promise<void>;
   validateSession: () => Promise<boolean>;
   isSessionValid: boolean;
 };
 
-// Create context with enhanced default values
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
@@ -74,7 +68,6 @@ const AuthContext = createContext<AuthContextType>({
   isSessionValid: false,
 });
 
-// Provider component that wraps the app
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,7 +78,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     checkUserSession();
     const deepLinkSubscription = setupDeepLinkHandler();
-    // Cleanup on unmount
     return () => deepLinkSubscription.remove();
   }, []);
 
@@ -104,9 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, segments, isLoading]);
 
-  // Enhanced Deep Link Handler
   function setupDeepLinkHandler() {
-    // Handle the initial URL for when the app is opened from a killed state
     Linking.getInitialURL().then((url) => {
       if (url) {
         console.log('Initial URL detected:', url);
@@ -114,7 +104,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    // Listen for incoming links
     const subscription = Linking.addEventListener('url', (event) => {
       console.log('Deep link event received:', event.url);
       handleUrl(event.url);
@@ -130,11 +119,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const { access_token, refresh_token } = authParams;
 
-          // Store tokens
           await AsyncStorage.setItem('userToken', access_token);
-          await AsyncStorage.setItem('refreshToken', refresh_token);
+          await AsyncStorage.setItem('authToken', access_token);
+          if (refresh_token) {
+            await AsyncStorage.setItem('refreshToken', refresh_token);
+          }
 
-          // Decode and process user data
           const decodedToken = jwt_decode(access_token);
           const userFromToken = decodedToken?.user_metadata;
 
@@ -168,7 +158,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsSessionValid(true);
             console.log('OAuth session established successfully');
           } else {
-            // Fallback user creation from token
             const fallbackUser = {
               id: decodedToken.sub,
               userId: decodedToken.sub,
@@ -199,7 +188,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
           console.error('Error handling OAuth deep link:', error);
           setIsSessionValid(false);
-          // Don't throw error, just log it
         } finally {
           setIsLoading(false);
         }
@@ -213,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return subscription;
   }
 
-  // Enhanced session validation
+  // SIMPLIFIED: Session validation for existing tokens
   async function validateSession(): Promise<boolean> {
     try {
       const sessionStatus = await authService.validateSession();
@@ -225,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      console.log('Session validation successful:', sessionStatus.message);
+      console.log('Session validation successful');
       return true;
     } catch (error) {
       console.error('Session validation error:', error);
@@ -235,28 +223,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Enhanced session refresh
+  // SIMPLIFIED: Just check for existing session data
   async function refreshSession(): Promise<void> {
     try {
       setIsLoading(true);
       console.log('Refreshing session via AuthContext...');
 
-      // Check if session can be refreshed
-      const sessionValid = await authService.checkAndRefreshSession();
-      if (!sessionValid) {
-        console.log('Session refresh failed, logging out');
-        await signOut();
-        throw new Error('Oturum yenilenemedi. Lütfen tekrar giriş yapın.');
-      }
-
-      // Re-fetch user data after successful session refresh
+      // Just check if we have valid stored data
       const authStatus = await authService.getAuthStatus();
-      if (authStatus.user) {
+      if (authStatus.user && authStatus.token) {
         setUser(authStatus.user);
         setIsSessionValid(true);
-        console.log('Session refreshed successfully, user data updated');
+        console.log('Session refreshed from stored data');
       } else {
-        throw new Error('Kullanıcı verisi alınamadı.');
+        throw new Error('Kullanıcı verisi bulunamadı.');
       }
     } catch (error) {
       console.error('Session refresh failed:', error);
@@ -268,52 +248,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Enhanced session check
+  // SIMPLIFIED: Session check - just load from storage
   async function checkUserSession() {
     try {
       console.log('Checking user session...');
       const authStatus = await authService.getAuthStatus();
 
       if (authStatus.user && authStatus.token) {
-        // Validate the token
-        const tokenValid = await authService.isTokenValid();
-        if (tokenValid) {
-          setUser(authStatus.user);
-          setIsSessionValid(true);
-          console.log(
-            'Valid session found for user:',
-            authStatus.user.username,
-          );
-        } else {
-          // Try to refresh if token is invalid
-          console.log('Token invalid, attempting refresh...');
-          try {
-            await authService.refreshAuthToken();
-            // Re-fetch user data after successful refresh
-            const newAuthStatus = await authService.getAuthStatus();
-            if (newAuthStatus.user) {
-              setUser(newAuthStatus.user);
-              setIsSessionValid(true);
-              console.log('Session refreshed successfully during check');
-            }
-          } catch (refreshError) {
-            console.error(
-              'Token refresh failed during session check:',
-              refreshError,
-            );
-            await authService.logout();
-            setUser(null);
-            setIsSessionValid(false);
-          }
-        }
+        // Don't validate token on startup - just load stored data
+        // API calls will handle invalid tokens when they occur
+        setUser(authStatus.user);
+        setIsSessionValid(true);
+        console.log(
+          'Session loaded from storage for user:',
+          authStatus.user.username,
+        );
       } else {
-        console.log('No valid session found');
+        console.log('No stored session found');
         setUser(null);
         setIsSessionValid(false);
       }
     } catch (error) {
       console.error('Error checking user session:', error);
-      await authService.logout();
       setUser(null);
       setIsSessionValid(false);
     } finally {
@@ -321,7 +277,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Enhanced sign in
   async function signIn(email: string, password: string) {
     try {
       setIsLoading(true);
@@ -339,7 +294,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Enhanced sign up
   async function signUp(username: string, email: string, password: string) {
     try {
       setIsLoading(true);
@@ -357,12 +311,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Enhanced OAuth functions with better error handling
   async function signInWithGoogle() {
     try {
       console.log('Starting Google OAuth flow...');
       await authService.signInWithGoogle();
-      // Note: The deep link handler will handle the rest
     } catch (error) {
       console.error('Google OAuth error:', error);
       if (error instanceof Error && !error.message.includes('cancelled')) {
@@ -370,7 +322,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'Google ile giriş başarısız oldu. Lütfen tekrar deneyin.',
         );
       }
-      // Don't throw for user cancellation
     }
   }
 
@@ -378,7 +329,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('Starting Apple OAuth flow...');
       await authService.signInWithApple();
-      // Note: The deep link handler will handle the rest
     } catch (error) {
       console.error('Apple OAuth error:', error);
       if (error instanceof Error && !error.message.includes('cancelled')) {
@@ -386,7 +336,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'Apple ile giriş başarısız oldu. Lütfen tekrar deneyin.',
         );
       }
-      // Don't throw for user cancellation
     }
   }
 
@@ -394,7 +343,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('Starting Facebook OAuth flow...');
       await authService.signInWithFacebook();
-      // Note: The deep link handler will handle the rest
     } catch (error) {
       console.error('Facebook OAuth error:', error);
       if (error instanceof Error && !error.message.includes('cancelled')) {
@@ -402,11 +350,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'Facebook ile giriş başarısız oldu. Lütfen tekrar deneyin.',
         );
       }
-      // Don't throw for user cancellation
     }
   }
 
-  // Enhanced sign out
   async function signOut() {
     try {
       setIsLoading(true);
@@ -417,7 +363,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('User signed out successfully');
     } catch (error) {
       console.error('Sign out error:', error);
-      // Always clear user state even if logout fails
       setUser(null);
       setIsSessionValid(false);
     } finally {
@@ -425,9 +370,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Debug function for development
   if (__DEV__) {
-    // Expose debug function globally in development
     (global as any).debugAuth = async () => {
       await authService.debugAuthState();
       console.log('=== AUTH CONTEXT DEBUG ===');
@@ -461,7 +404,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Custom hook to use the auth context
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
@@ -470,10 +412,9 @@ export function useAuth() {
   return context;
 }
 
-// Enhanced hook for session management
+// SIMPLIFIED: Session management hook
 export function useSession() {
-  const { user, isLoading, isSessionValid, validateSession, refreshSession } =
-    useAuth();
+  const { user, isLoading, isSessionValid, validateSession } = useAuth();
 
   const checkSession = async (): Promise<boolean> => {
     if (!user) return false;
@@ -482,20 +423,12 @@ export function useSession() {
 
   const ensureValidSession = async (): Promise<boolean> => {
     if (!user) return false;
-
-    if (isSessionValid) return true;
-
-    try {
-      await refreshSession();
-      return true;
-    } catch (error) {
-      console.error('Failed to ensure valid session:', error);
-      return false;
-    }
+    // Just assume session is valid if user exists
+    // API calls will handle invalid tokens
+    return true;
   };
 
   useEffect(() => {
-    // Sync authToken whenever user state changes
     const syncAuthToken = async () => {
       try {
         if (user && isSessionValid) {
@@ -522,6 +455,5 @@ export function useSession() {
     isSessionValid,
     checkSession,
     ensureValidSession,
-    refreshSession,
   };
 }

@@ -16,17 +16,6 @@ export class ApiError extends Error {
   }
 }
 
-const AUTH_ENDPOINTS_NO_RETRY = [
-  '/auth/login',
-  '/auth/register',
-  '/auth/refresh-token',
-  '/auth/signout',
-  '/auth/oauth/google',
-  '/auth/oauth/apple',
-  '/auth/oauth/facebook',
-  '/auth/apple',
-];
-
 const getBuildType = (): 'expo-go' | 'eas-build' => {
   if (Constants.appOwnership === 'expo') {
     return 'expo-go';
@@ -46,74 +35,6 @@ const getAppScheme = (): string => {
     return 'https://auth.expo.io/@dusapptr/dus-app';
   }
   return Platform.OS === 'ios' ? 'com.dortac.dusfrontend://' : 'dus-app://';
-};
-
-const refreshAuthTokenInternal = async (): Promise<string | null> => {
-  try {
-    const refreshToken = await AsyncStorage.getItem('refreshToken');
-    if (!refreshToken) {
-      console.log(
-        'apiClient.refreshAuthTokenInternal: No refresh token available in AsyncStorage.',
-      );
-      return null;
-    }
-
-    console.log(
-      'apiClient.refreshAuthTokenInternal: Attempting to refresh token.',
-    );
-    const refreshUrl = `${API_URL}/auth/refresh-token`;
-    const buildType = getBuildType();
-    const appScheme = getAppScheme();
-
-    const response = await fetch(refreshUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'X-Build-Type': buildType,
-        'X-App-Scheme': appScheme,
-      },
-      body: JSON.stringify({ refreshToken: refreshToken }),
-    });
-
-    const responseData = await response.json();
-
-    let newAccessToken: string | undefined;
-    let newRefreshTokenFromResponse: string | undefined;
-
-    if (responseData.session && responseData.session.access_token) {
-      newAccessToken = responseData.session.access_token;
-      newRefreshTokenFromResponse = responseData.session.refresh_token;
-    } else if (responseData.access_token) {
-      newAccessToken = responseData.access_token;
-      newRefreshTokenFromResponse = responseData.refresh_token;
-    } else if (responseData.data && responseData.data.token) {
-      newAccessToken = responseData.data.token;
-      newRefreshTokenFromResponse = responseData.data.refreshToken;
-    }
-
-    if (!response.ok || !newAccessToken) {
-      console.log(
-        'apiClient.refreshAuthTokenInternal: Token refresh failed. Response:',
-        { status: response.status, data: responseData },
-      );
-      await AsyncStorage.multiRemove(['userToken', 'refreshToken', 'userData']);
-      return null;
-    }
-
-    await AsyncStorage.setItem('userToken', newAccessToken);
-    if (newRefreshTokenFromResponse) {
-      await AsyncStorage.setItem('refreshToken', newRefreshTokenFromResponse);
-    }
-    return newAccessToken;
-  } catch (error) {
-    console.error(
-      'apiClient.refreshAuthTokenInternal: Error during token refresh:',
-      error,
-    );
-    await AsyncStorage.multiRemove(['userToken', 'refreshToken', 'userData']);
-    return null;
-  }
 };
 
 const apiRequest = async <TData>(
@@ -145,6 +66,7 @@ const apiRequest = async <TData>(
       'X-Build-Type': buildType,
       'X-App-Scheme': appScheme,
     };
+
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
@@ -185,38 +107,17 @@ const apiRequest = async <TData>(
       responseDataPreview: JSON.stringify(responseData).substring(0, 250),
     });
 
+    // SIMPLIFIED: For Supabase tokens, 401 means user needs to re-login
+    // Don't try to refresh automatically - just clear session
     if (response.status === 401) {
-      const cleanEndpoint = endpoint.split('?')[0];
-      if (AUTH_ENDPOINTS_NO_RETRY.includes(cleanEndpoint)) {
-        throw new ApiError(
-          responseData?.message || 'Authentication failed',
-          response.status,
-        );
-      }
-
-      const newToken = await refreshAuthTokenInternal();
-      if (newToken) {
-        console.log(`Token refreshed, retrying ${endpoint}`);
-        const newHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
-        const retryConfig = { ...config, headers: newHeaders };
-        response = await fetch(url, retryConfig);
-
-        const retryContentType = response.headers.get('content-type');
-        responseData = retryContentType?.includes('application/json')
-          ? await response.json()
-          : await response.text();
-
-        if (response.status === 401) {
-          await AsyncStorage.multiRemove([
-            'userToken',
-            'refreshToken',
-            'userData',
-          ]);
-          throw new ApiError('Session expired. Please login again.', 401);
-        }
-      } else {
-        throw new ApiError('Session expired. Please login again.', 401);
-      }
+      console.log('Received 401 - token expired, clearing session');
+      await AsyncStorage.multiRemove([
+        'userToken',
+        'refreshToken',
+        'userData',
+        'authToken',
+      ]);
+      throw new ApiError('Session expired. Please login again.', 401);
     }
 
     if (!response.ok) {
@@ -288,9 +189,6 @@ export const oauthAPI = {
       throw new Error('Apple Sign In failed');
     }
   },
-
-  // REMOVED: The `handleOAuthCallback` function was here. It is now obsolete because
-  // the logic is correctly handled directly within the AuthContext's deep link listener.
 };
 
 export default apiRequest;

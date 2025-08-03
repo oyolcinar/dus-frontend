@@ -26,7 +26,9 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 import Svg, { Path, G, Circle } from 'react-native-svg';
-import { Colors, FontSizes, FontWeights } from '../../constants/theme';
+import { Colors, FontSizes, FontWeights, Spacing } from '../../constants/theme';
+import PlayfulCard from './PlayfulCard';
+import { ResizeMode, Video } from 'expo-av';
 
 const { width, height } = Dimensions.get('window');
 
@@ -52,6 +54,7 @@ export interface SpinningWheelProps {
 }
 
 const logoWhite = require('../../assets/images/logoWhite.jpg');
+const logoVideo = require('../../assets/videos/heyecanli.mp4');
 
 const defaultItems = [
   'Seçenek 1',
@@ -140,7 +143,7 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
   const handleEnd = (finalRotation: number) => {
     // Calculate which slice is at the top (pointer)
     const normalizedRotation = ((finalRotation % 360) + 360) % 360;
-    const winningAngle = (360 - normalizedRotation + 90) % 360;
+    const winningAngle = (270 - normalizedRotation + 360) % 360;
     const winningIndex = Math.floor(winningAngle / sliceAngle);
 
     console.log('Spin ended with rotation:', normalizedRotation);
@@ -391,7 +394,7 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
         <View style={[styles.pointerContainer, { top: -10 }]}>
           <Svg height='40' width='40' viewBox='0 0 100 100'>
             <Path
-              d='M 50 0 L 20 50 L 80 50 Z'
+              d='M 20 0 L 80 0 L 50 50 Z'
               fill={pointerColor || (isDark ? '#9c27b0' : '#9c27b0')}
               stroke={isDark ? '#fff' : '#fff'}
               strokeWidth='5'
@@ -486,10 +489,40 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
           ]}
         >
           {logoWhite ? (
-            <Image
-              source={logoWhite}
-              style={[styles.spinButtonImage, { borderRadius: size / 8 }]}
-            />
+            // <Image
+            //   source={logoWhite}
+            //   style={[styles.spinButtonImage, { borderRadius: size / 8 }]}
+            // />
+            <PlayfulCard
+              variant='gradient'
+              style={{
+                width: 100,
+                height: 100,
+                borderRadius: 50,
+                alignItems: 'center',
+                justifyContent: 'center',
+                // marginBottom: Spacing[4],
+                // marginTop: Spacing[2],
+                alignContent: 'center',
+              }}
+              contentContainerStyle={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                alignContent: 'center',
+              }}
+              gradient='purple'
+            >
+              <Video
+                source={logoVideo}
+                style={styles.logoVideo}
+                shouldPlay={true}
+                isLooping={true}
+                isMuted={true}
+                resizeMode={ResizeMode.COVER}
+                useNativeControls={false}
+                usePoster={false}
+              />
+            </PlayfulCard>
           ) : (
             <View style={styles.spinButtonFallback}>
               <Text
@@ -500,7 +533,7 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
                   },
                 ]}
               >
-                {spinButtonText || 'SPIN'}
+                {spinButtonText || 'DÖNDÜR'}
               </Text>
             </View>
           )}
@@ -619,7 +652,6 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
-    fontWeight: 'bold',
   },
   // Modal Styles
   modalOverlay: {
@@ -690,6 +722,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  logoVideo: {
+    width: 136,
+    height: 136,
+    borderRadius: 20,
   },
 });
 

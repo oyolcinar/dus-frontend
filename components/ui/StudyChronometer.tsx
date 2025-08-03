@@ -13,6 +13,8 @@ import {
   StyleProp,
   ViewStyle,
   DimensionValue,
+  ScrollView,
+  Modal,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,6 +24,7 @@ import {
   getActiveStudySession,
   formatSessionDuration,
 } from '../../src/api/studyService';
+import { courseService } from '../../src/api';
 import {
   Colors,
   FontSizes,
@@ -89,10 +92,17 @@ const CATEGORY_COLORS = {
 // Timer states
 type TimerState = 'idle' | 'running' | 'paused' | 'loading';
 
+// Topic interface
+interface Topic {
+  topic_id: number;
+  title: string;
+  description?: string;
+  course_id: number;
+}
+
 // Component props interface
 export interface StudyChronometerProps {
-  topicId: number;
-  topicTitle: string;
+  courseId: number;
   courseTitle: string;
   category?: keyof typeof CATEGORY_COLORS;
   variant?:
@@ -103,42 +113,52 @@ export interface StudyChronometerProps {
     | 'glass'
     | 'floating'
     | 'gradient';
-  onSessionStart?: (sessionId: number) => void;
+  onSessionStart?: (sessionId: number, topicId: number) => void;
   onSessionEnd?: (sessionData: any) => void;
   onTimeUpdate?: (timeInSeconds: number) => void;
+  onTopicChange?: (topicId: number, topicTitle: string) => void;
   style?: StyleProp<ViewStyle>;
   disabled?: boolean;
   autoStart?: boolean;
   showNotes?: boolean;
   maxWidth?: DimensionValue;
   testID?: string;
+  defaultTopicId?: number;
 }
 
 const StudyChronometer: React.FC<StudyChronometerProps> = ({
-  topicId,
-  topicTitle,
+  courseId,
   courseTitle,
   category,
   variant = 'default',
   onSessionStart,
   onSessionEnd,
   onTimeUpdate,
+  onTopicChange,
   style,
   disabled = false,
   autoStart = false,
   showNotes = false,
   maxWidth = screenWidth * 0.5,
   testID,
+  defaultTopicId,
 }) => {
   // State management
   const [timerState, setTimerState] = useState<TimerState>('idle');
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
-  const [pausedDuration, setPausedDuration] = useState(0); // Total paused time in ms
+  const [pausedDuration, setPausedDuration] = useState(0);
   const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Topic selection state
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  const [showTopicSelector, setShowTopicSelector] = useState(false);
+  const [topicsLoading, setTopicsLoading] = useState(false);
+  const [topicsError, setTopicsError] = useState<string | null>(null);
 
   // Refs
   const updateTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -163,6 +183,36 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     return Math.max(0, Math.floor((totalElapsed - totalPausedTime) / 1000));
   }, [sessionStartTime, pausedDuration, pauseStartTime, timerState]);
 
+  // Fetch topics for the course
+  const fetchTopics = useCallback(async () => {
+    try {
+      setTopicsLoading(true);
+      setTopicsError(null);
+      console.log('Fetching topics for course:', courseId);
+
+      const courseTopics = await courseService.getTopicsByCourse(courseId);
+      console.log('Fetched topics:', courseTopics);
+
+      setTopics(courseTopics);
+
+      // Set default selected topic
+      if (courseTopics.length > 0) {
+        const defaultTopic = defaultTopicId
+          ? courseTopics.find((t) => t.topic_id === defaultTopicId) ||
+            courseTopics[0]
+          : courseTopics[0];
+
+        setSelectedTopic(defaultTopic);
+        onTopicChange?.(defaultTopic.topic_id, defaultTopic.title);
+      }
+    } catch (error) {
+      console.error('Error fetching topics:', error);
+      setTopicsError('Konular yüklenirken hata oluştu');
+    } finally {
+      setTopicsLoading(false);
+    }
+  }, [courseId, defaultTopicId, onTopicChange]);
+
   // Update current time every second for real-time calculation
   useEffect(() => {
     const interval = setInterval(() => {
@@ -180,17 +230,24 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     }
   }, [currentTime, timerState, calculateElapsedTime, onTimeUpdate]);
 
-  // Check for existing active session on mount
+  // Fetch topics on mount or when courseId changes
   useEffect(() => {
-    checkExistingSession();
-  }, [topicId]);
+    fetchTopics();
+  }, [fetchTopics]);
+
+  // Check for existing active session when topic changes
+  useEffect(() => {
+    if (selectedTopic) {
+      checkExistingSession();
+    }
+  }, [selectedTopic?.topic_id]);
 
   // Auto-start if requested
   useEffect(() => {
-    if (autoStart && timerState === 'idle' && !sessionId) {
+    if (autoStart && timerState === 'idle' && !sessionId && selectedTopic) {
       handleStartTimer();
     }
-  }, [autoStart, timerState, sessionId]);
+  }, [autoStart, timerState, sessionId, selectedTopic]);
 
   // Handle app state changes
   useEffect(() => {
@@ -201,13 +258,27 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     return () => subscription?.remove();
   }, []);
 
+  // Close dropdown when timer state changes or component updates
+  useEffect(() => {
+    if (timerState === 'running' && showTopicSelector) {
+      setShowTopicSelector(false);
+    }
+  }, [timerState, showTopicSelector]);
+
   // Check for existing active session
   const checkExistingSession = async () => {
+    if (!selectedTopic) return;
+
     try {
       setTimerState('loading');
-      console.log('Checking for existing session for topic:', topicId);
+      console.log(
+        'Checking for existing session for topic:',
+        selectedTopic.topic_id,
+      );
 
-      const activeSessions = await getActiveStudySession(topicId);
+      const activeSessions = await getActiveStudySession(
+        selectedTopic.topic_id,
+      );
       console.log('Active sessions response:', activeSessions);
 
       // Handle both array and single object responses
@@ -220,7 +291,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
 
         setSessionId(activeSession.session_id);
         setSessionStartTime(new Date(activeSession.start_time));
-        setPausedDuration(0); // Reset paused duration for existing session
+        setPausedDuration(0);
         setPauseStartTime(null);
         setTimerState('running');
 
@@ -263,16 +334,38 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     appStateRef.current = nextAppState;
   };
 
+  // Handle topic selection
+  const handleTopicSelect = (topic: Topic) => {
+    // Don't allow topic change if timer is running
+    if (timerState === 'running' || timerState === 'paused') {
+      Alert.alert(
+        'Kronometre Aktif',
+        'Konu değiştirmek için önce çalışma seansını sonlandırın.',
+        [{ text: 'Tamam', style: 'default' }],
+      );
+      setShowTopicSelector(false);
+      return;
+    }
+
+    setSelectedTopic(topic);
+    setShowTopicSelector(false);
+    onTopicChange?.(topic.topic_id, topic.title);
+    console.log('Topic selected:', topic);
+  };
+
   // Handle start timer
   const handleStartTimer = async () => {
-    if (disabled || timerState === 'loading') return;
+    if (disabled || timerState === 'loading' || !selectedTopic) return;
 
     try {
       setTimerState('loading');
       setError(null);
-      console.log('Starting study session for topic:', topicId);
+      console.log('Starting study session for topic:', selectedTopic.topic_id);
 
-      const response = await startStudySession(topicId, notes || undefined);
+      const response = await startStudySession(
+        selectedTopic.topic_id,
+        notes || undefined,
+      );
       console.log('Study session started:', response);
 
       const startTime = new Date();
@@ -282,7 +375,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
       setPauseStartTime(null);
       setTimerState('running');
 
-      onSessionStart?.(response.sessionId);
+      onSessionStart?.(response.sessionId, selectedTopic.topic_id);
       console.log('Timer started successfully');
     } catch (error: any) {
       console.error('Error starting study session:', error);
@@ -301,7 +394,6 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
       setTimerState('paused');
     } else if (timerState === 'paused' && pauseStartTime) {
       console.log('Resuming timer');
-      // Add the pause duration to total paused time
       const pauseDuration = now.getTime() - pauseStartTime.getTime();
       setPausedDuration((prev) => prev + pauseDuration);
       setPauseStartTime(null);
@@ -354,7 +446,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     } catch (error: any) {
       console.error('Error ending study session:', error);
       setError(error.message || 'Failed to end study session');
-      setTimerState('running'); // Keep running if failed to end
+      setTimerState('running');
     }
   };
 
@@ -417,25 +509,25 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     switch (timerState) {
       case 'idle':
         return {
-          text: 'Ready to Start',
+          text: 'Hazır',
           icon: 'play' as const,
           color: variantStyles.iconColor,
         };
       case 'running':
         return {
-          text: 'Studying...',
+          text: 'Çalışıyor...',
           icon: 'pause' as const,
           color: '#4CAF50',
         };
       case 'paused':
         return {
-          text: 'Paused',
+          text: 'Durduruldu',
           icon: 'play' as const,
           color: '#FF9800',
         };
       case 'loading':
         return {
-          text: 'Loading...',
+          text: 'Yükleniyor...',
           icon: null,
           color: variantStyles.iconColor,
         };
@@ -446,23 +538,195 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
   const statusDisplay = getStatusDisplay();
   const elapsedTime = calculateElapsedTime();
 
+  // Render topic selector
+  const renderTopicSelector = () => (
+    <View style={styles.topicSelectorContainer}>
+      {/* Topic Selector Button */}
+      <TouchableOpacity
+        style={[
+          styles.topicSelectorButton,
+          { borderColor: variantStyles.iconColor },
+        ]}
+        onPress={() => setShowTopicSelector(true)}
+        disabled={timerState === 'running' || timerState === 'paused'}
+        testID={`${testID}-topic-selector`}
+      >
+        <View style={styles.topicSelectorContent}>
+          <FontAwesome
+            name='book'
+            size={12}
+            color={variantStyles.iconColor}
+            style={styles.topicIcon}
+          />
+          <Text
+            style={[
+              styles.selectedTopicText,
+              { color: variantStyles.textColor },
+            ]}
+            numberOfLines={1}
+          >
+            {selectedTopic ? selectedTopic.title : 'Konu seçin'}
+          </Text>
+          <FontAwesome
+            name='chevron-down'
+            size={10}
+            color={variantStyles.iconColor}
+          />
+        </View>
+      </TouchableOpacity>
+
+      {/* Modal-based Topic Selection */}
+      <Modal
+        visible={showTopicSelector}
+        transparent={true}
+        animationType='fade'
+        onRequestClose={() => setShowTopicSelector(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowTopicSelector(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View
+              style={[
+                styles.modalDropdown,
+                {
+                  backgroundColor: variantStyles.backgroundColor,
+                  borderColor: variantStyles.iconColor,
+                },
+              ]}
+            >
+              {topicsLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator
+                    size='small'
+                    color={variantStyles.iconColor}
+                  />
+                  <Text
+                    style={[
+                      styles.loadingText,
+                      { color: variantStyles.textColor },
+                    ]}
+                  >
+                    Konular yükleniyor...
+                  </Text>
+                </View>
+              ) : topicsError ? (
+                <View style={styles.errorContainer}>
+                  <FontAwesome
+                    name='exclamation-triangle'
+                    size={16}
+                    color='#F44336'
+                  />
+                  <Text style={styles.errorText}>{topicsError}</Text>
+                  <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={fetchTopics}
+                  >
+                    <Text style={styles.retryButtonText}>Tekrar Dene</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : topics.length > 0 ? (
+                <>
+                  <Text
+                    style={[
+                      styles.modalTitle,
+                      { color: variantStyles.textColor },
+                    ]}
+                  >
+                    Konu Seçin
+                  </Text>
+                  <ScrollView
+                    style={styles.modalTopicsList}
+                    showsVerticalScrollIndicator={true}
+                    keyboardShouldPersistTaps='handled'
+                  >
+                    {topics.map((topic, index) => (
+                      <TouchableOpacity
+                        key={topic.topic_id}
+                        style={[
+                          styles.modalTopicItem,
+                          {
+                            borderBottomColor: `${variantStyles.iconColor}30`,
+                            backgroundColor:
+                              selectedTopic?.topic_id === topic.topic_id
+                                ? `${variantStyles.iconColor}20`
+                                : 'transparent',
+                          },
+                        ]}
+                        onPress={() => handleTopicSelect(topic)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.topicItemContent}>
+                          <Text
+                            style={[
+                              styles.topicTitle,
+                              { color: variantStyles.textColor },
+                            ]}
+                          >
+                            {topic.title}
+                          </Text>
+                          {topic.description && (
+                            <Text
+                              style={[
+                                styles.topicDescription,
+                                { color: variantStyles.textColor },
+                              ]}
+                            >
+                              {topic.description}
+                            </Text>
+                          )}
+                        </View>
+                        {selectedTopic?.topic_id === topic.topic_id && (
+                          <FontAwesome
+                            name='check'
+                            size={12}
+                            color={variantStyles.iconColor}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <FontAwesome
+                    name='book'
+                    size={20}
+                    color={variantStyles.iconColor}
+                  />
+                  <Text
+                    style={[
+                      styles.emptyText,
+                      { color: variantStyles.textColor },
+                    ]}
+                  >
+                    Bu kurs için henüz konu bulunmuyor.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+
   // Main render function
   const renderContent = () => (
     <View style={[styles.container, { maxWidth: maxWidth as DimensionValue }]}>
       {/* Header */}
       <View style={styles.header}>
         <Text
-          style={[styles.courseTitle, { color: variantStyles.textColor }]}
+          style={[styles.courseTitle, { color: Colors.gray[700] }]}
           numberOfLines={1}
         >
           {courseTitle}
         </Text>
-        <Text
-          style={[styles.topicTitle, { color: variantStyles.textColor }]}
-          numberOfLines={2}
-        >
-          {topicTitle}
-        </Text>
+
+        {/* Topic Selector */}
+        {renderTopicSelector()}
       </View>
 
       {/* Timer Display */}
@@ -495,24 +759,18 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
           <TouchableOpacity
             style={[
               styles.primaryButton,
-              { backgroundColor: variantStyles.iconColor },
+              {
+                backgroundColor: variantStyles.iconColor,
+                opacity: selectedTopic ? 1 : 0.5,
+              },
             ]}
             onPress={handleStartTimer}
-            disabled={disabled || timerState !== 'idle'}
+            disabled={disabled || timerState !== 'idle' || !selectedTopic}
             testID={`${testID}-start-button`}
           >
-            <FontAwesome
-              name='play'
-              size={16}
-              color={variantStyles.backgroundColor}
-            />
-            <Text
-              style={[
-                styles.buttonText,
-                { color: variantStyles.backgroundColor },
-              ]}
-            >
-              Start
+            <FontAwesome name='play' size={16} color={Colors.gray[900]} />
+            <Text style={[styles.buttonText, { color: Colors.gray[900] }]}>
+              Başlat
             </Text>
           </TouchableOpacity>
         ) : (
@@ -593,7 +851,11 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
 const styles = StyleSheet.create({
   card: {
     borderRadius: BorderRadius.card || BorderRadius.xl,
-    overflow: 'hidden',
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 10, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   container: {
     padding: Spacing[4],
@@ -604,27 +866,117 @@ const styles = StyleSheet.create({
   },
   courseTitle: {
     fontSize: FontSizes.sm,
-    fontWeight: FontWeights.semibold as 'normal',
-    opacity: 0.8,
+    fontFamily: 'SecondaryFont-Bold',
+    marginBottom: Spacing[2],
+  },
+  topicSelectorContainer: {
+    marginBottom: Spacing[1],
+  },
+  topicSelectorButton: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+  },
+  topicSelectorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  topicIcon: {
+    marginRight: Spacing[2],
+  },
+  selectedTopicText: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '85%',
+    maxWidth: 350,
+  },
+  modalDropdown: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    maxHeight: 400,
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontFamily: 'SecondaryFont-Bold',
+    textAlign: 'center',
+    paddingVertical: Spacing[3],
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  modalTopicsList: {
+    maxHeight: 300,
+  },
+  modalTopicItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[3],
+    borderBottomWidth: 0.5,
+    minHeight: 50,
+  },
+  // Loading and Error States
+  loadingContainer: {
+    padding: Spacing[4],
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing[2],
+    fontSize: FontSizes.xs,
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  topicItemContent: {
+    flex: 1,
   },
   topicTitle: {
-    fontSize: FontSizes.base,
-    fontWeight: FontWeights.bold as 'bold',
+    fontSize: FontSizes.sm,
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  topicDescription: {
+    fontSize: FontSizes.xs,
+    fontFamily: 'SecondaryFont-Regular',
+    opacity: 0.7,
     marginTop: Spacing[1],
   },
-  timerSection: {
+  emptyContainer: {
+    padding: Spacing[4],
     alignItems: 'center',
+  },
+  emptyText: {
+    marginTop: Spacing[2],
+    fontSize: FontSizes.xs,
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'center',
+  },
+  // Timer Section
+  timerSection: {
     marginBottom: Spacing[4],
   },
   timeDisplay: {
     fontSize: FontSizes['4xl'],
-    fontWeight: FontWeights.bold as 'bold',
+    fontWeight: 'bold',
     fontFamily: 'monospace',
     textAlign: 'center',
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: Spacing[2],
   },
   statusIcon: {
@@ -632,11 +984,10 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: FontSizes.sm,
-    fontWeight: FontWeights.medium as 'normal',
+    fontFamily: 'PrimaryFont',
   },
-  controls: {
-    alignItems: 'center',
-  },
+  // Controls
+  controls: {},
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -645,14 +996,20 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing[3],
     borderRadius: BorderRadius.full,
     minWidth: 100,
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 10, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   buttonText: {
     marginLeft: Spacing[2],
     fontSize: FontSizes.base,
-    fontWeight: FontWeights.semibold as 'normal',
+    fontFamily: 'SecondaryFont-Bold',
   },
   activeControls: {
     flexDirection: 'row',
+    justifyContent: 'center',
     gap: Spacing[3],
   },
   controlButton: {
@@ -663,6 +1020,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Error Styles
   errorContainer: {
     marginTop: Spacing[2],
     padding: Spacing[2],

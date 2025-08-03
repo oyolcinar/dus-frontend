@@ -1133,7 +1133,7 @@ function NewDuelScreenContent() {
                     disabled={false}
                     style={{
                       minHeight: 44,
-                      backgroundColor: Colors.secondary.DEFAULT,
+                      backgroundColor: Colors.vibrant.purple,
                       borderRadius: BorderRadius.lg,
                     }}
                     textStyle={{
@@ -1227,7 +1227,7 @@ function NewDuelScreenContent() {
                 disabled={isSubmittingChallenge || isChallenginBot}
                 style={{
                   minHeight: 48,
-                  backgroundColor: Colors.primary.DEFAULT,
+                  backgroundColor: Colors.vibrant.purple,
                   borderRadius: BorderRadius.lg,
                   marginBottom: Spacing[2],
                 }}

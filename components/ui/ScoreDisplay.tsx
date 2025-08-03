@@ -161,12 +161,17 @@ const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
     switch (variant) {
       case 'default':
         return {
-          backgroundColor: Colors.white,
-          textColor: Colors.gray[800],
-          labelColor: Colors.gray[600],
+          backgroundColor: Colors.vibrant.orangeLight,
+          textColor: Colors.white,
+          labelColor: Colors.white,
           gradient: null,
           transparent: false,
           horizontal: false,
+          shadowColor: '#000',
+          shadowOffset: { width: 2, height: 12 },
+          shadowOpacity: 0.25,
+          shadowRadius: 10,
+          elevation: 10,
         };
       case 'celebration': // NOTE: No longer needs `horizontal: true`
         return {
@@ -227,9 +232,10 @@ const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
       case 'small':
         return {
           padding: Spacing[3],
-          scoreSize: FontSizes.xl,
+          scoreSize: FontSizes.base,
           labelSize: FontSizes.sm,
           borderRadius: BorderRadius.lg,
+          fontFamily: 'SecondaryFont-Regular',
         };
       case 'medium':
         return {
@@ -241,7 +247,7 @@ const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
       case 'large':
         return {
           padding: Spacing[6],
-          scoreSize: FontSizes['4xl'],
+          scoreSize: FontSizes['2xl'],
           labelSize: FontSizes.lg,
           borderRadius: BorderRadius['2xl'],
         };
@@ -419,64 +425,67 @@ const ScoreDisplay: React.FC<EnhancedScoreDisplayProps> = ({
   } else {
     // Default Vertical Layout
     scoreContent = (
-      <View style={[styles.container, { padding: sizeStyles.padding }]}>
+      <View style={[styles.containerAlt, { padding: sizeStyles.padding }]}>
         {isCelebration && (
           <Animated.View style={sparkleAnimatedStyle}>
             {/* ... */}
           </Animated.View>
         )}
+
         {renderLabel(true)}
-        {renderScore()}
-        {maxScore && (
-          <Text
-            style={[
-              styles.maxScore,
-              {
-                color: variantStyles.labelColor,
-                fontSize: sizeStyles.labelSize * 0.8,
-                marginTop: Spacing[1],
-              },
-              maxScoreTextStyles,
-            ]}
-          >
-            / {maxScore.toLocaleString()}
-          </Text>
-        )}
-        {showProgress && maxScore && (
-          <View style={styles.progressContainer}>
-            <View
+        <View style={styles.horizontalContent}>
+          {renderScore()}
+          {maxScore && (
+            <Text
               style={[
-                styles.progressTrack,
+                styles.maxScore,
                 {
-                  marginBottom: Spacing[1],
-                  borderRadius: sizeStyles.borderRadius / 4,
+                  color: variantStyles.labelColor,
+                  fontSize: sizeStyles.labelSize * 0.8,
+                  marginTop: Spacing[1],
                 },
+                maxScoreTextStyles,
               ]}
             >
+              / {maxScore.toLocaleString()}
+            </Text>
+          )}
+          {showProgress && maxScore && (
+            <View style={styles.progressContainer}>
               <View
                 style={[
-                  styles.progressBar,
+                  styles.progressTrack,
                   {
-                    width: `${progressWidth}%`,
-                    backgroundColor: isCelebration
-                      ? Colors.vibrant?.yellow || '#FFD93D'
-                      : Colors.vibrant?.green || Colors.success,
+                    marginBottom: Spacing[1],
                     borderRadius: sizeStyles.borderRadius / 4,
                   },
                 ]}
-              />
+              >
+                <View
+                  style={[
+                    styles.progressBar,
+                    {
+                      width: `${progressWidth}%`,
+                      backgroundColor: isCelebration
+                        ? Colors.vibrant?.yellow || '#FFD93D'
+                        : Colors.vibrant?.green || Colors.success,
+                      borderRadius: sizeStyles.borderRadius / 4,
+                    },
+                  ]}
+                />
+              </View>
+              <Text
+                style={[
+                  styles.percentage,
+                  { color: variantStyles.labelColor },
+                  percentageTextStyles,
+                ]}
+              >
+                {Math.round(percentage)}%
+              </Text>
             </View>
-            <Text
-              style={[
-                styles.percentage,
-                { color: variantStyles.labelColor },
-                percentageTextStyles,
-              ]}
-            >
-              {Math.round(percentage)}%
-            </Text>
-          </View>
-        )}
+          )}
+        </View>
       </View>
     );
   }
@@ -541,6 +550,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
     width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
+    borderRadius: BorderRadius['3xl'],
+  },
+  containerAlt: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    width: '100%',
+    backgroundColor: 'transparent',
+    // shadowColor: '#000',
+    // shadowOffset: { width: 2, height: 12 },
+    // shadowOpacity: 0.25,
+    // shadowRadius: 10,
+    // elevation: 10,
+    borderRadius: BorderRadius['3xl'],
   },
   horizontalContent: {
     flexDirection: 'row',
@@ -566,7 +594,7 @@ const styles = StyleSheet.create({
   sparkle3: { position: 'absolute', top: '20%', left: '20%' },
   label: {
     textAlign: 'center',
-    textTransform: 'uppercase',
+
     letterSpacing: 1,
   },
   score: {
