@@ -18,7 +18,7 @@ import {
 import * as notificationService from '../src/api/notificationService';
 
 // Detect Expo Go environment - Manual override for testing
-const FORCE_EXPO_GO_MODE = true; // Set to true for Expo Go testing, false for production
+const FORCE_EXPO_GO_MODE = false; // Set to true for Expo Go testing, false for production
 const isExpoGo = FORCE_EXPO_GO_MODE && __DEV__;
 
 console.log('🚀 Expo Go Mode:', { FORCE_EXPO_GO_MODE, __DEV__, isExpoGo });
