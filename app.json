@@ -19,7 +19,13 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.dortac.dusfrontend",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "dus-app-oauth",
+            "CFBundleURLSchemes": ["dus-app", "com.dortac.dusfrontend"]
+          }
+        ]
       },
       "entitlements": {
         "com.apple.developer.applesignin": ["Default"]
@@ -30,7 +36,21 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#a8d8e6"
       },
-      "package": "com.dusapptr.dusapp"
+      "package": "com.dusapptr.dusapp",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "dus-app"
+            },
+            {
+              "scheme": "com.dusapptr.dusapp"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

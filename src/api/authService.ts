@@ -3,10 +3,12 @@ import * as WebBrowser from 'expo-web-browser';
 import apiRequest, { ApiError } from './apiClient';
 import { ApiResponse } from '../types/api';
 import { User, AuthResponse } from '../types/models';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import { router } from 'expo-router';
 
 // Achievement integration
 import { triggerAchievementCheck } from './achievementService';
-import { router } from 'expo-router';
 
 // This is a standard part of Expo's OAuth flow, keep it.
 WebBrowser.maybeCompleteAuthSession();
@@ -25,6 +27,41 @@ interface AuthApiPayload {
     expires_in?: number;
     token_type?: string;
   };
+}
+
+// Helper functions for build type and app scheme
+const getBuildType = (): 'expo-go' | 'eas-build' => {
+  if (Constants.appOwnership === 'expo') {
+    return 'expo-go';
+  }
+  if (__DEV__ && Constants.expoConfig?.hostUri?.includes('localhost')) {
+    return 'expo-go';
+  }
+  if (__DEV__ && Platform.OS === 'ios' && !Constants.executionEnvironment) {
+    return 'expo-go';
+  }
+  return 'eas-build';
+};
+
+const getAppScheme = (): string => {
+  const buildType = getBuildType();
+  if (buildType === 'expo-go') {
+    return 'https://auth.expo.io/@dusapptr/dus-app';
+  }
+  return Platform.OS === 'ios' ? 'com.dortac.dusfrontend://' : 'dus-app://';
+};
+
+// JWT decode function
+function jwt_decode(token: string): any {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = atob(base64);
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Failed to decode JWT:', e);
+    return null;
+  }
 }
 
 function normalizeUser(apiUser: any): User {
@@ -64,9 +101,6 @@ export async function isTokenValid(): Promise<boolean> {
       console.log('No token found in storage');
       return false;
     }
-
-    // Don't make API calls here - just check if token exists
-    // API calls will handle 401s and redirect to login if needed
     console.log('Token exists in storage');
     return true;
   } catch (error) {
@@ -84,8 +118,6 @@ export async function checkAndRefreshSession(): Promise<boolean> {
       router.replace('/(auth)/login');
       return false;
     }
-
-    // Token exists, assume it's valid until an API call says otherwise
     console.log('Session token exists');
     return true;
   } catch (error) {
@@ -107,7 +139,6 @@ export async function safeApiRequest<T>(
 
     if (error instanceof ApiError) {
       if (error.status === 401) {
-        // For infinite tokens, 401 means user needs to login again
         await logout();
         throw new Error('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
       } else if (error.status === 403) {
@@ -145,26 +176,15 @@ export async function login(
     }
     const user: User = normalizeUser(apiData.user);
 
-    // Store the infinite token
     await AsyncStorage.setItem('userToken', apiData.session.access_token);
     await AsyncStorage.setItem('authToken', apiData.session.access_token);
 
-    // Only store refresh token if provided (for backward compatibility)
     if (apiData.session.refresh_token) {
       await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
     }
 
     await AsyncStorage.setItem('userData', JSON.stringify(user));
     console.log('Login successful, user data stored');
-
-    // Achievement check for login
-    try {
-      console.log(
-        'User logged in successfully - achievement check skipped for login',
-      );
-    } catch (achievementError) {
-      console.error('Achievement check failed after login:', achievementError);
-    }
 
     return {
       user,
@@ -206,7 +226,6 @@ export async function register(
     }
     const user: User = normalizeUser(apiData.user);
 
-    // Store the infinite token
     await AsyncStorage.setItem('userToken', apiData.session.access_token);
     await AsyncStorage.setItem('authToken', apiData.session.access_token);
 
@@ -217,7 +236,6 @@ export async function register(
     await AsyncStorage.setItem('userData', JSON.stringify(user));
     console.log('Registration successful, user data stored');
 
-    // Achievement check for registration
     let achievementCheck = null;
     try {
       console.log('🎉 Checking achievements after user registration');
@@ -270,7 +288,6 @@ export async function logout(): Promise<void> {
   try {
     const token = await AsyncStorage.getItem('userToken');
     if (token) {
-      // Try to call logout endpoint, but don't fail if it doesn't work
       await apiRequest('/auth/signout', 'POST').catch((apiError) =>
         console.warn(
           'Logout API call failed, proceeding with local logout:',
@@ -279,7 +296,6 @@ export async function logout(): Promise<void> {
       );
     }
   } finally {
-    // Reset refresh state
     isRefreshing = false;
     refreshPromise = null;
 
@@ -310,6 +326,150 @@ export async function getAuthStatus(): Promise<{
   }
 }
 
+// Store OAuth session for polling
+export async function storeOAuthSession(
+  sessionId: string,
+  tokens: any,
+): Promise<void> {
+  try {
+    await AsyncStorage.setItem(
+      `oauth_session_${sessionId}`,
+      JSON.stringify(tokens),
+    );
+  } catch (error) {
+    console.error('Error storing OAuth session:', error);
+  }
+}
+
+// OAuth functions
+async function startOAuth(
+  provider: 'google' | 'apple' | 'facebook',
+): Promise<void> {
+  try {
+    console.log(`Starting ${provider} OAuth flow from authService`);
+
+    const response = await apiRequest<{ url: string; message: string }>(
+      `/auth/oauth/${provider}`,
+      'GET',
+    );
+
+    if (!response.data?.url) {
+      throw new Error(`${provider} OAuth URL alınamadı sunucudan.`);
+    }
+
+    console.log(`Opening ${provider} OAuth URL:`, response.data.url);
+
+    const redirectUrl =
+      Platform.OS === 'ios' ? 'com.dortac.dusfrontend://' : 'dus-app://';
+
+    console.log(`Expected redirect URL: ${redirectUrl}`);
+
+    const result = await WebBrowser.openAuthSessionAsync(
+      response.data.url,
+      redirectUrl,
+      {
+        preferEphemeralSession: false,
+        showInRecents: false,
+        ...(Platform.OS === 'ios' && {
+          createTask: false,
+        }),
+      },
+    );
+
+    console.log(`${provider} OAuth browser session result:`, result);
+
+    if (result.type === 'success') {
+      console.log('OAuth completed successfully, URL:', result.url);
+    } else if (result.type === 'cancel') {
+      console.log('OAuth was cancelled by user');
+      return;
+    } else {
+      console.log('OAuth failed or dismissed:', result);
+      throw new Error(`${provider} OAuth was not completed successfully`);
+    }
+  } catch (error) {
+    console.error(`Error in authService startOAuth for ${provider}:`, error);
+    if (error instanceof ApiError) {
+      if (error.status === 500) {
+        throw new Error(
+          `${provider} giriş servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.`,
+        );
+      }
+      throw error;
+    }
+    if (error instanceof Error && error.message.includes('cancelled')) {
+      console.log('OAuth flow cancelled by user.');
+      return;
+    }
+    throw new Error(`${provider} giriş işlemi başlatılamadı.`);
+  }
+}
+
+// Simple external browser approach for iOS
+async function startOAuthExternal(
+  provider: 'google' | 'apple' | 'facebook',
+): Promise<void> {
+  try {
+    console.log(`Starting ${provider} OAuth with external browser`);
+
+    const response = await apiRequest<{ url: string; message: string }>(
+      `/auth/oauth/${provider}`,
+      'GET',
+    );
+
+    if (!response.data?.url) {
+      throw new Error(`${provider} OAuth URL alınamadı sunucudan.`);
+    }
+
+    console.log(
+      `Opening ${provider} OAuth URL in external browser:`,
+      response.data.url,
+    );
+
+    // Open in external browser - user will need to return to app manually
+    const result = await WebBrowser.openBrowserAsync(response.data.url, {
+      showTitle: false,
+      toolbarColor: '#6200EE',
+      ...(Platform.OS === 'ios' && {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+      }),
+    });
+
+    console.log(`External browser result:`, result);
+
+    // Note: When using external browser, the redirect will work like your manual test
+    // The app will be opened via deep link when OAuth completes
+  } catch (error) {
+    console.error(`Error in external OAuth for ${provider}:`, error);
+    throw error;
+  }
+}
+
+export async function signInWithGoogle(): Promise<void> {
+  if (Platform.OS === 'ios') {
+    return startOAuthExternal('google');
+  } else {
+    return startOAuth('google');
+  }
+}
+
+export async function signInWithApple(): Promise<void> {
+  if (Platform.OS === 'ios') {
+    return startOAuthExternal('apple');
+  } else {
+    return startOAuth('apple');
+  }
+}
+
+export async function signInWithFacebook(): Promise<void> {
+  if (Platform.OS === 'ios') {
+    return startOAuthExternal('facebook');
+  } else {
+    return startOAuth('facebook');
+  }
+}
+
+// Rest of existing functions...
 export async function requestPasswordReset(
   email: string,
 ): Promise<ApiResponse<any>> {
@@ -322,7 +482,7 @@ export async function requestPasswordReset(
         throw new Error('Bu e-posta adresiyle kayıtlı kullanıcı bulunamadı.');
       } else if (error.status === 429) {
         throw new Error(
-          'Çok fazla şifre sıfırlama talebi gönderdินiz. Lütfen daha sonra tekrar deneyin.',
+          'Çok fazla şifre sıfırlama talebi gönderdինiz. Lütfen daha sonra tekrar deneyin.',
         );
       }
       throw error;
@@ -335,7 +495,6 @@ export async function requestPasswordReset(
   }
 }
 
-// OPTIONAL: Simple refresh token function (only call when explicitly needed)
 export async function refreshAuthToken(): Promise<{
   token: string;
   refreshToken: string | null;
@@ -383,7 +542,6 @@ export async function refreshAuthToken(): Promise<{
     };
   } catch (error) {
     console.error('Token refresh failed:', error);
-    // Clear tokens on refresh failure
     await AsyncStorage.multiRemove([
       'userToken',
       'refreshToken',
@@ -403,7 +561,6 @@ export async function refreshAuthToken(): Promise<{
   }
 }
 
-// SIMPLIFIED: API request wrapper without automatic token refresh loops
 export async function authenticatedRequest<T>(
   endpoint: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
@@ -412,7 +569,6 @@ export async function authenticatedRequest<T>(
   try {
     return await apiRequest<T>(endpoint, method, data);
   } catch (error) {
-    // If we get a 401, the token is expired - user needs to login again
     if (error instanceof ApiError && error.status === 401) {
       console.log('Received 401 - token expired, clearing session');
       await logout();
@@ -422,7 +578,6 @@ export async function authenticatedRequest<T>(
   }
 }
 
-// SIMPLIFIED: Session validation without refresh attempts
 export async function validateSession(): Promise<{
   isValid: boolean;
   message?: string;
@@ -437,7 +592,6 @@ export async function validateSession(): Promise<{
       };
     }
 
-    // Just return true if token exists - let API calls handle validation
     return {
       isValid: true,
       message: 'Oturum var.',
@@ -451,56 +605,7 @@ export async function validateSession(): Promise<{
   }
 }
 
-// OAuth functions remain the same
-async function startOAuth(
-  provider: 'google' | 'apple' | 'facebook',
-): Promise<void> {
-  try {
-    console.log(`Starting ${provider} OAuth flow from authService`);
-
-    const response = await apiRequest<{ url: string; message: string }>(
-      `/auth/oauth/${provider}`,
-      'GET',
-    );
-
-    if (!response.data?.url) {
-      throw new Error(`${provider} OAuth URL alınamadı sunucudan.`);
-    }
-
-    console.log(`Opening ${provider} OAuth URL...`);
-    await WebBrowser.openAuthSessionAsync(response.data.url);
-    console.log(`${provider} OAuth browser session completed`);
-  } catch (error) {
-    console.error(`Error in authService startOAuth for ${provider}:`, error);
-    if (error instanceof ApiError) {
-      if (error.status === 500) {
-        throw new Error(
-          `${provider} giriş servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.`,
-        );
-      }
-      throw error;
-    }
-    if (error instanceof Error && error.message.includes('cancelled')) {
-      console.log('OAuth flow cancelled by user.');
-      return;
-    }
-    throw new Error(`${provider} giriş işlemi başlatılamadı.`);
-  }
-}
-
-export async function signInWithGoogle(): Promise<void> {
-  return startOAuth('google');
-}
-
-export async function signInWithApple(): Promise<void> {
-  return startOAuth('apple');
-}
-
-export async function signInWithFacebook(): Promise<void> {
-  return startOAuth('facebook');
-}
-
-// Rest of the functions remain the same...
+// Rest of existing functions remain the same...
 export async function getCurrentUserWithAchievements(): Promise<{
   user: User | null;
   achievements?: any[];

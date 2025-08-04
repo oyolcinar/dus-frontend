@@ -8,21 +8,44 @@ import * as authService from '../src/api/authService';
 import { User, AuthResponse } from '../src/types/models';
 
 const getParamsFromUrl = (url: string): Record<string, string> | null => {
+  console.log('🔍 Parsing URL:', url);
+
+  // Try hash fragment first (for Android/web)
   const fragment = url.split('#')[1];
-  if (!fragment) {
-    return null;
+  if (fragment) {
+    console.log('📱 Using hash fragment parsing (Android)');
+    const params = new URLSearchParams(fragment);
+    const data: Record<string, string> = {};
+    params.forEach((value, key) => {
+      data[key] = value;
+    });
+
+    if (data.access_token) {
+      console.log('✅ Found tokens in hash fragment');
+      return data;
+    }
   }
 
-  const params = new URLSearchParams(fragment);
-  const data: Record<string, string> = {};
-  params.forEach((value, key) => {
-    data[key] = value;
-  });
+  // Try query parameters (for iOS)
+  const queryString = url.split('?')[1];
+  if (queryString) {
+    // Remove hash if present
+    const cleanQuery = queryString.split('#')[0];
+    console.log('🍎 Using query parameter parsing (iOS)');
 
-  if (data.access_token && data.refresh_token) {
-    return data;
+    const params = new URLSearchParams(cleanQuery);
+    const data: Record<string, string> = {};
+    params.forEach((value, key) => {
+      data[key] = value;
+    });
+
+    if (data.access_token) {
+      console.log('✅ Found tokens in query parameters');
+      return data;
+    }
   }
 
+  console.log('❌ No tokens found in URL');
   return null;
 };
 
