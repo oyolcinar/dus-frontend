@@ -1,8 +1,9 @@
 import { Platform, Alert } from 'react-native';
 import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiRequest from './apiClient';
-import { ApiResponse } from '../types/api';
 import {
   Notification,
   NotificationResponse,
@@ -15,14 +16,192 @@ import {
 
 /**
  * Notification Service
- * Handles all notification-related API calls
+ * Updated for Expo SDK 53+ with latest package versions
+ * expo-notifications: ^0.31.4
+ * expo-constants: ~17.1.6
+ * expo-device: ^7.1.4
  */
 
-// Detect Expo Go environment - Manual override for testing
-const FORCE_EXPO_GO_MODE = false; // Set to true for Expo Go testing, false for production
-const isExpoGo = FORCE_EXPO_GO_MODE && __DEV__;
+// UPDATED: Proper detection for newer Expo versions
+const isExpoGo = Constants.appOwnership === 'expo';
+const isDevelopmentBuild = !isExpoGo;
 
-console.log('🚀 Expo Go Mode:', { FORCE_EXPO_GO_MODE, __DEV__, isExpoGo });
+console.log('🚀 Notification Environment (SDK 53+):', {
+  isExpoGo,
+  isDevelopmentBuild,
+  isDevice: Device.isDevice,
+  platform: Platform.OS,
+  sdkVersion: Constants.expoConfig?.sdkVersion || 'unknown',
+});
+
+// UPDATED: Configure notification behavior for newer expo-notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+// MAIN: Setup push notifications for SDK 53+
+export async function setupPushNotifications(): Promise<{
+  success: boolean;
+  token?: string;
+  isDevelopment?: boolean;
+}> {
+  try {
+    // Skip in Expo Go completely
+    if (isExpoGo) {
+      console.log('🚀 Expo Go detected - push notifications not supported');
+      Alert.alert(
+        'Geliştirme Modu',
+        'Expo Go kullanıyorsunuz. Push bildirimler çalışmayacak, ancak uygulama normal şekilde çalışacak.',
+        [{ text: 'Tamam' }],
+      );
+      return { success: false, isDevelopment: true };
+    }
+
+    // Must be on physical device
+    if (!Device.isDevice) {
+      console.warn('📱 Push notifications only work on physical devices');
+      Alert.alert(
+        'Simülatör Tespit Edildi',
+        'Push bildirimler sadece gerçek cihazlarda çalışır.',
+        [{ text: 'Tamam' }],
+      );
+      return { success: false, isDevelopment: true };
+    }
+
+    console.log('🔔 Setting up push notifications on real device (SDK 53+)...');
+
+    // Get existing permission status
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    console.log('📋 Current permission status:', existingStatus);
+
+    // Request permissions if not granted
+    if (existingStatus !== 'granted') {
+      console.log('🔒 Requesting notification permissions...');
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+      console.log('📋 New permission status:', finalStatus);
+    }
+
+    if (finalStatus !== 'granted') {
+      console.warn('🔒 Push notification permission denied');
+      Alert.alert(
+        'İzin Gerekli',
+        'Push bildirimler için izin vermeniz gerekiyor. Ayarlardan izinleri kontrol edin.',
+        [{ text: 'Tamam' }],
+      );
+      return { success: false };
+    }
+
+    // UPDATED: Get project ID for SDK 53+ (updated Constants API)
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ||
+      Constants.easConfig?.projectId ||
+      process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+
+    console.log('🆔 Project ID (SDK 53+):', projectId);
+
+    if (!projectId) {
+      console.error('❌ No project ID found for push tokens');
+      Alert.alert(
+        'Yapılandırma Hatası',
+        "EAS proje ID'si bulunamadı. app.json dosyasını kontrol edin.",
+        [{ text: 'Tamam' }],
+      );
+      return { success: false };
+    }
+
+    // Get push token with updated API
+    console.log('🎫 Getting push token (SDK 53+)...');
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: projectId,
+    });
+
+    const token = tokenData.data;
+    console.log('✅ Push token obtained:', token.substring(0, 50) + '...');
+
+    // Register token with backend
+    const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+    console.log('📝 Registering token with backend...');
+
+    try {
+      await registerDeviceToken(token, platform);
+      console.log('✅ Token registered with backend successfully');
+    } catch (backendError) {
+      console.error('❌ Backend registration failed:', backendError);
+      // Continue anyway - token is still valid for local testing
+    }
+
+    // Store locally for debugging
+    await AsyncStorage.setItem('pushToken', token);
+    await AsyncStorage.setItem('pushTokenDate', new Date().toISOString());
+
+    console.log('🎉 Push notification setup completed successfully (SDK 53+)');
+
+    return { success: true, token };
+  } catch (error: any) {
+    console.error('🔔 Push notification setup failed:', error);
+
+    // More specific error handling
+    if (
+      error.message?.includes('project') ||
+      error.message?.includes('projectId')
+    ) {
+      Alert.alert(
+        'Yapılandırma Hatası',
+        "EAS proje ID'si bulunamadı. app.json dosyasını kontrol edin.",
+        [{ text: 'Tamam' }],
+      );
+    } else if (error.message?.includes('network')) {
+      Alert.alert('Bağlantı Hatası', 'İnternet bağlantınızı kontrol edin.', [
+        { text: 'Tamam' },
+      ]);
+    } else {
+      Alert.alert('Push Bildirim Hatası', `Bir hata oluştu: ${error.message}`, [
+        { text: 'Tamam' },
+      ]);
+    }
+
+    return { success: false };
+  }
+}
+
+// Setup notification listeners
+export function setupNotificationListeners() {
+  // Handle notification received while app is in foreground
+  const foregroundSubscription = Notifications.addNotificationReceivedListener(
+    (notification) => {
+      console.log('🔔 Notification received in foreground:', notification);
+    },
+  );
+
+  // Handle notification tapped/clicked
+  const responseSubscription =
+    Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log('👆 Notification tapped:', response);
+
+      // Extract navigation data
+      const data = response.notification.request.content.data;
+      console.log('📱 Notification data:', data);
+    });
+
+  console.log('👂 Notification listeners set up (SDK 53+)');
+
+  // Return cleanup function
+  return () => {
+    console.log('🧹 Cleaning up notification listeners');
+    foregroundSubscription.remove();
+    responseSubscription.remove();
+  };
+}
 
 // Get notifications for authenticated user
 export async function getNotifications(
@@ -181,29 +360,16 @@ export async function updatePreferences(
   }
 }
 
-// Register device token for push notifications
+// Register device token
 export async function registerDeviceToken(
   deviceToken: string,
   platform: 'ios' | 'android' | 'web',
 ): Promise<{ message: string; token: DeviceToken }> {
   try {
-    // Skip actual API call in Expo Go to avoid 500 errors
-    if (isExpoGo) {
-      console.log('🚀 Expo Go detected - skipping device token registration');
-
-      // Return mock response matching your backend structure
-      return {
-        message: 'Development mode - token stored locally',
-        token: {
-          user_id: 1,
-          device_token: deviceToken,
-          platform,
-          is_active: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      };
-    }
+    console.log('📝 Registering device token (SDK 53+):', {
+      platform,
+      token: deviceToken.substring(0, 20) + '...',
+    });
 
     const response = await apiRequest<{ message: string; token: DeviceToken }>(
       '/notifications/device-token',
@@ -218,57 +384,10 @@ export async function registerDeviceToken(
       throw new Error('No data received from register device token API');
     }
 
+    console.log('✅ Device token registered successfully with backend');
     return response.data;
   } catch (error) {
-    console.error('Error registering device token:', error);
-    throw error;
-  }
-}
-
-// Setup push notifications - NEW function to fix TypeScript error
-export async function setupPushNotifications(): Promise<{
-  success: boolean;
-  token?: string;
-  isDevelopment?: boolean;
-}> {
-  try {
-    if (isExpoGo) {
-      console.log('🚀 Expo Go detected - using mock notification setup');
-
-      Alert.alert(
-        'Geliştirme Modu',
-        'Expo Go kullanıyorsunuz. Push bildirimler çalışmayacak, ancak uygulama normal şekilde çalışacak.',
-        [{ text: 'Tamam' }],
-      );
-
-      return {
-        success: true,
-        token: 'EXPO_GO_MOCK_TOKEN',
-        isDevelopment: true,
-      };
-    }
-
-    // For real devices/development builds, you would implement your actual push setup here
-    // This is just a placeholder - implement according to your needs
-    console.log(
-      'Real device detected - implement actual push notification setup',
-    );
-
-    return {
-      success: true,
-      token: 'REAL_DEVICE_TOKEN_PLACEHOLDER',
-      isDevelopment: false,
-    };
-  } catch (error) {
-    console.error('🔔 Push notification setup failed:', error);
-
-    if (isExpoGo) {
-      return {
-        success: false,
-        isDevelopment: true,
-      };
-    }
-
+    console.error('❌ Error registering device token:', error);
     throw error;
   }
 }
@@ -278,32 +397,6 @@ export async function sendTestNotification(
   request: TestNotificationRequest,
 ): Promise<{ message: string; notification: Notification }> {
   try {
-    // Handle test notification in Expo Go
-    if (isExpoGo) {
-      Alert.alert('Test Bildirimi', 'Bu bir test bildirimidir! (Expo Go)', [
-        { text: 'Tamam' },
-      ]);
-
-      // Return mock response
-      const mockNotification: Notification = {
-        notification_id: Date.now(),
-        user_id: 1,
-        notification_type: request.notification_type,
-        title: request.variables?.title || 'Test Notification',
-        body: request.variables?.body || 'This is a test notification',
-        status: 'sent',
-        is_read: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        metadata: request.variables,
-      };
-
-      return {
-        message: 'Test notification sent successfully (mock)',
-        notification: mockNotification,
-      };
-    }
-
     const response = await apiRequest<{
       message: string;
       notification: Notification;
@@ -339,6 +432,79 @@ export async function getStats(days: number = 30): Promise<NotificationStats> {
   }
 }
 
+// UPDATED: Test local notification for SDK 53+ (expo-notifications ^0.31.4)
+export async function sendLocalTestNotification(): Promise<boolean> {
+  try {
+    console.log('🧪 Sending test notification (SDK 53+)...');
+
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '🧪 Test Bildirimi',
+        body: 'Bu bir test bildirimidir! Push bildirimler çalışıyor.',
+        data: {
+          test: true,
+          notification_type: 'system_announcement',
+          action_url: '/(tabs)/profile',
+        },
+      },
+      trigger: null, // Immediate notification (works with 0.31.4)
+    });
+
+    console.log(
+      '📱 Local test notification scheduled with ID:',
+      notificationId,
+    );
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending local test notification:', error);
+
+    // Try alternative trigger format for SDK 53+
+    try {
+      console.log('🔄 Trying alternative trigger format...');
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '🧪 Test Bildirimi (Alt)',
+          body: 'Bu alternatif format ile test bildirimidir!',
+          data: { test: true },
+        },
+        trigger: {
+          seconds: 1,
+        } as any, // Type assertion for compatibility
+      });
+
+      console.log(
+        '📱 Alternative test notification scheduled:',
+        notificationId,
+      );
+      return true;
+    } catch (altError) {
+      console.error('❌ Alternative format also failed:', altError);
+      return false;
+    }
+  }
+}
+
+// Get current push token from storage
+export async function getCurrentPushToken(): Promise<string | null> {
+  try {
+    const token = await AsyncStorage.getItem('pushToken');
+    const tokenDate = await AsyncStorage.getItem('pushTokenDate');
+
+    if (token && tokenDate) {
+      console.log('📱 Stored push token found:', {
+        token: token.substring(0, 20) + '...',
+        date: tokenDate,
+      });
+      return token;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('❌ Error getting stored push token:', error);
+    return null;
+  }
+}
+
 // Utility functions
 
 // Check if notification type is enabled for user
@@ -348,7 +514,7 @@ export function isNotificationTypeEnabled(
   channel: 'in_app' | 'push' | 'email' = 'in_app',
 ): boolean {
   const pref = preferences.find((p) => p.notification_type === type);
-  if (!pref) return true; // Default to enabled if no preference found
+  if (!pref) return true;
 
   switch (channel) {
     case 'in_app':
@@ -429,19 +595,19 @@ export function getNotificationPriority(
 // Get notification color based on type
 export function getNotificationColor(type: NotificationType): string {
   const colorMap: Record<NotificationType, string> = {
-    study_reminder: '#3B82F6', // blue
-    achievement_unlock: '#F59E0B', // amber
-    duel_invitation: '#8B5CF6', // purple
-    duel_result: '#10B981', // emerald
-    friend_request: '#06B6D4', // cyan
-    friend_activity: '#84CC16', // lime
-    content_update: '#6366F1', // indigo
-    streak_reminder: '#EF4444', // red
-    plan_reminder: '#F97316', // orange
-    coaching_note: '#14B8A6', // teal
-    motivational_message: '#EC4899', // pink
-    system_announcement: '#8B5CF6', // purple
+    study_reminder: '#3B82F6',
+    achievement_unlock: '#F59E0B',
+    duel_invitation: '#8B5CF6',
+    duel_result: '#10B981',
+    friend_request: '#06B6D4',
+    friend_activity: '#84CC16',
+    content_update: '#6366F1',
+    streak_reminder: '#EF4444',
+    plan_reminder: '#F97316',
+    coaching_note: '#14B8A6',
+    motivational_message: '#EC4899',
+    system_announcement: '#8B5CF6',
   };
 
-  return colorMap[type] || '#6B7280'; // gray as default
+  return colorMap[type] || '#6B7280';
 }

@@ -1,4 +1,4 @@
-// context/NotificationContext.tsx - Updated for Expo Go compatibility
+// context/NotificationContext.tsx - Latest version for Expo SDK 53
 import React, {
   createContext,
   useContext,
@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Notification,
@@ -17,14 +18,19 @@ import {
 } from '../src/types/models';
 import * as notificationService from '../src/api/notificationService';
 
-// Detect Expo Go environment - Manual override for testing
-const FORCE_EXPO_GO_MODE = false; // Set to true for Expo Go testing, false for production
-const isExpoGo = FORCE_EXPO_GO_MODE && __DEV__;
+// UPDATED: Proper detection for Expo SDK 53
+const isExpoGo = Constants.appOwnership === 'expo';
+const isDevelopmentBuild = !isExpoGo;
 
-console.log('🚀 Expo Go Mode:', { FORCE_EXPO_GO_MODE, __DEV__, isExpoGo });
+console.log('🚀 NotificationContext (SDK 53):', {
+  isExpoGo,
+  isDevelopmentBuild,
+  isDevice: Device.isDevice,
+  sdkVersion: Constants.expoConfig?.sdkVersion || 'unknown',
+});
 
 interface NotificationContextType {
-  // State
+  // State - Matching your exact model types
   notifications: Notification[];
   unreadCount: number;
   preferences: NotificationPreferences[];
@@ -33,6 +39,7 @@ interface NotificationContextType {
   error: string | null;
   notificationsSupported: boolean;
   isDevelopmentMode: boolean;
+  pushToken: string | null;
 
   // Actions
   loadNotifications: (refresh?: boolean) => Promise<void>;
@@ -47,6 +54,7 @@ interface NotificationContextType {
   ) => Promise<void>;
   loadStats: () => Promise<void>;
   registerForPushNotifications: () => Promise<void>;
+  sendLocalTestNotification: () => Promise<void>;
 
   // Utilities
   refreshUnreadCount: () => Promise<void>;
@@ -74,7 +82,7 @@ interface NotificationProviderProps {
 export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   children,
 }) => {
-  // State
+  // State - Using your exact model types
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [preferences, setPreferences] = useState<NotificationPreferences[]>([]);
@@ -83,23 +91,19 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [pushToken, setPushToken] = useState<string | null>(null);
 
   const NOTIFICATIONS_PER_PAGE = 20;
   const notificationsSupported = !isExpoGo && Device.isDevice;
   const isDevelopmentMode = isExpoGo;
 
-  // Error handling - more lenient for development
+  // Error handling - Updated for SDK 53
   const handleError = useCallback((err: any, action: string) => {
-    console.error(`Notification ${action} error:`, err);
+    console.error(`Notification ${action} error (SDK 53):`, err);
 
-    // Don't set error state for expected Expo Go failures
-    if (
-      isExpoGo &&
-      (err.message?.includes('device token') ||
-        err.message?.includes('Internal server error') ||
-        err.message?.includes('expo-notifications'))
-    ) {
-      console.warn(`🚀 Expo Go: ${action} failed (expected in development)`);
+    // Only skip errors in actual Expo Go, not development builds
+    if (isExpoGo) {
+      console.warn(`🚀 Expo Go: ${action} failed (expected in Expo Go)`);
       return;
     }
 
@@ -110,26 +114,73 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     setError(null);
   }, []);
 
-  // Load notifications - with fallback data for Expo Go
+  // UPDATED: Push notification registration for SDK 53
+  const registerForPushNotifications = useCallback(async () => {
+    try {
+      if (isExpoGo) {
+        console.log(
+          '🚀 Expo Go detected - skipping push notification registration',
+        );
+        return;
+      }
+
+      if (!Device.isDevice) {
+        console.warn('📱 Push notifications require a physical device');
+        return;
+      }
+
+      console.log('🔔 Setting up push notifications (SDK 53)...');
+
+      const result = await notificationService.setupPushNotifications();
+
+      if (result.success && result.token) {
+        setPushToken(result.token);
+        console.log('✅ Push notifications registered successfully (SDK 53)');
+
+        // Store token locally for debugging
+        await AsyncStorage.setItem('pushToken', result.token);
+        await AsyncStorage.setItem('pushTokenSDK', '53');
+      } else {
+        console.warn('⚠️ Push notification setup failed (SDK 53):', result);
+      }
+    } catch (err) {
+      handleError(err, 'push bildirim kayıt');
+    }
+  }, [handleError]);
+
+  // UPDATED: Send local test notification for SDK 53
+  const sendLocalTestNotification = useCallback(async () => {
+    try {
+      console.log('🧪 Sending test notification (SDK 53)...');
+      const success = await notificationService.sendLocalTestNotification();
+      if (success) {
+        console.log('📱 Local test notification sent successfully (SDK 53)');
+      }
+    } catch (err) {
+      handleError(err, 'test bildirimi gönderme');
+    }
+  }, [handleError]);
+
+  // REAL: Load notifications from API
   const loadNotifications = useCallback(
     async (refresh: boolean = false) => {
       try {
         setIsLoading(true);
         clearError();
 
-        if (isExpoGo) {
-          // Load mock data for Expo Go
-          const mockNotifications = await loadMockNotifications();
-          setNotifications(mockNotifications);
-          setUnreadCount(mockNotifications.filter((n) => !n.is_read).length);
-          setHasMore(false);
-          return;
-        }
+        console.log(
+          `📥 Loading notifications (SDK 53) - refresh: ${refresh}, page: ${page}`,
+        );
 
+        // Load real notifications using your API interface
         const currentPage = refresh ? 0 : page;
         const response = await notificationService.getNotifications(
           NOTIFICATIONS_PER_PAGE,
           currentPage * NOTIFICATIONS_PER_PAGE,
+        );
+
+        console.log(
+          `📥 Loaded ${response.notifications.length} notifications (SDK 53)`,
         );
 
         if (refresh) {
@@ -144,6 +195,15 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         setHasMore(response.notifications.length === NOTIFICATIONS_PER_PAGE);
       } catch (err) {
         handleError(err, 'bildirim yükleme');
+
+        // Fallback to mock data only in Expo Go
+        if (isExpoGo) {
+          console.log('🚀 Loading mock notifications for Expo Go...');
+          const mockNotifications = await loadMockNotifications();
+          setNotifications(mockNotifications);
+          setUnreadCount(mockNotifications.filter((n) => !n.is_read).length);
+          setHasMore(false);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -151,16 +211,16 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     [page, handleError, clearError],
   );
 
-  // Mock data for Expo Go development - matching your backend structure
+  // Mock data fallback for Expo Go - Matching your exact Notification interface
   const loadMockNotifications = useCallback(async (): Promise<
     Notification[]
   > => {
-    const stored = await AsyncStorage.getItem('mockNotifications');
+    const stored = await AsyncStorage.getItem('mockNotifications_SDK53');
     if (stored) {
       return JSON.parse(stored);
     }
 
-    // Generate some mock notifications for development - matching your backend structure
+    // Generate mock notifications matching your exact interface for SDK 53
     const mockData: Notification[] = [
       {
         notification_id: 1,
@@ -168,11 +228,18 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         notification_type: 'study_reminder',
         title: 'Çalışma Zamanı! 📚',
         body: 'Günlük çalışma hedefinizi tamamlamak için harika bir zaman!',
-        is_read: false,
+        action_url: '/(tabs)/courses',
+        icon_name: 'book',
         status: 'sent',
+        is_read: false,
+        metadata: {
+          reminder_type: 'daily',
+          sdk_version: '53',
+        },
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        metadata: {},
+        sent_at: new Date().toISOString(),
+        read_at: null,
       },
       {
         notification_id: 2,
@@ -180,12 +247,19 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         notification_type: 'achievement_unlock',
         title: 'Yeni Başarı! 🏆',
         body: '7 gün üst üste çalışma başarısını kazandınız!',
-        is_read: false,
+        action_url: '/(tabs)/profile/achievements',
+        icon_name: 'trophy',
         status: 'sent',
+        is_read: false,
+        metadata: {
+          achievement_id: 'streak_7_days',
+          achievement_name: '7 Günlük Seri',
+          sdk_version: '53',
+        },
         created_at: new Date(Date.now() - 3600000).toISOString(),
         updated_at: new Date(Date.now() - 3600000).toISOString(),
-        metadata: { achievement_id: 'streak_7_days' },
-        action_url: '/(tabs)/profile/achievements',
+        sent_at: new Date(Date.now() - 3600000).toISOString(),
+        read_at: null,
       },
       {
         notification_id: 3,
@@ -193,52 +267,55 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         notification_type: 'duel_invitation',
         title: 'Düello Daveti! ⚔️',
         body: 'Ali sizi matematik düellosuna davet etti!',
-        is_read: true,
+        action_url: '/duels/123',
+        icon_name: 'users',
         status: 'read',
+        is_read: true,
+        metadata: {
+          duel_id: 123,
+          opponent: 'Ali',
+          challenger_name: 'Ali',
+          sdk_version: '53',
+        },
         created_at: new Date(Date.now() - 7200000).toISOString(),
         updated_at: new Date(Date.now() - 3600000).toISOString(),
+        sent_at: new Date(Date.now() - 7200000).toISOString(),
         read_at: new Date(Date.now() - 3600000).toISOString(),
-        metadata: { duel_id: 123, opponent: 'Ali' },
-        action_url: '/duels/123',
       },
     ];
 
-    await AsyncStorage.setItem('mockNotifications', JSON.stringify(mockData));
+    await AsyncStorage.setItem(
+      'mockNotifications_SDK53',
+      JSON.stringify(mockData),
+    );
     return mockData;
   }, []);
 
-  // Register for push notifications - with Expo Go handling
-  const registerForPushNotifications = useCallback(async () => {
-    try {
-      if (isExpoGo) {
-        console.log(
-          '🚀 Expo Go detected - skipping push notification registration',
-        );
-        console.log('✅ Mock registration completed');
-        return;
-      }
+  const loadMoreNotifications = useCallback(async () => {
+    if (!hasMore || isLoading) return;
+    console.log('📥 Loading more notifications (SDK 53)...');
+    await loadNotifications(false);
+  }, [hasMore, isLoading, loadNotifications]);
 
-      // Use the notification service setupPushNotifications function
-      const result = await notificationService.setupPushNotifications();
-      console.log('✅ Push notifications registered successfully:', result);
-    } catch (err) {
-      // Don't throw error for Expo Go
-      if (!isExpoGo) {
-        handleError(err, 'push bildirim kayıt');
-      }
-    }
-  }, [handleError]);
-
-  // Mark notification as read
+  // Mark notification as read - Updated for SDK 53
   const markAsRead = useCallback(
     async (notificationId: number) => {
       try {
+        console.log(
+          `📖 Marking notification ${notificationId} as read (SDK 53)...`,
+        );
+
         if (isExpoGo) {
           // Update mock data
           setNotifications((prev) =>
             prev.map((notif) =>
               notif.notification_id === notificationId
-                ? { ...notif, is_read: true, read_at: new Date().toISOString() }
+                ? {
+                    ...notif,
+                    is_read: true,
+                    status: 'read',
+                    read_at: new Date().toISOString(),
+                  }
                 : notif,
             ),
           );
@@ -250,11 +327,19 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         setNotifications((prev) =>
           prev.map((notif) =>
             notif.notification_id === notificationId
-              ? { ...notif, is_read: true, read_at: new Date().toISOString() }
+              ? {
+                  ...notif,
+                  is_read: true,
+                  status: 'read',
+                  read_at: new Date().toISOString(),
+                }
               : notif,
           ),
         );
         setUnreadCount((prev) => Math.max(0, prev - 1));
+        console.log(
+          `✅ Notification ${notificationId} marked as read (SDK 53)`,
+        );
       } catch (err) {
         handleError(err, 'bildirim okundu işaretleme');
       }
@@ -262,20 +347,17 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     [handleError],
   );
 
-  const loadMoreNotifications = useCallback(async () => {
-    if (!hasMore || isLoading || isExpoGo) return;
-    await loadNotifications(false);
-  }, [hasMore, isLoading, loadNotifications]);
-
   const markAllAsRead = useCallback(async () => {
     try {
       setIsLoading(true);
+      console.log('📖 Marking all notifications as read (SDK 53)...');
 
       if (isExpoGo) {
         setNotifications((prev) =>
           prev.map((notif) => ({
             ...notif,
             is_read: true,
+            status: 'read' as const,
             read_at: notif.read_at || new Date().toISOString(),
           })),
         );
@@ -288,10 +370,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         prev.map((notif) => ({
           ...notif,
           is_read: true,
+          status: 'read' as const,
           read_at: notif.read_at || new Date().toISOString(),
         })),
       );
       setUnreadCount(0);
+      console.log('✅ All notifications marked as read (SDK 53)');
     } catch (err) {
       handleError(err, 'tüm bildirimleri okundu işaretleme');
     } finally {
@@ -302,6 +386,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const deleteNotification = useCallback(
     async (notificationId: number) => {
       try {
+        console.log(`🗑️ Deleting notification ${notificationId} (SDK 53)...`);
+
         if (isExpoGo) {
           const deletedNotification = notifications.find(
             (n) => n.notification_id === notificationId,
@@ -325,6 +411,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         if (deletedNotification && !deletedNotification.is_read) {
           setUnreadCount((prev) => Math.max(0, prev - 1));
         }
+        console.log(`✅ Notification ${notificationId} deleted (SDK 53)`);
       } catch (err) {
         handleError(err, 'bildirim silme');
       }
@@ -332,10 +419,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     [notifications, handleError],
   );
 
+  // Load preferences - Updated for SDK 53
   const loadPreferences = useCallback(async () => {
     try {
+      console.log('⚙️ Loading notification preferences (SDK 53)...');
+
       if (isExpoGo) {
-        // Load mock preferences
         const mockPrefs = await loadMockPreferences();
         setPreferences(mockPrefs);
         return;
@@ -343,13 +432,18 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
       const prefs = await notificationService.getPreferences();
       setPreferences(prefs);
+      console.log(
+        `✅ Loaded ${prefs.length} notification preferences (SDK 53)`,
+      );
     } catch (err) {
       handleError(err, 'bildirim tercihlerini yükleme');
     }
   }, [handleError]);
 
-  const loadMockPreferences = useCallback(async () => {
-    // Return mock preferences for all notification types - matching your backend structure
+  // Mock preferences matching your exact interface
+  const loadMockPreferences = useCallback(async (): Promise<
+    NotificationPreferences[]
+  > => {
     const mockPreferences: NotificationPreferences[] = [
       'study_reminder',
       'achievement_unlock',
@@ -369,6 +463,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       push_enabled: false, // Disabled in Expo Go
       email_enabled: false,
       frequency_hours: 24,
+      quiet_hours_start: '22:00:00',
+      quiet_hours_end: '08:00:00',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }));
@@ -379,8 +475,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const updatePreferences = useCallback(
     async (type: NotificationType, prefs: Partial<NotificationPreferences>) => {
       try {
+        console.log(`⚙️ Updating preferences for ${type} (SDK 53)...`);
+
         if (isExpoGo) {
-          // Update mock preferences
           setPreferences((prev) => {
             const index = prev.findIndex((p) => p.notification_type === type);
             if (index >= 0) {
@@ -406,6 +503,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           }
           return [...prev, updatedPref];
         });
+        console.log(`✅ Updated preferences for ${type} (SDK 53)`);
       } catch (err) {
         handleError(err, 'bildirim tercihlerini güncelleme');
       }
@@ -413,10 +511,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     [handleError],
   );
 
+  // Load stats - Updated for SDK 53
   const loadStats = useCallback(async () => {
     try {
+      console.log('📊 Loading notification stats (SDK 53)...');
+
       if (isExpoGo) {
-        // Fixed mock stats with proper type_counts structure
+        // Mock stats matching your exact interface
         const mockStats: NotificationStats = {
           total_notifications: 15,
           read_count: 12,
@@ -442,6 +543,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
       const statsData = await notificationService.getStats();
       setStats(statsData);
+      console.log('✅ Loaded notification stats (SDK 53)');
     } catch (err) {
       handleError(err, 'bildirim istatistiklerini yükleme');
     }
@@ -458,20 +560,54 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       const { unread_count } = await notificationService.getUnreadCount();
       setUnreadCount(unread_count);
     } catch (err) {
-      console.warn('Failed to refresh unread count:', err);
+      console.warn('Failed to refresh unread count (SDK 53):', err);
     }
   }, [notifications]);
 
-  // Initialize
+  // Initialize notifications and setup listeners - Updated for SDK 53
   useEffect(() => {
     const initialize = async () => {
+      console.log('🚀 Initializing notifications (SDK 53)...');
+
+      // Load stored push token
+      const storedToken = await notificationService.getCurrentPushToken();
+      if (storedToken) {
+        setPushToken(storedToken);
+        console.log('📱 Found stored push token (SDK 53)');
+      }
+
+      // Setup notification listeners if supported
+      if (notificationsSupported) {
+        console.log('👂 Setting up notification listeners (SDK 53)...');
+        const removeListeners =
+          notificationService.setupNotificationListeners();
+
+        // Register for push notifications
+        await registerForPushNotifications();
+
+        // Cleanup listeners on unmount
+        return removeListeners;
+      }
+
+      // Load initial data
       await loadNotifications(true);
       await loadPreferences();
-      await registerForPushNotifications();
+
+      console.log('✅ Notification initialization complete (SDK 53)');
     };
 
-    initialize();
-  }, [loadNotifications, loadPreferences, registerForPushNotifications]);
+    const cleanup = initialize();
+
+    return () => {
+      if (cleanup instanceof Promise) {
+        cleanup.then((cleanupFn) => {
+          if (typeof cleanupFn === 'function') {
+            cleanupFn();
+          }
+        });
+      }
+    };
+  }, []); // Empty dependency array for initialization
 
   const value: NotificationContextType = {
     // State
@@ -483,6 +619,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     error,
     notificationsSupported,
     isDevelopmentMode,
+    pushToken,
 
     // Actions
     loadNotifications,
@@ -494,6 +631,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     updatePreferences,
     loadStats,
     registerForPushNotifications,
+    sendLocalTestNotification,
 
     // Utilities
     refreshUnreadCount,
