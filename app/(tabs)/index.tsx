@@ -564,277 +564,53 @@ function HomeScreenContent() {
 
     return (
       <SlideInElement direction='right' delay={400}>
-        <PlayfulCard
-          title='Genel Performans Özeti'
+        <View
           style={{
-            marginBottom: Spacing[6],
+            marginTop: Spacing[4],
             shadowColor: Colors.gray[900],
-            shadowOffset: { width: 20, height: 40 },
-            shadowOpacity: 0.9,
-            shadowRadius: 20,
-            elevation: 20,
+            shadowOffset: { width: 10, height: 20 },
+            shadowOpacity: 0.8,
+            shadowRadius: 10,
+            elevation: 10,
           }}
-          titleFontFamily='PrimaryFont'
-          variant='elevated'
-          category={(preferredCourse as any)?.category}
-          animated
-          floatingAnimation
         >
-          <View>
-            {/* En Uzun Kronometre Süresi */}
-            <View style={{ marginBottom: Spacing[10] }}>
-              <Text
-                style={{
-                  fontSize: 16,
-
-                  color: isDark ? Colors.white : Colors.white,
-                  marginBottom: Spacing[3],
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
-              >
-                🏆 En Uzun Çalışma Seansı
-              </Text>
-
-              <View
-                style={{
-                  backgroundColor: Colors.white,
-                  padding: Spacing[4],
-                  borderRadius: 12,
-                  alignItems: 'center',
-                  shadowColor: Colors.gray[900],
-                  shadowOffset: { width: 10, height: 20 },
-                  shadowOpacity: 0.8,
-                  shadowRadius: 10,
-                  elevation: 10,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 28,
-                    color: Colors.gray[900],
-                    fontFamily: 'PrimaryFont',
-                    marginBottom: Spacing[1],
-                  }}
-                >
-                  {formatTimeForDisplay(longestStreak)}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: Colors.gray[700],
-                    fontFamily: 'SecondaryFont-Regular',
-                    opacity: 0.8,
-                  }}
-                >
-                  Tek seansta en uzun çalışma süren
-                </Text>
-              </View>
-            </View>
-
-            {/* Günlük İlerleme Grafiği */}
-            <View style={{ marginBottom: Spacing[10] }}>
-              <Text
-                style={{
-                  fontSize: 16,
-
-                  color: isDark ? Colors.white : Colors.white,
-                  marginBottom: Spacing[3],
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
-              >
-                📊 Son 7 Gün İlerleme
-              </Text>
-
-              {chartData.length > 0 ? (
-                <View>
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'flex-end',
-                      justifyContent: 'space-between',
-                      height: 120,
-                      marginBottom: Spacing[3],
-                      paddingHorizontal: Spacing[2],
-                    }}
-                  >
-                    {chartData.map((day, index) => (
-                      <View
-                        key={day.study_date}
-                        style={{
-                          alignItems: 'center',
-                          flex: 1,
-                          marginHorizontal: 2,
-                        }}
-                      >
-                        <View
-                          style={{
-                            backgroundColor:
-                              day.daily_study_minutes > 0
-                                ? Colors.vibrant.green
-                                : Colors.white,
-                            height: Math.max(
-                              ensureSafeNumber(day.percentage * 0.8),
-                              4,
-                            ), // Use ensureSafeNumber
-                            borderRadius: 4,
-                            minHeight: 4,
-                            width: '100%',
-                            marginBottom: Spacing[2],
-                          }}
-                        />
-                        <Text
-                          style={{
-                            fontSize: 10,
-                            color: isDark ? Colors.gray[900] : Colors.gray[900],
-                            fontFamily: 'SecondaryFont-Regular',
-                            textAlign: 'center',
-                          }}
-                        >
-                          {day.date}
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 9,
-                            color: isDark ? Colors.gray[700] : Colors.gray[700],
-                            fontFamily: 'SecondaryFont-Regular',
-                            textAlign: 'center',
-                          }}
-                        >
-                          {day.daily_study_minutes > 0
-                            ? `${ensureSafeNumber(day.daily_study_minutes)}dk`
-                            : '0'}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  {/* Chart Summary */}
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
-                      backgroundColor: isDark
-                        ? Colors.gray[700]
-                        : Colors.gray[700],
-                      padding: Spacing[3],
-                      borderRadius: 8,
-                      shadowColor: Colors.gray[900],
-                      shadowOffset: { width: 10, height: 20 },
-                      shadowOpacity: 0.8,
-                      shadowRadius: 10,
-                      elevation: 10,
-                    }}
-                  >
-                    <View style={{ alignItems: 'center' }}>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: isDark ? Colors.gray[300] : Colors.gray[300],
-                          fontFamily: 'SecondaryFont-Regular',
-                        }}
-                      >
-                        Toplam
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: isDark ? Colors.white : Colors.white,
-                          fontFamily: 'SecondaryFont-Bold',
-                        }}
-                      >
-                        {formatTimeForDisplay(
-                          chartData.reduce(
-                            (sum, day) => sum + day.daily_study_minutes,
-                            0,
-                          ),
-                        )}
-                      </Text>
-                    </View>
-
-                    <View style={{ alignItems: 'center' }}>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: isDark ? Colors.gray[300] : Colors.gray[300],
-                          fontFamily: 'SecondaryFont-Regular',
-                        }}
-                      >
-                        Ortalama
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: isDark ? Colors.white : Colors.white,
-                          fontFamily: 'SecondaryFont-Bold',
-                        }}
-                      >
-                        {formatTimeForDisplay(
-                          chartData.reduce(
-                            (sum, day) => sum + day.daily_study_minutes,
-                            0,
-                          ) / Math.max(chartData.length, 1),
-                        )}
-                      </Text>
-                    </View>
-
-                    <View style={{ alignItems: 'center' }}>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: isDark ? Colors.gray[300] : Colors.gray[300],
-                          fontFamily: 'SecondaryFont-Regular',
-                        }}
-                      >
-                        Aktif Gün
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: isDark ? Colors.white : Colors.white,
-                          fontFamily: 'SecondaryFont-Bold',
-                        }}
-                      >
-                        {
-                          chartData.filter((day) => day.daily_study_minutes > 0)
-                            .length
-                        }
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              ) : (
-                <EmptyState
-                  icon='bar-chart'
-                  title='Veri bulunamadı'
-                  message='Son 7 günde çalışma verisi bulunmuyor.'
-                  style={{
-                    backgroundColor: isDark ? Colors.white : Colors.white,
-                    padding: Spacing[4],
-                    borderRadius: 8,
-                  }}
-                />
-              )}
-            </View>
-
-            {/* En Çok Zaman Harcanan Branş */}
+          <PlayfulCard
+            title='Genel Performans Özeti'
+            style={{
+              marginBottom: Spacing[6],
+              shadowColor: Colors.gray[900],
+              shadowOffset: { width: 20, height: 40 },
+              shadowOpacity: 0.9,
+              shadowRadius: 20,
+              elevation: 20,
+            }}
+            titleFontFamily='PrimaryFont'
+            variant='elevated'
+            category={(preferredCourse as any)?.category}
+            animated
+            floatingAnimation
+          >
             <View>
-              <Text
-                style={{
-                  fontSize: 16,
-                  color: isDark ? Colors.white : Colors.white,
-                  marginBottom: Spacing[3],
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
-              >
-                🎯 En Çok Zaman Harcanan Branş
-              </Text>
+              {/* En Uzun Kronometre Süresi */}
+              <View style={{ marginBottom: Spacing[10] }}>
+                <Text
+                  style={{
+                    fontSize: 16,
 
-              {topCourse ? (
+                    color: isDark ? Colors.white : Colors.white,
+                    marginBottom: Spacing[3],
+                    fontFamily: 'SecondaryFont-Bold',
+                  }}
+                >
+                  🏆 En Uzun Çalışma Seansı
+                </Text>
+
                 <View
                   style={{
-                    backgroundColor: Colors.gray[700],
+                    backgroundColor: Colors.white,
                     padding: Spacing[4],
                     borderRadius: 12,
+                    alignItems: 'center',
                     shadowColor: Colors.gray[900],
                     shadowOffset: { width: 10, height: 20 },
                     shadowOpacity: 0.8,
@@ -842,151 +618,391 @@ function HomeScreenContent() {
                     elevation: 10,
                   }}
                 >
-                  <View
+                  <Text
                     style={{
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: Spacing[3],
+                      fontSize: 28,
+                      color: Colors.gray[900],
+                      fontFamily: 'PrimaryFont',
+                      marginBottom: Spacing[1],
                     }}
                   >
-                    <Text
-                      style={{
-                        fontSize: 18,
-
-                        color: Colors.white,
-                        fontFamily: 'SecondaryFont-Bold',
-                        flex: 1,
-                      }}
-                    >
-                      {topCourse.course_title}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        color: Colors.white,
-                        fontFamily: 'PrimaryFont',
-                      }}
-                    >
-                      {formatTimeForDisplay(topCourse.total_time_hours * 60)}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      justifyContent: 'space-between',
-                      marginBottom: Spacing[3],
-                    }}
-                  >
-                    <View style={{ alignItems: 'center' }}>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: Colors.white,
-                          fontFamily: 'SecondaryFont-Regular',
-                          opacity: 0.8,
-                        }}
-                      >
-                        Kronometre
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: Colors.white,
-                          fontFamily: 'SecondaryFont-Bold',
-                        }}
-                      >
-                        {formatTimeForDisplay(
-                          topCourse.study_session_hours * 60,
-                        )}
-                      </Text>
-                    </View>
-
-                    <View style={{ alignItems: 'center' }}>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: Colors.white,
-                          fontFamily: 'SecondaryFont-Regular',
-                          opacity: 0.8,
-                        }}
-                      >
-                        Düello
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: Colors.white,
-                          fontFamily: 'SecondaryFont-Bold',
-                        }}
-                      >
-                        {formatTimeForDisplay(topCourse.duel_hours * 60)}
-                      </Text>
-                    </View>
-
-                    <View style={{ alignItems: 'center' }}>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          color: Colors.white,
-                          fontFamily: 'SecondaryFont-Regular',
-                          opacity: 0.8,
-                        }}
-                      >
-                        Konu Sayısı
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: Colors.white,
-                          fontFamily: 'SecondaryFont-Bold',
-                        }}
-                      >
-                        {topCourse.topics_studied}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Progress Bar for this course */}
-                  <ProgressBar
-                    progress={ensureSafeNumber(topCourse.accuracy_percentage)}
-                    height={8}
-                    width='100%'
-                    trackColor={Colors.white}
-                    progressColor={Colors.vibrant.green}
-                    style={{ marginTop: Spacing[2] }}
-                    animated
-                  />
+                    {formatTimeForDisplay(longestStreak)}
+                  </Text>
                   <Text
                     style={{
                       fontSize: 12,
-                      color: Colors.white,
+                      color: Colors.gray[700],
                       fontFamily: 'SecondaryFont-Regular',
-                      textAlign: 'center',
-                      marginTop: Spacing[1],
                       opacity: 0.8,
                     }}
                   >
-                    %{ensureSafeNumber(topCourse.accuracy_percentage)} doğruluk
-                    oranı
+                    Tek seansta en uzun çalışma süren
                   </Text>
                 </View>
-              ) : (
-                <EmptyState
-                  icon='trophy'
-                  title='Veri bulunamadı'
-                  message='Henüz branş bazında çalışma verisi bulunmuyor.'
+              </View>
+
+              {/* Günlük İlerleme Grafiği */}
+              <View style={{ marginBottom: Spacing[10] }}>
+                <Text
                   style={{
-                    backgroundColor: isDark ? Colors.white : Colors.white,
-                    padding: Spacing[4],
-                    borderRadius: 8,
+                    fontSize: 16,
+
+                    color: isDark ? Colors.white : Colors.white,
+                    marginBottom: Spacing[3],
+                    fontFamily: 'SecondaryFont-Bold',
                   }}
-                />
-              )}
+                >
+                  📊 Son 7 Gün İlerleme
+                </Text>
+
+                {chartData.length > 0 ? (
+                  <View>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'flex-end',
+                        justifyContent: 'space-between',
+                        height: 120,
+                        marginBottom: Spacing[3],
+                        paddingHorizontal: Spacing[2],
+                      }}
+                    >
+                      {chartData.map((day, index) => (
+                        <View
+                          key={day.study_date}
+                          style={{
+                            alignItems: 'center',
+                            flex: 1,
+                            marginHorizontal: 2,
+                          }}
+                        >
+                          <View
+                            style={{
+                              backgroundColor:
+                                day.daily_study_minutes > 0
+                                  ? Colors.vibrant.green
+                                  : Colors.white,
+                              height: Math.max(
+                                ensureSafeNumber(day.percentage * 0.8),
+                                4,
+                              ), // Use ensureSafeNumber
+                              borderRadius: 4,
+                              minHeight: 4,
+                              width: '100%',
+                              marginBottom: Spacing[2],
+                            }}
+                          />
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              color: isDark
+                                ? Colors.gray[900]
+                                : Colors.gray[900],
+                              fontFamily: 'SecondaryFont-Regular',
+                              textAlign: 'center',
+                            }}
+                          >
+                            {day.date}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 9,
+                              color: isDark
+                                ? Colors.gray[700]
+                                : Colors.gray[700],
+                              fontFamily: 'SecondaryFont-Regular',
+                              textAlign: 'center',
+                            }}
+                          >
+                            {day.daily_study_minutes > 0
+                              ? `${ensureSafeNumber(day.daily_study_minutes)}dk`
+                              : '0'}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Chart Summary */}
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        backgroundColor: isDark
+                          ? Colors.gray[700]
+                          : Colors.gray[700],
+                        padding: Spacing[3],
+                        borderRadius: 8,
+                        shadowColor: Colors.gray[900],
+                        shadowOffset: { width: 10, height: 20 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 10,
+                        elevation: 10,
+                      }}
+                    >
+                      <View style={{ alignItems: 'center' }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: isDark ? Colors.gray[300] : Colors.gray[300],
+                            fontFamily: 'SecondaryFont-Regular',
+                          }}
+                        >
+                          Toplam
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: isDark ? Colors.white : Colors.white,
+                            fontFamily: 'SecondaryFont-Bold',
+                          }}
+                        >
+                          {formatTimeForDisplay(
+                            chartData.reduce(
+                              (sum, day) => sum + day.daily_study_minutes,
+                              0,
+                            ),
+                          )}
+                        </Text>
+                      </View>
+
+                      <View style={{ alignItems: 'center' }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: isDark ? Colors.gray[300] : Colors.gray[300],
+                            fontFamily: 'SecondaryFont-Regular',
+                          }}
+                        >
+                          Ortalama
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: isDark ? Colors.white : Colors.white,
+                            fontFamily: 'SecondaryFont-Bold',
+                          }}
+                        >
+                          {formatTimeForDisplay(
+                            chartData.reduce(
+                              (sum, day) => sum + day.daily_study_minutes,
+                              0,
+                            ) / Math.max(chartData.length, 1),
+                          )}
+                        </Text>
+                      </View>
+
+                      <View style={{ alignItems: 'center' }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: isDark ? Colors.gray[300] : Colors.gray[300],
+                            fontFamily: 'SecondaryFont-Regular',
+                          }}
+                        >
+                          Aktif Gün
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: isDark ? Colors.white : Colors.white,
+                            fontFamily: 'SecondaryFont-Bold',
+                          }}
+                        >
+                          {
+                            chartData.filter(
+                              (day) => day.daily_study_minutes > 0,
+                            ).length
+                          }
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  <EmptyState
+                    icon='bar-chart'
+                    title='Veri bulunamadı'
+                    message='Son 7 günde çalışma verisi bulunmuyor.'
+                    style={{
+                      backgroundColor: isDark ? Colors.white : Colors.white,
+                      padding: Spacing[4],
+                      borderRadius: 8,
+                    }}
+                  />
+                )}
+              </View>
+
+              {/* En Çok Zaman Harcanan Branş */}
+              <View>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: isDark ? Colors.white : Colors.white,
+                    marginBottom: Spacing[3],
+                    fontFamily: 'SecondaryFont-Bold',
+                  }}
+                >
+                  🎯 En Çok Zaman Harcanan Branş
+                </Text>
+
+                {topCourse ? (
+                  <View
+                    style={{
+                      backgroundColor: Colors.gray[700],
+                      padding: Spacing[4],
+                      borderRadius: 12,
+                      shadowColor: Colors.gray[900],
+                      shadowOffset: { width: 10, height: 20 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 10,
+                      elevation: 10,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: Spacing[3],
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 18,
+
+                          color: Colors.white,
+                          fontFamily: 'SecondaryFont-Bold',
+                          flex: 1,
+                        }}
+                      >
+                        {topCourse.course_title}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          color: Colors.white,
+                          fontFamily: 'PrimaryFont',
+                        }}
+                      >
+                        {formatTimeForDisplay(topCourse.total_time_hours * 60)}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        marginBottom: Spacing[3],
+                      }}
+                    >
+                      <View style={{ alignItems: 'center' }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: Colors.white,
+                            fontFamily: 'SecondaryFont-Regular',
+                            opacity: 0.8,
+                          }}
+                        >
+                          Kronometre
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: Colors.white,
+                            fontFamily: 'SecondaryFont-Bold',
+                          }}
+                        >
+                          {formatTimeForDisplay(
+                            topCourse.study_session_hours * 60,
+                          )}
+                        </Text>
+                      </View>
+
+                      <View style={{ alignItems: 'center' }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: Colors.white,
+                            fontFamily: 'SecondaryFont-Regular',
+                            opacity: 0.8,
+                          }}
+                        >
+                          Düello
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: Colors.white,
+                            fontFamily: 'SecondaryFont-Bold',
+                          }}
+                        >
+                          {formatTimeForDisplay(topCourse.duel_hours * 60)}
+                        </Text>
+                      </View>
+
+                      <View style={{ alignItems: 'center' }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: Colors.white,
+                            fontFamily: 'SecondaryFont-Regular',
+                            opacity: 0.8,
+                          }}
+                        >
+                          Konu Sayısı
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: Colors.white,
+                            fontFamily: 'SecondaryFont-Bold',
+                          }}
+                        >
+                          {topCourse.topics_studied}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Progress Bar for this course */}
+                    <ProgressBar
+                      progress={ensureSafeNumber(topCourse.accuracy_percentage)}
+                      height={8}
+                      width='100%'
+                      trackColor={Colors.white}
+                      progressColor={Colors.vibrant.green}
+                      style={{ marginTop: Spacing[2] }}
+                      animated
+                    />
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: Colors.white,
+                        fontFamily: 'SecondaryFont-Regular',
+                        textAlign: 'center',
+                        marginTop: Spacing[1],
+                        opacity: 0.8,
+                      }}
+                    >
+                      %{ensureSafeNumber(topCourse.accuracy_percentage)}{' '}
+                      doğruluk oranı
+                    </Text>
+                  </View>
+                ) : (
+                  <EmptyState
+                    icon='trophy'
+                    title='Veri bulunamadı'
+                    message='Henüz branş bazında çalışma verisi bulunmuyor.'
+                    style={{
+                      backgroundColor: isDark ? Colors.white : Colors.white,
+                      padding: Spacing[4],
+                      borderRadius: 8,
+                    }}
+                  />
+                )}
+              </View>
             </View>
-          </View>
-        </PlayfulCard>
+          </PlayfulCard>
+        </View>
       </SlideInElement>
     );
   };
@@ -2084,334 +2100,354 @@ function HomeScreenContent() {
           <>
             {/* Enhanced Continue studying card with collapsible functionality */}
             <SlideInElement direction='left' delay={200}>
-              <PlayfulCard
-                title='Çalışmaya Devam Et'
+              <View
                 style={{
-                  marginBottom: Spacing[6],
                   shadowColor: Colors.gray[900],
                   shadowOffset: { width: 10, height: 20 },
                   shadowOpacity: 0.8,
                   shadowRadius: 10,
                   elevation: 10,
                 }}
-                titleFontFamily='PrimaryFont'
-                variant='elevated'
-                category={(preferredCourse as any)?.category}
-                animated
-                floatingAnimation
-                collapsible
-                defaultCollapsed={isStudyCardCollapsed}
-                onCollapseToggle={setIsStudyCardCollapsed}
               >
-                {preferredCourse ? (
-                  <View>
-                    {/* Course Analytics Section */}
-                    <View style={{ marginBottom: Spacing[4] }}>
-                      <Text
-                        style={{
-                          fontSize: 16,
-
-                          color: isDark ? Colors.white : Colors.white,
-                          marginBottom: Spacing[3],
-                          fontFamily: 'SecondaryFont-Bold',
-                        }}
-                      >
-                        {preferredCourse.title} - Genel Durum
-                      </Text>
-
-                      {studyStatistics && (
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            flexWrap: 'wrap',
-                            gap: Spacing[2],
-                            marginBottom: Spacing[3],
-                          }}
-                        >
-                          <View
-                            style={{
-                              backgroundColor: Colors.vibrant.blue,
-                              paddingHorizontal: Spacing[3],
-                              paddingVertical: Spacing[2],
-                              borderRadius: 12,
-                              shadowColor: Colors.gray[900],
-                              shadowOffset: { width: 10, height: 20 },
-                              shadowOpacity: 0.8,
-                              shadowRadius: 10,
-                              elevation: 10,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontFamily: 'SecondaryFont-Bold',
-                              }}
-                            >
-                              {ensureSafeNumber(
-                                studyStatistics.total_study_hours,
-                              )}
-                              saat çalışma
-                            </Text>
-                          </View>
-
-                          <View
-                            style={{
-                              backgroundColor: Colors.vibrant.green,
-                              paddingHorizontal: Spacing[3],
-                              paddingVertical: Spacing[2],
-                              borderRadius: 12,
-                              shadowColor: Colors.gray[900],
-                              shadowOffset: { width: 10, height: 20 },
-                              shadowOpacity: 0.8,
-                              shadowRadius: 10,
-                              elevation: 10,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontFamily: 'SecondaryFont-Bold',
-                              }}
-                            >
-                              {studyStatistics.unique_topics_studied} konu
-                            </Text>
-                          </View>
-
-                          <View
-                            style={{
-                              backgroundColor: Colors.vibrant.orange,
-                              paddingHorizontal: Spacing[3],
-                              paddingVertical: Spacing[2],
-                              borderRadius: 12,
-                              shadowColor: Colors.gray[900],
-                              shadowOffset: { width: 10, height: 20 },
-                              shadowOpacity: 0.8,
-                              shadowRadius: 10,
-                              elevation: 10,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontFamily: 'SecondaryFont-Bold',
-                              }}
-                            >
-                              {studyStatistics.current_streak_days} gün seri
-                            </Text>
-                          </View>
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Course Topics Section */}
+                <PlayfulCard
+                  title='Çalışmaya Devam Et'
+                  style={{
+                    marginBottom: Spacing[6],
+                    shadowColor: Colors.gray[900],
+                    shadowOffset: { width: 10, height: 20 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 10,
+                    elevation: 10,
+                  }}
+                  titleFontFamily='PrimaryFont'
+                  variant='elevated'
+                  category={(preferredCourse as any)?.category}
+                  animated
+                  floatingAnimation
+                  collapsible
+                  defaultCollapsed={isStudyCardCollapsed}
+                  onCollapseToggle={setIsStudyCardCollapsed}
+                >
+                  {preferredCourse ? (
                     <View>
-                      <Text
-                        style={{
-                          fontSize: 16,
-
-                          color: isDark ? Colors.white : Colors.white,
-                          marginBottom: Spacing[3],
-                          fontFamily: 'SecondaryFont-Bold',
-                        }}
-                      >
-                        Konu Listesi
-                      </Text>
-
-                      {topicsLoading ? (
-                        <View
-                          style={{ alignItems: 'center', padding: Spacing[4] }}
-                        >
-                          <ActivityIndicator
-                            size='small'
-                            color={
-                              (preferredCourse as any)?.category &&
-                              getCourseColor((preferredCourse as any).category)
-                            }
-                          />
-                          <Text
-                            style={{
-                              marginTop: Spacing[2],
-                              color: isDark
-                                ? Colors.gray[400]
-                                : Colors.gray[400],
-                              fontFamily: 'SecondaryFont-Regular',
-                            }}
-                          >
-                            Konular yükleniyor...
-                          </Text>
-                        </View>
-                      ) : courseTopics.length > 0 ? (
-                        <View>
-                          {courseTopics.map((topic, index) => (
-                            <SlideInElement
-                              key={topic.topic_id}
-                              direction='right'
-                              delay={300 + index * 100}
-                            >
-                              <PlayfulCard
-                                title={topic.title}
-                                variant='outlined'
-                                category={(preferredCourse as any)?.category}
-                                style={{
-                                  marginBottom: Spacing[3],
-                                  shadowColor: Colors.gray[900],
-                                  shadowOffset: { width: 10, height: 20 },
-                                  shadowOpacity: 0.8,
-                                  shadowRadius: 10,
-                                  elevation: 10,
-                                }}
-                                titleFontFamily='SecondaryFont-Bold'
-                                collapsible
-                                defaultCollapsed={!topic.isDetailsExpanded}
-                                onCollapseToggle={() =>
-                                  handleTopicDetailsToggle(topic.topic_id)
-                                }
-                              >
-                                <View>
-                                  {/* Topic Analytics instead of Progress */}
-                                  {renderTopicAnalytics(topic)}
-
-                                  {/* Topic Details */}
-                                  {topic.isDetailsExpanded &&
-                                    renderTopicDetailsForm(topic)}
-                                </View>
-                              </PlayfulCard>
-                            </SlideInElement>
-                          ))}
-                        </View>
-                      ) : (
-                        <EmptyState
-                          icon='book'
-                          title='Konu bulunamadı'
-                          message='Bu kurs için henüz konu tanımlanmamış.'
+                      {/* Course Analytics Section */}
+                      <View style={{ marginBottom: Spacing[4] }}>
+                        <Text
                           style={{
-                            backgroundColor: isDark
-                              ? Colors.white
-                              : Colors.white,
-                            padding: Spacing[4],
-                            borderRadius: 8,
-                          }}
-                        />
-                      )}
-                    </View>
-                  </View>
-                ) : courses.length > 0 ? (
-                  courses.map((course) => (
-                    <AppLink
-                      key={course.course_id}
-                      href={`/(tabs)/courses/${course.course_id}`}
-                    >
-                      <BouncyButton
-                        style={{ marginBottom: Spacing[3] }}
-                        onPress={() => {}}
-                      >
-                        <TouchableOpacity
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            padding: Spacing[3],
-                            backgroundColor: isDark
-                              ? Colors.vibrant.orangeLight
-                              : Colors.vibrant.orangeLight,
-                            borderRadius: 8,
+                            fontSize: 16,
+
+                            color: isDark ? Colors.white : Colors.white,
+                            marginBottom: Spacing[3],
+                            fontFamily: 'SecondaryFont-Bold',
                           }}
                         >
+                          {preferredCourse.title} - Genel Durum
+                        </Text>
+
+                        {studyStatistics && (
                           <View
                             style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 20,
-                              backgroundColor:
-                                (preferredCourse as any)?.category &&
-                                getCourseColor(
-                                  (preferredCourse as any).category,
-                                ),
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              marginRight: Spacing[3],
+                              flexDirection: 'row',
+                              flexWrap: 'wrap',
+                              gap: Spacing[2],
+                              marginBottom: Spacing[3],
                             }}
                           >
-                            <FontAwesome
-                              name={course.iconName as any}
-                              size={20}
-                              color={isDark ? Colors.white : Colors.white}
-                            />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text
-                              style={{
-                                color: isDark
-                                  ? Colors.gray[800]
-                                  : Colors.gray[800],
-                                marginBottom: Spacing[1],
-                                fontFamily: 'SecondaryFont-Bold',
-                              }}
-                            >
-                              {course.title}
-                            </Text>
                             <View
                               style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
+                                backgroundColor: Colors.vibrant.blue,
+                                paddingHorizontal: Spacing[3],
+                                paddingVertical: Spacing[2],
+                                borderRadius: 12,
+                                shadowColor: Colors.gray[900],
+                                shadowOffset: { width: 10, height: 20 },
+                                shadowOpacity: 0.8,
+                                shadowRadius: 10,
+                                elevation: 10,
                               }}
                             >
                               <Text
                                 style={{
+                                  color: Colors.white,
                                   fontSize: 12,
-                                  color: isDark
-                                    ? Colors.gray[700]
-                                    : Colors.gray[700],
-                                  marginBottom: Spacing[1],
-                                  fontFamily: 'SecondaryFont-Regular',
+                                  fontFamily: 'SecondaryFont-Bold',
                                 }}
                               >
-                                {ensureSafeNumber(course.progress)}% tamamlandı
+                                {ensureSafeNumber(
+                                  studyStatistics.total_study_hours,
+                                )}
+                                saat çalışma
                               </Text>
                             </View>
-                            <ProgressBar
-                              progress={ensureSafeNumber(course.progress)}
-                              height={8}
-                              width='100%'
-                              trackColor={isDark ? Colors.white : Colors.white}
-                              progressColor={
+
+                            <View
+                              style={{
+                                backgroundColor: Colors.vibrant.green,
+                                paddingHorizontal: Spacing[3],
+                                paddingVertical: Spacing[2],
+                                borderRadius: 12,
+                                shadowColor: Colors.gray[900],
+                                shadowOffset: { width: 10, height: 20 },
+                                shadowOpacity: 0.8,
+                                shadowRadius: 10,
+                                elevation: 10,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontFamily: 'SecondaryFont-Bold',
+                                }}
+                              >
+                                {studyStatistics.unique_topics_studied} konu
+                              </Text>
+                            </View>
+
+                            <View
+                              style={{
+                                backgroundColor: Colors.vibrant.orange,
+                                paddingHorizontal: Spacing[3],
+                                paddingVertical: Spacing[2],
+                                borderRadius: 12,
+                                shadowColor: Colors.gray[900],
+                                shadowOffset: { width: 10, height: 20 },
+                                shadowOpacity: 0.8,
+                                shadowRadius: 10,
+                                elevation: 10,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontFamily: 'SecondaryFont-Bold',
+                                }}
+                              >
+                                {studyStatistics.current_streak_days} gün seri
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Course Topics Section */}
+                      <View>
+                        <Text
+                          style={{
+                            fontSize: 16,
+
+                            color: isDark ? Colors.white : Colors.white,
+                            marginBottom: Spacing[3],
+                            fontFamily: 'SecondaryFont-Bold',
+                          }}
+                        >
+                          Konu Listesi
+                        </Text>
+
+                        {topicsLoading ? (
+                          <View
+                            style={{
+                              alignItems: 'center',
+                              padding: Spacing[4],
+                            }}
+                          >
+                            <ActivityIndicator
+                              size='small'
+                              color={
                                 (preferredCourse as any)?.category &&
                                 getCourseColor(
                                   (preferredCourse as any).category,
                                 )
                               }
-                              style={{ borderRadius: 4 }}
-                              animated
                             />
+                            <Text
+                              style={{
+                                marginTop: Spacing[2],
+                                color: isDark
+                                  ? Colors.gray[400]
+                                  : Colors.gray[400],
+                                fontFamily: 'SecondaryFont-Regular',
+                              }}
+                            >
+                              Konular yükleniyor...
+                            </Text>
                           </View>
-                          <FontAwesome
-                            name='chevron-right'
-                            size={16}
-                            color={isDark ? Colors.gray[800] : Colors.gray[800]}
+                        ) : courseTopics.length > 0 ? (
+                          <View>
+                            {courseTopics.map((topic, index) => (
+                              <SlideInElement
+                                key={topic.topic_id}
+                                direction='right'
+                                delay={300 + index * 100}
+                              >
+                                <PlayfulCard
+                                  title={topic.title}
+                                  variant='outlined'
+                                  category={(preferredCourse as any)?.category}
+                                  style={{
+                                    marginBottom: Spacing[3],
+                                    shadowColor: Colors.gray[900],
+                                    shadowOffset: { width: 10, height: 20 },
+                                    shadowOpacity: 0.8,
+                                    shadowRadius: 10,
+                                    elevation: 10,
+                                  }}
+                                  titleFontFamily='SecondaryFont-Bold'
+                                  collapsible
+                                  defaultCollapsed={!topic.isDetailsExpanded}
+                                  onCollapseToggle={() =>
+                                    handleTopicDetailsToggle(topic.topic_id)
+                                  }
+                                >
+                                  <View>
+                                    {/* Topic Analytics instead of Progress */}
+                                    {renderTopicAnalytics(topic)}
+
+                                    {/* Topic Details */}
+                                    {topic.isDetailsExpanded &&
+                                      renderTopicDetailsForm(topic)}
+                                  </View>
+                                </PlayfulCard>
+                              </SlideInElement>
+                            ))}
+                          </View>
+                        ) : (
+                          <EmptyState
+                            icon='book'
+                            title='Konu bulunamadı'
+                            message='Bu kurs için henüz konu tanımlanmamış.'
+                            style={{
+                              backgroundColor: isDark
+                                ? Colors.white
+                                : Colors.white,
+                              padding: Spacing[4],
+                              borderRadius: 8,
+                            }}
                           />
-                        </TouchableOpacity>
-                      </BouncyButton>
-                    </AppLink>
-                  ))
-                ) : (
-                  <EmptyState
-                    icon='book'
-                    title='Henüz kurs yok'
-                    message='Kurslar sekmesinden ilk kursunuzu seçin ve çalışmaya başlayın.'
-                    actionButton={{
-                      title: 'Kurslara Git',
-                      onPress: () => router.push('/courses' as any),
-                      variant: 'primary',
-                    }}
-                    buttonFontFamily='PrimaryFont'
-                    style={{
-                      backgroundColor: isDark ? Colors.white : Colors.white,
-                    }}
-                  />
-                )}
-              </PlayfulCard>
+                        )}
+                      </View>
+                    </View>
+                  ) : courses.length > 0 ? (
+                    courses.map((course) => (
+                      <AppLink
+                        key={course.course_id}
+                        href={`/(tabs)/courses/${course.course_id}`}
+                      >
+                        <BouncyButton
+                          style={{ marginBottom: Spacing[3] }}
+                          onPress={() => {}}
+                        >
+                          <TouchableOpacity
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              padding: Spacing[3],
+                              backgroundColor: isDark
+                                ? Colors.vibrant.orangeLight
+                                : Colors.vibrant.orangeLight,
+                              borderRadius: 8,
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 20,
+                                backgroundColor:
+                                  (preferredCourse as any)?.category &&
+                                  getCourseColor(
+                                    (preferredCourse as any).category,
+                                  ),
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginRight: Spacing[3],
+                              }}
+                            >
+                              <FontAwesome
+                                name={course.iconName as any}
+                                size={20}
+                                color={isDark ? Colors.white : Colors.white}
+                              />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={{
+                                  color: isDark
+                                    ? Colors.gray[800]
+                                    : Colors.gray[800],
+                                  marginBottom: Spacing[1],
+                                  fontFamily: 'SecondaryFont-Bold',
+                                }}
+                              >
+                                {course.title}
+                              </Text>
+                              <View
+                                style={{
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    color: isDark
+                                      ? Colors.gray[700]
+                                      : Colors.gray[700],
+                                    marginBottom: Spacing[1],
+                                    fontFamily: 'SecondaryFont-Regular',
+                                  }}
+                                >
+                                  {ensureSafeNumber(course.progress)}%
+                                  tamamlandı
+                                </Text>
+                              </View>
+                              <ProgressBar
+                                progress={ensureSafeNumber(course.progress)}
+                                height={8}
+                                width='100%'
+                                trackColor={
+                                  isDark ? Colors.white : Colors.white
+                                }
+                                progressColor={
+                                  (preferredCourse as any)?.category &&
+                                  getCourseColor(
+                                    (preferredCourse as any).category,
+                                  )
+                                }
+                                style={{ borderRadius: 4 }}
+                                animated
+                              />
+                            </View>
+                            <FontAwesome
+                              name='chevron-right'
+                              size={16}
+                              color={
+                                isDark ? Colors.gray[800] : Colors.gray[800]
+                              }
+                            />
+                          </TouchableOpacity>
+                        </BouncyButton>
+                      </AppLink>
+                    ))
+                  ) : (
+                    <EmptyState
+                      icon='book'
+                      title='Henüz kurs yok'
+                      message='Kurslar sekmesinden ilk kursunuzu seçin ve çalışmaya başlayın.'
+                      actionButton={{
+                        title: 'Kurslara Git',
+                        onPress: () => router.push('/courses' as any),
+                        variant: 'primary',
+                      }}
+                      buttonFontFamily='PrimaryFont'
+                      style={{
+                        backgroundColor: isDark ? Colors.white : Colors.white,
+                      }}
+                    />
+                  )}
+                </PlayfulCard>
+              </View>
             </SlideInElement>
 
             {/* NEW: General Performance Summary Section */}

@@ -453,8 +453,10 @@ function ProfileScreenContent() {
       >
         {/* Animated Profile Header */}
         <SlideInElement delay={0}>
-          <PlayfulCard
-            style={{ marginBottom: Spacing[6], backgroundColor: 'transparent' }}
+          <View
+            style={{
+              marginBottom: Spacing[6],
+            }}
           >
             <Column style={{ alignItems: 'center' }}>
               <Avatar
@@ -501,6 +503,11 @@ function ProfileScreenContent() {
               <View
                 style={{
                   marginTop: Spacing[4],
+                  shadowColor: Colors.gray[900],
+                  shadowOffset: { width: 10, height: 20 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10,
                 }}
               >
                 <ScoreDisplay
@@ -516,16 +523,13 @@ function ProfileScreenContent() {
                   showProgress={true}
                   style={{
                     shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 10, height: 20 },
-                    shadowOpacity: 0.8,
-                    shadowRadius: 10,
-                    elevation: 10,
+
                     backgroundColor: contextColor,
                   }}
                 />
               </View>
             </Column>
-          </PlayfulCard>
+          </View>
         </SlideInElement>
 
         <View>
@@ -572,33 +576,66 @@ function ProfileScreenContent() {
                       marginBottom: Spacing[6],
                     }}
                   >
-                    <StatCard
-                      icon='trophy'
-                      title='Toplam Düello'
-                      value={duelStats.totalDuels.toString()}
-                      color={Colors.white}
-                      size='medium'
-                      titleFontFamily='SecondaryFont-Bold'
-                      style={{ backgroundColor: contextColor }}
-                    />
-                    <StatCard
-                      icon='check-circle'
-                      title='Kazanılan'
-                      value={duelStats.wins.toString()}
-                      color={Colors.white}
-                      size='medium'
-                      titleFontFamily='SecondaryFont-Bold'
-                      style={{ backgroundColor: contextColor }}
-                    />
-                    <StatCard
-                      icon='fire'
-                      title='Kazanma Oranı'
-                      value={`${Math.round(duelStats.winRate)}%`}
-                      color={Colors.white}
-                      size='medium'
-                      titleFontFamily='SecondaryFont-Bold'
-                      style={{ backgroundColor: contextColor }}
-                    />
+                    <View
+                      style={{
+                        marginTop: Spacing[4],
+                        shadowColor: Colors.gray[900],
+                        shadowOffset: { width: 10, height: 20 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 10,
+                        elevation: 10,
+                      }}
+                    >
+                      <StatCard
+                        icon='trophy'
+                        title='Toplam Düello'
+                        value={duelStats.totalDuels.toString()}
+                        color={Colors.white}
+                        size='medium'
+                        titleFontFamily='SecondaryFont-Bold'
+                        style={{ backgroundColor: contextColor }}
+                      />
+                    </View>
+                    <View
+                      style={{
+                        marginTop: Spacing[4],
+                        shadowColor: Colors.gray[900],
+                        shadowOffset: { width: 10, height: 20 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 10,
+                        elevation: 10,
+                      }}
+                    >
+                      <StatCard
+                        icon='check-circle'
+                        title='Kazanılan'
+                        value={duelStats.wins.toString()}
+                        color={Colors.white}
+                        size='medium'
+                        titleFontFamily='SecondaryFont-Bold'
+                        style={{ backgroundColor: contextColor }}
+                      />
+                    </View>
+                    <View
+                      style={{
+                        marginTop: Spacing[4],
+                        shadowColor: Colors.gray[900],
+                        shadowOffset: { width: 10, height: 20 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 10,
+                        elevation: 10,
+                      }}
+                    >
+                      <StatCard
+                        icon='fire'
+                        title='Kazanma Oranı'
+                        value={`${Math.round(duelStats.winRate)}%`}
+                        color={Colors.white}
+                        size='medium'
+                        titleFontFamily='SecondaryFont-Bold'
+                        style={{ backgroundColor: contextColor }}
+                      />
+                    </View>
                   </Row>
                 </SlideInElement>
               )}
@@ -606,9 +643,103 @@ function ProfileScreenContent() {
               {/* Detailed Stats */}
               {duelStats && (
                 <SlideInElement direction='left' delay={400}>
+                  <View
+                    style={{
+                      marginTop: Spacing[4],
+                      shadowColor: Colors.gray[900],
+                      shadowOffset: { width: 10, height: 20 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 10,
+                      elevation: 10,
+                    }}
+                  >
+                    <PlayfulCard
+                      titleFontFamily='PrimaryFont'
+                      title='Detaylı İstatistikler'
+                      variant='playful'
+                      category={(preferredCourse as any)?.category}
+                      style={{
+                        marginBottom: Spacing[6],
+                        shadowColor: Colors.gray[900],
+                        shadowOffset: { width: 10, height: 20 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 10,
+                        elevation: 10,
+                        backgroundColor: contextColor,
+                      }}
+                      animated
+                      floatingAnimation
+                    >
+                      <Row style={{ flexWrap: 'wrap', gap: Spacing[3] }}>
+                        <View style={{ flex: 1, minWidth: '45%' }}>
+                          <Row
+                            style={{
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginBottom: Spacing[2],
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontFamily: 'SecondaryFont-Regular',
+                                color: Colors.white,
+                              }}
+                            >
+                              Kaybedilen:
+                            </Text>
+                            <AnimatedCounter
+                              value={duelStats.losses}
+                              fontFamily='SecondaryFont-Bold'
+                              style={{ color: Colors.white }}
+                              size='medium'
+                            />
+                          </Row>
+                        </View>
+                        <View style={{ flex: 1, minWidth: '45%' }}>
+                          <Row
+                            style={{
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginBottom: Spacing[2],
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontFamily: 'SecondaryFont-Regular',
+                                color: Colors.white,
+                              }}
+                            >
+                              En Uzun Seri:
+                            </Text>
+                            <AnimatedCounter
+                              value={duelStats.longestLosingStreak}
+                              fontFamily='SecondaryFont-Bold'
+                              style={{ color: Colors.white }}
+                              size='medium'
+                            />
+                          </Row>
+                        </View>
+                      </Row>
+                    </PlayfulCard>
+                  </View>
+                </SlideInElement>
+              )}
+
+              {/* Achievements */}
+              <SlideInElement direction='right' delay={600}>
+                <View
+                  style={{
+                    marginTop: Spacing[4],
+                    shadowColor: Colors.gray[900],
+                    shadowOffset: { width: 10, height: 20 },
+                    shadowOpacity: 0.8,
+                    shadowRadius: 10,
+                    elevation: 10,
+                  }}
+                >
                   <PlayfulCard
+                    title='Başarılar'
                     titleFontFamily='PrimaryFont'
-                    title='Detaylı İstatistikler'
                     variant='playful'
                     category={(preferredCourse as any)?.category}
                     style={{
@@ -623,292 +754,255 @@ function ProfileScreenContent() {
                     animated
                     floatingAnimation
                   >
-                    <Row style={{ flexWrap: 'wrap', gap: Spacing[3] }}>
-                      <View style={{ flex: 1, minWidth: '45%' }}>
+                    {achievements.length > 0 ? (
+                      <>
                         <Row
                           style={{
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: Spacing[2],
+                            flexWrap: 'wrap',
+                            gap: Spacing[2],
+                            marginBottom: Spacing[4],
                           }}
                         >
-                          <Text
-                            style={{
-                              fontFamily: 'SecondaryFont-Regular',
-                              color: Colors.white,
-                            }}
-                          >
-                            Kaybedilen:
-                          </Text>
-                          <AnimatedCounter
-                            value={duelStats.losses}
-                            fontFamily='SecondaryFont-Bold'
-                            style={{ color: Colors.white }}
-                            size='medium'
-                          />
-                        </Row>
-                      </View>
-                      <View style={{ flex: 1, minWidth: '45%' }}>
-                        <Row
-                          style={{
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: Spacing[2],
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontFamily: 'SecondaryFont-Regular',
-                              color: Colors.white,
-                            }}
-                          >
-                            En Uzun Seri:
-                          </Text>
-                          <AnimatedCounter
-                            value={duelStats.longestLosingStreak}
-                            fontFamily='SecondaryFont-Bold'
-                            style={{ color: Colors.white }}
-                            size='medium'
-                          />
-                        </Row>
-                      </View>
-                    </Row>
-                  </PlayfulCard>
-                </SlideInElement>
-              )}
-
-              {/* Achievements */}
-              <SlideInElement direction='right' delay={600}>
-                <PlayfulCard
-                  title='Başarılar'
-                  titleFontFamily='PrimaryFont'
-                  variant='playful'
-                  category={(preferredCourse as any)?.category}
-                  style={{
-                    marginBottom: Spacing[6],
-                    shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 10, height: 20 },
-                    shadowOpacity: 0.8,
-                    shadowRadius: 10,
-                    elevation: 10,
-                    backgroundColor: contextColor,
-                  }}
-                  animated
-                  floatingAnimation
-                >
-                  {achievements.length > 0 ? (
-                    <>
-                      <Row
-                        style={{
-                          flexWrap: 'wrap',
-                          gap: Spacing[2],
-                          marginBottom: Spacing[4],
-                        }}
-                      >
-                        {achievements.slice(0, 6).map((achievement) => (
-                          <GlassCard
-                            key={achievement.achievement_id}
-                            style={{
-                              width: '100%',
-                              padding: Spacing[3],
-                              minHeight: 50,
-                            }}
-                            shimmerEffect
-                          >
-                            <View
+                          {achievements.slice(0, 6).map((achievement) => (
+                            <GlassCard
+                              key={achievement.achievement_id}
                               style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
+                                width: '100%',
+                                padding: Spacing[3],
+                                minHeight: 50,
                               }}
+                              shimmerEffect
                             >
                               <View
                                 style={{
-                                  width: 40,
-                                  height: 40,
-                                  borderRadius: 20,
-                                  backgroundColor:
-                                    getAchievementColor(achievement),
+                                  flexDirection: 'row',
                                   alignItems: 'center',
-                                  justifyContent: 'center',
-                                  marginRight: Spacing[2],
                                 }}
                               >
-                                <FontAwesome
-                                  name={getAchievementIcon(achievement) as any}
-                                  size={20}
-                                  color={Colors.white}
-                                />
+                                <View
+                                  style={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 20,
+                                    backgroundColor:
+                                      getAchievementColor(achievement),
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    marginRight: Spacing[2],
+                                  }}
+                                >
+                                  <FontAwesome
+                                    name={
+                                      getAchievementIcon(achievement) as any
+                                    }
+                                    size={20}
+                                    color={Colors.white}
+                                  />
+                                </View>
+                                <Text
+                                  style={{
+                                    fontSize: 20,
+                                    flex: 1,
+                                    textAlign: 'center',
+                                    color: isDark ? Colors.white : Colors.white,
+                                    fontFamily: 'SecondaryFont-Bold',
+                                  }}
+                                  numberOfLines={1}
+                                >
+                                  {achievement.name}
+                                </Text>
                               </View>
-                              <Text
-                                style={{
-                                  fontSize: 20,
-                                  flex: 1,
-                                  textAlign: 'center',
-                                  color: isDark ? Colors.white : Colors.white,
-                                  fontFamily: 'SecondaryFont-Bold',
-                                }}
-                                numberOfLines={1}
-                              >
-                                {achievement.name}
-                              </Text>
-                            </View>
-                          </GlassCard>
-                        ))}
-                      </Row>
+                            </GlassCard>
+                          ))}
+                        </Row>
 
-                      <PlayfulButton
-                        fontFamily='SecondaryFont-Bold'
-                        title='Tüm Başarılar'
-                        onPress={() =>
-                          router.push('/(tabs)/profile/achievements' as any)
-                        }
-                        variant='outline'
-                        style={{ flex: 1 }}
+                        <PlayfulButton
+                          fontFamily='SecondaryFont-Bold'
+                          title='Tüm Başarılar'
+                          onPress={() =>
+                            router.push('/(tabs)/profile/achievements' as any)
+                          }
+                          variant='outline'
+                          style={{ flex: 1 }}
+                          icon='trophy'
+                          animated
+                        />
+                      </>
+                    ) : (
+                      <EmptyState
                         icon='trophy'
-                        animated
+                        title='Henüz başarı yok'
+                        fontFamily='PrimaryFont'
+                        message='Daha fazla çalışıkça başarılar kazanacaksınız.'
+                        actionButton={{
+                          title: 'Başarıları Keşfet',
+                          onPress: () =>
+                            router.push('/(tabs)/profile/achievements' as any),
+                          variant: 'secondary',
+                        }}
+                        buttonFontFamily='PrimaryFont'
+                        style={{
+                          backgroundColor: isDark ? Colors.white : Colors.white,
+                          shadowColor: Colors.gray[900],
+                          shadowOffset: { width: 10, height: 20 },
+                          shadowOpacity: 0.8,
+                          shadowRadius: 10,
+                          elevation: 10,
+                        }}
                       />
-                    </>
-                  ) : (
-                    <EmptyState
-                      icon='trophy'
-                      title='Henüz başarı yok'
-                      fontFamily='PrimaryFont'
-                      message='Daha fazla çalışıkça başarılar kazanacaksınız.'
-                      actionButton={{
-                        title: 'Başarıları Keşfet',
-                        onPress: () =>
-                          router.push('/(tabs)/profile/achievements' as any),
-                        variant: 'secondary',
-                      }}
-                      buttonFontFamily='PrimaryFont'
-                      style={{
-                        backgroundColor: isDark ? Colors.white : Colors.white,
-                        shadowColor: Colors.gray[900],
-                        shadowOffset: { width: 10, height: 20 },
-                        shadowOpacity: 0.8,
-                        shadowRadius: 10,
-                        elevation: 10,
-                      }}
-                    />
-                  )}
-                </PlayfulCard>
+                    )}
+                  </PlayfulCard>
+                </View>
               </SlideInElement>
 
               <SlideInElement direction='right' delay={800}>
-                <PlayfulCard
-                  title='Bildirimler'
-                  titleFontFamily='PrimaryFont'
-                  variant='playful'
-                  category={(preferredCourse as any)?.category}
+                <View
                   style={{
-                    marginBottom: Spacing[6],
+                    marginTop: Spacing[4],
                     shadowColor: Colors.gray[900],
                     shadowOffset: { width: 10, height: 20 },
                     shadowOpacity: 0.8,
                     shadowRadius: 10,
                     elevation: 10,
-                    backgroundColor: contextColor,
                   }}
-                  animated
-                  floatingAnimation
                 >
-                  <Column style={{ gap: Spacing[2] }}>
-                    <PlayfulButton
-                      title='Bildirimleri Gör'
-                      onPress={() =>
-                        router.push('/(tabs)/notifications' as any)
-                      }
-                      variant='outline'
-                      icon='bell'
-                      fontFamily='SecondaryFont-Bold'
-                      animated
-                    />
-                  </Column>
-                </PlayfulCard>
+                  <PlayfulCard
+                    title='Bildirimler'
+                    titleFontFamily='PrimaryFont'
+                    variant='playful'
+                    category={(preferredCourse as any)?.category}
+                    style={{
+                      marginBottom: Spacing[6],
+                      shadowColor: Colors.gray[900],
+                      shadowOffset: { width: 10, height: 20 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 10,
+                      elevation: 10,
+                      backgroundColor: contextColor,
+                    }}
+                    animated
+                    floatingAnimation
+                  >
+                    <Column style={{ gap: Spacing[2] }}>
+                      <PlayfulButton
+                        title='Bildirimleri Gör'
+                        onPress={() =>
+                          router.push('/(tabs)/notifications' as any)
+                        }
+                        variant='outline'
+                        icon='bell'
+                        fontFamily='SecondaryFont-Bold'
+                        animated
+                      />
+                    </Column>
+                  </PlayfulCard>
+                </View>
               </SlideInElement>
 
               <SlideInElement direction='right' delay={1000}>
-                <PlayfulCard
-                  title='Arkadaşlar'
-                  titleFontFamily='PrimaryFont'
-                  variant='playful'
-                  category={(preferredCourse as any)?.category}
+                <View
                   style={{
-                    marginBottom: Spacing[6],
+                    marginTop: Spacing[4],
                     shadowColor: Colors.gray[900],
                     shadowOffset: { width: 10, height: 20 },
                     shadowOpacity: 0.8,
                     shadowRadius: 10,
                     elevation: 10,
-                    backgroundColor: contextColor,
                   }}
-                  animated
-                  floatingAnimation
                 >
-                  <Column style={{ gap: Spacing[2] }}>
-                    <PlayfulButton
-                      title='Arkadaşlarını Gör'
-                      onPress={() =>
-                        router.push('/(tabs)/profile/friends' as any)
-                      }
-                      variant='outline'
-                      icon='users'
-                      fontFamily='SecondaryFont-Bold'
-                      animated
-                    />
-                  </Column>
-                </PlayfulCard>
+                  <PlayfulCard
+                    title='Arkadaşlar'
+                    titleFontFamily='PrimaryFont'
+                    variant='playful'
+                    category={(preferredCourse as any)?.category}
+                    style={{
+                      marginBottom: Spacing[6],
+                      shadowColor: Colors.gray[900],
+                      shadowOffset: { width: 10, height: 20 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 10,
+                      elevation: 10,
+                      backgroundColor: contextColor,
+                    }}
+                    animated
+                    floatingAnimation
+                  >
+                    <Column style={{ gap: Spacing[2] }}>
+                      <PlayfulButton
+                        title='Arkadaşlarını Gör'
+                        onPress={() =>
+                          router.push('/(tabs)/profile/friends' as any)
+                        }
+                        variant='outline'
+                        icon='users'
+                        fontFamily='SecondaryFont-Bold'
+                        animated
+                      />
+                    </Column>
+                  </PlayfulCard>
+                </View>
               </SlideInElement>
 
               {/* Account Settings */}
               <SlideInElement direction='left' delay={1200}>
-                <PlayfulCard
-                  title='Hesap Ayarları'
-                  variant='playful'
-                  gradient='sky'
-                  titleFontFamily='PrimaryFont'
-                  category={(preferredCourse as any)?.category}
+                <View
                   style={{
-                    marginBottom: Spacing[6],
+                    marginTop: Spacing[4],
                     shadowColor: Colors.gray[900],
                     shadowOffset: { width: 10, height: 20 },
                     shadowOpacity: 0.8,
                     shadowRadius: 10,
                     elevation: 10,
-                    backgroundColor: contextColor,
                   }}
-                  animated
-                  floatingAnimation
                 >
-                  <Column style={{ gap: Spacing[2] }}>
-                    <PlayfulButton
-                      title='Profil Düzenle'
-                      onPress={handleShowCourseModal} // Changed to show course modal
-                      variant='outline'
-                      icon='user'
-                      fontFamily='SecondaryFont-Bold'
-                      animated
-                    />
+                  <PlayfulCard
+                    title='Hesap Ayarları'
+                    variant='playful'
+                    gradient='sky'
+                    titleFontFamily='PrimaryFont'
+                    category={(preferredCourse as any)?.category}
+                    style={{
+                      marginBottom: Spacing[6],
+                      shadowColor: Colors.gray[900],
+                      shadowOffset: { width: 10, height: 20 },
+                      shadowOpacity: 0.8,
+                      shadowRadius: 10,
+                      elevation: 10,
+                      backgroundColor: contextColor,
+                    }}
+                    animated
+                    floatingAnimation
+                  >
+                    <Column style={{ gap: Spacing[2] }}>
+                      <PlayfulButton
+                        title='Profil Düzenle'
+                        onPress={handleShowCourseModal} // Changed to show course modal
+                        variant='outline'
+                        icon='user'
+                        fontFamily='SecondaryFont-Bold'
+                        animated
+                      />
 
-                    <PlayfulButton
-                      title='Şifre Değiştir'
-                      onPress={() => router.push('/change-password' as any)}
-                      variant='outline'
-                      icon='lock'
-                      fontFamily='SecondaryFont-Bold'
-                      animated
-                    />
+                      <PlayfulButton
+                        title='Şifre Değiştir'
+                        onPress={() => router.push('/change-password' as any)}
+                        variant='outline'
+                        icon='lock'
+                        fontFamily='SecondaryFont-Bold'
+                        animated
+                      />
 
-                    <PlayfulButton
-                      title='Bildirim Ayarları'
-                      onPress={() => router.push('/notifications' as any)}
-                      variant='outline'
-                      icon='gear'
-                      fontFamily='SecondaryFont-Bold'
-                      animated
-                    />
-                  </Column>
-                </PlayfulCard>
+                      <PlayfulButton
+                        title='Bildirim Ayarları'
+                        onPress={() => router.push('/notifications' as any)}
+                        variant='outline'
+                        icon='gear'
+                        fontFamily='SecondaryFont-Bold'
+                        animated
+                      />
+                    </Column>
+                  </PlayfulCard>
+                </View>
               </SlideInElement>
 
               {/* App Info & Sign Out */}

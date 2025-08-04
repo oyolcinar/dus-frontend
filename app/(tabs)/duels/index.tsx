@@ -614,6 +614,13 @@ function DuelsScreenContent() {
                         router.push(`/(tabs)/duels/${duel.duel_id}` as any)
                       }
                       activeOpacity={0.8}
+                      style={{
+                        shadowColor: Colors.gray[900],
+                        shadowOffset: { width: 10, height: 20 },
+                        shadowOpacity: 0.8,
+                        shadowRadius: 10,
+                        elevation: 10,
+                      }}
                     >
                       <PlayfulCard
                         title={`${getOpponentDisplayName(duel)} ile Düello`}
@@ -622,6 +629,11 @@ function DuelsScreenContent() {
                         style={{
                           marginBottom: Spacing[4],
                           backgroundColor: contextColor,
+                          shadowColor: Colors.gray[900],
+                          shadowOffset: { width: 10, height: 20 },
+                          shadowOpacity: 0.8,
+                          shadowRadius: 10,
+                          elevation: 10,
                         }}
                         {...cardProps}
                       >
@@ -697,54 +709,64 @@ function DuelsScreenContent() {
             )}
 
             {/* Quick Actions - Apply context color to background */}
-            <PlayfulCard
-              title='Hızlı İşlemler'
-              variant='playful'
-              titleFontFamily='PrimaryFont'
-              category={(preferredCourse as any)?.category}
+            <View
               style={{
-                marginTop: Spacing[6],
                 shadowColor: Colors.gray[900],
                 shadowOffset: { width: 10, height: 20 },
                 shadowOpacity: 0.8,
                 shadowRadius: 10,
                 elevation: 10,
-                backgroundColor: contextColor, // Use context color
               }}
-              animated
-              floatingAnimation
             >
-              <Row style={{ justifyContent: 'space-between' }}>
-                <PlayfulButton
-                  title='Tüm Düellolar'
-                  onPress={() => router.push('/(tabs)/duels/history' as any)}
-                  variant='outline'
-                  style={{
-                    flex: 1,
-                    marginRight: Spacing[2],
-                    borderColor: Colors.white,
-                  }}
-                  icon='list'
-                  animated
-                  size='xs'
-                  fontFamily='PrimaryFont'
-                />
-                <PlayfulButton
-                  title='Düello Geçmişi'
-                  onPress={() => router.push('/(tabs)/duels/history' as any)}
-                  variant='outline'
-                  style={{
-                    flex: 1,
-                    marginLeft: Spacing[2],
-                    borderColor: Colors.white,
-                  }}
-                  icon='history'
-                  animated
-                  size='xs'
-                  fontFamily='PrimaryFont'
-                />
-              </Row>
-            </PlayfulCard>
+              <PlayfulCard
+                title='Hızlı İşlemler'
+                variant='playful'
+                titleFontFamily='PrimaryFont'
+                category={(preferredCourse as any)?.category}
+                style={{
+                  marginTop: Spacing[6],
+                  shadowColor: Colors.gray[900],
+                  shadowOffset: { width: 10, height: 20 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 10,
+                  elevation: 10,
+                  backgroundColor: contextColor, // Use context color
+                }}
+                animated
+                floatingAnimation
+              >
+                <Row style={{ justifyContent: 'space-between' }}>
+                  <PlayfulButton
+                    title='Tüm Düellolar'
+                    onPress={() => router.push('/(tabs)/duels/history' as any)}
+                    variant='outline'
+                    style={{
+                      flex: 1,
+                      marginRight: Spacing[2],
+                      borderColor: Colors.white,
+                    }}
+                    icon='list'
+                    animated
+                    size='xs'
+                    fontFamily='PrimaryFont'
+                  />
+                  <PlayfulButton
+                    title='Düello Geçmişi'
+                    onPress={() => router.push('/(tabs)/duels/history' as any)}
+                    variant='outline'
+                    style={{
+                      flex: 1,
+                      marginLeft: Spacing[2],
+                      borderColor: Colors.white,
+                    }}
+                    icon='history'
+                    animated
+                    size='xs'
+                    fontFamily='PrimaryFont'
+                  />
+                </Row>
+              </PlayfulCard>
+            </View>
 
             {/* Error display at bottom if there's an error but data is loaded */}
             {error && !loading && activeDuels.length > 0 && (

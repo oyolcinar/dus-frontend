@@ -14,6 +14,7 @@ import {
   ViewStyle,
   TextStyle,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -68,7 +69,7 @@ import { Bot } from '../../../src/api/botService';
 import { CreateDuelResultInput } from '../../../src/api/duelResultService';
 
 // 1. ADD DEVELOPMENT MODE TOGGLE (add this right after your imports)
-const __DEV_MODE__ = __DEV__ && true; // Set to false when you want real functionality
+const __DEV_MODE__ = __DEV__ && false; // ✅ FIXED: Set to false for production, true for dev styling
 
 // 2. ADD MOCK DATA (add this before your component definition)
 const MOCK_DATA = {
@@ -158,6 +159,7 @@ const MOCK_DATA = {
 };
 
 const { width, height } = Dimensions.get('window');
+const isIOS = Platform.OS === 'ios';
 
 interface DuelSession {
   sessionId: number;
@@ -249,7 +251,7 @@ type DuelPhase =
 const getDevModeState = (): DuelPhase => {
   // Change this to test different phases:
   // 'connecting' | 'lobby' | 'countdown' | 'question' | 'results' | 'final' | 'error'
-  return 'countdown'; // ← CHANGE THIS TO STYLE DIFFERENT SCREENS
+  return 'connecting'; // ← CHANGE THIS TO STYLE DIFFERENT SCREENS
 };
 
 export default function DuelRoomScreen() {
@@ -289,9 +291,14 @@ export default function DuelRoomScreen() {
   const [isCreatingDuelResult, setIsCreatingDuelResult] = useState(false);
   const [duelResultCreated, setDuelResultCreated] = useState(false);
 
+  // ✅ FIXED: Add iOS-specific state management
+  const [isModalStable, setIsModalStable] = useState(false);
+  const [apiCallInProgress, setApiCallInProgress] = useState(false);
+
   // Refs
   const timerRef = useRef<number | null>(null);
   const answerStartTime = useRef<number>(0);
+  const lastApiCallTime = useRef<number>(0);
 
   // Animations
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -299,12 +306,47 @@ export default function DuelRoomScreen() {
 
   const logoVideo = require('../../../assets/videos/okey.mp4');
 
+  // ✅ FIXED: Add throttled API call helper
+  const throttledApiCall = useCallback(
+    async (apiCall: () => Promise<any>, minInterval: number = 1000) => {
+      const now = Date.now();
+      if (now - lastApiCallTime.current < minInterval) {
+        console.log('⏱️ API call throttled, waiting...');
+        return;
+      }
+
+      if (apiCallInProgress) {
+        console.log('🔄 API call already in progress, skipping...');
+        return;
+      }
+
+      try {
+        setApiCallInProgress(true);
+        lastApiCallTime.current = now;
+
+        // Add extra delay for iOS
+        if (isIOS) {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+
+        return await apiCall();
+      } finally {
+        setApiCallInProgress(false);
+      }
+    },
+    [apiCallInProgress],
+  );
+
   // Add this function before your other functions
   const resetDuelState = useCallback(() => {
     if (__DEV_MODE__) {
-      console.log('🟡 DEV MODE: Skipping resetDuelState');
-      return; // Don't reset in dev mode
+      console.log('🟡 DEV MODE: Minimal reset in dev mode');
+      // In dev mode, only reset essential states but keep mock data
+      setPhase('connecting');
+      setError(null);
+      return;
     }
+
     setPhase('connecting');
     setSession(null);
     setCurrentQuestion(null);
@@ -326,17 +368,111 @@ export default function DuelRoomScreen() {
     setError(null);
   }, []);
 
-  // Load duel information and check for bots
+  // ✅ FIXED: Properly handle dev mode initialization
+  useEffect(() => {
+    if (__DEV_MODE__) {
+      console.log('🟢 DEV MODE ACTIVE: Setting up mock data immediately');
+
+      // Set all mock data immediately
+      setDuelInfo(MOCK_DATA.duelInfo);
+      setOpponentInfo(MOCK_DATA.opponentInfo);
+      setUserData(MOCK_DATA.userData);
+      setIsLoadingDuelInfo(false); // ✅ CRITICAL: Set loading to false immediately
+
+      const devPhase = getDevModeState();
+      console.log('🎯 Setting phase to:', devPhase);
+
+      // Add a small delay to prevent race conditions on iOS
+      const setupTimer = setTimeout(
+        () => {
+          setPhase(devPhase);
+
+          // Set data based on the phase
+          switch (devPhase) {
+            case 'connecting':
+              console.log('📱 Dev Mode: Connecting screen');
+              break;
+            case 'lobby':
+              console.log('📱 Dev Mode: Lobby screen');
+              break;
+            case 'countdown':
+              console.log('📱 Dev Mode: Countdown screen');
+              setCountdown(2);
+              break;
+            case 'question':
+              console.log('📱 Dev Mode: Question screen');
+              setCurrentQuestion(MOCK_DATA.currentQuestion);
+              setQuestionIndex(0);
+              setTotalQuestions(3);
+              setTimeLeft(25);
+              setUserScore(1);
+              setOpponentScore(1);
+              setOpponentAnswered(false);
+              setHasAnswered(false);
+              break;
+            case 'results':
+              console.log('📱 Dev Mode: Results screen');
+              setRoundResult(MOCK_DATA.roundResult);
+              setUserScore(1);
+              setOpponentScore(1);
+              setQuestionIndex(0);
+              break;
+            case 'final':
+              console.log('📱 Dev Mode: Final screen');
+              setFinalResults(MOCK_DATA.finalResults);
+              setUserScore(2);
+              setOpponentScore(1);
+              setAnsweredQuestions([
+                {
+                  questionId: 1,
+                  selectedAnswer: 'A',
+                  correctAnswer: 'A',
+                  isCorrect: true,
+                  timeTaken: 5000,
+                  questionText: MOCK_DATA.currentQuestion.text,
+                  options: MOCK_DATA.currentQuestion.options,
+                },
+              ]);
+              break;
+            case 'error':
+              console.log('📱 Dev Mode: Error screen');
+              setError('Test error message for styling');
+              break;
+          }
+        },
+        isIOS ? 200 : 50,
+      ); // Longer delay for iOS
+
+      console.log('✅ Dev mode setup complete');
+
+      return () => clearTimeout(setupTimer);
+    }
+
+    console.log('🔴 Production mode: Will run real initialization');
+  }, []); // Empty dependency array to run only once
+
+  // ✅ FIXED: Load duel information with proper iOS handling
   useEffect(() => {
     const loadDuelInfo = async () => {
       if (__DEV_MODE__) {
-        console.log('🟡 DEV MODE: Skipping loadDuelInfo');
-        return; // Exit early in dev mode
+        console.log(
+          '🟡 DEV MODE: Skipping loadDuelInfo - already set in initialization',
+        );
+        return; // Exit early in dev mode - data already set above
       }
+
       try {
+        console.log('🔄 Loading duel info for duel:', duelId);
         setIsLoadingDuelInfo(true);
 
-        const duelDetails = await duelService.getDuelDetails(duelId);
+        // Add iOS-specific delay to prevent rapid calls
+        if (isIOS) {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
+
+        const duelDetails = await throttledApiCall(() =>
+          duelService.getDuelDetails(duelId),
+        );
 
         if (duelDetails && duelDetails.duel) {
           let duelInfoData: DuelInfo = {
@@ -352,16 +488,16 @@ export default function DuelRoomScreen() {
             course_id: duelDetails.duel.course?.course_id,
           };
 
-          // If missing data, fetch separately
+          // If missing data, fetch separately with throttling
           if (duelDetails.duel.test_id && !duelInfoData.test_name) {
-            const test = await testService.getTestById(
-              duelDetails.duel.test_id,
+            const test = await throttledApiCall(() =>
+              testService.getTestById(duelDetails.duel.test_id),
             );
             if (test) {
               duelInfoData.test_name = test.title;
               if (!duelInfoData.course_name && test.course_id) {
-                const course = await courseService.getCourseById(
-                  test.course_id,
+                const course = await throttledApiCall(() =>
+                  courseService.getCourseById(test.course_id),
                 );
                 if (course) {
                   duelInfoData.course_name = course.title;
@@ -372,7 +508,7 @@ export default function DuelRoomScreen() {
 
           setDuelInfo(duelInfoData);
 
-          // Check if opponent is a bot
+          // Check if opponent is a bot with throttling
           const currentUserId = userData?.userId;
           const opponentId =
             duelInfoData.initiator_id === currentUserId
@@ -380,10 +516,14 @@ export default function DuelRoomScreen() {
               : duelInfoData.initiator_id;
 
           if (opponentId) {
-            const isOpponentBot = await botService.isBot(opponentId);
+            const isOpponentBot = await throttledApiCall(() =>
+              botService.isBot(opponentId),
+            );
 
             if (isOpponentBot) {
-              const botInfo = await botService.getBotInfo(opponentId);
+              const botInfo = await throttledApiCall(() =>
+                botService.getBotInfo(opponentId),
+              );
               setOpponentInfo({
                 userId: opponentId,
                 username:
@@ -402,123 +542,64 @@ export default function DuelRoomScreen() {
         }
       } catch (error) {
         console.error('Error loading duel info:', error);
+        // Don't show error in dev mode
+        if (!__DEV_MODE__) {
+          setError('Düello bilgileri yüklenirken hata oluştu');
+        }
       } finally {
-        setIsLoadingDuelInfo(false);
+        setIsLoadingDuelInfo(false); // ✅ ALWAYS set loading to false
       }
     };
 
-    if (duelId && userData) {
+    // Only load if we have duelId and userData, and not in dev mode initialization
+    if (duelId && userData && !__DEV_MODE__) {
       loadDuelInfo();
     }
-  }, [duelId, userData]);
+  }, [duelId, userData, throttledApiCall]);
 
-  // FIXED: Initialize socket connection using socketService
+  // ✅ FIXED: Initialize socket connection only in production
   useEffect(() => {
+    if (__DEV_MODE__) {
+      console.log('🟡 DEV MODE: Skipping socket initialization');
+      return;
+    }
+
+    console.log('🔄 Initializing socket connection...');
     initializeConnection();
+
     return () => {
       disconnect();
-      resetDuelState(); // Add this line
+      if (!__DEV_MODE__) {
+        resetDuelState();
+      }
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
   }, [resetDuelState]);
 
-  // useEffect(() => {
-  //   console.log('🔵 DEV MODE CHECK:', __DEV_MODE__);
-
-  //   if (__DEV_MODE__) {
-  //     console.log('🟢 DEV MODE ACTIVE: Setting up mock data');
-
-  //     // Set mock data for development
-  //     setDuelInfo(MOCK_DATA.duelInfo);
-  //     setOpponentInfo(MOCK_DATA.opponentInfo);
-  //     setUserData(MOCK_DATA.userData);
-  //     setIsLoadingDuelInfo(false); // Important: Set this immediately
-
-  //     const devPhase = getDevModeState();
-  //     console.log('🎯 Setting phase to:', devPhase);
-  //     setPhase(devPhase);
-
-  //     // Set data based on the phase you want to style
-  //     switch (devPhase) {
-  //       case 'connecting':
-  //         console.log('📱 Dev Mode: Connecting screen');
-  //         break;
-  //       case 'lobby':
-  //         console.log('📱 Dev Mode: Lobby screen');
-  //         break;
-  //       case 'countdown':
-  //         console.log('📱 Dev Mode: Countdown screen');
-  //         setCountdown(2);
-  //         break;
-  //       case 'question':
-  //         console.log('📱 Dev Mode: Question screen');
-  //         setCurrentQuestion(MOCK_DATA.currentQuestion);
-  //         setQuestionIndex(0);
-  //         setTotalQuestions(3);
-  //         setTimeLeft(25);
-  //         setUserScore(1);
-  //         setOpponentScore(1);
-  //         setOpponentAnswered(false);
-  //         setHasAnswered(false);
-  //         break;
-  //       case 'results':
-  //         console.log('📱 Dev Mode: Results screen');
-  //         setRoundResult(MOCK_DATA.roundResult);
-  //         setUserScore(1);
-  //         setOpponentScore(1);
-  //         setQuestionIndex(0);
-  //         break;
-  //       case 'final':
-  //         console.log('📱 Dev Mode: Final screen');
-  //         setFinalResults(MOCK_DATA.finalResults);
-  //         setUserScore(2);
-  //         setOpponentScore(1);
-  //         setAnsweredQuestions([
-  //           {
-  //             questionId: 1,
-  //             selectedAnswer: 'A',
-  //             correctAnswer: 'A',
-  //             isCorrect: true,
-  //             timeTaken: 5000,
-  //             questionText: MOCK_DATA.currentQuestion.text,
-  //             options: MOCK_DATA.currentQuestion.options,
-  //           },
-  //         ]);
-  //         break;
-  //       case 'error':
-  //         console.log('📱 Dev Mode: Error screen');
-  //         setError('Test error message for styling');
-  //         break;
-  //     }
-
-  //     console.log('✅ Dev mode setup complete');
-  //     return; // Exit early, don't run real initialization
-  //   }
-
-  //   console.log('🔴 Production mode: Running real initialization');
-  //   // Original initialization code for production
-  //   // initializeConnection();
-  //   // return () => {
-  //   //   disconnect();
-  //   //   resetDuelState();
-  //   //   if (timerRef.current) {
-  //   //     clearInterval(timerRef.current);
-  //   //   }
-  //   // };
-  // }, []); // IMPORTANT: Empty dependency array to run only once
-
+  // Reset duel state when duel ID changes (only in production)
   useEffect(() => {
-    if (duelId) {
+    if (duelId && !__DEV_MODE__) {
       resetDuelState();
     }
   }, [duelId, resetDuelState]);
 
-  // Load user data
+  // ✅ FIXED: Load user data with proper dev mode handling
   useEffect(() => {
     const loadUserData = async () => {
+      if (__DEV_MODE__) {
+        console.log('🟡 DEV MODE: Using mock user data');
+        setUserData(MOCK_DATA.userData);
+        return;
+      }
+
       try {
+        // Add iOS-specific delay
+        if (isIOS) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
         const data = await AsyncStorage.getItem('userData');
         if (data) {
           setUserData(JSON.parse(data));
@@ -530,24 +611,17 @@ export default function DuelRoomScreen() {
     loadUserData();
   }, []);
 
-  // useEffect(() => {
-  //   const loadUserData = async () => {
-  //     if (__DEV_MODE__) {
-  //       setUserData(MOCK_DATA.userData);
-  //       return;
-  //     }
+  // ✅ FIXED: iOS modal stability
+  useEffect(() => {
+    const timer = setTimeout(
+      () => {
+        setIsModalStable(true);
+      },
+      isIOS ? 200 : 50,
+    );
 
-  //     try {
-  //       const data = await AsyncStorage.getItem('userData');
-  //       if (data) {
-  //         setUserData(JSON.parse(data));
-  //       }
-  //     } catch (error) {
-  //       console.error('Error loading user data:', error);
-  //     }
-  //   };
-  //   loadUserData();
-  // }, []);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Handle back button
   useEffect(() => {
@@ -586,6 +660,11 @@ export default function DuelRoomScreen() {
 
   // FIXED: Initialize connection using socketService
   const initializeConnection = async () => {
+    if (__DEV_MODE__) {
+      console.log('🟡 DEV MODE: Skipping connection initialization');
+      return;
+    }
+
     try {
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
@@ -606,6 +685,8 @@ export default function DuelRoomScreen() {
 
   // FIXED: Setup event listeners using socketService
   const setupEventListeners = () => {
+    if (__DEV_MODE__) return;
+
     // Socket event listeners
     on('connect', () => {
       console.log('Connected to socket server');
@@ -861,7 +942,9 @@ export default function DuelRoomScreen() {
           text: 'Çık',
           style: 'destructive',
           onPress: () => {
-            disconnect();
+            if (!__DEV_MODE__) {
+              disconnect();
+            }
             resetDuelState();
             router.replace('/(tabs)/duels/new');
           },
@@ -1001,7 +1084,8 @@ export default function DuelRoomScreen() {
   };
 
   const renderDuelInfoHeader = () => {
-    if (isLoadingDuelInfo) {
+    // ✅ FIXED: Show loading state properly in both dev and prod
+    if (isLoadingDuelInfo && !__DEV_MODE__) {
       return (
         <View style={styles.duelInfoHeader}>
           <Row style={{ alignItems: 'center', justifyContent: 'center' }}>
@@ -1672,7 +1756,9 @@ export default function DuelRoomScreen() {
                           title='Yeni Düello'
                           variant='ghost'
                           onPress={() => {
-                            disconnect();
+                            if (!__DEV_MODE__) {
+                              disconnect();
+                            }
                             resetDuelState();
                             router.replace('/(tabs)/duels/new');
                           }}
@@ -1682,7 +1768,9 @@ export default function DuelRoomScreen() {
                           title='Çık'
                           variant='secondary'
                           onPress={() => {
-                            disconnect();
+                            if (!__DEV_MODE__) {
+                              disconnect();
+                            }
                             resetDuelState();
                             router.replace('/(tabs)/duels');
                           }}
@@ -1715,12 +1803,28 @@ export default function DuelRoomScreen() {
           onPress={() => {
             setError(null);
             setPhase('connecting');
-            initializeConnection();
+            if (!__DEV_MODE__) {
+              initializeConnection();
+            }
           }}
         />
       </View>
     </View>
   );
+
+  // ✅ FIXED: Don't render modal until stable on iOS
+  if (!isModalStable && isIOS) {
+    return (
+      <View style={styles.mainContainer}>
+        <View style={styles.contentWrapper}>
+          <ActivityIndicator size='large' color={Colors.white} />
+          <Text style={[styles.lightText, { marginTop: Spacing[3] }]}>
+            Hazırlanıyor...
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   // Main render logic
   switch (phase) {

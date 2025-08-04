@@ -1,6 +1,7 @@
 // app/(tabs)/duels/new.tsx - Complete fix with auth + socket integration + context colors + consistent opponent styling
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Platform, ActionSheetIOS } from 'react-native';
 import {
   View,
   Text,
@@ -711,10 +712,8 @@ function NewDuelScreenContent() {
     };
 
     return (
-      <PlayfulCard
+      <View
         style={{
-          marginBottom: Spacing[3],
-          backgroundColor: 'rgba(255,255,255,0.95)',
           shadowColor: Colors.gray[900],
           shadowOffset: { width: 10, height: 20 },
           shadowOpacity: 0.8,
@@ -722,76 +721,88 @@ function NewDuelScreenContent() {
           elevation: 10,
         }}
       >
-        <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <Row style={{ alignItems: 'center', flex: 1 }}>
-            <Column style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: 'bold',
-                  color: Colors.gray[800],
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
-              >
-                {bot.botName}
-              </Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: Colors.gray[600],
-                  fontFamily: 'SecondaryFont-Regular',
-                }}
-              >
-                Doğruluk: {(bot.accuracyRate * 100).toFixed(0)}% • Süre:{' '}
-                {(bot.avgResponseTime / 1000).toFixed(0)}s
-              </Text>
-              <Row style={{ alignItems: 'center', marginTop: 4 }}>
-                <Badge
-                  text={getDifficultyLabel(bot.difficultyLevel)}
-                  variant='primary'
+        <PlayfulCard
+          style={{
+            marginBottom: Spacing[3],
+            backgroundColor: 'rgba(255,255,255,0.95)',
+            shadowColor: Colors.gray[900],
+            shadowOffset: { width: 10, height: 20 },
+            shadowOpacity: 0.8,
+            shadowRadius: 10,
+            elevation: 10,
+          }}
+        >
+          <Row
+            style={{ alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <Row style={{ alignItems: 'center', flex: 1 }}>
+              <Column style={{ flex: 1 }}>
+                <Text
                   style={{
-                    backgroundColor: getDifficultyColor(bot.difficultyLevel),
-                    marginRight: Spacing[2],
-                  }}
-                  textStyle={{
-                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    color: Colors.gray[800],
                     fontFamily: 'SecondaryFont-Bold',
                   }}
-                />
-              </Row>
-            </Column>
+                >
+                  {bot.botName}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: Colors.gray[600],
+                    fontFamily: 'SecondaryFont-Regular',
+                  }}
+                >
+                  Doğruluk: {(bot.accuracyRate * 100).toFixed(0)}% • Süre:{' '}
+                  {(bot.avgResponseTime / 1000).toFixed(0)}s
+                </Text>
+                <Row style={{ alignItems: 'center', marginTop: 4 }}>
+                  <Badge
+                    text={getDifficultyLabel(bot.difficultyLevel)}
+                    variant='primary'
+                    style={{
+                      backgroundColor: getDifficultyColor(bot.difficultyLevel),
+                      marginRight: Spacing[2],
+                    }}
+                    textStyle={{
+                      color: Colors.white,
+                      fontFamily: 'SecondaryFont-Bold',
+                    }}
+                  />
+                </Row>
+              </Column>
+            </Row>
+            <Button
+              title={
+                isConnectingSocket
+                  ? 'Bağlanıyor...'
+                  : !isAuthenticated
+                  ? 'Giriş Gerekli'
+                  : 'Meydan Oku'
+              }
+              variant='primary'
+              size='small'
+              onPress={() => handleOpenBotChallengeModal(bot)}
+              disabled={isConnectingSocket || !isAuthenticated}
+              style={{
+                backgroundColor: !isAuthenticated
+                  ? Colors.gray[500]
+                  : getDifficultyColor(bot.difficultyLevel),
+              }}
+              textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
+            />
           </Row>
-          <Button
-            title={
-              isConnectingSocket
-                ? 'Bağlanıyor...'
-                : !isAuthenticated
-                ? 'Giriş Gerekli'
-                : 'Meydan Oku'
-            }
-            variant='primary'
-            size='small'
-            onPress={() => handleOpenBotChallengeModal(bot)}
-            disabled={isConnectingSocket || !isAuthenticated}
-            style={{
-              backgroundColor: !isAuthenticated
-                ? Colors.gray[500]
-                : getDifficultyColor(bot.difficultyLevel),
-            }}
-            textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
-          />
-        </Row>
-      </PlayfulCard>
+        </PlayfulCard>
+      </View>
     );
   };
 
   // NEW: Enhanced OpponentListItem with same styling as BotListItem
   const StyledOpponentListItem = ({ opponent }: { opponent: Opponent }) => {
     return (
-      <PlayfulCard
+      <View
         style={{
-          marginBottom: Spacing[3],
-          backgroundColor: 'rgba(255,255,255,0.95)',
           shadowColor: Colors.gray[900],
           shadowOffset: { width: 10, height: 20 },
           shadowOpacity: 0.8,
@@ -799,45 +810,59 @@ function NewDuelScreenContent() {
           elevation: 10,
         }}
       >
-        <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <Row style={{ alignItems: 'center', flex: 1 }}>
-            <Column style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: 'bold',
-                  color: Colors.gray[800],
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
-              >
-                {opponent.username}
-              </Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: Colors.gray[600],
-                  fontFamily: 'SecondaryFont-Regular',
-                }}
-              >
-                Kazanma Oranı: {((opponent.winRate || 0) * 100).toFixed(0)}%
-              </Text>
-            </Column>
+        <PlayfulCard
+          style={{
+            marginBottom: Spacing[3],
+            backgroundColor: 'rgba(255,255,255,0.95)',
+            shadowColor: Colors.gray[900],
+            shadowOffset: { width: 10, height: 20 },
+            shadowOpacity: 0.8,
+            shadowRadius: 10,
+            elevation: 10,
+          }}
+        >
+          <Row
+            style={{ alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <Row style={{ alignItems: 'center', flex: 1 }}>
+              <Column style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    color: Colors.gray[800],
+                    fontFamily: 'SecondaryFont-Bold',
+                  }}
+                >
+                  {opponent.username}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: Colors.gray[600],
+                    fontFamily: 'SecondaryFont-Regular',
+                  }}
+                >
+                  Kazanma Oranı: {((opponent.winRate || 0) * 100).toFixed(0)}%
+                </Text>
+              </Column>
+            </Row>
+            <Button
+              title={!isAuthenticated ? 'Giriş Gerekli' : 'Meydan Oku'}
+              variant='primary'
+              size='small'
+              onPress={() => handleOpenChallengeModal(opponent)}
+              disabled={!isAuthenticated}
+              style={{
+                backgroundColor: !isAuthenticated
+                  ? Colors.gray[500]
+                  : Colors.vibrant.coral, // Use vibrant.coral as requested
+              }}
+              textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
+            />
           </Row>
-          <Button
-            title={!isAuthenticated ? 'Giriş Gerekli' : 'Meydan Oku'}
-            variant='primary'
-            size='small'
-            onPress={() => handleOpenChallengeModal(opponent)}
-            disabled={!isAuthenticated}
-            style={{
-              backgroundColor: !isAuthenticated
-                ? Colors.gray[500]
-                : Colors.vibrant.coral, // Use vibrant.coral as requested
-            }}
-            textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
-          />
-        </Row>
-      </PlayfulCard>
+        </PlayfulCard>
+      </View>
     );
   };
 
@@ -1059,6 +1084,7 @@ function NewDuelScreenContent() {
           </View>
 
           {/* Course Selection Step */}
+
           {challengeStep === 'selectCourse' && (
             <>
               <Text
@@ -1100,30 +1126,99 @@ function NewDuelScreenContent() {
                 </View>
               ) : (
                 <View style={{ marginBottom: Spacing[4] }}>
-                  <Picker
-                    items={courses.map((c) => ({
-                      label: c.title,
-                      value: c.course_id,
-                    }))}
-                    selectedValue={selectedCourse?.course_id || null}
-                    onValueChange={(val) => {
-                      const course = courses.find((c) => c.course_id === val);
-                      if (course) {
-                        handleCourseSelected(course);
-                      }
-                    }}
-                    placeholder='Bir Ders Seçin...'
-                    enabled={true}
-                    forceLight={true}
-                    style={{
-                      backgroundColor: Colors.white,
-                      borderColor: Colors.gray[300],
-                      borderWidth: 2,
-                      marginBottom: Spacing[3],
-                    }}
-                    fontFamily='SecondaryFont-Regular'
-                    placeholderFontFamily='SecondaryFont-Regular'
-                  />
+                  {/* Course Selection Button for iOS */}
+                  {Platform.OS === 'ios' ? (
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: Colors.white,
+                        borderColor: Colors.gray[300],
+                        borderWidth: 2,
+                        borderRadius: BorderRadius.md,
+                        paddingVertical: Spacing[3],
+                        paddingHorizontal: Spacing[3],
+                        marginBottom: Spacing[3],
+                        minHeight: 44,
+                        justifyContent: 'center',
+                      }}
+                      onPress={() => {
+                        const options = [
+                          'İptal',
+                          ...courses.map((c) => c.title),
+                        ];
+
+                        ActionSheetIOS.showActionSheetWithOptions(
+                          {
+                            options,
+                            cancelButtonIndex: 0,
+                            title: 'Bir Ders Seçin',
+                            message: 'Bu dersten 5 rastgele soru gelecek',
+                          },
+                          (buttonIndex) => {
+                            if (buttonIndex > 0) {
+                              const selectedCourse = courses[buttonIndex - 1];
+                              if (selectedCourse) {
+                                handleCourseSelected(selectedCourse);
+                              }
+                            }
+                          },
+                        );
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          color: selectedCourse
+                            ? Colors.gray[800]
+                            : Colors.gray[500],
+                          fontFamily: 'SecondaryFont-Regular',
+                        }}
+                      >
+                        {selectedCourse
+                          ? selectedCourse.title
+                          : 'Bir Ders Seçin...'}
+                      </Text>
+                      <View
+                        style={{
+                          position: 'absolute',
+                          right: Spacing[3],
+                          top: '50%',
+                          transform: [{ translateY: -6 }],
+                        }}
+                      >
+                        <FontAwesome
+                          name='chevron-down'
+                          size={12}
+                          color={Colors.gray[600]}
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  ) : (
+                    // Keep the original Picker for Android
+                    <Picker
+                      items={courses.map((c) => ({
+                        label: c.title,
+                        value: c.course_id,
+                      }))}
+                      selectedValue={selectedCourse?.course_id || null}
+                      onValueChange={(val) => {
+                        const course = courses.find((c) => c.course_id === val);
+                        if (course) {
+                          handleCourseSelected(course);
+                        }
+                      }}
+                      placeholder='Bir Ders Seçin...'
+                      enabled={true}
+                      forceLight={true}
+                      style={{
+                        backgroundColor: Colors.white,
+                        borderColor: Colors.gray[300],
+                        borderWidth: 2,
+                        marginBottom: Spacing[3],
+                      }}
+                      fontFamily='SecondaryFont-Regular'
+                      placeholderFontFamily='SecondaryFont-Regular'
+                    />
+                  )}
 
                   <Button
                     title='Ders İçin Çevir'
@@ -1480,7 +1575,16 @@ const UsernameSearch = ({
   };
 
   return (
-    <Card style={{ marginTop: Spacing[4] }}>
+    <Card
+      style={{
+        marginTop: Spacing[4],
+        shadowColor: Colors.gray[900],
+        shadowOffset: { width: 10, height: 20 },
+        shadowOpacity: 0.8,
+        shadowRadius: 10,
+        elevation: 10,
+      }}
+    >
       <Input
         placeholder='Kullanıcı adı ile ara'
         value={username}

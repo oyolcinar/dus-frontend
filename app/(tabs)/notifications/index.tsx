@@ -258,12 +258,7 @@ function NotificationsScreenContent() {
           initialNumToRender={15}
           ListHeaderComponent={
             <SlideInElement delay={0}>
-              <PlayfulCard
-                style={styles.headerCard}
-                animated
-                floatingAnimation
-                category={(preferredCourse as any)?.category}
-              >
+              <View style={styles.headerCard}>
                 {/* Title Row */}
                 <Row style={styles.headerRow}>
                   <Column style={{ flex: 1 }}>
@@ -353,7 +348,7 @@ function NotificationsScreenContent() {
                     />
                   )}
                 </Row>
-              </PlayfulCard>
+              </View>
             </SlideInElement>
           }
           ListEmptyComponent={
