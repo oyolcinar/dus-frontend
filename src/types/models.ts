@@ -36,14 +36,6 @@ export interface Course {
   created_at: string;
 }
 
-// NEW: Klinik Course interface for study tracking
-export interface KlinikCourse {
-  course_id: number;
-  title: string;
-  description?: string;
-  topic_count: number;
-}
-
 export interface Topic {
   topic_id: number;
   course_id: number;
@@ -117,101 +109,434 @@ export interface TestResult {
 }
 
 // ===============================
-// NEW: ENHANCED STUDY TRACKING TYPES
+// ACHIEVEMENT SYSTEM TYPES - UPDATED FOR COURSE-BASED SYSTEM
 // ===============================
 
-// Enhanced StudySession interface for chronometer functionality
+export interface Achievement {
+  achievement_id: number;
+  name: string;
+  description?: string;
+  requirements: any;
+  category?: string;
+  icon?: string;
+  points?: number;
+  created_at: string;
+}
+
+export interface UserAchievement extends Achievement {
+  date_earned: string;
+  progress?: number;
+}
+
+// Achievement progress interfaces
+export interface AchievementProgress {
+  achievement_id: number;
+  name: string;
+  description: string;
+  overall_progress: number;
+  requirements: Record<
+    string,
+    {
+      current: number;
+      required: number | boolean;
+      progress: number;
+    }
+  >;
+}
+
+export interface UserAchievementProgressPayload {
+  message: string;
+  progress: AchievementProgress[];
+}
+
+// Achievement checking interfaces
+export interface CheckAchievementsPayload {
+  message: string;
+  newAchievements: number;
+  achievements: Array<{
+    id: number;
+    name: string;
+    description: string;
+  }>;
+}
+
+// UPDATED: User statistics interfaces with course-based metrics
+export interface UserStatistics {
+  user_id: number;
+  date_registered: string;
+  total_duels: number;
+  duels_won: number;
+  duels_lost: number;
+  distinct_study_days: number;
+  total_study_time_minutes: number;
+  current_study_streak: number;
+  longest_study_streak: number;
+  weekly_champion_count: number;
+  user_registration: boolean;
+
+  // ✅ NEW: Course-based metrics
+  courses_studied: number;
+  courses_completed: number;
+  total_course_study_time_seconds: number;
+  total_course_study_time_minutes: number;
+  total_course_sessions: number;
+}
+
+export interface UserStatsPayload {
+  message: string;
+  stats: UserStatistics;
+}
+
+// Bulk check interfaces
+export interface BulkCheckResult {
+  userId: number;
+  success: boolean;
+  newAchievements: number;
+  achievements?: Array<{
+    id: number;
+    name: string;
+  }>;
+  error?: string;
+}
+
+export interface BulkCheckPayload {
+  message: string;
+  summary: {
+    totalUsers: number;
+    successfulChecks: number;
+    failedChecks: number;
+    totalNewAchievements: number;
+  };
+  results: BulkCheckResult[];
+}
+
+// Achievement statistics interfaces
+export interface AchievementStatsPayload {
+  message: string;
+  stats: {
+    totalAchievements: number;
+    totalUserAchievements: number;
+    recentAchievements: number;
+    averageAchievementsPerUser: number;
+    distribution: Array<{
+      achievement_id: number;
+      name: string;
+      count: number;
+    }>;
+  };
+}
+
+// Achievement leaderboard interface
+export interface AchievementLeaderboardPayload {
+  message: string;
+  leaderboard: Array<{
+    user_id: number;
+    username: string;
+    count: number;
+  }>;
+}
+
+// ✅ NEW: Course study metrics interface
+export interface CourseStudyMetrics {
+  total_courses_studied: number;
+  total_courses_completed: number;
+  total_study_time_all_courses: number;
+  course_types_studied: number;
+  average_completion_percentage: number;
+}
+
+export interface CourseStudyMetricsPayload {
+  message: string;
+  metrics: CourseStudyMetrics;
+}
+
+// Achievement creation interfaces
+export interface CreateAchievementInput {
+  name: string;
+  description?: string;
+  requirements: any;
+  category?: string;
+  icon?: string;
+  points?: number;
+}
+
+export interface AchievementMutationPayload {
+  message: string;
+  achievement: Achievement;
+}
+
+// ===============================
+// NOTIFICATION SYSTEM TYPES - UPDATED FOR COURSE-BASED SYSTEM
+// ===============================
+
+// UPDATED: Notification types with course-specific types
+export type NotificationType =
+  | 'study_reminder'
+  | 'achievement_unlock'
+  | 'duel_invitation'
+  | 'duel_result'
+  | 'friend_request'
+  | 'friend_activity'
+  | 'content_update'
+  | 'streak_reminder'
+  | 'plan_reminder'
+  | 'coaching_note'
+  | 'motivational_message'
+  | 'system_announcement'
+  // ✅ NEW: Course-specific notification types
+  | 'course_reminder' // For course-specific study reminders
+  | 'course_completed' // For course completion notifications
+  | 'course_progress' // For course progress updates
+  | 'course_milestone' // For course milestone achievements
+  | 'course_study_session'; // For course study session notifications
+
+// ✅ NEW: Course notification data interface
+export interface CourseNotificationData {
+  course_id?: string;
+  course_title?: string;
+  course_description?: string;
+  course_type?: 'temel_dersler' | 'klinik_dersler';
+  study_duration_minutes?: number;
+  break_duration_minutes?: number;
+  completion_percentage?: number;
+  session_date?: string;
+  session_id?: number;
+  total_study_time_minutes?: number;
+  streak_days?: number;
+}
+
+// UPDATED: Enhanced notification interface with course data
+export interface Notification {
+  notification_id: number;
+  user_id: number;
+  notification_type: NotificationType;
+  template_name: string;
+  title: string;
+  content: string;
+  body?: string; // Alternative field name for backward compatibility
+  variables?: Record<string, any>;
+  data?: Record<string, any>;
+  metadata?: Record<string, any>;
+  action_url?: string | null;
+  icon_name?: string;
+  is_read: boolean;
+  status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+  priority: 'high' | 'normal' | 'low';
+  created_at: string;
+  updated_at: string;
+  sent_at?: string;
+  read_at?: string | null;
+  expires_at?: string;
+
+  // ✅ NEW: Optional course data for course-related notifications
+  course_data?: CourseNotificationData;
+}
+
+export interface NotificationPreferences {
+  notification_type: NotificationType;
+  in_app_enabled: boolean;
+  push_enabled: boolean;
+  email_enabled: boolean;
+  frequency_hours: number;
+  quiet_hours_start?: string;
+  quiet_hours_end?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeviceToken {
+  user_id: number;
+  device_token: string;
+  platform: 'ios' | 'android' | 'web';
+  device_info?: {
+    model?: string;
+    os_version?: string;
+    app_version?: string;
+    device_id?: string;
+    is_device?: boolean;
+  };
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationStats {
+  total_notifications: number;
+  read_count: number;
+  unread_count: number;
+  type_counts: Record<NotificationType, number>;
+}
+
+export interface NotificationResponse {
+  notifications: Notification[];
+  unread_count: number;
+  total_count: number;
+}
+
+export interface NotificationTemplate {
+  template_name: string;
+  notification_type: NotificationType;
+  title_template: string;
+  body_template: string;
+  action_url_template?: string;
+  icon_name?: string;
+  is_active: boolean;
+}
+
+export interface BulkNotificationRequest {
+  userId: number;
+  notificationType: NotificationType;
+  templateName: string;
+  variables?: Record<string, any>;
+}
+
+export interface TestNotificationRequest {
+  template_name: string;
+  notification_type: NotificationType;
+  variables?: Record<string, any>;
+}
+
+// ✅ NEW: Course-specific test notification request
+export interface CourseTestNotificationRequest extends TestNotificationRequest {
+  course_id?: string;
+  course_title?: string;
+  course_type?: 'temel_dersler' | 'klinik_dersler';
+}
+
+// ===============================
+// COURSE-BASED STUDY TRACKING TYPES (Enhanced)
+// ===============================
+
+// Enhanced StudySession interface for course-based chronometer functionality
 export interface StudySession {
   session_id: number;
   user_id: number;
-  topic_id: number;
+  course_id: number; // CHANGED: Now course-based instead of topic-based
   start_time: string;
   end_time?: string | null;
-  duration_seconds?: number | null;
+  study_duration_seconds?: number | null; // Pure study time (excluding breaks)
+  break_duration_seconds?: number | null; // Total break time ("mola")
+  total_duration_seconds?: number | null; // Total session time (study + breaks)
   session_date: string;
   notes?: string | null;
-  end_notes?: string | null;
-  status: 'active' | 'completed';
+  session_status: 'active' | 'completed' | 'paused';
   created_at: string;
   updated_at: string;
   // Populated via joins
-  topics?: {
-    topic_id: number;
+  courses?: {
+    course_id: number;
     title: string;
-    courses: {
-      course_id: number;
-      title: string;
-    };
+    description?: string;
+    course_type: 'temel_dersler' | 'klinik_dersler';
   };
 }
 
-// User topic details interface
-export interface UserTopicDetails {
+// ✅ NEW: Course study session data for achievements/notifications
+export interface CourseStudySessionData {
+  courseId: string | number;
+  courseTitle?: string;
+  courseType?: 'temel_dersler' | 'klinik_dersler';
+  studyDurationSeconds: number;
+  breakDurationSeconds?: number;
+  sessionDate: string;
+  sessionId?: number;
+  totalDurationSeconds?: number;
+  notes?: string;
+}
+
+// ✅ NEW: Course completion data for achievements/notifications
+export interface CourseCompletionData {
+  courseId: string | number;
+  courseTitle: string;
+  courseType?: 'temel_dersler' | 'klinik_dersler';
+  completionPercentage: number;
+  completionDate?: string;
+  totalStudyTimeSeconds?: number;
+  totalSessions?: number;
+}
+
+// User course details interface (replaces UserTopicDetails)
+export interface UserCourseDetails {
   user_id: number;
-  topic_id: number;
+  course_id: number; // CHANGED: Now course-based
   tekrar_sayisi?: number | null;
   konu_kaynaklari?: string[] | null;
   soru_bankasi_kaynaklari?: string[] | null;
-  difficulty_rating?: number | null; // 1-5 scale
+  total_study_time_seconds?: number;
+  total_break_time_seconds?: number; // NEW: Break time tracking
+  total_session_count?: number;
+  last_studied_at?: string | null;
   notes?: string | null;
   is_completed?: boolean;
+  difficulty_rating?: number | null; // 1-5 scale
+  completion_percentage?: number;
   created_at: string;
   updated_at: string;
   // Populated via joins
-  total_study_time_seconds?: number;
-  last_studied_at?: string;
-  topics?: {
-    topic_id: number;
+  courses?: {
+    course_id: number;
     title: string;
     description?: string;
-    courses: {
-      course_id: number;
-      title: string;
-    };
+    course_type: 'temel_dersler' | 'klinik_dersler';
   };
 }
 
-// Course study overview interface
+// Course study overview interface (replaces CourseStudyOverview)
 export interface CourseStudyOverview {
   user_id: number;
   course_id: number;
   course_title: string;
-  topic_id: number;
-  topic_title: string;
-  total_study_hours: number;
-  total_sessions: number;
-  average_session_duration: number;
+  course_description?: string;
+  course_type: 'temel_dersler' | 'klinik_dersler';
+  tekrar_sayisi?: number;
+  konu_kaynaklari?: string[] | null;
+  soru_bankasi_kaynaklari?: string[] | null;
+  total_study_time_seconds: number;
+  total_break_time_seconds: number; // NEW: Break time tracking
+  total_session_count: number;
+  total_study_time_minutes: number;
+  total_study_time_hours: number;
   last_studied_at?: string | null;
+  notes?: string | null;
+  is_completed: boolean;
+  difficulty_rating?: number | null;
   completion_percentage: number;
-  notes_count: number;
+  completed_sessions: number;
+  active_session_id?: number | null;
+  details_created_at?: string;
+  details_updated_at?: string;
 }
 
-// All courses statistics interface
+// All courses statistics interface (updated for course-based)
 export interface AllCoursesStatistics {
   course_id: number;
   course_title: string;
-  total_topics: number;
-  studied_topics: number;
+  course_description?: string;
+  course_type: 'temel_dersler' | 'klinik_dersler';
+  total_study_seconds_in_course: number;
+  total_study_hours_in_course: number;
   completion_percentage: number;
-  total_study_hours: number;
-  is_preferred: boolean;
+  last_studied_in_course?: string | null;
+  is_preferred_course: boolean;
+  total_sessions_in_course: number;
+  total_break_seconds_in_course: number; // NEW: Break time tracking
 }
 
-// Overall study statistics interface
+// Overall study statistics interface (updated for course-based)
 export interface StudyStatistics {
   user_id: number;
+  username: string;
+  preferred_course_id?: number | null;
+  preferred_course_title?: string | null;
+  courses_studied: number; // Number of courses with study time > 0
+  courses_completed: number; // Number of completed courses
+  total_study_seconds: number;
   total_study_hours: number;
   total_sessions: number;
-  unique_topics_studied: number;
-  unique_courses_studied: number;
-  average_session_duration: number;
-  longest_session_minutes: number;
-  total_notes: number;
-  current_streak_days: number;
-  longest_streak_days: number;
+  avg_session_duration_seconds: number;
   last_study_date?: string | null;
-  this_week_hours: number;
-  this_month_hours: number;
+  total_break_seconds: number; // NEW: Break time tracking
+  courses_studied_this_week: number;
 }
 
 // Preferred course interface
@@ -219,36 +544,37 @@ export interface PreferredCourse {
   course_id: number;
   title: string;
   description?: string;
+  course_type: 'temel_dersler' | 'klinik_dersler';
+  image_url?: string;
 }
 
 // ===============================
-// NEW: ANALYTICS TYPES
+// COURSE-BASED ANALYTICS TYPES (Enhanced)
 // ===============================
 
-// Streak Analytics Types
+// Streak Analytics Types (updated for course-based)
 export interface LongestStreak {
-  streak_type: 'topic' | 'course' | 'daily_study';
-  topic_title?: string;
+  streak_type: 'course';
   course_title?: string;
   longest_streak_seconds: number;
   longest_streak_minutes: number;
   longest_streak_hours: number;
   longest_streak_date: string;
+  total_sessions: number;
+  total_study_seconds: number;
+  average_session_seconds: number;
 }
 
 export interface StreaksSummary {
   longest_single_session_minutes: number;
-  longest_single_session_topic?: string;
-  longest_single_session_course?: string;
-  longest_topic_streak_minutes: number;
-  longest_course_streak_minutes: number;
+  longest_single_session_course?: string | null;
+  current_streak_days: number;
+  longest_streak_days: number;
 }
 
 export interface StreaksAnalytics {
   user_id: number;
   streak_type: string;
-  topic_id?: number;
-  topic_title?: string;
   course_id?: number;
   course_title?: string;
   longest_streak_seconds: number;
@@ -258,49 +584,56 @@ export interface StreaksAnalytics {
   created_at: string;
 }
 
-// Progress Analytics Types
+// Progress Analytics Types (updated for course-based)
 export interface DailyProgress {
   study_date: string;
   daily_study_minutes: number;
+  daily_break_minutes: number; // NEW: Break time tracking
   daily_sessions: number;
-  daily_topics_studied: number;
-  daily_questions_answered: number;
-  daily_accuracy_percentage: number;
+  daily_courses_studied: number; // CHANGED: From topics to courses
 }
 
 export interface WeeklyProgress {
   week_start: string;
   week_end: string;
   weekly_study_hours: number;
+  weekly_break_hours: number; // NEW: Break time tracking
   weekly_sessions: number;
-  weekly_topics_studied: number;
+  weekly_courses_studied: number; // CHANGED: From topics to courses
+  weekly_study_days: number;
   weekly_consistency_percentage: number;
-  weekly_accuracy_percentage: number;
 }
 
-// Course Analytics Types
+// Course Analytics Types (updated)
 export interface TopCourse {
+  rank: number;
   course_id: number;
   course_title: string;
+  course_type: 'temel_dersler' | 'klinik_dersler';
   total_time_hours: number;
   study_session_hours: number;
-  duel_hours: number;
-  topics_studied: number;
-  accuracy_percentage: number;
-  rank: number;
+  break_hours: number; // NEW: Break time tracking
+  total_sessions: number;
+  completion_percentage: number;
+  is_completed: boolean;
+  last_studied_at?: string | null;
+  difficulty_rating?: number | null;
+  tekrar_sayisi: number;
 }
 
 export interface MostStudiedCourse {
   user_id: number;
   course_id: number;
   course_title: string;
+  course_type: 'temel_dersler' | 'klinik_dersler';
   total_time_hours: number;
   study_session_hours: number;
-  duel_hours: number;
-  topics_studied: number;
-  sessions_count: number;
+  break_hours: number; // NEW: Break time tracking
+  total_sessions: number;
+  completion_percentage: number;
+  is_completed: boolean;
   time_rank: number;
-  percentage_of_total: number;
+  last_studied_at?: string | null;
 }
 
 // Comparative Analytics Types
@@ -313,49 +646,51 @@ export interface ComparativeMetric {
   percentile: number;
 }
 
-// Recent Activity Types
+// Recent Activity Types (updated for course-based)
 export interface RecentActivity {
   period_name: string;
   total_study_minutes: number;
+  total_break_minutes: number; // NEW: Break time tracking
   total_sessions: number;
-  unique_topics: number;
-  unique_courses: number;
-  total_questions: number;
-  accuracy_percentage: number;
+  unique_courses: number; // CHANGED: From topics to courses
   consistency_days: number;
-  best_day?: string;
+  best_day?: string | null;
   best_day_minutes?: number;
 }
 
-// Dashboard Analytics Types
+// Dashboard Analytics Types (updated for course-based)
 export interface DashboardAnalytics {
   total_study_hours: number;
   total_sessions: number;
-  unique_topics_studied: number;
-  unique_courses_studied: number;
+  unique_topics_studied: number; // DEPRECATED: Will be removed
+  unique_courses_studied: number; // NEW: Course-based metric
+  courses_completed: number; // NEW: Course completion metric
   longest_session_minutes: number;
   average_session_minutes: number;
   current_streak_days: number;
-  longest_streak_days: number;
-  most_studied_course?: string;
-  most_studied_topic?: string;
-  last_study_date?: string;
+  longest_streak_days?: number;
+  most_studied_course?: string | null; // CHANGED: From topic to course
+  most_studied_topic?: string | null; // DEPRECATED: Will be removed
+  last_study_date?: string | null;
   last_7_days_hours: number;
   last_30_days_hours: number;
+  courses_studied_this_week: number; // NEW: Course-based metric
 }
 
-// Analytics Summary Types
+// Analytics Summary Types (updated for course-based)
 export interface AnalyticsSummary {
   user_id: number;
   total_study_time_hours: number;
   total_sessions: number;
   average_session_duration: number;
-  unique_topics_count: number;
-  unique_courses_count: number;
+  unique_topics_count: number; // DEPRECATED: Will be removed
+  unique_courses_count: number; // NEW: Course-based metric
+  courses_completed_count: number; // NEW: Course completion metric
   longest_streak_minutes: number;
   current_streak_days: number;
   total_questions_answered: number;
   overall_accuracy: number;
+  total_break_time_hours?: number; // NEW: Break time tracking
   most_active_time_period?: string;
   most_studied_course?: string;
   improvement_rate?: number;
@@ -363,7 +698,7 @@ export interface AnalyticsSummary {
   last_activity_date?: string;
 }
 
-// Comprehensive Analytics Type
+// Comprehensive Analytics Type (updated for course-based)
 export interface ComprehensiveAnalytics {
   dashboard: DashboardAnalytics | null;
   summary: AnalyticsSummary | null;
@@ -376,7 +711,7 @@ export interface ComprehensiveAnalytics {
 }
 
 // ===============================
-// EXISTING TYPES (Updated where needed)
+// REMAINING TYPES (Updated where needed)
 // ===============================
 
 // Course Statistics Types
@@ -384,10 +719,15 @@ export interface CourseStatistics {
   course_id: number;
   title: string;
   course_type: 'temel_dersler' | 'klinik_dersler';
+  total_users: number; // NEW: User engagement metrics
+  total_completed_users: number; // NEW: Completion metrics
+  total_study_time_seconds: number; // NEW: Study time metrics
+  total_sessions: number; // NEW: Session metrics
   total_tests: number;
   total_questions: number;
   total_attempts: number;
   average_score: number;
+  average_study_time_per_user: number; // NEW: Average study time
   completion_rate: number;
   created_at: string;
 }
@@ -460,7 +800,7 @@ export interface UserCourseStats {
   avg_score: number;
 }
 
-// User Topic Stats Types
+// User Topic Stats Types (still exists for content management)
 export interface UserTopicStats {
   user_id: number;
   topic_id: number;
@@ -547,7 +887,7 @@ export interface UserPerformanceSummary {
     questions_answered: number;
     accuracy: number;
   }>;
-  // Topic progress breakdown
+  // Topic progress breakdown (still exists for content management)
   topics_progress: Array<{
     topic_id: number;
     topic_title: string;
@@ -600,7 +940,48 @@ export interface AnswerExplanationStats {
 }
 
 // ===============================
-// EXISTING TYPES (Unchanged)
+// DEPRECATED TYPES (Topic-based study tracking)
+// ===============================
+
+/**
+ * @deprecated Use UserCourseDetails instead
+ */
+export interface UserTopicDetails {
+  user_id: number;
+  topic_id: number;
+  tekrar_sayisi?: number | null;
+  konu_kaynaklari?: string[] | null;
+  soru_bankasi_kaynaklari?: string[] | null;
+  difficulty_rating?: number | null;
+  notes?: string | null;
+  is_completed?: boolean;
+  created_at: string;
+  updated_at: string;
+  total_study_time_seconds?: number;
+  last_studied_at?: string;
+  topics?: {
+    topic_id: number;
+    title: string;
+    description?: string;
+    courses: {
+      course_id: number;
+      title: string;
+    };
+  };
+}
+
+/**
+ * @deprecated Course-based system no longer uses this structure
+ */
+export interface KlinikCourse {
+  course_id: number;
+  title: string;
+  description?: string;
+  topic_count: number;
+}
+
+// ===============================
+// SOCIAL & OTHER TYPES (Unchanged)
 // ===============================
 
 // Duel related types
@@ -751,90 +1132,38 @@ export interface ApiError {
   code?: string;
 }
 
-export interface Notification {
-  notification_id: number;
-  user_id: number;
-  notification_type: NotificationType;
-  title: string;
-  body: string;
-  action_url?: string | null;
-  icon_name?: string;
-  status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
-  is_read: boolean;
-  metadata?: Record<string, any>;
-  created_at: string;
-  updated_at: string;
-  sent_at?: string;
-  read_at?: string | null;
+// ===============================
+// UTILITY TYPES
+// ===============================
+
+export interface MessagePayload {
+  message: string;
 }
 
-export type NotificationType =
-  | 'study_reminder'
-  | 'achievement_unlock'
-  | 'duel_invitation'
-  | 'duel_result'
-  | 'friend_request'
-  | 'friend_activity'
-  | 'content_update'
-  | 'streak_reminder'
-  | 'plan_reminder'
-  | 'coaching_note'
-  | 'motivational_message'
-  | 'system_announcement';
-
-export interface NotificationPreferences {
-  notification_type: NotificationType;
-  in_app_enabled: boolean;
-  push_enabled: boolean;
-  email_enabled: boolean;
-  frequency_hours: number;
-  quiet_hours_start?: string;
-  quiet_hours_end?: string;
-  created_at: string;
-  updated_at: string;
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
 }
 
-export interface DeviceToken {
-  user_id: number;
-  device_token: string;
-  platform: 'ios' | 'android' | 'web';
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+export interface ApiResponse<T> {
+  data?: T;
+  message?: string;
+  status?: number;
+  error?: string;
 }
 
-export interface NotificationStats {
-  total_notifications: number;
-  read_count: number;
-  unread_count: number;
-  type_counts: Record<NotificationType, number>;
-}
+// ===============================
+// ACTION TYPES FOR ACHIEVEMENTS/NOTIFICATIONS
+// ===============================
 
-export interface NotificationResponse {
-  notifications: Notification[];
-  unread_count: number;
-  total_count: number;
-}
+export type AchievementActionType =
+  | 'study_session_completed' // Legacy support
+  | 'course_study_session_completed' // ✅ NEW: Course-based study session
+  | 'course_completed' // ✅ NEW: Course completion
+  | 'duel_completed' // Duel completion
+  | 'user_registered'; // User registration
 
-export interface NotificationTemplate {
-  template_name: string;
-  notification_type: NotificationType;
-  title_template: string;
-  body_template: string;
-  action_url_template?: string;
-  icon_name?: string;
-  is_active: boolean;
-}
-
-export interface BulkNotificationRequest {
-  userId: number;
-  notificationType: NotificationType;
-  templateName: string;
-  variables?: Record<string, any>;
-}
-
-export interface TestNotificationRequest {
-  template_name: string;
-  notification_type: NotificationType;
-  variables?: Record<string, any>;
-}
+export type StudySessionCompletionData = CourseStudySessionData; // Alias for backward compatibility

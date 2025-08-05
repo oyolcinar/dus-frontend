@@ -9,7 +9,7 @@ import React, {
 import {
   getUserPreferredCourse,
   setUserPreferredCourse,
-  getKlinikCourses,
+  getAllCourses, // ✅ FIXED: Use getAllCourses instead of getKlinikCourses
 } from '../src/api/studyService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -113,11 +113,12 @@ export const PreferredCourseProvider: React.FC<
     return CATEGORY_COLORS[category];
   };
 
-  // SIMPLIFIED: Load courses with basic error handling
+  // ✅ UPDATED: Load courses with correct function call
   const refreshCourses = async () => {
     try {
       console.log('Refreshing courses...');
-      const courses = await getKlinikCourses();
+      // ✅ FIXED: Use getAllCourses with 'klinik_dersler' parameter
+      const courses = await getAllCourses('klinik_dersler');
       console.log('Fetched courses:', courses.length);
 
       const mappedCourses = courses.map((course) => {

@@ -11,12 +11,16 @@ import {
   NotificationStats,
   NotificationType,
   TestNotificationRequest,
+  CourseTestNotificationRequest,
   DeviceToken,
+  CourseNotificationData,
+  CourseStudySessionData,
+  CourseCompletionData,
 } from '../types/models';
 
 /**
- * Notification Service
- * Updated for Expo SDK 53+ with enhanced token management and platform validation
+ * Notification Service - UPDATED FOR COURSE-BASED SYSTEM
+ * Updated for Expo SDK 53+ with enhanced token management, platform validation, and course support
  * expo-notifications: ^0.31.4
  * expo-constants: ~17.1.6
  * expo-device: ^7.1.4
@@ -26,7 +30,7 @@ import {
 const isExpoGo = Constants.appOwnership === 'expo';
 const isDevelopmentBuild = !isExpoGo;
 
-console.log('🚀 Notification Environment (SDK 53+):', {
+console.log('🚀 Notification Environment (SDK 53+ with Course Support):', {
   isExpoGo,
   isDevelopmentBuild,
   isDevice: Device.isDevice,
@@ -333,12 +337,59 @@ export async function registerDeviceToken(
   return registerDeviceTokenWithValidation(deviceToken);
 }
 
+// ✅ NEW: Course notification handling setup
+export async function setupCourseNotificationHandling(): Promise<() => void> {
+  try {
+    console.log('📚 Setting up course notification handling...');
+
+    // Setup regular notification listeners
+    const cleanup = setupNotificationListeners();
+
+    // Add course-specific handling
+    const courseNotificationSubscription =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        const courseData = extractCourseDataFromNotification(
+          response.notification.request.content as any,
+        );
+
+        if (courseData) {
+          console.log('📚 Course notification tapped:', courseData);
+
+          // Handle course navigation
+          if (courseData.course_id) {
+            console.log(`Navigate to course: ${courseData.course_id}`);
+            // Add your navigation logic here
+            // Example: navigation.navigate('CourseDetail', { courseId: courseData.course_id });
+          }
+        }
+      });
+
+    // Return enhanced cleanup function
+    return () => {
+      cleanup();
+      courseNotificationSubscription.remove();
+      console.log('🧹 Course notification handling cleaned up');
+    };
+  } catch (error) {
+    console.error('❌ Error setting up course notification handling:', error);
+    return () => {}; // Return empty cleanup function on error
+  }
+}
+
 // Setup notification listeners
 export function setupNotificationListeners() {
   // Handle notification received while app is in foreground
   const foregroundSubscription = Notifications.addNotificationReceivedListener(
     (notification) => {
       console.log('🔔 Notification received in foreground:', notification);
+
+      // ✅ NEW: Log course data if present
+      const courseData = extractCourseDataFromNotification(
+        notification.request.content as any,
+      );
+      if (courseData) {
+        console.log('📚 Course notification data:', courseData);
+      }
     },
   );
 
@@ -350,9 +401,21 @@ export function setupNotificationListeners() {
       // Extract navigation data
       const data = response.notification.request.content.data;
       console.log('📱 Notification data:', data);
+
+      // ✅ NEW: Handle course-specific navigation
+      const courseData = extractCourseDataFromNotification(
+        response.notification.request.content as any,
+      );
+      if (courseData) {
+        console.log(
+          '📚 Course notification tapped - navigation data:',
+          courseData,
+        );
+        // Add course-specific navigation logic here
+      }
     });
 
-  console.log('👂 Notification listeners set up (SDK 53+)');
+  console.log('👂 Notification listeners set up (SDK 53+ with course support)');
 
   // Return cleanup function
   return () => {
@@ -540,6 +603,38 @@ export async function sendTestNotification(
   }
 }
 
+// ✅ NEW: Send course-specific test notification
+export async function sendCourseTestNotification(
+  courseId: string | number,
+  courseTitle: string,
+  courseType?: 'temel_dersler' | 'klinik_dersler',
+): Promise<{ message: string; notification: Notification }> {
+  try {
+    const response = await apiRequest<{
+      message: string;
+      notification: Notification;
+    }>('/notifications/test/course', 'POST', {
+      notification_type: 'course_reminder',
+      template_name: 'course_study_reminder',
+      variables: {
+        course_id: courseId.toString(),
+        course_title: courseTitle,
+        course_type: courseType,
+        message: `${courseTitle} dersi için çalışma zamanı!`,
+      },
+    });
+
+    if (!response.data) {
+      throw new Error('No data received from course test notification API');
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('Error sending course test notification:', error);
+    throw error;
+  }
+}
+
 // Get notification statistics
 export async function getStats(days: number = 30): Promise<NotificationStats> {
   try {
@@ -559,7 +654,7 @@ export async function getStats(days: number = 30): Promise<NotificationStats> {
   }
 }
 
-// UPDATED: Test local notification for SDK 53+ (expo-notifications ^0.31.4)
+// ✅ UPDATED: Test local notification for SDK 53+ with course support
 export async function sendLocalTestNotification(): Promise<boolean> {
   try {
     console.log('🧪 Sending test notification (SDK 53+)...');
@@ -608,6 +703,41 @@ export async function sendLocalTestNotification(): Promise<boolean> {
       console.error('❌ Alternative format also failed:', altError);
       return false;
     }
+  }
+}
+
+// ✅ NEW: Enhanced local test notification with course data
+export async function sendCourseLocalTestNotification(
+  courseTitle: string = 'Örnek Ders',
+  courseId: string | number = 'test_course_123',
+): Promise<boolean> {
+  try {
+    console.log('🧪 Sending course-based test notification (SDK 53+)...');
+
+    const notificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '📚 Ders Çalışma Hatırlatması',
+        body: `${courseTitle} dersi için çalışma zamanı! Başarılarınızı artırmak için düzenli çalışmaya devam edin.`,
+        data: {
+          test: true,
+          notification_type: 'course_reminder',
+          template_name: 'course_study_reminder',
+          course_id: courseId.toString(),
+          course_title: courseTitle,
+          action_url: '/(tabs)/courses',
+        },
+      },
+      trigger: null, // Immediate notification
+    });
+
+    console.log(
+      '📱 Course-based test notification scheduled with ID:',
+      notificationId,
+    );
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending course local test notification:', error);
+    return false;
   }
 }
 
@@ -749,7 +879,179 @@ export async function debugTokenRegistration(): Promise<void> {
   }
 }
 
-// Utility functions (keeping all existing ones)
+// ===============================
+// ✅ NEW: COURSE-SPECIFIC NOTIFICATION FUNCTIONS
+// ===============================
+
+// ✅ NEW: Helper function to extract course data from notification
+export function extractCourseDataFromNotification(
+  notification: any,
+): CourseNotificationData | null {
+  try {
+    const data = notification.variables || notification.data || {};
+
+    if (data.course_id || data.course_title) {
+      return {
+        course_id: data.course_id,
+        course_title: data.course_title,
+        course_description: data.course_description,
+        course_type: data.course_type,
+        study_duration_minutes: data.study_duration_minutes,
+        break_duration_minutes: data.break_duration_minutes,
+        completion_percentage: data.completion_percentage,
+        session_date: data.session_date,
+        session_id: data.session_id,
+        total_study_time_minutes: data.total_study_time_minutes,
+        streak_days: data.streak_days,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error extracting course data from notification:', error);
+    return null;
+  }
+}
+
+// ✅ NEW: Check if notification is course-related
+export function isCourseRelatedNotification(
+  notification: Notification,
+): boolean {
+  const courseData = extractCourseDataFromNotification(notification);
+  return courseData !== null;
+}
+
+// ✅ NEW: Format course-related notification body
+export function formatCourseNotificationBody(
+  notification: Notification,
+  maxLength: number = 100,
+): string {
+  const courseData = extractCourseDataFromNotification(notification);
+
+  if (!courseData || !courseData.course_title) {
+    return notification.content?.substring(0, maxLength) || '';
+  }
+
+  const baseContent = notification.content || '';
+  const courseName = courseData.course_title;
+
+  // If the course name is already in the content, return as is
+  if (baseContent.includes(courseName)) {
+    return baseContent.substring(0, maxLength);
+  }
+
+  // Otherwise, prepend course name
+  const enhancedContent = `📚 ${courseName}: ${baseContent}`;
+  return enhancedContent.substring(0, maxLength);
+}
+
+// ✅ NEW: Debug course notification data
+export async function debugCourseNotifications(): Promise<void> {
+  try {
+    console.log('🔍 === COURSE NOTIFICATION DEBUG ===');
+
+    // Get recent notifications
+    const notifications = await getNotifications(10, 0);
+
+    // Filter course-related notifications
+    const courseNotifications = notifications.notifications.filter(
+      isCourseRelatedNotification,
+    );
+
+    console.log(
+      `📚 Found ${courseNotifications.length} course-related notifications out of ${notifications.notifications.length} total`,
+    );
+
+    // Log course notification details
+    courseNotifications.forEach((notification, index) => {
+      const courseData = extractCourseDataFromNotification(notification);
+      console.log(`Course Notification ${index + 1}:`, {
+        id: notification.notification_id,
+        type: notification.notification_type,
+        courseData,
+        created: notification.created_at,
+      });
+    });
+  } catch (error) {
+    console.error('❌ Debug course notifications failed:', error);
+  }
+}
+
+// ✅ NEW: Send course study session completion notification
+export async function sendCourseStudySessionNotification(
+  sessionData: CourseStudySessionData,
+): Promise<{ message: string; notification: Notification } | null> {
+  try {
+    console.log('📚 Sending course study session notification...', sessionData);
+
+    const studyMinutes = Math.round(sessionData.studyDurationSeconds / 60);
+    const breakMinutes = Math.round(
+      (sessionData.breakDurationSeconds || 0) / 60,
+    );
+
+    const response = await apiRequest<{
+      message: string;
+      notification: Notification;
+    }>('/notifications/course/session-completed', 'POST', {
+      course_id: sessionData.courseId.toString(),
+      course_title: sessionData.courseTitle || 'Ders',
+      course_type: sessionData.courseType,
+      study_duration_minutes: studyMinutes,
+      break_duration_minutes: breakMinutes,
+      session_date: sessionData.sessionDate,
+      session_id: sessionData.sessionId,
+    });
+
+    if (!response.data) {
+      throw new Error('No data received from course session notification API');
+    }
+
+    console.log('✅ Course study session notification sent successfully');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error sending course study session notification:', error);
+    return null;
+  }
+}
+
+// ✅ NEW: Send course completion notification
+export async function sendCourseCompletionNotification(
+  completionData: CourseCompletionData,
+): Promise<{ message: string; notification: Notification } | null> {
+  try {
+    console.log('🎯 Sending course completion notification...', completionData);
+
+    const response = await apiRequest<{
+      message: string;
+      notification: Notification;
+    }>('/notifications/course/completed', 'POST', {
+      course_id: completionData.courseId.toString(),
+      course_title: completionData.courseTitle,
+      course_type: completionData.courseType,
+      completion_percentage: completionData.completionPercentage,
+      completion_date:
+        completionData.completionDate || new Date().toISOString(),
+      total_study_time_seconds: completionData.totalStudyTimeSeconds,
+      total_sessions: completionData.totalSessions,
+    });
+
+    if (!response.data) {
+      throw new Error(
+        'No data received from course completion notification API',
+      );
+    }
+
+    console.log('✅ Course completion notification sent successfully');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error sending course completion notification:', error);
+    return null;
+  }
+}
+
+// ===============================
+// UTILITY FUNCTIONS (Enhanced with course support)
+// ===============================
 
 // Check if notification type is enabled for user
 export function isNotificationTypeEnabled(
@@ -772,7 +1074,7 @@ export function isNotificationTypeEnabled(
   }
 }
 
-// Get notification icon based on type
+// ✅ UPDATED: Get notification icon based on type with course support
 export function getNotificationIcon(type: NotificationType): string {
   const iconMap: Record<NotificationType, string> = {
     study_reminder: 'book',
@@ -787,6 +1089,12 @@ export function getNotificationIcon(type: NotificationType): string {
     coaching_note: 'message-circle',
     motivational_message: 'heart',
     system_announcement: 'megaphone',
+    // ✅ NEW: Course-specific notification types
+    course_reminder: 'book-open',
+    course_completed: 'check-circle',
+    course_progress: 'trending-up',
+    course_milestone: 'flag',
+    course_study_session: 'clock',
   };
 
   return iconMap[type] || 'bell';
@@ -824,11 +1132,13 @@ export function getNotificationPriority(
     'duel_invitation',
     'friend_request',
     'system_announcement',
+    'course_completed', // ✅ NEW: High priority for course completion
   ];
 
   const lowPriority: NotificationType[] = [
     'content_update',
     'motivational_message',
+    'course_progress', // ✅ NEW: Low priority for progress updates
   ];
 
   if (highPriority.includes(type)) return 'high';
@@ -836,7 +1146,7 @@ export function getNotificationPriority(
   return 'normal';
 }
 
-// Get notification color based on type
+// ✅ UPDATED: Get notification color based on type with course support
 export function getNotificationColor(type: NotificationType): string {
   const colorMap: Record<NotificationType, string> = {
     study_reminder: '#3B82F6',
@@ -851,7 +1161,85 @@ export function getNotificationColor(type: NotificationType): string {
     coaching_note: '#14B8A6',
     motivational_message: '#EC4899',
     system_announcement: '#8B5CF6',
+    // ✅ NEW: Course-specific colors
+    course_reminder: '#2563EB',
+    course_completed: '#059669',
+    course_progress: '#7C3AED',
+    course_milestone: '#DC2626',
+    course_study_session: '#0891B2',
   };
 
   return colorMap[type] || '#6B7280';
+}
+
+// ✅ NEW: Get Turkish notification type name
+export function getTurkishNotificationTypeName(type: NotificationType): string {
+  const typeNames: Record<NotificationType, string> = {
+    study_reminder: 'Çalışma Hatırlatması',
+    achievement_unlock: 'Başarı Açıldı',
+    duel_invitation: 'Düello Daveti',
+    duel_result: 'Düello Sonucu',
+    friend_request: 'Arkadaşlık İsteği',
+    friend_activity: 'Arkadaş Etkinliği',
+    content_update: 'İçerik Güncellemesi',
+    streak_reminder: 'Seri Hatırlatması',
+    plan_reminder: 'Plan Hatırlatması',
+    coaching_note: 'Koçluk Notu',
+    motivational_message: 'Motivasyon Mesajı',
+    system_announcement: 'Sistem Duyurusu',
+    // ✅ NEW: Course-specific Turkish names
+    course_reminder: 'Ders Hatırlatması',
+    course_completed: 'Ders Tamamlandı',
+    course_progress: 'Ders İlerlemesi',
+    course_milestone: 'Ders Kilometre Taşı',
+    course_study_session: 'Ders Çalışma Seansı',
+  };
+
+  return typeNames[type] || type;
+}
+
+// ✅ NEW: Test all course notification functionality
+export async function testCourseNotificationFlow(): Promise<void> {
+  try {
+    console.log('🧪 Testing complete course notification flow...');
+
+    // Test course study session notification
+    const sessionData: CourseStudySessionData = {
+      courseId: 'test_course_123',
+      courseTitle: 'Test Matematik',
+      courseType: 'temel_dersler',
+      studyDurationSeconds: 1800, // 30 minutes
+      breakDurationSeconds: 300, // 5 minutes
+      sessionDate: new Date().toISOString().split('T')[0],
+      sessionId: 456,
+    };
+
+    console.log('📚 Testing session notification...');
+    await sendCourseStudySessionNotification(sessionData);
+
+    // Test course completion notification
+    const completionData: CourseCompletionData = {
+      courseId: 'test_course_123',
+      courseTitle: 'Test Matematik',
+      courseType: 'temel_dersler',
+      completionPercentage: 100,
+      totalStudyTimeSeconds: 7200, // 2 hours
+      totalSessions: 10,
+    };
+
+    console.log('🎯 Testing completion notification...');
+    await sendCourseCompletionNotification(completionData);
+
+    // Test local notifications
+    console.log('📱 Testing local notifications...');
+    await sendCourseLocalTestNotification('Test Matematik', 'test_course_123');
+
+    // Debug course notifications
+    console.log('🔍 Testing debug functionality...');
+    await debugCourseNotifications();
+
+    console.log('✅ Course notification flow test completed');
+  } catch (error) {
+    console.error('❌ Course notification flow test failed:', error);
+  }
 }

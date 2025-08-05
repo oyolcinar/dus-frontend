@@ -15,12 +15,18 @@ import {
 } from '../types/models';
 
 // ===============================
-// PAYLOAD TYPES FOR API RESPONSES
+// PAYLOAD TYPES FOR API RESPONSES (Course-Based)
 // ===============================
 
 // Streak Analytics Response Types
 interface LongestStreaksResponse {
   streaks: LongestStreak[];
+  overallLongestSession: {
+    seconds: number;
+    minutes: number;
+    hours: number;
+    course: string | null;
+  };
 }
 
 interface StreaksAnalyticsResponse {
@@ -68,9 +74,9 @@ interface ComparativeAnalyticsResponse {
 
 // Legacy Analytics Response Types (for backward compatibility)
 interface UserPerformanceAnalyticsPayload {
-  branchPerformance: {
-    branchId: number;
-    branchName: string;
+  coursePerformance: {
+    courseId: number;
+    courseName: string;
     averageScore: number;
     totalQuestions: number;
     correctAnswers: number;
@@ -83,6 +89,19 @@ interface UserPerformanceAnalyticsPayload {
   studyTime: number;
   studySessions: number;
   averageSessionDuration: number;
+  totalCourses: number;
+  completedCourses: number;
+}
+
+// Dashboard legacy response
+interface DashboardLegacyResponse {
+  recentStudyTime: number;
+  recentStudyTimeHours: number;
+  dailyStudyTime: Array<{
+    study_date: string;
+    total_duration: number;
+  }>;
+  courseAnalytics: any[];
 }
 
 // ===============================
@@ -123,13 +142,21 @@ const isValidResponse = <T>(response: any): response is { data: T } => {
 };
 
 // ===============================
-// NEW: ENHANCED ANALYTICS FUNCTIONS
+// NEW: COURSE-BASED ANALYTICS FUNCTIONS
 // ===============================
 
 /**
- * Get user's longest study streaks by topic and course
+ * Get user's longest study streaks by course
  */
-export const getUserLongestStreaks = async (): Promise<LongestStreak[]> => {
+export const getUserLongestStreaks = async (): Promise<{
+  streaks: LongestStreak[];
+  overallLongestSession: {
+    seconds: number;
+    minutes: number;
+    hours: number;
+    course: string | null;
+  };
+}> => {
   return withErrorHandling(
     async () => {
       const response = await apiRequest<LongestStreaksResponse>(
@@ -141,12 +168,28 @@ export const getUserLongestStreaks = async (): Promise<LongestStreak[]> => {
         !response.data.streaks
       ) {
         console.warn('Invalid longest streaks response structure');
-        return [];
+        return {
+          streaks: [],
+          overallLongestSession: {
+            seconds: 0,
+            minutes: 0,
+            hours: 0,
+            course: null,
+          },
+        };
       }
 
-      return response.data.streaks;
+      return response.data;
     },
-    [],
+    {
+      streaks: [],
+      overallLongestSession: {
+        seconds: 0,
+        minutes: 0,
+        hours: 0,
+        course: null,
+      },
+    },
     'getUserLongestStreaks',
   );
 };
@@ -157,8 +200,9 @@ export const getUserLongestStreaks = async (): Promise<LongestStreak[]> => {
 export const getUserStreaksSummary = async (): Promise<StreaksSummary> => {
   const defaultSummary: StreaksSummary = {
     longest_single_session_minutes: 0,
-    longest_topic_streak_minutes: 0,
-    longest_course_streak_minutes: 0,
+    longest_single_session_course: null,
+    current_streak_days: 0,
+    longest_streak_days: 0,
   };
 
   return withErrorHandling(
@@ -203,7 +247,7 @@ export const getLongestStreaksAnalytics = async (): Promise<
 };
 
 /**
- * Get user's daily progress data for charts
+ * Get user's daily progress data for charts (course-based)
  */
 export const getUserDailyProgress = async (
   startDate?: string,
@@ -252,7 +296,7 @@ export const getUserDailyProgress = async (
 };
 
 /**
- * Get user's weekly progress data for charts
+ * Get user's weekly progress data for charts (course-based)
  */
 export const getUserWeeklyProgress = async (
   weeksBack: number = 12,
@@ -321,7 +365,7 @@ export const getWeeklyProgressAnalytics = async (
 };
 
 /**
- * Get user's top courses by time spent (study sessions + duels)
+ * Get user's top courses by time spent
  */
 export const getUserTopCourses = async (
   limit: number = 10,
@@ -412,7 +456,7 @@ export const getUserComparativeAnalytics = async (): Promise<
 };
 
 /**
- * Get user's recent activity summary
+ * Get user's recent activity summary (course-based)
  */
 export const getUserRecentActivity = async (
   daysBack: number = 7,
@@ -435,7 +479,7 @@ export const getUserRecentActivity = async (
 };
 
 /**
- * Get comprehensive dashboard analytics
+ * Get comprehensive dashboard analytics (course-based)
  */
 export const getUserDashboardAnalytics =
   async (): Promise<DashboardAnalytics> => {
@@ -444,12 +488,17 @@ export const getUserDashboardAnalytics =
       total_sessions: 0,
       unique_topics_studied: 0,
       unique_courses_studied: 0,
+      courses_completed: 0,
       longest_session_minutes: 0,
       average_session_minutes: 0,
       current_streak_days: 0,
       longest_streak_days: 0,
+      most_studied_course: null,
+      most_studied_topic: null,
+      last_study_date: null,
       last_7_days_hours: 0,
       last_30_days_hours: 0,
+      courses_studied_this_week: 0,
     };
 
     return withErrorHandling(
@@ -470,7 +519,7 @@ export const getUserDashboardAnalytics =
   };
 
 /**
- * Get analytics summary with key metrics
+ * Get analytics summary with key metrics (course-based)
  */
 export const getUserAnalyticsSummary = async (): Promise<AnalyticsSummary> => {
   const defaultSummary: AnalyticsSummary = {
@@ -480,6 +529,7 @@ export const getUserAnalyticsSummary = async (): Promise<AnalyticsSummary> => {
     average_session_duration: 0,
     unique_topics_count: 0,
     unique_courses_count: 0,
+    courses_completed_count: 0,
     longest_streak_minutes: 0,
     current_streak_days: 0,
     total_questions_answered: 0,
@@ -502,7 +552,7 @@ export const getUserAnalyticsSummary = async (): Promise<AnalyticsSummary> => {
 };
 
 /**
- * Get comprehensive analytics data in one call
+ * Get comprehensive analytics data in one call (course-based)
  */
 export const getAllUserAnalytics = async (
   daysBack: number = 30,
@@ -552,12 +602,14 @@ export const getAllUserAnalytics = async (
 export const getUserPerformanceAnalytics =
   async (): Promise<UserPerformanceAnalyticsPayload> => {
     const defaultResponse: UserPerformanceAnalyticsPayload = {
-      branchPerformance: [],
+      coursePerformance: [],
       totalQuestionsAnswered: 0,
       overallAccuracy: 0,
       studyTime: 0,
       studySessions: 0,
       averageSessionDuration: 0,
+      totalCourses: 0,
+      completedCourses: 0,
     };
 
     return withErrorHandling(
@@ -571,18 +623,53 @@ export const getUserPerformanceAnalytics =
         }
 
         return {
-          branchPerformance: response.data.branchPerformance || [],
+          coursePerformance: response.data.coursePerformance || [],
           totalQuestionsAnswered: response.data.totalQuestionsAnswered || 0,
           overallAccuracy: response.data.overallAccuracy || 0,
           studyTime: response.data.studyTime || 0,
           studySessions: response.data.studySessions || 0,
           averageSessionDuration: response.data.averageSessionDuration || 0,
+          totalCourses: response.data.totalCourses || 0,
+          completedCourses: response.data.completedCourses || 0,
         };
       },
       defaultResponse,
       'getUserPerformanceAnalytics',
     );
   };
+
+/**
+ * Get legacy dashboard data (course-based)
+ */
+export const getUserDashboard = async (): Promise<DashboardLegacyResponse> => {
+  const defaultResponse: DashboardLegacyResponse = {
+    recentStudyTime: 0,
+    recentStudyTimeHours: 0,
+    dailyStudyTime: [],
+    courseAnalytics: [],
+  };
+
+  return withErrorHandling(
+    async () => {
+      const response = await apiRequest<DashboardLegacyResponse>(
+        '/analytics/dashboard-legacy',
+      );
+
+      if (!isValidResponse<DashboardLegacyResponse>(response)) {
+        return defaultResponse;
+      }
+
+      return {
+        recentStudyTime: response.data.recentStudyTime || 0,
+        recentStudyTimeHours: response.data.recentStudyTimeHours || 0,
+        dailyStudyTime: response.data.dailyStudyTime || [],
+        courseAnalytics: response.data.courseAnalytics || [],
+      };
+    },
+    defaultResponse,
+    'getUserDashboard',
+  );
+};
 
 // ===============================
 // UTILITY FUNCTIONS FOR ENHANCED ANALYTICS
@@ -642,14 +729,14 @@ export const calculateImprovementTrends = (
 ): {
   studyTimeImprovement: number;
   sessionCountImprovement: number;
-  accuracyImprovement: number;
+  coursesStudiedImprovement: number;
   consistencyImprovement: number;
 } => {
   if (dailyProgress.length < 2) {
     return {
       studyTimeImprovement: 0,
       sessionCountImprovement: 0,
-      accuracyImprovement: 0,
+      coursesStudiedImprovement: 0,
       consistencyImprovement: 0,
     };
   }
@@ -670,9 +757,11 @@ export const calculateImprovementTrends = (
     sessions:
       firstHalf.reduce((sum, day) => sum + day.daily_sessions, 0) /
       firstHalf.length,
-    accuracy:
-      firstHalf.reduce((sum, day) => sum + day.daily_accuracy_percentage, 0) /
-      firstHalf.length,
+    courses:
+      firstHalf.reduce(
+        (sum, day) => sum + (day.daily_courses_studied || 0),
+        0,
+      ) / firstHalf.length,
   };
 
   const avgSecond = {
@@ -682,9 +771,11 @@ export const calculateImprovementTrends = (
     sessions:
       secondHalf.reduce((sum, day) => sum + day.daily_sessions, 0) /
       secondHalf.length,
-    accuracy:
-      secondHalf.reduce((sum, day) => sum + day.daily_accuracy_percentage, 0) /
-      secondHalf.length,
+    courses:
+      secondHalf.reduce(
+        (sum, day) => sum + (day.daily_courses_studied || 0),
+        0,
+      ) / secondHalf.length,
   };
 
   const calculateChange = (before: number, after: number): number => {
@@ -707,7 +798,10 @@ export const calculateImprovementTrends = (
       avgFirst.sessions,
       avgSecond.sessions,
     ),
-    accuracyImprovement: calculateChange(avgFirst.accuracy, avgSecond.accuracy),
+    coursesStudiedImprovement: calculateChange(
+      avgFirst.courses,
+      avgSecond.courses,
+    ),
     consistencyImprovement: calculateChange(
       firstHalfConsistency,
       secondHalfConsistency,
@@ -716,7 +810,7 @@ export const calculateImprovementTrends = (
 };
 
 /**
- * Get analytics insights based on user data with enhanced error handling
+ * Get analytics insights based on user data with enhanced error handling (course-based)
  */
 export const getAnalyticsInsights = async (): Promise<{
   insights: string[];
@@ -749,7 +843,7 @@ export const getAnalyticsInsights = async (): Promise<{
       const topCoursesData =
         topCourses.status === 'fulfilled' ? topCourses.value : [];
 
-      // Generate insights
+      // Generate course-based insights
       if (
         dashboardData?.current_streak_days &&
         dashboardData.current_streak_days > 7
@@ -781,7 +875,16 @@ export const getAnalyticsInsights = async (): Promise<{
         );
       }
 
-      // Generate recommendations
+      if (
+        dashboardData?.unique_courses_studied &&
+        dashboardData.unique_courses_studied > 5
+      ) {
+        achievements.push(
+          `Course Explorer: Studied ${dashboardData.unique_courses_studied} different courses!`,
+        );
+      }
+
+      // Generate course-based recommendations
       if (
         dashboardData?.average_session_minutes &&
         dashboardData.average_session_minutes < 15
@@ -797,6 +900,16 @@ export const getAnalyticsInsights = async (): Promise<{
       ) {
         recommendations.push(
           'Start a new study streak today! Consistency is key to learning.',
+        );
+      }
+
+      if (
+        dashboardData?.unique_courses_studied &&
+        dashboardData.unique_courses_studied === 1 &&
+        topCoursesData.length > 0
+      ) {
+        recommendations.push(
+          'Consider exploring other courses to broaden your knowledge base!',
         );
       }
 

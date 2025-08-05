@@ -28,7 +28,6 @@ import * as ErrorReporting from '../services/errorReporting';
 import { NetworkProvider } from '../context/NetworkContext';
 
 // Localization provider for multi-language support
-import { LocalizationProvider } from '../context/LocalizationContext';
 
 // Asset prefetching for improved performance
 import { AssetProvider, preloadAssets } from '../services/assetManager';
@@ -104,15 +103,13 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <NetworkProvider>
-        <LocalizationProvider>
-          <PreferredCourseProvider>
-            <AssetProvider>
-              <AuthProvider>
-                <RootLayoutNav />
-              </AuthProvider>
-            </AssetProvider>
-          </PreferredCourseProvider>
-        </LocalizationProvider>
+        <PreferredCourseProvider>
+          <AssetProvider>
+            <AuthProvider>
+              <RootLayoutNav />
+            </AuthProvider>
+          </AssetProvider>
+        </PreferredCourseProvider>
       </NetworkProvider>
     </SafeAreaProvider>
   );

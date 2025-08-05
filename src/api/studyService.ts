@@ -1,60 +1,93 @@
 import apiRequest from './apiClient';
-import { handleStudySessionCompleted } from './achievementService'; // Add this import
+import { handleStudySessionCompleted } from './achievementService'; // Achievement integration
 import {
-  StudySession,
   Question,
-  StudyProgress,
-  Topic,
-  UserTopicDetails,
-  KlinikCourse,
-  CourseStudyOverview,
-  AllCoursesStatistics,
-  StudyStatistics,
+  Course,
   PreferredCourse,
+  StudyStatistics,
 } from '../types/models';
 
 // ===============================
-// PAYLOAD TYPES FOR API RESPONSES
+// COURSE-BASED STUDY TRACKING TYPES
 // ===============================
 
-// For chronometer functionality
+// For chronometer functionality (course-based)
 interface StartStudySessionRequest {
-  topicId: number;
+  courseId: number;
   notes?: string;
 }
 
 interface StartStudySessionResponse {
   message: string;
-  sessionId: number;
-  topic: {
-    topicId: number;
-    title: string;
-    course: string;
+  session: {
+    sessionId: number;
+    courseId: number;
+    courseTitle: string;
+    startTime: string;
+    notes?: string;
   };
-}
-
-interface EndStudySessionRequest {
-  endNotes?: string;
 }
 
 interface EndStudySessionResponse {
   message: string;
-  session: StudySession;
+  session: {
+    sessionId: number;
+    courseId: number;
+    startTime: string;
+    endTime: string;
+    studyDurationSeconds: number;
+    breakDurationSeconds: number;
+    totalDurationSeconds: number;
+    studyDurationMinutes: number;
+    breakDurationMinutes: number;
+  };
 }
 
 interface ActiveStudySessionResponse {
-  session_id?: number;
-  user_id?: number;
-  topic_id?: number;
-  start_time?: string;
+  activeSession: {
+    sessionId: number;
+    courseId: number;
+    courseTitle: string;
+    courseDescription?: string;
+    startTime: string;
+    currentDurationSeconds: number;
+    currentStudyDurationSeconds: number;
+    breakDurationSeconds: number;
+    currentDurationMinutes: number;
+    currentStudyDurationMinutes: number;
+    breakDurationMinutes: number;
+    notes?: string;
+  } | null;
+}
+
+interface AddBreakTimeResponse {
+  message: string;
+  breakDurationSeconds: number;
+  breakDurationMinutes: number;
+  totalBreakSeconds: number;
+  totalBreakMinutes: number;
+}
+
+// Course study session interface
+export interface CourseStudySession {
+  sessionId: number;
+  courseId: number;
+  courseTitle?: string;
+  courseDescription?: string;
+  startTime: string;
+  endTime?: string | null;
+  studyDurationSeconds?: number;
+  breakDurationSeconds?: number;
+  totalDurationSeconds?: number;
+  studyDurationMinutes?: number;
+  breakDurationMinutes?: number;
+  sessionDate: string;
+  sessionStatus: 'active' | 'completed' | 'paused';
   notes?: string;
-  topic_title?: string;
-  course_title?: string;
-  duration_minutes?: number;
 }
 
 interface StudySessionsResponse {
-  sessions: StudySession[];
+  sessions: CourseStudySession[];
   pagination: {
     page: number;
     limit: number;
@@ -62,23 +95,120 @@ interface StudySessionsResponse {
   };
 }
 
-// For topic details management
-interface UpdateTopicDetailsRequest {
-  topicId: number;
+// For course progress management
+interface UpdateCourseProgressRequest {
+  courseId: number;
   tekrarSayisi?: number;
   konuKaynaklari?: string[];
   soruBankasiKaynaklari?: string[];
   difficultyRating?: number; // 1-5
+  completionPercentage?: number;
   notes?: string;
   isCompleted?: boolean;
 }
 
-interface UpdateTopicDetailsResponse {
+interface UpdateCourseProgressResponse {
   message: string;
-  data: any;
+  progress: {
+    courseId: number;
+    userId: number;
+    tekrarSayisi: number;
+    difficultyRating?: number;
+    completionPercentage: number;
+    isCompleted: boolean;
+    lastStudiedAt: string;
+  };
 }
 
-// For preferred course management
+// Course progress data
+export interface CourseProgress {
+  courseId: number;
+  userId: number;
+  tekrarSayisi: number;
+  konuKaynaklari?: string[] | null;
+  soruBankasiKaynaklari?: string[] | null;
+  totalStudyTimeSeconds: number;
+  totalBreakTimeSeconds: number;
+  totalSessionCount: number;
+  totalStudyTimeMinutes: number;
+  totalStudyTimeHours: number;
+  lastStudiedAt?: string | null;
+  difficultyRating?: number | null;
+  completionPercentage: number;
+  isCompleted: boolean;
+  notes?: string | null;
+}
+
+interface CourseProgressResponse {
+  progress: CourseProgress | null;
+}
+
+// Course completion response
+interface MarkCourseCompletedResponse {
+  message: string;
+  course: {
+    courseId: number;
+    courseTitle: string;
+    userId: number;
+    completedAt: string;
+    completionPercentage: number;
+  };
+}
+
+// User study overview for all courses
+export interface UserCourseOverview {
+  courseId: number;
+  courseTitle: string;
+  courseDescription?: string;
+  courseType: string;
+  tekrarSayisi: number;
+  konuKaynaklari?: string[] | null;
+  soruBankasiKaynaklari?: string[] | null;
+  totalStudyTimeSeconds: number;
+  totalBreakTimeSeconds: number;
+  totalSessionCount: number;
+  totalStudyTimeMinutes: number;
+  totalStudyTimeHours: number;
+  lastStudiedAt?: string | null;
+  difficultyRating?: number | null;
+  completionPercentage: number;
+  isCompleted: boolean;
+  activeSessionId?: number | null;
+  notes?: string | null;
+}
+
+interface UserCoursesOverviewResponse {
+  coursesOverview: UserCourseOverview[];
+  totalCourses: number;
+  completedCourses: number;
+  coursesInProgress: number;
+}
+
+// Overall study statistics
+// export interface StudyStatistics {
+//   totalSessions: number;
+//   totalStudyTimeSeconds: number;
+//   totalBreakTimeSeconds: number;
+//   totalStudyTimeHours: number;
+//   totalBreakTimeHours: number;
+//   longestSessionSeconds: number;
+//   longestSessionMinutes: number;
+//   averageSessionSeconds: number;
+//   averageSessionMinutes: number;
+//   recentStudyTimeSeconds: number;
+//   recentStudyTimeHours: number;
+//   dailyStudyTime: Array<{
+//     study_date: string;
+//     total_duration: number;
+//   }>;
+//   studyTimeByCourse: Array<{
+//     course_id: number;
+//     course_title: string;
+//     total_duration: number;
+//   }>;
+// }
+
+// Preferred course management
 interface SetPreferredCourseRequest {
   courseId: number;
 }
@@ -88,6 +218,7 @@ interface SetPreferredCourseResponse {
   course: {
     courseId: number;
     title: string;
+    courseType: string;
   };
 }
 
@@ -95,13 +226,26 @@ interface GetPreferredCourseResponse {
   preferredCourse: PreferredCourse | null;
 }
 
-// Legacy study types
+// Generic message response
+interface MessagePayload {
+  message: string;
+}
+
+// Legacy study types (for backward compatibility)
 type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
-interface SubmitAnswerPayload {
-  isCorrect: boolean;
-  explanation?: string;
-  correctAnswerId?: number;
+export interface LegacyStudySession {
+  session_id: string;
+  user_id: number;
+  topic_id?: number;
+  subtopic_id?: number;
+  start_time: string;
+  end_time?: string | null;
+  status: 'active' | 'completed';
+  question_count: number;
+  correct_answers: number;
+  score: number;
+  created_at: string;
 }
 
 interface EndSessionPayload {
@@ -113,90 +257,27 @@ interface EndSessionPayload {
   completedAt: string;
 }
 
-type RecentSessionsPayload = StudySession[];
-
-interface SessionDetailsPayload {
-  session: StudySession;
-  questions: Array<{
-    id: number;
-    text: string;
-    userAnswerId?: number;
-    userAnswerText?: string;
-    correctAnswerId?: number;
-    correctAnswerText?: string;
-    isCorrect: boolean;
-    timeSpent?: number;
-    explanation?: string;
-    answers?: Array<{
-      id: number;
-      text: string;
-    }>;
-  }>;
-}
-
-interface RecommendedTopicPayload {
-  topicId: number;
-  topicName?: string;
-  branchId?: number;
-  branchName?: string;
-  accuracy?: number | null;
-  priority?: number;
-  lastStudied?: string | null;
-}
-type RecommendedTopicsListPayload = RecommendedTopicPayload[];
-
-interface MessagePayload {
-  message: string;
-}
-
-interface BookmarkedQuestionsPayload {
-  questions: Question[];
-  total: number;
-}
-
-interface StudyStatsPayload {
-  totalSessions: number;
-  totalQuestions: number;
-  totalCorrect: number;
-  totalIncorrect: number;
-  averageAccuracy: number;
-  totalStudyTime: number;
-  averageSessionDuration: number;
-  mostStudiedTopics: Array<{
-    topicId: number;
-    topicName?: string;
-    questionsAnswered: number;
-    accuracy: number;
-  }>;
-  weakestTopics: Array<{
-    topicId: number;
-    topicName?: string;
-    accuracy: number;
-    questionsAnswered: number;
-  }>;
-  studyTrend: Array<{
-    date: string;
-    questionsAnswered: number;
-    accuracy: number;
-    timeSpent: number;
-  }>;
+interface SubmitAnswerPayload {
+  isCorrect: boolean;
+  explanation?: string;
+  correctAnswerId?: number;
 }
 
 // ===============================
-// NEW: ENHANCED STUDY TRACKING FUNCTIONS WITH ACHIEVEMENT INTEGRATION
+// NEW: COURSE-BASED STUDY TRACKING FUNCTIONS WITH ACHIEVEMENT INTEGRATION
 // ===============================
 
 /**
- * Start a new study session with chronometer
+ * Start a new course study session with chronometer
  */
 export const startStudySession = async (
-  topicId: number,
+  courseId: number,
   notes?: string,
 ): Promise<StartStudySessionResponse> => {
   const response = await apiRequest<StartStudySessionResponse>(
     '/study/sessions/start',
     'POST',
-    { topicId, notes },
+    { courseId, notes },
   );
 
   if (!response.data) {
@@ -211,12 +292,12 @@ export const startStudySession = async (
  */
 export const endStudySession = async (
   sessionId: number,
-  endNotes?: string,
+  notes?: string,
 ): Promise<EndStudySessionResponse & { achievementCheck?: any }> => {
   const response = await apiRequest<EndStudySessionResponse>(
     `/study/sessions/${sessionId}/end`,
     'POST',
-    { endNotes },
+    { notes },
   );
 
   if (!response.data) {
@@ -239,21 +320,52 @@ export const endStudySession = async (
 };
 
 /**
- * Get active study session for a topic
+ * Add break time to active study session (mola)
  */
-export const getActiveStudySession = async (
-  topicId: number,
-): Promise<ActiveStudySessionResponse | null> => {
+export const addBreakTime = async (
+  sessionId: number,
+  breakDurationSeconds: number,
+): Promise<AddBreakTimeResponse> => {
+  const response = await apiRequest<AddBreakTimeResponse>(
+    `/study/sessions/${sessionId}/break`,
+    'POST',
+    { breakDurationSeconds },
+  );
+
+  if (!response.data) {
+    throw new Error('Failed to add break time: No data returned.');
+  }
+
+  return response.data;
+};
+
+/**
+ * Get active study session for current user
+ */
+export const getActiveStudySession = async (): Promise<{
+  sessionId: number;
+  courseId: number;
+  courseTitle: string;
+  courseDescription?: string;
+  startTime: string;
+  currentDurationSeconds: number;
+  currentStudyDurationSeconds: number;
+  breakDurationSeconds: number;
+  currentDurationMinutes: number;
+  currentStudyDurationMinutes: number;
+  breakDurationMinutes: number;
+  notes?: string;
+} | null> => {
   try {
     const response = await apiRequest<ActiveStudySessionResponse>(
-      `/study/sessions/active/${topicId}`,
+      '/study/sessions/active',
     );
-    return response.data || null;
+    return response.data?.activeSession || null;
   } catch (error: any) {
     if (error.status === 404) {
       return null;
     }
-    console.error(`Error fetching active session for topic ${topicId}:`, error);
+    console.error('Error fetching active study session:', error);
     throw error;
   }
 };
@@ -264,7 +376,6 @@ export const getActiveStudySession = async (
 export const getUserStudySessions = async (
   page: number = 1,
   limit: number = 20,
-  topicId?: number,
   courseId?: number,
 ): Promise<StudySessionsResponse> => {
   const params = new URLSearchParams({
@@ -272,7 +383,6 @@ export const getUserStudySessions = async (
     limit: limit.toString(),
   });
 
-  if (topicId) params.append('topicId', topicId.toString());
   if (courseId) params.append('courseId', courseId.toString());
 
   const response = await apiRequest<StudySessionsResponse>(
@@ -289,32 +399,36 @@ export const getUserStudySessions = async (
   return response.data;
 };
 
+// ===============================
+// COURSE PROGRESS MANAGEMENT
+// ===============================
+
 /**
- * Update user-specific topic details - ENHANCED with achievement checking
+ * Update user course progress - ENHANCED with achievement checking
  */
-export const updateUserTopicDetails = async (
-  details: UpdateTopicDetailsRequest,
-): Promise<UpdateTopicDetailsResponse & { achievementCheck?: any }> => {
-  const response = await apiRequest<UpdateTopicDetailsResponse>(
-    '/study/topic-details',
+export const updateUserCourseProgress = async (
+  details: UpdateCourseProgressRequest,
+): Promise<UpdateCourseProgressResponse & { achievementCheck?: any }> => {
+  const response = await apiRequest<UpdateCourseProgressResponse>(
+    '/study/progress',
     'POST',
     details,
   );
 
   if (!response.data) {
-    throw new Error('Failed to update topic details: No data returned.');
+    throw new Error('Failed to update course progress: No data returned.');
   }
 
-  // If topic is marked as completed, trigger achievement check
+  // If course is marked as completed, trigger achievement check
   let achievementCheck = null;
   if (details.isCompleted) {
     try {
       achievementCheck = await handleStudySessionCompleted({
-        topic_id: details.topicId,
+        course_id: details.courseId,
         completed: true,
       });
     } catch (error) {
-      console.error('Achievement check failed after topic completion:', error);
+      console.error('Achievement check failed after course completion:', error);
     }
   }
 
@@ -325,55 +439,80 @@ export const updateUserTopicDetails = async (
 };
 
 /**
- * Get user-specific topic details
+ * Get user course progress
  */
-export const getUserTopicDetails = async (
-  topicId: number,
-): Promise<UserTopicDetails | null> => {
+export const getUserCourseProgress = async (
+  courseId: number,
+): Promise<CourseProgress | null> => {
   try {
-    const response = await apiRequest<UserTopicDetails>(
-      `/study/topic-details/${topicId}`,
+    const response = await apiRequest<CourseProgressResponse>(
+      `/study/progress/${courseId}`,
     );
-    return response.data || null;
+    return response.data?.progress || null;
   } catch (error: any) {
     if (error.status === 404) {
       return null;
     }
-    console.error(`Error fetching topic details for ${topicId}:`, error);
+    console.error(`Error fetching course progress for ${courseId}:`, error);
     throw error;
   }
 };
 
 /**
- * Get all available klinik_dersler courses
+ * Mark course as completed
  */
-export const getKlinikCourses = async (): Promise<KlinikCourse[]> => {
-  const response = await apiRequest<KlinikCourse[]>('/study/courses/klinik');
-  return response.data || [];
-};
-
-/**
- * Get user study overview for a specific course
- */
-export const getUserCourseStudyOverview = async (
+export const markCourseCompleted = async (
   courseId: number,
-): Promise<CourseStudyOverview[]> => {
-  const response = await apiRequest<CourseStudyOverview[]>(
-    `/study/overview/course/${courseId}`,
+): Promise<MarkCourseCompletedResponse> => {
+  const response = await apiRequest<MarkCourseCompletedResponse>(
+    `/study/courses/${courseId}/complete`,
+    'POST',
   );
+
+  if (!response.data) {
+    throw new Error('Failed to mark course as completed: No data returned.');
+  }
+
+  return response.data;
+};
+
+// ===============================
+// COURSE & USER OVERVIEW
+// ===============================
+
+/**
+ * Get all available courses
+ */
+export const getAllCourses = async (
+  courseType?: 'temel_dersler' | 'klinik_dersler',
+): Promise<Course[]> => {
+  const params = courseType ? `?courseType=${courseType}` : '';
+  const response = await apiRequest<Course[]>(`/study/courses${params}`);
   return response.data || [];
 };
 
 /**
- * Get user statistics across all klinik_dersler courses
+ * Get user study overview for all courses
  */
-export const getUserAllCoursesStatistics = async (): Promise<
-  AllCoursesStatistics[]
-> => {
-  const response = await apiRequest<AllCoursesStatistics[]>(
-    '/study/overview/all-courses',
-  );
-  return response.data || [];
+export const getUserAllCoursesOverview = async (): Promise<{
+  coursesOverview: UserCourseOverview[];
+  totalCourses: number;
+  completedCourses: number;
+  coursesInProgress: number;
+}> => {
+  const response =
+    await apiRequest<UserCoursesOverviewResponse>('/study/overview');
+
+  if (!response.data) {
+    return {
+      coursesOverview: [],
+      totalCourses: 0,
+      completedCourses: 0,
+      coursesInProgress: 0,
+    };
+  }
+
+  return response.data;
 };
 
 /**
@@ -392,6 +531,10 @@ export const getUserStudyStatistics =
       throw error;
     }
   };
+
+// ===============================
+// PREFERRED COURSE MANAGEMENT
+// ===============================
 
 /**
  * Set user's preferred course
@@ -432,16 +575,16 @@ export const getUserPreferredCourse =
   };
 
 // ===============================
-// NEW: ACHIEVEMENT-AWARE UTILITY FUNCTIONS
+// ACHIEVEMENT-AWARE UTILITY FUNCTIONS
 // ===============================
 
 /**
- * Check if user has an active study session for any topic
+ * Check if user has an active study session for any course
  */
 export const hasActiveStudySession = async (): Promise<boolean> => {
   try {
-    const sessions = await getUserStudySessions(1, 10);
-    return sessions.sessions.some((session) => session.status === 'active');
+    const activeSession = await getActiveStudySession();
+    return !!activeSession;
   } catch (error) {
     console.error('Error checking for active sessions:', error);
     return false;
@@ -483,47 +626,51 @@ export const formatSessionDuration = (
  * Calculate completion percentage for a course
  */
 export const calculateCourseCompletion = (
-  studiedTopics: number,
-  totalTopics: number,
+  studiedSessions: number,
+  totalExpectedSessions: number,
 ): number => {
-  if (totalTopics === 0) return 0;
-  return Math.round((studiedTopics / totalTopics) * 100);
+  if (totalExpectedSessions === 0) return 0;
+  return Math.round((studiedSessions / totalExpectedSessions) * 100);
 };
 
 /**
- * Get comprehensive topic analytics
+ * Get comprehensive course study data
  */
-export const getTopicComprehensiveData = async (topicId: number) => {
+export const getCourseComprehensiveStudyData = async (courseId: number) => {
   try {
-    const [topicDetails, activeSessions] = await Promise.all([
-      getUserTopicDetails(topicId),
-      getActiveStudySession(topicId),
+    const [courseProgress, studySessions, activeSession] = await Promise.all([
+      getUserCourseProgress(courseId),
+      getUserStudySessions(1, 10, courseId),
+      getActiveStudySession(),
     ]);
 
     return {
-      details: topicDetails,
-      hasActiveSession: !!activeSessions?.session_id,
-      activeSession: activeSessions,
+      progress: courseProgress,
+      recentSessions: studySessions.sessions,
+      hasActiveSession: activeSession?.courseId === courseId,
+      activeSession:
+        activeSession?.courseId === courseId ? activeSession : null,
     };
   } catch (error) {
     console.error(
-      `Error fetching comprehensive data for topic ${topicId}:`,
+      `Error fetching comprehensive study data for course ${courseId}:`,
       error,
     );
     return {
-      details: null,
+      progress: null,
+      recentSessions: [],
       hasActiveSession: false,
       activeSession: null,
     };
   }
 };
 
-// FIXED: Complete study session with comprehensive feedback
+// Complete study session with comprehensive feedback
 export const completeStudySessionWithFeedback = async (
   sessionId: number,
   endNotes?: string,
 ): Promise<{
-  session: StudySession;
+  session: EndStudySessionResponse['session'];
   achievements?: any;
   studyStats?: StudyStatistics;
   message: string;
@@ -548,7 +695,7 @@ export const completeStudySessionWithFeedback = async (
     return {
       session: sessionResult.session,
       achievements: sessionResult.achievementCheck,
-      studyStats: studyStatsResult || undefined, // FIXED: Convert null to undefined
+      studyStats: studyStatsResult || undefined,
       message,
     };
   } catch (error) {
@@ -557,18 +704,18 @@ export const completeStudySessionWithFeedback = async (
   }
 };
 
-// NEW: Get study session summary with achievements
+// Get study session summary with achievements
 export const getStudySessionSummary = async (
   sessionId: number,
 ): Promise<{
-  session: StudySession | null;
+  session: CourseStudySession | null;
   duration: string;
   achievements: any;
   nextMilestone?: string;
 }> => {
   try {
     const sessions = await getUserStudySessions(1, 50);
-    const session = sessions.sessions.find((s) => s.session_id === sessionId);
+    const session = sessions.sessions.find((s) => s.sessionId === sessionId);
 
     if (!session) {
       return {
@@ -578,7 +725,7 @@ export const getStudySessionSummary = async (
       };
     }
 
-    const duration = formatSessionDuration(session.duration_seconds || 0);
+    const duration = formatSessionDuration(session.studyDurationSeconds || 0);
 
     // Check for any achievements that might have been earned
     const achievementService = await import('./achievementService');
@@ -613,8 +760,12 @@ export const startStudySessionLegacy = async (
   questionCount: number = 10,
   difficulty?: DifficultyLevel,
   previouslyIncorrect: boolean = false,
-): Promise<StudySession> => {
-  const response = await apiRequest<StudySession>(
+): Promise<LegacyStudySession> => {
+  console.warn(
+    'startStudySessionLegacy is deprecated. Use course-based study sessions instead.',
+  );
+
+  const response = await apiRequest<LegacyStudySession>(
     '/study/start-session',
     'POST',
     { topicId, subtopicId, questionCount, difficulty, previouslyIncorrect },
@@ -627,6 +778,10 @@ export const startStudySessionLegacy = async (
 export const getNextQuestion = async (
   sessionId: string,
 ): Promise<Question | null> => {
+  console.warn(
+    'getNextQuestion is deprecated. Course-based study sessions do not use questions in the same way.',
+  );
+
   try {
     const response = await apiRequest<Question>(
       `/study/sessions/${sessionId}/next-question`,
@@ -653,6 +808,10 @@ export const submitAnswer = async (
   answerId: number,
   timeSpent: number,
 ): Promise<SubmitAnswerPayload> => {
+  console.warn(
+    'submitAnswer is deprecated. Course-based study sessions do not use questions in the same way.',
+  );
+
   const response = await apiRequest<SubmitAnswerPayload>(
     `/study/sessions/${sessionId}/submit-answer`,
     'POST',
@@ -667,6 +826,10 @@ export const submitAnswer = async (
 export const endStudySessionLegacy = async (
   sessionId: string,
 ): Promise<EndSessionPayload & { achievementCheck?: any }> => {
+  console.warn(
+    'endStudySessionLegacy is deprecated. Use course-based study sessions instead.',
+  );
+
   const response = await apiRequest<EndSessionPayload>(
     `/study/sessions/${sessionId}/end`,
     'POST',
@@ -698,113 +861,112 @@ export const endStudySessionLegacy = async (
   };
 };
 
-export const getStudyProgress = async (): Promise<StudyProgress | null> => {
-  try {
-    const response = await apiRequest<StudyProgress>('/study/progress');
-    return response.data === undefined ? null : response.data;
-  } catch (error: any) {
-    if (error.status === 404) {
-      console.warn('Study progress not found for user.');
-      return null;
-    }
-    console.error('Error fetching study progress:', error);
-    throw error;
-  }
-};
+// ===============================
+// DEPRECATED TOPIC-BASED FUNCTIONS
+// ===============================
 
-export const getRecentSessions = async (
-  limit: number = 5,
-): Promise<RecentSessionsPayload> => {
-  const response = await apiRequest<RecentSessionsPayload>(
-    `/study/recent-sessions?limit=${limit}`,
+/**
+ * @deprecated Topic-based study sessions are deprecated. Use course-based sessions instead.
+ */
+export const startTopicStudySession = async (
+  topicId: number,
+  notes?: string,
+): Promise<MessagePayload> => {
+  console.warn(
+    'startTopicStudySession is deprecated. Use course-based study sessions instead.',
   );
-  return response.data || [];
+
+  return {
+    message:
+      'Topic-based study sessions have been deprecated. Use course-based study sessions instead: startStudySession(courseId, notes)',
+  };
 };
 
-export const getSessionDetails = async (
-  sessionId: string,
-): Promise<SessionDetailsPayload | null> => {
-  try {
-    const response = await apiRequest<SessionDetailsPayload>(
-      `/study/sessions/${sessionId}`,
-    );
-    if (!response.data || typeof response.data !== 'object') {
-      console.warn(
-        `No session details for session ${sessionId}, or data malformed.`,
-      );
-      return null;
-    }
-    return {
-      ...response.data,
-      questions: response.data.questions || [],
-    };
-  } catch (error: any) {
-    if (error.status === 404) {
-      console.warn(`Session details not found for session ${sessionId} (404).`);
-      return null;
-    }
-    console.error(`Error fetching session details for ${sessionId}:`, error);
-    throw error;
-  }
+/**
+ * @deprecated Topic-based progress tracking is deprecated. Use course-based progress instead.
+ */
+export const updateUserTopicDetails = async (
+  topicId: number,
+  details: any,
+): Promise<MessagePayload> => {
+  console.warn(
+    'updateUserTopicDetails is deprecated. Use course-based progress tracking instead.',
+  );
+
+  return {
+    message:
+      'Topic-based progress tracking has been deprecated. Use course-based progress tracking instead: updateUserCourseProgress()',
+  };
+};
+
+/**
+ * @deprecated Topic-based details retrieval is deprecated. Use course-based progress instead.
+ */
+export const getUserTopicDetails = async (topicId: number): Promise<null> => {
+  console.warn(
+    'getUserTopicDetails is deprecated. Use course-based progress tracking instead.',
+  );
+
+  return null;
+};
+
+// Other legacy functions would follow the same pattern...
+export const getRecentSessions = async (limit: number = 5): Promise<any[]> => {
+  console.warn(
+    'getRecentSessions is deprecated. Use getUserStudySessions instead.',
+  );
+  return [];
+};
+
+export const getSessionDetails = async (sessionId: string): Promise<any> => {
+  console.warn('getSessionDetails is deprecated for course-based sessions.');
+  return null;
 };
 
 export const getRecommendedTopics = async (
   limit: number = 3,
-): Promise<RecommendedTopicsListPayload> => {
-  const response = await apiRequest<RecommendedTopicsListPayload>(
-    `/study/recommended-topics?limit=${limit}`,
+): Promise<any[]> => {
+  console.warn(
+    'getRecommendedTopics is deprecated. Course-based system recommends courses instead.',
   );
-  return response.data || [];
+  return [];
 };
 
 export const flagQuestion = async (
   questionId: number,
   reason?: string,
 ): Promise<MessagePayload> => {
-  const response = await apiRequest<MessagePayload>(
-    '/study/flag-question',
-    'POST',
-    { questionId, reason },
-  );
-  if (!response.data || !response.data.message) {
-    return { message: 'Question flagged successfully.' };
-  }
-  return response.data;
+  console.warn('flagQuestion is deprecated in course-based study system.');
+  return {
+    message: 'Question flagging is not available in course-based study system.',
+  };
 };
 
 export const bookmarkQuestion = async (
   questionId: number,
 ): Promise<MessagePayload> => {
-  const response = await apiRequest<MessagePayload>(
-    '/study/bookmark-question',
-    'POST',
-    { questionId },
-  );
-  if (!response.data || !response.data.message) {
-    return { message: 'Question bookmarked successfully.' };
-  }
-  return response.data;
+  console.warn('bookmarkQuestion is deprecated in course-based study system.');
+  return {
+    message:
+      'Question bookmarking is not available in course-based study system.',
+  };
 };
 
 export const getBookmarkedQuestions = async (
   page: number = 1,
   limit: number = 20,
-): Promise<BookmarkedQuestionsPayload> => {
-  const response = await apiRequest<BookmarkedQuestionsPayload>(
-    `/study/bookmarked-questions?page=${page}&limit=${limit}`,
+): Promise<{ questions: any[]; total: number }> => {
+  console.warn(
+    'getBookmarkedQuestions is deprecated in course-based study system.',
   );
-  if (!response.data || typeof response.data !== 'object') {
-    console.warn('No bookmarked questions data, returning defaults.');
-    return { questions: [], total: 0 };
-  }
-  return {
-    questions: response.data.questions || [],
-    total: response.data.total || 0,
-  };
+  return { questions: [], total: 0 };
 };
 
-export const getStudyStats = async (): Promise<StudyStatsPayload> => {
-  const defaultStats: StudyStatsPayload = {
+export const getStudyStats = async (): Promise<any> => {
+  console.warn(
+    'getStudyStats is deprecated. Use getUserStudyStatistics instead.',
+  );
+  return {
     totalSessions: 0,
     totalQuestions: 0,
     totalCorrect: 0,
@@ -816,18 +978,11 @@ export const getStudyStats = async (): Promise<StudyStatsPayload> => {
     weakestTopics: [],
     studyTrend: [],
   };
-  try {
-    const response = await apiRequest<StudyStatsPayload>('/study/stats');
-    if (!response.data || typeof response.data !== 'object') {
-      console.warn('No study stats data received, returning defaults.');
-      return defaultStats;
-    }
-    return {
-      ...defaultStats,
-      ...response.data,
-    };
-  } catch (error: any) {
-    console.error('Error fetching study stats:', error);
-    return defaultStats;
-  }
+};
+
+export const getStudyProgress = async (): Promise<any> => {
+  console.warn(
+    'getStudyProgress is deprecated. Use getUserCourseProgress instead.',
+  );
+  return null;
 };

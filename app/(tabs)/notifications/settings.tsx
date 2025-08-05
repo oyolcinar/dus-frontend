@@ -57,7 +57,6 @@ const NotificationSettingsScreen: React.FC = () => {
   const [deviceToken, setDeviceToken] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('all');
 
-  // Notification type display names
   const notificationTypeNames: Record<NotificationType, string> = {
     study_reminder: 'Çalışma Hatırlatıcıları',
     achievement_unlock: 'Başarı Bildirimleri',
@@ -71,9 +70,15 @@ const NotificationSettingsScreen: React.FC = () => {
     coaching_note: 'Koçluk Notları',
     motivational_message: 'Motivasyon Mesajları',
     system_announcement: 'Sistem Duyuruları',
+    // ✅ NEW: Course-related notification types
+    course_reminder: 'Ders Hatırlatmaları',
+    course_completed: 'Ders Tamamlama Bildirimleri',
+    course_progress: 'Ders İlerleme Bildirimleri',
+    course_milestone: 'Ders Kilometre Taşı Bildirimleri',
+    course_study_session: 'Ders Çalışma Seansı Bildirimleri',
   };
 
-  // Notification type descriptions
+  // Update the notificationTypeDescriptions object (around line 77)
   const notificationTypeDescriptions: Record<NotificationType, string> = {
     study_reminder: 'Günlük çalışma hedefleriniz için hatırlatıcılar',
     achievement_unlock: 'Yeni başarılar kazandığınızda bildirimler',
@@ -87,6 +92,12 @@ const NotificationSettingsScreen: React.FC = () => {
     coaching_note: 'Kişiselleştirilmiş koçluk önerileri',
     motivational_message: 'Motivasyon artırıcı mesajlar',
     system_announcement: 'Önemli sistem duyuruları',
+    // ✅ NEW: Course-related notification descriptions
+    course_reminder: 'Ders çalışma zamanları için hatırlatıcılar',
+    course_completed: 'Derslerinizi tamamladığınızda bildirimler',
+    course_progress: 'Ders ilerleme durumunuz hakkında güncellemeler',
+    course_milestone: 'Önemli ders aşamalarını geçtiğinizde bildirimler',
+    course_study_session: 'Çalışma seanslarınız hakkında bildirimler',
   };
 
   // Categorize notification types
@@ -97,6 +108,11 @@ const NotificationSettingsScreen: React.FC = () => {
       'streak_reminder',
       'plan_reminder',
       'coaching_note',
+      'course_reminder',
+      'course_completed',
+      'course_progress',
+      'course_milestone',
+      'course_study_session',
     ],
     social: [
       'duel_invitation',
@@ -375,8 +391,8 @@ const NotificationSettingsScreen: React.FC = () => {
           selectedFilter === filter
             ? Colors.vibrant.purple
             : isDark
-            ? Colors.white
-            : Colors.white,
+              ? Colors.white
+              : Colors.white,
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: 36,
@@ -396,8 +412,8 @@ const NotificationSettingsScreen: React.FC = () => {
             selectedFilter === filter
               ? Colors.white
               : isDark
-              ? Colors.gray[700]
-              : Colors.gray[700],
+                ? Colors.gray[700]
+                : Colors.gray[700],
           textAlign: 'center',
           fontFamily: 'SecondaryFont-Regular',
         }}
@@ -576,10 +592,10 @@ const NotificationSettingsScreen: React.FC = () => {
                     {pref?.frequency_hours === 1
                       ? 'Saatte bir'
                       : pref?.frequency_hours === 24
-                      ? 'Günde bir'
-                      : pref?.frequency_hours === 168
-                      ? 'Haftada bir'
-                      : `${pref?.frequency_hours || 24} saatte bir`}
+                        ? 'Günde bir'
+                        : pref?.frequency_hours === 168
+                          ? 'Haftada bir'
+                          : `${pref?.frequency_hours || 24} saatte bir`}
                   </Text>
                   <Feather
                     name='chevron-right'

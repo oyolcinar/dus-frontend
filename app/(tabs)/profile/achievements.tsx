@@ -43,10 +43,13 @@ import {
   getTurkishCompletionStatus,
   getTurkishCategoryName,
   getTurkishRarityName,
-  type Achievement,
-  type UserAchievement,
-  type AchievementProgress,
 } from '../../../src/api/achievementService';
+// ✅ FIXED: Import types from the correct models file
+import type {
+  Achievement,
+  UserAchievement,
+  AchievementProgress,
+} from '../../../src/types/models';
 import {
   usePreferredCourse,
   PreferredCourseProvider,
@@ -309,6 +312,7 @@ function AchievementScreenContent() {
               'social',
               'progress',
               'special',
+              'course', // ✅ FIXED: Added 'course' category
             ];
             return Promise.all(
               categories.map(async (category) => {
@@ -418,37 +422,42 @@ function AchievementScreenContent() {
     );
   };
 
-  // Render progress requirements detail with Turkish translations
+  // ✅ FIXED: Render progress requirements detail with Turkish translations and proper typing
   const renderProgressRequirements = (progressData: AchievementProgress) => {
     const requirements = Object.entries(progressData.requirements);
 
     return (
       <Column style={styles.requirementsContainer}>
         <Text style={styles.requirementsTitle}>Gereksinimler:</Text>
-        {requirements.map(([key, req]) => (
-          <View key={key} style={styles.requirementItem}>
-            <Row style={styles.requirementHeader}>
-              <Text style={styles.requirementLabel}>
-                {getTurkishRequirementName(key)}
+        {requirements.map(
+          ([key, req]: [
+            string,
+            { current: number; required: number | boolean; progress: number },
+          ]) => (
+            <View key={key} style={styles.requirementItem}>
+              <Row style={styles.requirementHeader}>
+                <Text style={styles.requirementLabel}>
+                  {getTurkishRequirementName(key)}
+                </Text>
+              </Row>
+              <ProgressBar
+                progress={req.progress}
+                height={22}
+                width='100%'
+                trackColor={contextColor || '#e5e7eb'}
+                progressColor={getRarityColor(
+                  progressData.overall_progress >= 100 ? 'legendary' : 'rare',
+                )}
+                style={styles.requirementProgressBar}
+                showPercentageInside={true}
+                animated
+              />
+              <Text style={styles.requirementDetail}>
+                {getTurkishRequirementDetail(key, req)}
               </Text>
-            </Row>
-            <ProgressBar
-              progress={req.progress}
-              height={22}
-              width='100%'
-              trackColor={contextColor || '#e5e7eb'}
-              progressColor={getRarityColor(
-                progressData.overall_progress >= 100 ? 'legendary' : 'rare',
-              )}
-              style={styles.requirementProgressBar}
-              showPercentageInside={true}
-              animated
-            />
-            <Text style={styles.requirementDetail}>
-              {getTurkishRequirementDetail(key, req)}
-            </Text>
-          </View>
-        ))}
+            </View>
+          ),
+        )}
       </Column>
     );
   };
@@ -732,7 +741,7 @@ function AchievementScreenContent() {
     );
   }
 
-  // Detail Mode Render (rest of the component remains the same)
+  // Detail Mode Render
   return (
     <View style={styles.container}>
       <Stack.Screen
