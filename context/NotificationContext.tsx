@@ -1,4 +1,4 @@
-// context/NotificationContext.tsx - Latest version for Expo SDK 53
+// context/NotificationContext.tsx - Enhanced version for Expo SDK 53 with token cleanup
 import React, {
   createContext,
   useContext,
@@ -22,7 +22,7 @@ import * as notificationService from '../src/api/notificationService';
 const isExpoGo = Constants.appOwnership === 'expo';
 const isDevelopmentBuild = !isExpoGo;
 
-console.log('🚀 NotificationContext (SDK 53):', {
+console.log('🚀 NotificationContext (SDK 53) Enhanced:', {
   isExpoGo,
   isDevelopmentBuild,
   isDevice: Device.isDevice,
@@ -55,6 +55,11 @@ interface NotificationContextType {
   loadStats: () => Promise<void>;
   registerForPushNotifications: () => Promise<void>;
   sendLocalTestNotification: () => Promise<void>;
+
+  // Enhanced token management
+  refreshPushToken: () => Promise<void>;
+  clearTokensAndReset: () => Promise<void>;
+  debugTokenStatus: () => Promise<void>;
 
   // Utilities
   refreshUnreadCount: () => Promise<void>;
@@ -92,12 +97,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [pushToken, setPushToken] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const NOTIFICATIONS_PER_PAGE = 20;
   const notificationsSupported = !isExpoGo && Device.isDevice;
   const isDevelopmentMode = isExpoGo;
 
-  // Error handling - Updated for SDK 53
+  // Error handling - Enhanced for SDK 53
   const handleError = useCallback((err: any, action: string) => {
     console.error(`Notification ${action} error (SDK 53):`, err);
 
@@ -114,7 +120,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     setError(null);
   }, []);
 
-  // UPDATED: Push notification registration for SDK 53
+  // ENHANCED: Push notification registration with token cleanup
   const registerForPushNotifications = useCallback(async () => {
     try {
       if (isExpoGo) {
@@ -129,24 +135,114 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         return;
       }
 
-      console.log('🔔 Setting up push notifications (SDK 53)...');
+      console.log(
+        '🔔 Setting up push notifications with enhanced validation...',
+      );
+
+      // Check if device changed and debug current status
+      await notificationService.debugRegistrationStatus();
 
       const result = await notificationService.setupPushNotifications();
 
       if (result.success && result.token) {
         setPushToken(result.token);
-        console.log('✅ Push notifications registered successfully (SDK 53)');
+        console.log(
+          '✅ Push notifications registered successfully with token cleanup',
+        );
 
         // Store token locally for debugging
         await AsyncStorage.setItem('pushToken', result.token);
         await AsyncStorage.setItem('pushTokenSDK', '53');
       } else {
-        console.warn('⚠️ Push notification setup failed (SDK 53):', result);
+        console.warn('⚠️ Push notification setup failed:', result);
       }
     } catch (err) {
       handleError(err, 'push bildirim kayıt');
     }
   }, [handleError]);
+
+  // ENHANCED: Force refresh push token
+  const refreshPushToken = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      console.log('🔄 Force refreshing push token...');
+
+      const result = await notificationService.forceTokenRefresh();
+
+      if (result.success && result.token) {
+        setPushToken(result.token);
+        console.log('✅ Push token refreshed successfully');
+      } else {
+        console.warn('⚠️ Push token refresh failed:', result.message);
+        setError(result.message || 'Token refresh failed');
+      }
+    } catch (err) {
+      handleError(err, 'token yenileme');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [handleError]);
+
+  // ENHANCED: Clear all tokens and reset state
+  const clearTokensAndReset = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      console.log('🧹 Clearing all tokens and resetting...');
+
+      // Clear tokens from service
+      await notificationService.clearDeviceTokens();
+
+      // Reset local state
+      setPushToken(null);
+      setNotifications([]);
+      setUnreadCount(0);
+      setPage(0);
+      setHasMore(true);
+
+      console.log('✅ Tokens cleared and state reset');
+
+      // Re-register if supported
+      if (notificationsSupported) {
+        await registerForPushNotifications();
+      }
+    } catch (err) {
+      handleError(err, 'token temizleme');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [notificationsSupported, registerForPushNotifications, handleError]);
+
+  // ENHANCED: Debug token status
+  const debugTokenStatus = useCallback(async () => {
+    try {
+      console.log('🔍 === NOTIFICATION CONTEXT DEBUG ===');
+
+      // Service-level debug
+      await notificationService.debugRegistrationStatus();
+
+      // Context-level debug
+      console.log('Context State:', {
+        pushToken: pushToken ? 'Present' : 'None',
+        notificationsSupported,
+        isDevelopmentMode,
+        isInitialized,
+        notificationCount: notifications.length,
+        unreadCount,
+      });
+
+      // Full token registration debug
+      await notificationService.debugTokenRegistration();
+    } catch (err) {
+      console.error('❌ Debug token status failed:', err);
+    }
+  }, [
+    pushToken,
+    notificationsSupported,
+    isDevelopmentMode,
+    isInitialized,
+    notifications.length,
+    unreadCount,
+  ]);
 
   // UPDATED: Send local test notification for SDK 53
   const sendLocalTestNotification = useCallback(async () => {
@@ -215,7 +311,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const loadMockNotifications = useCallback(async (): Promise<
     Notification[]
   > => {
-    const stored = await AsyncStorage.getItem('mockNotifications_SDK53');
+    const stored = await AsyncStorage.getItem(
+      'mockNotifications_SDK53_Enhanced',
+    );
     if (stored) {
       return JSON.parse(stored);
     }
@@ -235,6 +333,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         metadata: {
           reminder_type: 'daily',
           sdk_version: '53',
+          enhanced_features: true,
         },
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -255,6 +354,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           achievement_id: 'streak_7_days',
           achievement_name: '7 Günlük Seri',
           sdk_version: '53',
+          enhanced_features: true,
         },
         created_at: new Date(Date.now() - 3600000).toISOString(),
         updated_at: new Date(Date.now() - 3600000).toISOString(),
@@ -264,18 +364,17 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       {
         notification_id: 3,
         user_id: 1,
-        notification_type: 'duel_invitation',
-        title: 'Düello Daveti! ⚔️',
-        body: 'Ali sizi matematik düellosuna davet etti!',
-        action_url: '/duels/123',
-        icon_name: 'users',
+        notification_type: 'system_announcement',
+        title: 'Token Yönetimi Güncellemesi! 🔧',
+        body: 'Gelişmiş token yönetimi ve cihaz değişikliği desteği aktif!',
+        action_url: '/(tabs)/profile/settings',
+        icon_name: 'megaphone',
         status: 'read',
         is_read: true,
         metadata: {
-          duel_id: 123,
-          opponent: 'Ali',
-          challenger_name: 'Ali',
+          feature: 'enhanced_token_management',
           sdk_version: '53',
+          enhanced_features: true,
         },
         created_at: new Date(Date.now() - 7200000).toISOString(),
         updated_at: new Date(Date.now() - 3600000).toISOString(),
@@ -285,7 +384,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     ];
 
     await AsyncStorage.setItem(
-      'mockNotifications_SDK53',
+      'mockNotifications_SDK53_Enhanced',
       JSON.stringify(mockData),
     );
     return mockData;
@@ -460,7 +559,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     ].map((type) => ({
       notification_type: type as NotificationType,
       in_app_enabled: true,
-      push_enabled: false, // Disabled in Expo Go
+      push_enabled: !isExpoGo, // Enhanced: Enable push in development builds
       email_enabled: false,
       frequency_hours: 24,
       quiet_hours_start: '22:00:00',
@@ -534,7 +633,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
             plan_reminder: 0,
             coaching_note: 0,
             motivational_message: 0,
-            system_announcement: 0,
+            system_announcement: 1, // Enhanced mock includes system announcement
           },
         };
         setStats(mockStats);
@@ -564,36 +663,45 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     }
   }, [notifications]);
 
-  // Initialize notifications and setup listeners - Updated for SDK 53
+  // ENHANCED: Initialize notifications and setup listeners for SDK 53
   useEffect(() => {
     const initialize = async () => {
-      console.log('🚀 Initializing notifications (SDK 53)...');
+      if (isInitialized) return;
 
-      // Load stored push token
-      const storedToken = await notificationService.getCurrentPushToken();
-      if (storedToken) {
-        setPushToken(storedToken);
-        console.log('📱 Found stored push token (SDK 53)');
+      console.log('🚀 Initializing enhanced notifications (SDK 53)...');
+
+      try {
+        // Load stored push token
+        const storedToken = await notificationService.getCurrentPushToken();
+        if (storedToken) {
+          setPushToken(storedToken);
+          console.log('📱 Found stored push token (SDK 53)');
+        }
+
+        // Setup notification listeners if supported
+        let cleanupListeners: (() => void) | undefined;
+        if (notificationsSupported) {
+          console.log('👂 Setting up notification listeners (SDK 53)...');
+          cleanupListeners = notificationService.setupNotificationListeners();
+
+          // Register for push notifications with enhanced validation
+          await registerForPushNotifications();
+        }
+
+        // Load initial data
+        await Promise.all([loadNotifications(true), loadPreferences()]);
+
+        setIsInitialized(true);
+        console.log(
+          '✅ Enhanced notification initialization complete (SDK 53)',
+        );
+
+        // Return cleanup function
+        return cleanupListeners;
+      } catch (error) {
+        console.error('❌ Enhanced notification initialization failed:', error);
+        handleError(error, 'bildirim başlatma');
       }
-
-      // Setup notification listeners if supported
-      if (notificationsSupported) {
-        console.log('👂 Setting up notification listeners (SDK 53)...');
-        const removeListeners =
-          notificationService.setupNotificationListeners();
-
-        // Register for push notifications
-        await registerForPushNotifications();
-
-        // Cleanup listeners on unmount
-        return removeListeners;
-      }
-
-      // Load initial data
-      await loadNotifications(true);
-      await loadPreferences();
-
-      console.log('✅ Notification initialization complete (SDK 53)');
     };
 
     const cleanup = initialize();
@@ -607,7 +715,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         });
       }
     };
-  }, []); // Empty dependency array for initialization
+  }, [isInitialized]); // Only run when not initialized
 
   const value: NotificationContextType = {
     // State
@@ -632,6 +740,11 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     loadStats,
     registerForPushNotifications,
     sendLocalTestNotification,
+
+    // Enhanced token management
+    refreshPushToken,
+    clearTokensAndReset,
+    debugTokenStatus,
 
     // Utilities
     refreshUnreadCount,

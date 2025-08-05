@@ -16,7 +16,7 @@ import {
 
 /**
  * Notification Service
- * Updated for Expo SDK 53+ with latest package versions
+ * Updated for Expo SDK 53+ with enhanced token management and platform validation
  * expo-notifications: ^0.31.4
  * expo-constants: ~17.1.6
  * expo-device: ^7.1.4
@@ -45,7 +45,152 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// MAIN: Setup push notifications for SDK 53+
+// Storage keys for token management
+const STORAGE_KEYS = {
+  PUSH_TOKEN: 'pushToken',
+  PUSH_TOKEN_DATE: 'pushTokenDate',
+  LAST_PLATFORM: 'lastRegisteredPlatform',
+  DEVICE_INFO: 'lastDeviceInfo',
+  SDK_VERSION: 'pushTokenSDK',
+} as const;
+
+// ENHANCED: Clear old device tokens before registering new ones
+export async function clearDeviceTokens(): Promise<void> {
+  try {
+    console.log('🧹 Clearing old device tokens...');
+
+    // Clear from local storage
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.PUSH_TOKEN,
+      STORAGE_KEYS.PUSH_TOKEN_DATE,
+      STORAGE_KEYS.LAST_PLATFORM,
+      STORAGE_KEYS.DEVICE_INFO,
+      STORAGE_KEYS.SDK_VERSION,
+    ]);
+
+    // Call backend to deactivate old tokens for this user
+    try {
+      await apiRequest('/notifications/device-token/clear', 'POST');
+      console.log('✅ Old tokens cleared from backend');
+    } catch (backendError) {
+      console.warn('⚠️ Could not clear backend tokens:', backendError);
+    }
+  } catch (error) {
+    console.error('❌ Error clearing device tokens:', error);
+  }
+}
+
+// ENHANCED: Get current device information
+function getCurrentDeviceInfo() {
+  return {
+    platform: Platform.OS === 'ios' ? 'ios' : 'android',
+    model: Device.modelName || 'Unknown',
+    osVersion: Device.osVersion || 'Unknown',
+    appVersion: Constants.expoConfig?.version || 'unknown',
+    deviceId: Device.deviceName || 'Unknown',
+    isDevice: Device.isDevice,
+  };
+}
+
+// ENHANCED: Check if device/platform changed since last registration
+async function hasDeviceChanged(): Promise<boolean> {
+  try {
+    const currentDevice = getCurrentDeviceInfo();
+    const lastPlatform = await AsyncStorage.getItem(STORAGE_KEYS.LAST_PLATFORM);
+    const lastDeviceInfo = await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_INFO);
+
+    if (!lastPlatform || !lastDeviceInfo) {
+      return true; // First time registration
+    }
+
+    const parsedLastDevice = JSON.parse(lastDeviceInfo);
+
+    // Check if platform changed
+    if (currentDevice.platform !== lastPlatform) {
+      console.log(
+        `🔄 Platform changed: ${lastPlatform} → ${currentDevice.platform}`,
+      );
+      return true;
+    }
+
+    // Check if device model changed (indicates different physical device)
+    if (
+      currentDevice.model !== parsedLastDevice.model ||
+      currentDevice.deviceId !== parsedLastDevice.deviceId
+    ) {
+      console.log(
+        `📱 Device changed: ${parsedLastDevice.model} → ${currentDevice.model}`,
+      );
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('❌ Error checking device changes:', error);
+    return true; // Assume changed on error to force re-registration
+  }
+}
+
+// ENHANCED: Register device token with validation and cleanup
+export async function registerDeviceTokenWithValidation(
+  deviceToken: string,
+  forceUpdate: boolean = false,
+): Promise<{ message: string; token: DeviceToken }> {
+  try {
+    const currentDevice = getCurrentDeviceInfo();
+
+    console.log('📝 Registering device token with validation:', {
+      platform: currentDevice.platform,
+      model: currentDevice.model,
+      token: deviceToken.substring(0, 20) + '...',
+      forceUpdate,
+    });
+
+    // Check if we need to clear old tokens
+    const deviceChanged = await hasDeviceChanged();
+    if (deviceChanged || forceUpdate) {
+      console.log(
+        '🔄 Device/platform changed or forced update, clearing old tokens',
+      );
+      await clearDeviceTokens();
+    }
+
+    const response = await apiRequest<{ message: string; token: DeviceToken }>(
+      '/notifications/device-token',
+      'POST',
+      {
+        device_token: deviceToken,
+        platform: currentDevice.platform,
+        device_info: {
+          model: currentDevice.model,
+          os_version: currentDevice.osVersion,
+          app_version: currentDevice.appVersion,
+          device_id: currentDevice.deviceId,
+          is_device: currentDevice.isDevice,
+        },
+      },
+    );
+
+    if (!response.data) {
+      throw new Error('No data received from register device token API');
+    }
+
+    // Store the current device info for future comparisons
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.LAST_PLATFORM, currentDevice.platform],
+      [STORAGE_KEYS.DEVICE_INFO, JSON.stringify(currentDevice)],
+      [STORAGE_KEYS.SDK_VERSION, '53'],
+    ]);
+
+    console.log('✅ Device token registered successfully with backend');
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error registering device token:', error);
+    throw error;
+  }
+}
+
+// MAIN: Enhanced setup push notifications for SDK 53+
 export async function setupPushNotifications(): Promise<{
   success: boolean;
   token?: string;
@@ -74,7 +219,10 @@ export async function setupPushNotifications(): Promise<{
       return { success: false, isDevelopment: true };
     }
 
-    console.log('🔔 Setting up push notifications on real device (SDK 53+)...');
+    const currentDevice = getCurrentDeviceInfo();
+    console.log(
+      `🔔 Setting up push notifications on ${currentDevice.platform} device (${currentDevice.model})...`,
+    );
 
     // Get existing permission status
     const { status: existingStatus } =
@@ -101,7 +249,7 @@ export async function setupPushNotifications(): Promise<{
       return { success: false };
     }
 
-    // UPDATED: Get project ID for SDK 53+ (updated Constants API)
+    // Get project ID for SDK 53+
     const projectId =
       Constants.expoConfig?.extra?.eas?.projectId ||
       Constants.easConfig?.projectId ||
@@ -120,7 +268,7 @@ export async function setupPushNotifications(): Promise<{
     }
 
     // Get push token with updated API
-    console.log('🎫 Getting push token (SDK 53+)...');
+    console.log('🎫 Getting push token...');
     const tokenData = await Notifications.getExpoPushTokenAsync({
       projectId: projectId,
     });
@@ -128,12 +276,10 @@ export async function setupPushNotifications(): Promise<{
     const token = tokenData.data;
     console.log('✅ Push token obtained:', token.substring(0, 50) + '...');
 
-    // Register token with backend
-    const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+    // Register token with backend using enhanced validation
     console.log('📝 Registering token with backend...');
-
     try {
-      await registerDeviceToken(token, platform);
+      await registerDeviceTokenWithValidation(token);
       console.log('✅ Token registered with backend successfully');
     } catch (backendError) {
       console.error('❌ Backend registration failed:', backendError);
@@ -141,10 +287,12 @@ export async function setupPushNotifications(): Promise<{
     }
 
     // Store locally for debugging
-    await AsyncStorage.setItem('pushToken', token);
-    await AsyncStorage.setItem('pushTokenDate', new Date().toISOString());
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.PUSH_TOKEN, token],
+      [STORAGE_KEYS.PUSH_TOKEN_DATE, new Date().toISOString()],
+    ]);
 
-    console.log('🎉 Push notification setup completed successfully (SDK 53+)');
+    console.log('🎉 Push notification setup completed successfully');
 
     return { success: true, token };
   } catch (error: any) {
@@ -172,6 +320,17 @@ export async function setupPushNotifications(): Promise<{
 
     return { success: false };
   }
+}
+
+// LEGACY: Keep original function for backward compatibility but use enhanced version
+export async function registerDeviceToken(
+  deviceToken: string,
+  platform: 'ios' | 'android' | 'web',
+): Promise<{ message: string; token: DeviceToken }> {
+  console.log(
+    '⚠️ Using legacy registerDeviceToken - consider using registerDeviceTokenWithValidation',
+  );
+  return registerDeviceTokenWithValidation(deviceToken);
 }
 
 // Setup notification listeners
@@ -360,38 +519,6 @@ export async function updatePreferences(
   }
 }
 
-// Register device token
-export async function registerDeviceToken(
-  deviceToken: string,
-  platform: 'ios' | 'android' | 'web',
-): Promise<{ message: string; token: DeviceToken }> {
-  try {
-    console.log('📝 Registering device token (SDK 53+):', {
-      platform,
-      token: deviceToken.substring(0, 20) + '...',
-    });
-
-    const response = await apiRequest<{ message: string; token: DeviceToken }>(
-      '/notifications/device-token',
-      'POST',
-      {
-        device_token: deviceToken,
-        platform,
-      },
-    );
-
-    if (!response.data) {
-      throw new Error('No data received from register device token API');
-    }
-
-    console.log('✅ Device token registered successfully with backend');
-    return response.data;
-  } catch (error) {
-    console.error('❌ Error registering device token:', error);
-    throw error;
-  }
-}
-
 // Send test notification
 export async function sendTestNotification(
   request: TestNotificationRequest,
@@ -487,8 +614,8 @@ export async function sendLocalTestNotification(): Promise<boolean> {
 // Get current push token from storage
 export async function getCurrentPushToken(): Promise<string | null> {
   try {
-    const token = await AsyncStorage.getItem('pushToken');
-    const tokenDate = await AsyncStorage.getItem('pushTokenDate');
+    const token = await AsyncStorage.getItem(STORAGE_KEYS.PUSH_TOKEN);
+    const tokenDate = await AsyncStorage.getItem(STORAGE_KEYS.PUSH_TOKEN_DATE);
 
     if (token && tokenDate) {
       console.log('📱 Stored push token found:', {
@@ -505,7 +632,124 @@ export async function getCurrentPushToken(): Promise<string | null> {
   }
 }
 
-// Utility functions
+// ENHANCED: Debug function to check current registration status
+export async function debugRegistrationStatus(): Promise<void> {
+  try {
+    console.log('🔍 === REGISTRATION STATUS DEBUG ===');
+
+    const currentDevice = getCurrentDeviceInfo();
+    const storedToken = await AsyncStorage.getItem(STORAGE_KEYS.PUSH_TOKEN);
+    const lastPlatform = await AsyncStorage.getItem(STORAGE_KEYS.LAST_PLATFORM);
+    const lastDeviceInfo = await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_INFO);
+    const sdkVersion = await AsyncStorage.getItem(STORAGE_KEYS.SDK_VERSION);
+
+    console.log('Current Device:', currentDevice);
+    console.log('Last Registered Platform:', lastPlatform);
+    console.log(
+      'Last Device Info:',
+      lastDeviceInfo ? JSON.parse(lastDeviceInfo) : 'None',
+    );
+    console.log('SDK Version:', sdkVersion);
+    console.log('Stored Token:', storedToken ? 'Present' : 'None');
+
+    const deviceChanged = await hasDeviceChanged();
+    console.log('Device Changed:', deviceChanged);
+
+    if (deviceChanged) {
+      console.log('⚠️ DEVICE/PLATFORM CHANGE DETECTED');
+      console.log(
+        '🔧 Solution: Token cleanup and re-registration will be triggered automatically',
+      );
+    } else {
+      console.log('✅ Device/platform matches last registration');
+    }
+  } catch (error) {
+    console.error('❌ Debug status failed:', error);
+  }
+}
+
+// ENHANCED: Force token refresh and re-registration
+export async function forceTokenRefresh(): Promise<{
+  success: boolean;
+  token?: string;
+  message?: string;
+}> {
+  try {
+    console.log('🔄 Force refreshing push token...');
+
+    if (isExpoGo || !Device.isDevice) {
+      return {
+        success: false,
+        message: 'Token refresh not supported in Expo Go or simulator',
+      };
+    }
+
+    // Clear old tokens first
+    await clearDeviceTokens();
+
+    // Setup new token
+    const result = await setupPushNotifications();
+
+    if (result.success && result.token) {
+      return {
+        success: true,
+        token: result.token,
+        message: 'Token refreshed successfully',
+      };
+    }
+
+    return {
+      success: false,
+      message: 'Token refresh failed',
+    };
+  } catch (error) {
+    console.error('❌ Force token refresh failed:', error);
+    return {
+      success: false,
+      message: `Token refresh failed: ${error}`,
+    };
+  }
+}
+
+// ENHANCED: Debug function to test registration
+export async function debugTokenRegistration(): Promise<void> {
+  try {
+    console.log('🧪 === DEBUG TOKEN REGISTRATION ===');
+
+    // Check environment
+    console.log('📱 Environment:', {
+      isExpoGo,
+      isDevelopmentBuild,
+      isDevice: Device.isDevice,
+      platform: Platform.OS,
+    });
+
+    // Check device changes
+    await debugRegistrationStatus();
+
+    // Check stored token
+    const storedToken = await getCurrentPushToken();
+    console.log('💾 Stored token:', storedToken ? 'Found' : 'None');
+
+    // Try to get fresh token
+    if (!isExpoGo && Device.isDevice) {
+      console.log('🎫 Attempting fresh token...');
+      const result = await setupPushNotifications();
+      console.log('🎫 Fresh token result:', result);
+    }
+
+    // Test API call directly if we have a token
+    if (storedToken) {
+      console.log('🌐 Testing API call with stored token...');
+      await registerDeviceTokenWithValidation(storedToken);
+      console.log('✅ API call successful');
+    }
+  } catch (error) {
+    console.error('❌ Debug registration failed:', error);
+  }
+}
+
+// Utility functions (keeping all existing ones)
 
 // Check if notification type is enabled for user
 export function isNotificationTypeEnabled(
@@ -590,43 +834,6 @@ export function getNotificationPriority(
   if (highPriority.includes(type)) return 'high';
   if (lowPriority.includes(type)) return 'low';
   return 'normal';
-}
-
-// Add this debug function to test registration
-export async function debugTokenRegistration(): Promise<void> {
-  try {
-    console.log('🧪 === DEBUG TOKEN REGISTRATION ===');
-
-    // Check environment
-    console.log('📱 Environment:', {
-      isExpoGo,
-      isDevelopmentBuild,
-      isDevice: Device.isDevice,
-      platform: Platform.OS,
-    });
-
-    // Check stored token
-    const storedToken = await getCurrentPushToken();
-    console.log('💾 Stored token:', storedToken ? 'Found' : 'None');
-
-    // Try to get fresh token
-    if (!isExpoGo && Device.isDevice) {
-      console.log('🎫 Attempting fresh token...');
-      const result = await setupPushNotifications();
-      console.log('🎫 Fresh token result:', result);
-    }
-
-    // Test API call directly
-    console.log('🌐 Testing API call...');
-    const testToken = 'ExponentPushToken[debug_test_token]';
-    await registerDeviceToken(
-      testToken,
-      Platform.OS === 'ios' ? 'ios' : 'android',
-    );
-    console.log('✅ API call successful');
-  } catch (error) {
-    console.error('❌ Debug registration failed:', error);
-  }
 }
 
 // Get notification color based on type
