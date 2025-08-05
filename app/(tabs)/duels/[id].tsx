@@ -1,4 +1,4 @@
-// app/(tabs)/duels/[id].tsx - Enhanced with analytics and results integration - FULLY FIXED WITH PROPER STYLING
+// app/(tabs)/duels/[id].tsx - Enhanced with server timing and analytics integration
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -21,7 +21,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// FIXED: Import socket functions from socketService instead of socket.io-client directly
+// ENHANCED: Import socket functions with server timing support
 import {
   connect,
   disconnect,
@@ -32,6 +32,9 @@ import {
   signalReady,
   submitAnswer,
   getConnectionState,
+  onTimerUpdate, // ✅ NEW
+  onQuestionTimeUp, // ✅ NEW
+  onQuestionPresented, // ✅ UPDATED
 } from '../../../src/api/socketService';
 
 import {
@@ -270,7 +273,7 @@ export default function DuelRoomScreen() {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(3);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(30);
+  const [timeLeft, setTimeLeft] = useState(60); // ✅ CHANGED: Default to 60 seconds
   const [countdown, setCountdown] = useState(3);
   const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
   const [finalResults, setFinalResults] = useState<FinalResults | null>(null);
@@ -281,6 +284,11 @@ export default function DuelRoomScreen() {
   const [hasAnswered, setHasAnswered] = useState(false);
   const [userData, setUserData] = useState<any>(null);
   const [isLoadingDuelInfo, setIsLoadingDuelInfo] = useState(true);
+
+  // ✅ NEW: Add server timing state
+  const [serverStartTime, setServerStartTime] = useState<number | null>(null);
+  const [serverEndTime, setServerEndTime] = useState<number | null>(null);
+  const [isTimerSynced, setIsTimerSynced] = useState(false);
 
   // New state for analytics and results tracking
   const [answeredQuestions, setAnsweredQuestions] = useState<
@@ -352,7 +360,7 @@ export default function DuelRoomScreen() {
     setCurrentQuestion(null);
     setQuestionIndex(0);
     setSelectedAnswer(null);
-    setTimeLeft(30);
+    setTimeLeft(60); // ✅ CHANGED: Reset to 60 seconds
     setCountdown(3);
     setRoundResult(null);
     setFinalResults(null);
@@ -366,6 +374,10 @@ export default function DuelRoomScreen() {
     setIsCreatingDuelResult(false);
     setDuelResultCreated(false);
     setError(null);
+    // ✅ NEW: Reset server timing state
+    setServerStartTime(null);
+    setServerEndTime(null);
+    setIsTimerSynced(false);
   }, []);
 
   // ✅ FIXED: Properly handle dev mode initialization
@@ -404,7 +416,7 @@ export default function DuelRoomScreen() {
               setCurrentQuestion(MOCK_DATA.currentQuestion);
               setQuestionIndex(0);
               setTotalQuestions(3);
-              setTimeLeft(25);
+              setTimeLeft(45); // ✅ CHANGED: Mock with 45 seconds left
               setUserScore(1);
               setOpponentScore(1);
               setOpponentAnswered(false);
@@ -683,7 +695,7 @@ export default function DuelRoomScreen() {
     }
   };
 
-  // FIXED: Setup event listeners using socketService
+  // ✅ ENHANCED: Setup event listeners with server timing support
   const setupEventListeners = () => {
     if (__DEV_MODE__) return;
 
@@ -698,7 +710,14 @@ export default function DuelRoomScreen() {
     on('player_ready', handlePlayerReady);
     on('both_players_connected', handleBothPlayersConnected);
     on('duel_starting', handleDuelStarting);
-    on('question_presented', handleQuestionPresented);
+
+    // ✅ NEW: Listen for server timer updates
+    onTimerUpdate(handleTimerUpdate);
+    onQuestionTimeUp(handleQuestionTimeUp);
+
+    // ✅ ENHANCED: Use enhanced question handler with server timing
+    onQuestionPresented(handleQuestionPresentedWithServerTiming);
+
     on('opponent_answered', handleOpponentAnswered);
     on('round_result', handleRoundResult);
     on('duel_completed', handleDuelCompleted);
@@ -739,6 +758,35 @@ export default function DuelRoomScreen() {
     }, 1000);
   };
 
+  // ✅ NEW: Handle server timer updates (every second)
+  const handleTimerUpdate = (data: {
+    timeRemaining: number;
+    serverTime: number;
+    questionIndex: number;
+  }) => {
+    // Only update if this is for the current question
+    if (data.questionIndex === questionIndex) {
+      setTimeLeft(data.timeRemaining);
+      setIsTimerSynced(true);
+      console.log(`⏱️ Server timer update: ${data.timeRemaining}s remaining`);
+    }
+  };
+
+  // ✅ NEW: Handle server-controlled time up
+  const handleQuestionTimeUp = (data: {
+    questionIndex: number;
+    serverTime: number;
+  }) => {
+    if (data.questionIndex === questionIndex) {
+      setTimeLeft(0);
+      if (!hasAnswered) {
+        // Server has already handled auto-submit, just update UI
+        setHasAnswered(true);
+        console.log('⏰ Server time up - question auto-submitted');
+      }
+    }
+  };
+
   const handleRoomJoined = (data: { session: DuelSession }) => {
     setSession(data.session);
     setPhase('lobby');
@@ -769,63 +817,99 @@ export default function DuelRoomScreen() {
     setDuelStartTime(Date.now()); // Track duel start time
   };
 
-  // FIXED: Enhanced with debug logging and removed problematic animation
-  const handleQuestionPresented = (data: {
+  // ✅ ENHANCED: Question presented handler with server timing
+  const handleQuestionPresentedWithServerTiming = (data: {
     questionIndex: number;
     totalQuestions: number;
     question: Question;
-    timeLimit: number;
+    timeLimit: number; // Will be 60000 (60 seconds)
+    serverStartTime: number;
+    serverEndTime: number;
   }) => {
-    console.log('Question presented data:', data);
-    console.log('Question text:', data.question.text);
-    console.log('Question options:', data.question.options);
+    console.log('Question presented with 60s server timing:', data);
 
     setPhase('question');
     setCurrentQuestion(data.question);
     setQuestionIndex(data.questionIndex);
     setTotalQuestions(data.totalQuestions);
-    setTimeLeft(data.timeLimit / 1000);
     setSelectedAnswer(null);
     setHasAnswered(false);
     setOpponentAnswered(false);
-    answerStartTime.current = Date.now();
 
-    // Start countdown timer
-    startQuestionTimer(data.timeLimit / 1000);
+    // ✅ NEW: Store server timing info
+    setServerStartTime(data.serverStartTime);
+    setServerEndTime(data.serverEndTime);
+    setIsTimerSynced(false);
 
-    // FIXED: Removed problematic animation that could cause layout issues
-    // Reset slide animation for potential future use
+    // ✅ NEW: Calculate initial time based on server timestamp
+    const now = Date.now();
+    const elapsed = now - data.serverStartTime;
+    const remaining = Math.max(0, data.timeLimit - elapsed);
+    const remainingSeconds = Math.ceil(remaining / 1000);
+
+    setTimeLeft(remainingSeconds);
+    answerStartTime.current = data.serverStartTime; // Use server start time
+
+    console.log(
+      `📊 Server timing: ${remainingSeconds}s remaining (elapsed: ${Math.floor(elapsed / 1000)}s)`,
+    );
+
+    // ✅ NEW: Start client-side backup timer (syncs with server updates)
+    startSyncedTimer(data.serverEndTime);
+
+    // Reset slide animation
     slideAnim.setValue(1);
   };
 
-  const startQuestionTimer = (duration: number) => {
+  // ✅ NEW: Synced timer that works with server updates
+  const startSyncedTimer = (serverEndTime: number) => {
+    // Clear any existing timer
     if (timerRef.current) clearInterval(timerRef.current);
 
     timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          if (!hasAnswered) {
-            handleAutoSubmit();
-          }
-          return 0;
+      const now = Date.now();
+      const remaining = Math.max(0, serverEndTime - now);
+      const remainingSeconds = Math.ceil(remaining / 1000);
+
+      // Only update if we haven't received a server update recently
+      if (
+        !isTimerSynced ||
+        Date.now() - ((serverStartTime || 0) % 1000) < 100
+      ) {
+        setTimeLeft(remainingSeconds);
+      }
+
+      // Reset sync flag after each update
+      setIsTimerSynced(false);
+
+      // Auto-submit if time is up and no server notification received
+      if (remainingSeconds <= 0) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        if (!hasAnswered) {
+          console.log('⏰ Client-side backup auto-submit triggered');
+          handleAutoSubmit();
         }
-        return prev - 1;
-      });
-    }, 1000);
+      }
+    }, 100); // More frequent updates for smoother countdown
   };
 
-  // FIXED: Use socketService submitAnswer function
+  // ✅ ENHANCED: Answer selection with server timing
   const handleAnswerSelect = (answer: string) => {
     if (hasAnswered || phase !== 'question') return;
 
     setSelectedAnswer(answer);
     setHasAnswered(true);
 
-    const timeTaken = Date.now() - answerStartTime.current;
+    // Use server start time for accurate timing
+    const timeTaken = serverStartTime
+      ? Date.now() - serverStartTime
+      : Date.now() - answerStartTime.current;
 
     if (isConnected() && currentQuestion) {
       submitAnswer(currentQuestion.id, answer, timeTaken);
+      console.log(
+        `📝 Answer submitted with server timing: ${Math.floor(timeTaken / 1000)}s`,
+      );
     }
 
     if (timerRef.current) {
@@ -833,10 +917,11 @@ export default function DuelRoomScreen() {
     }
   };
 
-  // FIXED: Use socketService submitAnswer function
+  // ✅ ENHANCED: Auto-submit with server timing awareness
   const handleAutoSubmit = () => {
     if (!hasAnswered && isConnected() && currentQuestion) {
-      submitAnswer(currentQuestion.id, null, 30000);
+      const timeTaken = serverStartTime ? Date.now() - serverStartTime : 60000;
+      submitAnswer(currentQuestion.id, null, timeTaken);
       setHasAnswered(true);
     }
   };
@@ -993,21 +1078,20 @@ export default function DuelRoomScreen() {
               ? results.user1.score
               : results.user2.score
             : results.user1.userId === userData?.userId
-            ? results.user2.score
-            : results.user1.score,
+              ? results.user2.score
+              : results.user1.score,
         opponentScore:
           duelInfo?.initiator_id === userData?.userId
             ? results.user1.userId === userData?.userId
               ? results.user2.score
               : results.user1.score
             : results.user1.userId === userData?.userId
-            ? results.user1.score
-            : results.user2.score,
+              ? results.user1.score
+              : results.user2.score,
       };
 
-      const duelResult = await duelResultService.createDuelResult(
-        createDuelResultData,
-      );
+      const duelResult =
+        await duelResultService.createDuelResult(createDuelResultData);
       console.log('Duel result created:', duelResult);
       setDuelResultCreated(true);
 
@@ -1238,8 +1322,8 @@ export default function DuelRoomScreen() {
                 {opponentInfo?.isBot
                   ? `${opponentInfo.username} ile düello başlıyor...`
                   : opponentInfo?.username
-                  ? `${opponentInfo.username} ile düello başlıyor...`
-                  : 'Her iki oyuncunun hazır olması bekleniyor...'}
+                    ? `${opponentInfo.username} ile düello başlıyor...`
+                    : 'Her iki oyuncunun hazır olması bekleniyor...'}
               </Paragraph>
 
               {botInfo && (
@@ -1290,7 +1374,7 @@ export default function DuelRoomScreen() {
     </View>
   );
 
-  // COMPLETELY REWRITTEN: Question render with proper ScrollView and layout
+  // ✅ ENHANCED: Question render with 60s timer display and server sync indicators
   const renderQuestion = () => {
     console.log('renderQuestion called, currentQuestion:', currentQuestion);
     console.log('phase:', phase);
@@ -1324,9 +1408,6 @@ export default function DuelRoomScreen() {
 
     return (
       <View style={styles.mainContainer}>
-        {/* FIXED: Header positioned at top */}
-
-        {/* FIXED: Main content with ScrollView and proper spacing */}
         <ScrollView
           style={styles.scrollContainer}
           contentContainerStyle={styles.scrollContent}
@@ -1334,7 +1415,8 @@ export default function DuelRoomScreen() {
           bounces={false}
         >
           {renderDuelInfoHeader()}
-          {/* FIXED: Question Header with proper container */}
+
+          {/* ✅ ENHANCED: Question Header with 60s timer display */}
           <View style={styles.questionHeaderContainer}>
             <Row style={styles.questionHeader}>
               <Column>
@@ -1351,10 +1433,15 @@ export default function DuelRoomScreen() {
               </Column>
               <Column style={{ alignItems: 'flex-end' as const }}>
                 <Text
-                  style={[styles.timer, timeLeft <= 10 && styles.timerDanger]}
+                  style={[
+                    styles.timer,
+                    timeLeft <= 10 && styles.timerDanger,
+                    !isTimerSynced && styles.timerUnsynced, // ✅ NEW: Different style when not synced
+                  ]}
                 >
-                  {timeLeft}s
+                  {timeLeft}s {isTimerSynced ? '🟢' : '🔄'}
                 </Text>
+                <Text style={styles.questionTimeLimit}>/ 60s total</Text>
                 <Text style={styles.opponentStatus}>
                   {opponentAnswered
                     ? `${opponentInfo?.isBot ? 'Bot' : 'Rakip'}: Tamamladı ✓`
@@ -1366,7 +1453,7 @@ export default function DuelRoomScreen() {
             </Row>
           </View>
 
-          {/* FIXED: Score Display with proper container */}
+          {/* Score Display */}
           <View style={styles.scoreContainer}>
             <Row style={styles.scoreRow}>
               <View style={styles.scoreDisplayWrapper}>
@@ -1390,7 +1477,7 @@ export default function DuelRoomScreen() {
             </Row>
           </View>
 
-          {/* FIXED: Question Content with proper styling */}
+          {/* Question Content */}
           <View style={styles.questionCard}>
             <View style={styles.questionContent}>
               <Text style={styles.questionText}>{currentQuestion.text}</Text>
@@ -1422,7 +1509,7 @@ export default function DuelRoomScreen() {
             </View>
           </View>
 
-          {/* FIXED: Answer Status with proper container */}
+          {/* Answer Status */}
           {hasAnswered && (
             <View style={styles.answerStatusContainer}>
               <Badge
@@ -1812,6 +1899,23 @@ export default function DuelRoomScreen() {
     </View>
   );
 
+  // ✅ NEW: Add cleanup for new event listeners
+  useEffect(() => {
+    return () => {
+      // Clean up timer event listeners
+      if (!__DEV_MODE__) {
+        off('timer_update', handleTimerUpdate);
+        off('question_time_up', handleQuestionTimeUp);
+        off('question_presented', handleQuestionPresentedWithServerTiming);
+      }
+
+      // Clear any active timers
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
+
   // ✅ FIXED: Don't render modal until stable on iOS
   if (!isModalStable && isIOS) {
     return (
@@ -1847,7 +1951,7 @@ export default function DuelRoomScreen() {
   }
 }
 
-// COMPLETELY REWRITTEN STYLES WITH PROPER DIMENSIONS AND CONTAINERS
+// ✅ ENHANCED: Styles with new timer styling
 const styles = {
   // Main container with proper background
   mainContainer: {
@@ -2265,6 +2369,19 @@ const styles = {
 
   timerDanger: {
     color: Colors.vibrant?.pink,
+  } as TextStyle,
+
+  // ✅ NEW: Timer styling for server sync
+  timerUnsynced: {
+    opacity: 0.7,
+    fontStyle: 'italic' as const,
+  } as TextStyle,
+
+  questionTimeLimit: {
+    fontSize: 10,
+    color: Colors.gray?.[400] || '#9ca3af',
+    fontFamily: 'SecondaryFont-Regular',
+    marginTop: 2,
   } as TextStyle,
 
   opponentStatus: {

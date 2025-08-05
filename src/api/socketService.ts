@@ -3,9 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useRef, useState } from 'react';
 import { SOCKET_URL } from '../config/api.config';
 
-// ... (keep all the interfaces as they were)
-
-// Socket event interfaces based on backend
+// ✅ UPDATED: Socket event interfaces with new timer events
 interface SocketEvents {
   // Connection events
   connect: () => void;
@@ -26,6 +24,8 @@ interface SocketEvents {
     isBot?: boolean;
   }) => void;
   duel_starting: (data: { countdown: number }) => void;
+
+  // ✅ UPDATED: question_presented now includes server timing
   question_presented: (data: {
     questionIndex: number;
     totalQuestions: number;
@@ -34,8 +34,11 @@ interface SocketEvents {
       text: string;
       options: Record<string, string>;
     };
-    timeLimit: number;
+    timeLimit: number; // Will be 60000 (60 seconds)
+    serverStartTime: number; // NEW: Server timestamp when question started
+    serverEndTime: number; // NEW: Server timestamp when question ends
   }) => void;
+
   opponent_answered: (data: {
     userId: number;
     username: string;
@@ -43,6 +46,18 @@ interface SocketEvents {
   }) => void;
   round_result: (data: RoundResult) => void;
   duel_completed: (data: FinalResult) => void;
+
+  // ✅ NEW: Server-controlled timer events
+  timer_update: (data: {
+    timeRemaining: number; // Seconds remaining
+    serverTime: number; // Current server timestamp
+    questionIndex: number; // Which question this update is for
+  }) => void;
+
+  question_time_up: (data: {
+    questionIndex: number; // Which question timed out
+    serverTime: number; // Server timestamp when time expired
+  }) => void;
 
   // Bot events
   bot_challenge_created: (data: { duel: any }) => void;
@@ -521,7 +536,7 @@ export const off = (
   }
 };
 
-// Type-safe event listener helpers
+// ✅ UPDATED: Type-safe event listener helpers with new timer events
 export const onConnect = (callback: () => void): void =>
   on('connect', callback);
 export const onDisconnect = (callback: () => void): void =>
@@ -550,14 +565,19 @@ export const onPlayerReady = (
 export const onDuelStarting = (
   callback: (data: { countdown: number }) => void,
 ): void => on('duel_starting', callback);
+
+// ✅ UPDATED: onQuestionPresented now includes server timing
 export const onQuestionPresented = (
   callback: (data: {
     questionIndex: number;
     totalQuestions: number;
     question: { id: number; text: string; options: Record<string, string> };
-    timeLimit: number;
+    timeLimit: number; // Will be 60000
+    serverStartTime: number; // NEW
+    serverEndTime: number; // NEW
   }) => void,
 ): void => on('question_presented', callback);
+
 export const onOpponentAnswered = (
   callback: (data: {
     userId: number;
@@ -569,6 +589,20 @@ export const onRoundResult = (callback: (data: RoundResult) => void): void =>
   on('round_result', callback);
 export const onDuelCompleted = (callback: (data: FinalResult) => void): void =>
   on('duel_completed', callback);
+
+// ✅ NEW: Timer event listeners
+export const onTimerUpdate = (
+  callback: (data: {
+    timeRemaining: number;
+    serverTime: number;
+    questionIndex: number;
+  }) => void,
+): void => on('timer_update', callback);
+
+export const onQuestionTimeUp = (
+  callback: (data: { questionIndex: number; serverTime: number }) => void,
+): void => on('question_time_up', callback);
+
 export const onBotChallengeCreated = (
   callback: (data: { duel: any }) => void,
 ): void => on('bot_challenge_created', callback);

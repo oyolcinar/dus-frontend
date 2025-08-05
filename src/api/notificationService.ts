@@ -592,6 +592,43 @@ export function getNotificationPriority(
   return 'normal';
 }
 
+// Add this debug function to test registration
+export async function debugTokenRegistration(): Promise<void> {
+  try {
+    console.log('🧪 === DEBUG TOKEN REGISTRATION ===');
+
+    // Check environment
+    console.log('📱 Environment:', {
+      isExpoGo,
+      isDevelopmentBuild,
+      isDevice: Device.isDevice,
+      platform: Platform.OS,
+    });
+
+    // Check stored token
+    const storedToken = await getCurrentPushToken();
+    console.log('💾 Stored token:', storedToken ? 'Found' : 'None');
+
+    // Try to get fresh token
+    if (!isExpoGo && Device.isDevice) {
+      console.log('🎫 Attempting fresh token...');
+      const result = await setupPushNotifications();
+      console.log('🎫 Fresh token result:', result);
+    }
+
+    // Test API call directly
+    console.log('🌐 Testing API call...');
+    const testToken = 'ExponentPushToken[debug_test_token]';
+    await registerDeviceToken(
+      testToken,
+      Platform.OS === 'ios' ? 'ios' : 'android',
+    );
+    console.log('✅ API call successful');
+  } catch (error) {
+    console.error('❌ Debug registration failed:', error);
+  }
+}
+
 // Get notification color based on type
 export function getNotificationColor(type: NotificationType): string {
   const colorMap: Record<NotificationType, string> = {

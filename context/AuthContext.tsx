@@ -2,7 +2,6 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import * as Linking from 'expo-linking';
-import { Buffer } from 'buffer';
 
 import * as authService from '../src/api/authService';
 import { User, AuthResponse } from '../src/types/models';
@@ -29,7 +28,6 @@ const getParamsFromUrl = (url: string): Record<string, string> | null => {
   // Try query parameters (for iOS)
   const queryString = url.split('?')[1];
   if (queryString) {
-    // Remove hash if present
     const cleanQuery = queryString.split('#')[0];
     console.log('🍎 Using query parameter parsing (iOS)');
 
@@ -48,18 +46,6 @@ const getParamsFromUrl = (url: string): Record<string, string> | null => {
   console.log('❌ No tokens found in URL');
   return null;
 };
-
-function jwt_decode(token: string): any {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = Buffer.from(base64, 'base64').toString('utf8');
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    console.error('Failed to decode JWT:', e);
-    return null;
-  }
-}
 
 type AuthContextType = {
   user: User | null;
@@ -101,7 +87,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     checkUserSession();
     const deepLinkSubscription = setupDeepLinkHandler();
-    return () => deepLinkSubscription.remove();
+
+    // Set up periodic session validation (optional - for extra security)
+    const sessionCheckInterval = setInterval(
+      () => {
+        if (user && isSessionValid) {
+          validateSession().catch((error) => {
+            console.warn('Periodic session validation failed:', error);
+          });
+        }
+      },
+      5 * 60 * 1000,
+    ); // Check every 5 minutes
+
+    return () => {
+      deepLinkSubscription.remove();
+      clearInterval(sessionCheckInterval);
+    };
   }, []);
 
   useEffect(() => {
@@ -136,95 +138,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('Processing deep link in AuthContext:', url);
       const authParams = getParamsFromUrl(url);
 
-      if (authParams) {
-        console.log('Successfully parsed auth tokens from deep link.');
+      if (authParams && authParams.code) {
+        console.log('OAuth callback detected, exchanging code');
         setIsLoading(true);
         try {
-          const { access_token, refresh_token } = authParams;
-
-          await AsyncStorage.setItem('userToken', access_token);
-          await AsyncStorage.setItem('authToken', access_token);
-          if (refresh_token) {
-            await AsyncStorage.setItem('refreshToken', refresh_token);
-          }
-
-          const decodedToken = jwt_decode(access_token);
-          const userFromToken = decodedToken?.user_metadata;
-
-          if (userFromToken) {
-            const normalizedUser = {
-              id: userFromToken.id || userFromToken.sub,
-              userId:
-                userFromToken.userId || userFromToken.id || userFromToken.sub,
-              username: userFromToken.username || userFromToken.name || '',
-              email: userFromToken.email || '',
-              dateRegistered:
-                userFromToken.dateRegistered || new Date().toISOString(),
-              role: userFromToken.role || 'student',
-              subscriptionType: userFromToken.subscriptionType || 'free',
-              totalDuels: userFromToken.totalDuels || 0,
-              duelsWon: userFromToken.duelsWon || 0,
-              duelsLost: userFromToken.duelsLost || 0,
-              longestLosingStreak: userFromToken.longestLosingStreak || 0,
-              currentLosingStreak: userFromToken.currentLosingStreak || 0,
-              totalStudyTime: userFromToken.totalStudyTime || 0,
-              permissions: userFromToken.permissions || [],
-              oauthProvider: userFromToken.oauthProvider || null,
-              isOAuthUser: true,
-            };
-
-            await AsyncStorage.setItem(
-              'userData',
-              JSON.stringify(normalizedUser),
-            );
-            setUser(normalizedUser as User);
-            setIsSessionValid(true);
-            console.log('OAuth session established successfully');
-          } else {
-            const fallbackUser = {
-              id: decodedToken.sub,
-              userId: decodedToken.sub,
-              username: decodedToken.email?.split('@')[0] || 'User',
-              email: decodedToken.email || '',
-              dateRegistered: new Date().toISOString(),
-              role: 'student',
-              subscriptionType: 'free',
-              totalDuels: 0,
-              duelsWon: 0,
-              duelsLost: 0,
-              longestLosingStreak: 0,
-              currentLosingStreak: 0,
-              totalStudyTime: 0,
-              permissions: [],
-              oauthProvider: 'unknown',
-              isOAuthUser: true,
-            };
-
-            await AsyncStorage.setItem(
-              'userData',
-              JSON.stringify(fallbackUser),
-            );
-            setUser(fallbackUser as User);
-            setIsSessionValid(true);
-            console.log('OAuth session established with fallback user data');
-          }
+          // Call your backend to handle the OAuth callback
+          const response = await authService.handleOAuthCallback(
+            authParams.code,
+          );
+          setUser(response.user);
+          setIsSessionValid(true);
+          console.log('OAuth login successful via backend');
         } catch (error) {
-          console.error('Error handling OAuth deep link:', error);
+          console.error('OAuth callback error:', error);
           setIsSessionValid(false);
         } finally {
           setIsLoading(false);
         }
-      } else {
-        console.log(
-          'Deep link received, but it was not a valid OAuth callback.',
-        );
       }
     };
 
     return subscription;
   }
 
-  // SIMPLIFIED: Session validation for existing tokens
+  // Enhanced session validation with backend
   async function validateSession(): Promise<boolean> {
     try {
       const sessionStatus = await authService.validateSession();
@@ -246,20 +183,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // SIMPLIFIED: Just check for existing session data
+  // Enhanced session refresh via backend
   async function refreshSession(): Promise<void> {
     try {
       setIsLoading(true);
-      console.log('Refreshing session via AuthContext...');
+      console.log('Refreshing session via backend...');
 
-      // Just check if we have valid stored data
+      const refreshedSession = await authService.refreshAuthToken();
+
+      // Get updated user data after refresh
       const authStatus = await authService.getAuthStatus();
       if (authStatus.user && authStatus.token) {
         setUser(authStatus.user);
         setIsSessionValid(true);
-        console.log('Session refreshed from stored data');
+        console.log('Session refreshed successfully via backend');
       } else {
-        throw new Error('Kullanıcı verisi bulunamadı.');
+        throw new Error('No user data after refresh');
       }
     } catch (error) {
       console.error('Session refresh failed:', error);
@@ -271,21 +210,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // SIMPLIFIED: Session check - just load from storage
+  // Enhanced session check with backend validation
   async function checkUserSession() {
     try {
       console.log('Checking user session...');
       const authStatus = await authService.getAuthStatus();
 
       if (authStatus.user && authStatus.token) {
-        // Don't validate token on startup - just load stored data
-        // API calls will handle invalid tokens when they occur
-        setUser(authStatus.user);
-        setIsSessionValid(true);
-        console.log(
-          'Session loaded from storage for user:',
-          authStatus.user.username,
-        );
+        // Validate the session with backend
+        try {
+          const isValid = await validateSession();
+          if (isValid) {
+            setUser(authStatus.user);
+            setIsSessionValid(true);
+            console.log(
+              'Session loaded and validated for user:',
+              authStatus.user.username,
+            );
+          } else {
+            // Token exists but is invalid, try to refresh
+            console.log('Token invalid, attempting refresh...');
+            await refreshSession();
+          }
+        } catch (validationError) {
+          console.warn(
+            'Session validation failed, clearing session:',
+            validationError,
+          );
+          setUser(null);
+          setIsSessionValid(false);
+          await authService.logout();
+        }
       } else {
         console.log('No stored session found');
         setUser(null);
@@ -303,7 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signIn(email: string, password: string) {
     try {
       setIsLoading(true);
-      console.log('Attempting login for:', email);
+      console.log('Attempting login via backend for:', email);
       const response = await authService.login(email, password);
       setUser(response.user);
       setIsSessionValid(true);
@@ -320,7 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signUp(username: string, email: string, password: string) {
     try {
       setIsLoading(true);
-      console.log('Attempting registration for:', email);
+      console.log('Attempting registration via backend for:', email);
       const response = await authService.register(username, email, password);
       setUser(response.user);
       setIsSessionValid(true);
@@ -336,8 +291,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signInWithGoogle() {
     try {
-      console.log('Starting Google OAuth flow...');
+      console.log('Starting Google OAuth flow via backend...');
       await authService.signInWithGoogle();
+      // OAuth flow will continue via deep link handling
     } catch (error) {
       console.error('Google OAuth error:', error);
       if (error instanceof Error && !error.message.includes('cancelled')) {
@@ -350,8 +306,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signInWithApple() {
     try {
-      console.log('Starting Apple OAuth flow...');
+      console.log('Starting Apple OAuth flow via backend...');
       await authService.signInWithApple();
+      // OAuth flow will continue via deep link handling
     } catch (error) {
       console.error('Apple OAuth error:', error);
       if (error instanceof Error && !error.message.includes('cancelled')) {
@@ -364,8 +321,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signInWithFacebook() {
     try {
-      console.log('Starting Facebook OAuth flow...');
+      console.log('Starting Facebook OAuth flow via backend...');
       await authService.signInWithFacebook();
+      // OAuth flow will continue via deep link handling
     } catch (error) {
       console.error('Facebook OAuth error:', error);
       if (error instanceof Error && !error.message.includes('cancelled')) {
@@ -379,13 +337,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signOut() {
     try {
       setIsLoading(true);
-      console.log('Signing out user...');
+      console.log('Signing out user via backend...');
       await authService.logout();
       setUser(null);
       setIsSessionValid(false);
       console.log('User signed out successfully');
     } catch (error) {
       console.error('Sign out error:', error);
+      // Still clear local state even if backend logout fails
       setUser(null);
       setIsSessionValid(false);
     } finally {
@@ -393,6 +352,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Debug function for development
   if (__DEV__) {
     (global as any).debugAuth = async () => {
       await authService.debugAuthState();
@@ -435,9 +395,10 @@ export function useAuth() {
   return context;
 }
 
-// SIMPLIFIED: Session management hook
+// Enhanced session management hook with backend integration
 export function useSession() {
-  const { user, isLoading, isSessionValid, validateSession } = useAuth();
+  const { user, isLoading, isSessionValid, validateSession, refreshSession } =
+    useAuth();
 
   const checkSession = async (): Promise<boolean> => {
     if (!user) return false;
@@ -446,31 +407,20 @@ export function useSession() {
 
   const ensureValidSession = async (): Promise<boolean> => {
     if (!user) return false;
-    // Just assume session is valid if user exists
-    // API calls will handle invalid tokens
-    return true;
+
+    try {
+      // First check if current session is valid
+      const isValid = await validateSession();
+      if (isValid) return true;
+
+      // If not valid, try to refresh
+      await refreshSession();
+      return true;
+    } catch (error) {
+      console.error('Failed to ensure valid session:', error);
+      return false;
+    }
   };
-
-  useEffect(() => {
-    const syncAuthToken = async () => {
-      try {
-        if (user && isSessionValid) {
-          const userToken = await AsyncStorage.getItem('userToken');
-          if (userToken) {
-            await AsyncStorage.setItem('authToken', userToken);
-            console.log('Auth token synced for socket service');
-          }
-        } else {
-          await AsyncStorage.removeItem('authToken');
-          console.log('Auth token cleared');
-        }
-      } catch (error) {
-        console.error('Error syncing auth token:', error);
-      }
-    };
-
-    syncAuthToken();
-  }, [user, isSessionValid]);
 
   return {
     user,

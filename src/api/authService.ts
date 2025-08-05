@@ -51,19 +51,6 @@ const getAppScheme = (): string => {
   return Platform.OS === 'ios' ? 'com.dortac.dusfrontend://' : 'dus-app://';
 };
 
-// JWT decode function
-function jwt_decode(token: string): any {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = atob(base64);
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    console.error('Failed to decode JWT:', e);
-    return null;
-  }
-}
-
 function normalizeUser(apiUser: any): User {
   if (!apiUser) return {} as User;
   return {
@@ -93,7 +80,7 @@ function normalizeUser(apiUser: any): User {
   };
 }
 
-// SIMPLIFIED: Just check if token exists - let API calls handle validation
+// Enhanced token validation that doesn't immediately clear sessions
 export async function isTokenValid(): Promise<boolean> {
   try {
     const token = await AsyncStorage.getItem('userToken');
@@ -101,15 +88,28 @@ export async function isTokenValid(): Promise<boolean> {
       console.log('No token found in storage');
       return false;
     }
-    console.log('Token exists in storage');
-    return true;
+
+    // Try to validate with backend (this will trigger refresh if needed)
+    try {
+      const response = await apiRequest('/auth/me', 'GET');
+      console.log('Token validation successful via backend');
+      return true;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        console.log('Token validation failed - token expired');
+        return false;
+      }
+      // For other errors, assume token might still be valid
+      console.warn('Token validation error (non-401):', error);
+      return true;
+    }
   } catch (error) {
     console.error('Error checking token validity:', error);
     return false;
   }
 }
 
-// SIMPLIFIED: Just check if token exists - don't try to refresh
+// Enhanced session check with automatic refresh
 export async function checkAndRefreshSession(): Promise<boolean> {
   try {
     const token = await AsyncStorage.getItem('userToken');
@@ -118,49 +118,41 @@ export async function checkAndRefreshSession(): Promise<boolean> {
       router.replace('/(auth)/login');
       return false;
     }
-    console.log('Session token exists');
-    return true;
+
+    // Try to validate current session
+    const isValid = await isTokenValid();
+    if (isValid) {
+      console.log('Current session is valid');
+      return true;
+    }
+
+    // Try to refresh the session
+    console.log('Session invalid, attempting refresh...');
+    try {
+      await refreshAuthToken();
+      console.log('Session refreshed successfully');
+      return true;
+    } catch (refreshError) {
+      console.error('Session refresh failed:', refreshError);
+      router.replace('/(auth)/login');
+      return false;
+    }
   } catch (error) {
     console.error('Error checking session:', error);
     return false;
   }
 }
 
-// Simple wrapper function with better error messages
+// Simple wrapper function with better error messages and retry logic
 export async function safeApiRequest<T>(
   endpoint: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
   data?: any,
 ): Promise<ApiResponse<T>> {
-  try {
-    return await apiRequest<T>(endpoint, method, data);
-  } catch (error) {
-    console.error(`API request failed for ${endpoint}:`, error);
-
-    if (error instanceof ApiError) {
-      if (error.status === 401) {
-        await logout();
-        throw new Error('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
-      } else if (error.status === 403) {
-        throw new Error('Bu işlem için yetkiniz bulunmuyor.');
-      } else if (error.status === 404) {
-        throw new Error('İstenen kaynak bulunamadı.');
-      } else if (error.status === 500) {
-        throw new Error(
-          'Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.',
-        );
-      } else if (error.status === 0) {
-        throw new Error('İnternet bağlantınızı kontrol edin.');
-      }
-      throw new Error(
-        error.message || 'Bir hata oluştu. Lütfen tekrar deneyin.',
-      );
-    }
-
-    throw new Error('Beklenmeyen bir hata oluştu.');
-  }
+  return apiRequest<T>(endpoint, method, data); // apiClient now handles retries
 }
 
+// Keep your existing login function with backend API
 export async function login(
   email: string,
   password: string,
@@ -209,6 +201,7 @@ export async function login(
   }
 }
 
+// Keep your existing register function with backend API
 export async function register(
   username: string,
   email: string,
@@ -284,6 +277,7 @@ export async function register(
   }
 }
 
+// Enhanced logout with backend API
 export async function logout(): Promise<void> {
   try {
     const token = await AsyncStorage.getItem('userToken');
@@ -326,27 +320,50 @@ export async function getAuthStatus(): Promise<{
   }
 }
 
-// Store OAuth session for polling
-export async function storeOAuthSession(
-  sessionId: string,
-  tokens: any,
-): Promise<void> {
+// NEW: Handle OAuth callback via backend
+export async function handleOAuthCallback(code: string): Promise<AuthResponse> {
   try {
-    await AsyncStorage.setItem(
-      `oauth_session_${sessionId}`,
-      JSON.stringify(tokens),
+    console.log('Handling OAuth callback via backend');
+    const response = await apiRequest<AuthApiPayload>(
+      '/auth/oauth/callback',
+      'GET',
+      { code },
     );
+
+    const apiData = response.data;
+    if (!apiData?.user || !apiData.session?.access_token) {
+      throw new Error('Geçersiz OAuth yanıtı sunucudan alındı');
+    }
+
+    const user: User = normalizeUser(apiData.user);
+
+    await AsyncStorage.setItem('userToken', apiData.session.access_token);
+    await AsyncStorage.setItem('authToken', apiData.session.access_token);
+
+    if (apiData.session.refresh_token) {
+      await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
+    }
+
+    await AsyncStorage.setItem('userData', JSON.stringify(user));
+    console.log('OAuth callback successful, user data stored');
+
+    return {
+      user,
+      token: apiData.session.access_token,
+      refreshToken: apiData.session.refresh_token || null,
+    };
   } catch (error) {
-    console.error('Error storing OAuth session:', error);
+    console.error('OAuth callback error:', error);
+    throw error;
   }
 }
 
-// OAuth functions
+// OAuth functions using your backend API
 async function startOAuth(
   provider: 'google' | 'apple' | 'facebook',
 ): Promise<void> {
   try {
-    console.log(`Starting ${provider} OAuth flow from authService`);
+    console.log(`Starting ${provider} OAuth flow via backend`);
 
     const response = await apiRequest<{ url: string; message: string }>(
       `/auth/oauth/${provider}`,
@@ -380,6 +397,7 @@ async function startOAuth(
 
     if (result.type === 'success') {
       console.log('OAuth completed successfully, URL:', result.url);
+      // The deep link handler will process the callback
     } else if (result.type === 'cancel') {
       console.log('OAuth was cancelled by user');
       return;
@@ -405,71 +423,19 @@ async function startOAuth(
   }
 }
 
-// Simple external browser approach for iOS
-async function startOAuthExternal(
-  provider: 'google' | 'apple' | 'facebook',
-): Promise<void> {
-  try {
-    console.log(`Starting ${provider} OAuth with external browser`);
-
-    const response = await apiRequest<{ url: string; message: string }>(
-      `/auth/oauth/${provider}`,
-      'GET',
-    );
-
-    if (!response.data?.url) {
-      throw new Error(`${provider} OAuth URL alınamadı sunucudan.`);
-    }
-
-    console.log(
-      `Opening ${provider} OAuth URL in external browser:`,
-      response.data.url,
-    );
-
-    // Open in external browser - user will need to return to app manually
-    const result = await WebBrowser.openBrowserAsync(response.data.url, {
-      showTitle: false,
-      toolbarColor: '#6200EE',
-      ...(Platform.OS === 'ios' && {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-      }),
-    });
-
-    console.log(`External browser result:`, result);
-
-    // Note: When using external browser, the redirect will work like your manual test
-    // The app will be opened via deep link when OAuth completes
-  } catch (error) {
-    console.error(`Error in external OAuth for ${provider}:`, error);
-    throw error;
-  }
-}
-
 export async function signInWithGoogle(): Promise<void> {
-  if (Platform.OS === 'ios') {
-    return startOAuthExternal('google');
-  } else {
-    return startOAuth('google');
-  }
+  return startOAuth('google');
 }
 
 export async function signInWithApple(): Promise<void> {
-  if (Platform.OS === 'ios') {
-    return startOAuthExternal('apple');
-  } else {
-    return startOAuth('apple');
-  }
+  return startOAuth('apple');
 }
 
 export async function signInWithFacebook(): Promise<void> {
-  if (Platform.OS === 'ios') {
-    return startOAuthExternal('facebook');
-  } else {
-    return startOAuth('facebook');
-  }
+  return startOAuth('facebook');
 }
 
-// Rest of existing functions...
+// Password reset via backend API
 export async function requestPasswordReset(
   email: string,
 ): Promise<ApiResponse<any>> {
@@ -482,7 +448,7 @@ export async function requestPasswordReset(
         throw new Error('Bu e-posta adresiyle kayıtlı kullanıcı bulunamadı.');
       } else if (error.status === 429) {
         throw new Error(
-          'Çok fazla şifre sıfırlama talebi gönderdինiz. Lütfen daha sonra tekrar deneyin.',
+          'Çok fazla şifre sıfırlama talebi gönderdינiz. Lütfen daha sonra tekrar deneyin.',
         );
       }
       throw error;
@@ -495,7 +461,30 @@ export async function requestPasswordReset(
   }
 }
 
+// Enhanced token refresh via backend API with concurrency protection
 export async function refreshAuthToken(): Promise<{
+  token: string;
+  refreshToken: string | null;
+}> {
+  // Prevent multiple concurrent refresh attempts
+  if (isRefreshing && refreshPromise) {
+    console.log('Token refresh already in progress, waiting...');
+    return refreshPromise;
+  }
+
+  isRefreshing = true;
+  refreshPromise = performTokenRefresh();
+
+  try {
+    const result = await refreshPromise;
+    return result;
+  } finally {
+    isRefreshing = false;
+    refreshPromise = null;
+  }
+}
+
+async function performTokenRefresh(): Promise<{
   token: string;
   refreshToken: string | null;
 }> {
@@ -506,7 +495,7 @@ export async function refreshAuthToken(): Promise<{
       throw new Error('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
     }
 
-    console.log('Attempting to refresh token...');
+    console.log('Attempting to refresh token via backend...');
     const response = await apiRequest<AuthApiPayload>(
       '/auth/refresh-token',
       'POST',
@@ -535,7 +524,7 @@ export async function refreshAuthToken(): Promise<{
       await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
     }
 
-    console.log('Token refreshed successfully');
+    console.log('Token refreshed successfully via backend');
     return {
       token: apiData.session.access_token,
       refreshToken: apiData.session.refresh_token || null,
@@ -561,23 +550,16 @@ export async function refreshAuthToken(): Promise<{
   }
 }
 
+// Enhanced authenticated request that uses the enhanced API client
 export async function authenticatedRequest<T>(
   endpoint: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
   data?: any,
 ): Promise<ApiResponse<T>> {
-  try {
-    return await apiRequest<T>(endpoint, method, data);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      console.log('Received 401 - token expired, clearing session');
-      await logout();
-      throw new Error('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
-    }
-    throw error;
-  }
+  return apiRequest<T>(endpoint, method, data);
 }
 
+// Enhanced session validation via backend
 export async function validateSession(): Promise<{
   isValid: boolean;
   message?: string;
@@ -592,10 +574,27 @@ export async function validateSession(): Promise<{
       };
     }
 
-    return {
-      isValid: true,
-      message: 'Oturum var.',
-    };
+    // Validate with backend
+    try {
+      await apiRequest('/auth/me', 'GET');
+      return {
+        isValid: true,
+        message: 'Oturum geçerli.',
+      };
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        return {
+          isValid: false,
+          message: 'Oturum süresi doldu.',
+        };
+      }
+      // For other errors, don't immediately invalidate
+      console.warn('Session validation warning:', error);
+      return {
+        isValid: true,
+        message: 'Oturum durumu belirsiz.',
+      };
+    }
   } catch (error) {
     console.error('Session validation error:', error);
     return {
@@ -742,7 +741,7 @@ export async function debugAuthState(): Promise<void> {
       const { user, token } = await getAuthStatus();
       const tokenValid = await isTokenValid();
 
-      console.log('=== AUTH DEBUG INFO ===');
+      console.log('=== BACKEND AUTH DEBUG INFO ===');
       console.log('User:', user ? `${user.username} (${user.email})` : 'None');
       console.log('Token exists:', !!token);
       console.log('Token valid:', tokenValid);
