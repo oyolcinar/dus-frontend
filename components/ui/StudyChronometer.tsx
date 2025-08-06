@@ -13,18 +13,15 @@ import {
   StyleProp,
   ViewStyle,
   DimensionValue,
-  ScrollView,
-  Modal,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   startStudySession,
   endStudySession,
   getActiveStudySession,
+  addBreakTime,
   formatSessionDuration,
 } from '../../src/api/studyService';
-import { courseService } from '../../src/api';
 import {
   Colors,
   FontSizes,
@@ -92,18 +89,17 @@ const CATEGORY_COLORS = {
 // Timer states
 type TimerState = 'idle' | 'running' | 'paused' | 'loading';
 
-// Topic interface
-interface Topic {
-  topic_id: number;
+// Course interface for the selected course prop
+interface Course {
+  course_id: number;
   title: string;
   description?: string;
-  course_id: number;
+  category?: keyof typeof CATEGORY_COLORS;
 }
 
 // Component props interface
 export interface StudyChronometerProps {
-  courseId: number;
-  courseTitle: string;
+  selectedCourse: Course | null;
   category?: keyof typeof CATEGORY_COLORS;
   variant?:
     | 'default'
@@ -113,35 +109,32 @@ export interface StudyChronometerProps {
     | 'glass'
     | 'floating'
     | 'gradient';
-  onSessionStart?: (sessionId: number, topicId: number) => void;
+  onSessionStart?: (sessionId: number, courseId: number) => void;
   onSessionEnd?: (sessionData: any) => void;
   onTimeUpdate?: (timeInSeconds: number) => void;
-  onTopicChange?: (topicId: number, topicTitle: string) => void;
+  onCourseChange?: (courseId: number, courseTitle: string) => void;
   style?: StyleProp<ViewStyle>;
   disabled?: boolean;
   autoStart?: boolean;
   showNotes?: boolean;
   maxWidth?: DimensionValue;
   testID?: string;
-  defaultTopicId?: number;
 }
 
 const StudyChronometer: React.FC<StudyChronometerProps> = ({
-  courseId,
-  courseTitle,
+  selectedCourse,
   category,
   variant = 'default',
   onSessionStart,
   onSessionEnd,
   onTimeUpdate,
-  onTopicChange,
+  onCourseChange,
   style,
   disabled = false,
   autoStart = false,
   showNotes = false,
   maxWidth = screenWidth * 0.5,
   testID,
-  defaultTopicId,
 }) => {
   // State management
   const [timerState, setTimerState] = useState<TimerState>('idle');
@@ -153,12 +146,10 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Topic selection state
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
-  const [showTopicSelector, setShowTopicSelector] = useState(false);
-  const [topicsLoading, setTopicsLoading] = useState(false);
-  const [topicsError, setTopicsError] = useState<string | null>(null);
+  // Break time tracking
+  const [currentBreakStartTime, setCurrentBreakStartTime] =
+    useState<Date | null>(null);
+  const [totalBreakTimeSeconds, setTotalBreakTimeSeconds] = useState(0);
 
   // Refs
   const updateTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -183,35 +174,12 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     return Math.max(0, Math.floor((totalElapsed - totalPausedTime) / 1000));
   }, [sessionStartTime, pausedDuration, pauseStartTime, timerState]);
 
-  // Fetch topics for the course
-  const fetchTopics = useCallback(async () => {
-    try {
-      setTopicsLoading(true);
-      setTopicsError(null);
-      console.log('Fetching topics for course:', courseId);
-
-      const courseTopics = await courseService.getTopicsByCourse(courseId);
-      console.log('Fetched topics:', courseTopics);
-
-      setTopics(courseTopics);
-
-      // Set default selected topic
-      if (courseTopics.length > 0) {
-        const defaultTopic = defaultTopicId
-          ? courseTopics.find((t) => t.topic_id === defaultTopicId) ||
-            courseTopics[0]
-          : courseTopics[0];
-
-        setSelectedTopic(defaultTopic);
-        onTopicChange?.(defaultTopic.topic_id, defaultTopic.title);
-      }
-    } catch (error) {
-      console.error('Error fetching topics:', error);
-      setTopicsError('Konular yüklenirken hata oluştu');
-    } finally {
-      setTopicsLoading(false);
-    }
-  }, [courseId, defaultTopicId, onTopicChange]);
+  // Calculate current break time
+  const calculateCurrentBreakTime = useCallback((): number => {
+    if (timerState !== 'paused' || !currentBreakStartTime) return 0;
+    const now = new Date();
+    return Math.floor((now.getTime() - currentBreakStartTime.getTime()) / 1000);
+  }, [timerState, currentBreakStartTime]);
 
   // Update current time every second for real-time calculation
   useEffect(() => {
@@ -230,24 +198,20 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     }
   }, [currentTime, timerState, calculateElapsedTime, onTimeUpdate]);
 
-  // Fetch topics on mount or when courseId changes
+  // Check for existing active session when selected course changes
   useEffect(() => {
-    fetchTopics();
-  }, [fetchTopics]);
-
-  // Check for existing active session when topic changes
-  useEffect(() => {
-    if (selectedTopic) {
+    if (selectedCourse) {
       checkExistingSession();
+      onCourseChange?.(selectedCourse.course_id, selectedCourse.title);
     }
-  }, [selectedTopic?.topic_id]);
+  }, [selectedCourse?.course_id]);
 
   // Auto-start if requested
   useEffect(() => {
-    if (autoStart && timerState === 'idle' && !sessionId && selectedTopic) {
+    if (autoStart && timerState === 'idle' && !sessionId && selectedCourse) {
       handleStartTimer();
     }
-  }, [autoStart, timerState, sessionId, selectedTopic]);
+  }, [autoStart, timerState, sessionId, selectedCourse]);
 
   // Handle app state changes
   useEffect(() => {
@@ -258,52 +222,54 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     return () => subscription?.remove();
   }, []);
 
-  // Close dropdown when timer state changes or component updates
-  useEffect(() => {
-    if (timerState === 'running' && showTopicSelector) {
-      setShowTopicSelector(false);
-    }
-  }, [timerState, showTopicSelector]);
-
   // Check for existing active session
   const checkExistingSession = async () => {
-    if (!selectedTopic) return;
+    if (!selectedCourse) return;
 
     try {
       setTimerState('loading');
       console.log(
-        'Checking for existing session for topic:',
-        selectedTopic.topic_id,
+        'Checking for existing session for course:',
+        selectedCourse.course_id,
       );
 
-      const activeSessions = await getActiveStudySession(
-        selectedTopic.topic_id,
-      );
-      console.log('Active sessions response:', activeSessions);
+      const activeSession = await getActiveStudySession();
+      console.log('Active session response:', activeSession);
 
-      // Handle both array and single object responses
-      const activeSession = Array.isArray(activeSessions)
-        ? activeSessions[0]
-        : activeSessions;
-
-      if (activeSession?.session_id) {
+      if (
+        activeSession?.sessionId &&
+        activeSession.courseId === selectedCourse.course_id
+      ) {
         console.log('Found active session:', activeSession);
 
-        setSessionId(activeSession.session_id);
-        setSessionStartTime(new Date(activeSession.start_time));
+        setSessionId(activeSession.sessionId);
+        setSessionStartTime(new Date(activeSession.startTime));
         setPausedDuration(0);
         setPauseStartTime(null);
+        setTotalBreakTimeSeconds(activeSession.breakDurationSeconds || 0);
         setTimerState('running');
 
-        console.log('Resumed existing session:', activeSession.session_id);
+        console.log('Resumed existing session:', activeSession.sessionId);
       } else {
-        console.log('No active session found');
+        console.log('No active session found for this course');
         setTimerState('idle');
+        resetSessionState();
       }
     } catch (error) {
       console.error('Error checking existing session:', error);
       setTimerState('idle');
+      resetSessionState();
     }
+  };
+
+  // Reset session state
+  const resetSessionState = () => {
+    setSessionId(null);
+    setSessionStartTime(null);
+    setPausedDuration(0);
+    setPauseStartTime(null);
+    setCurrentBreakStartTime(null);
+    setTotalBreakTimeSeconds(0);
   };
 
   // Handle app state changes - improved logic
@@ -334,48 +300,34 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     appStateRef.current = nextAppState;
   };
 
-  // Handle topic selection
-  const handleTopicSelect = (topic: Topic) => {
-    // Don't allow topic change if timer is running
-    if (timerState === 'running' || timerState === 'paused') {
-      Alert.alert(
-        'Kronometre Aktif',
-        'Konu değiştirmek için önce çalışma seansını sonlandırın.',
-        [{ text: 'Tamam', style: 'default' }],
-      );
-      setShowTopicSelector(false);
-      return;
-    }
-
-    setSelectedTopic(topic);
-    setShowTopicSelector(false);
-    onTopicChange?.(topic.topic_id, topic.title);
-    console.log('Topic selected:', topic);
-  };
-
   // Handle start timer
   const handleStartTimer = async () => {
-    if (disabled || timerState === 'loading' || !selectedTopic) return;
+    if (disabled || timerState === 'loading' || !selectedCourse) return;
 
     try {
       setTimerState('loading');
       setError(null);
-      console.log('Starting study session for topic:', selectedTopic.topic_id);
+      console.log(
+        'Starting study session for course:',
+        selectedCourse.course_id,
+      );
 
       const response = await startStudySession(
-        selectedTopic.topic_id,
+        selectedCourse.course_id,
         notes || undefined,
       );
       console.log('Study session started:', response);
 
       const startTime = new Date();
-      setSessionId(response.sessionId);
+      setSessionId(response.session.sessionId);
       setSessionStartTime(startTime);
       setPausedDuration(0);
       setPauseStartTime(null);
+      setCurrentBreakStartTime(null);
+      setTotalBreakTimeSeconds(0);
       setTimerState('running');
 
-      onSessionStart?.(response.sessionId, selectedTopic.topic_id);
+      onSessionStart?.(response.session.sessionId, selectedCourse.course_id);
       console.log('Timer started successfully');
     } catch (error: any) {
       console.error('Error starting study session:', error);
@@ -391,12 +343,23 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     if (timerState === 'running') {
       console.log('Pausing timer');
       setPauseStartTime(now);
+      setCurrentBreakStartTime(now);
       setTimerState('paused');
-    } else if (timerState === 'paused' && pauseStartTime) {
+    } else if (
+      timerState === 'paused' &&
+      pauseStartTime &&
+      currentBreakStartTime
+    ) {
       console.log('Resuming timer');
       const pauseDuration = now.getTime() - pauseStartTime.getTime();
+      const breakDuration = now.getTime() - currentBreakStartTime.getTime();
+
       setPausedDuration((prev) => prev + pauseDuration);
+      setTotalBreakTimeSeconds(
+        (prev) => prev + Math.floor(breakDuration / 1000),
+      );
       setPauseStartTime(null);
+      setCurrentBreakStartTime(null);
       setTimerState('running');
     }
   };
@@ -406,6 +369,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     if (!sessionId || timerState === 'loading') return;
 
     const elapsed = calculateElapsedTime();
+    const currentBreakTime = calculateCurrentBreakTime();
     const formattedTime = formatTime(elapsed);
 
     Alert.alert(
@@ -431,14 +395,26 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
       setError(null);
       console.log('Ending study session:', sessionId);
 
+      // If currently paused, add the current break time to total break time
+      let finalBreakTimeSeconds = totalBreakTimeSeconds;
+      if (timerState === 'paused' && currentBreakStartTime) {
+        const currentBreakTime = calculateCurrentBreakTime();
+        finalBreakTimeSeconds += currentBreakTime;
+
+        // Add the break time to the session before ending
+        try {
+          await addBreakTime(sessionId, currentBreakTime);
+          console.log('Added final break time:', currentBreakTime);
+        } catch (breakError) {
+          console.error('Error adding final break time:', breakError);
+        }
+      }
+
       const response = await endStudySession(sessionId, notes || undefined);
       console.log('Study session ended:', response);
 
       // Reset all state
-      setSessionId(null);
-      setSessionStartTime(null);
-      setPausedDuration(0);
-      setPauseStartTime(null);
+      resetSessionState();
       setTimerState('idle');
 
       onSessionEnd?.(response.session);
@@ -521,7 +497,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
         };
       case 'paused':
         return {
-          text: 'Durduruldu',
+          text: 'Mola',
           icon: 'play' as const,
           color: '#FF9800',
         };
@@ -537,181 +513,8 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
   const variantStyles = getVariantStyles();
   const statusDisplay = getStatusDisplay();
   const elapsedTime = calculateElapsedTime();
-
-  // Render topic selector
-  const renderTopicSelector = () => (
-    <View style={styles.topicSelectorContainer}>
-      {/* Topic Selector Button */}
-      <TouchableOpacity
-        style={[
-          styles.topicSelectorButton,
-          { borderColor: variantStyles.iconColor },
-        ]}
-        onPress={() => setShowTopicSelector(true)}
-        disabled={timerState === 'running' || timerState === 'paused'}
-        testID={`${testID}-topic-selector`}
-      >
-        <View style={styles.topicSelectorContent}>
-          <FontAwesome
-            name='book'
-            size={12}
-            color={variantStyles.iconColor}
-            style={styles.topicIcon}
-          />
-          <Text
-            style={[
-              styles.selectedTopicText,
-              { color: variantStyles.textColor },
-            ]}
-            numberOfLines={1}
-          >
-            {selectedTopic ? selectedTopic.title : 'Konu seçin'}
-          </Text>
-          <FontAwesome
-            name='chevron-down'
-            size={10}
-            color={variantStyles.iconColor}
-          />
-        </View>
-      </TouchableOpacity>
-
-      {/* Modal-based Topic Selection */}
-      <Modal
-        visible={showTopicSelector}
-        transparent={true}
-        animationType='fade'
-        onRequestClose={() => setShowTopicSelector(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowTopicSelector(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View
-              style={[
-                styles.modalDropdown,
-                {
-                  backgroundColor: variantStyles.backgroundColor,
-                  borderColor: variantStyles.iconColor,
-                },
-              ]}
-            >
-              {topicsLoading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator
-                    size='small'
-                    color={variantStyles.iconColor}
-                  />
-                  <Text
-                    style={[
-                      styles.loadingText,
-                      { color: variantStyles.textColor },
-                    ]}
-                  >
-                    Konular yükleniyor...
-                  </Text>
-                </View>
-              ) : topicsError ? (
-                <View style={styles.errorContainer}>
-                  <FontAwesome
-                    name='exclamation-triangle'
-                    size={16}
-                    color='#F44336'
-                  />
-                  <Text style={styles.errorText}>{topicsError}</Text>
-                  <TouchableOpacity
-                    style={styles.retryButton}
-                    onPress={fetchTopics}
-                  >
-                    <Text style={styles.retryButtonText}>Tekrar Dene</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : topics.length > 0 ? (
-                <>
-                  <Text
-                    style={[
-                      styles.modalTitle,
-                      { color: variantStyles.textColor },
-                    ]}
-                  >
-                    Konu Seçin
-                  </Text>
-                  <ScrollView
-                    style={styles.modalTopicsList}
-                    showsVerticalScrollIndicator={true}
-                    keyboardShouldPersistTaps='handled'
-                  >
-                    {topics.map((topic, index) => (
-                      <TouchableOpacity
-                        key={topic.topic_id}
-                        style={[
-                          styles.modalTopicItem,
-                          {
-                            borderBottomColor: `${variantStyles.iconColor}30`,
-                            backgroundColor:
-                              selectedTopic?.topic_id === topic.topic_id
-                                ? `${variantStyles.iconColor}20`
-                                : 'transparent',
-                          },
-                        ]}
-                        onPress={() => handleTopicSelect(topic)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.topicItemContent}>
-                          <Text
-                            style={[
-                              styles.topicTitle,
-                              { color: variantStyles.textColor },
-                            ]}
-                          >
-                            {topic.title}
-                          </Text>
-                          {topic.description && (
-                            <Text
-                              style={[
-                                styles.topicDescription,
-                                { color: variantStyles.textColor },
-                              ]}
-                            >
-                              {topic.description}
-                            </Text>
-                          )}
-                        </View>
-                        {selectedTopic?.topic_id === topic.topic_id && (
-                          <FontAwesome
-                            name='check'
-                            size={12}
-                            color={variantStyles.iconColor}
-                          />
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </>
-              ) : (
-                <View style={styles.emptyContainer}>
-                  <FontAwesome
-                    name='book'
-                    size={20}
-                    color={variantStyles.iconColor}
-                  />
-                  <Text
-                    style={[
-                      styles.emptyText,
-                      { color: variantStyles.textColor },
-                    ]}
-                  >
-                    Bu kurs için henüz konu bulunmuyor.
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </View>
-  );
+  const currentBreakTime = calculateCurrentBreakTime();
+  const totalBreakDisplay = totalBreakTimeSeconds + currentBreakTime;
 
   // Main render function
   const renderContent = () => (
@@ -722,11 +525,29 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
           style={[styles.courseTitle, { color: Colors.gray[700] }]}
           numberOfLines={1}
         >
-          {courseTitle}
+          {selectedCourse?.title || 'Kurs seçilmedi'}
         </Text>
 
-        {/* Topic Selector */}
-        {renderTopicSelector()}
+        {/* Course Display */}
+        <View style={styles.courseDisplay}>
+          <View style={styles.courseDisplayContent}>
+            <FontAwesome
+              name='book'
+              size={12}
+              color={variantStyles.iconColor}
+              style={styles.courseIcon}
+            />
+            <Text
+              style={[
+                styles.selectedCourseText,
+                { color: variantStyles.textColor },
+              ]}
+              numberOfLines={1}
+            >
+              {selectedCourse ? selectedCourse.title : 'Kurs seçin'}
+            </Text>
+          </View>
+        </View>
       </View>
 
       {/* Timer Display */}
@@ -734,6 +555,19 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
         <Text style={[styles.timeDisplay, { color: variantStyles.textColor }]}>
           {formatTime(elapsedTime)}
         </Text>
+
+        {/* Break Time Display */}
+        {totalBreakDisplay > 0 && (
+          <Text
+            style={[
+              styles.breakTimeDisplay,
+              { color: variantStyles.textColor },
+            ]}
+          >
+            ☕ Mola: {formatTime(totalBreakDisplay)}
+          </Text>
+        )}
+
         <View style={styles.statusRow}>
           {timerState === 'loading' ? (
             <ActivityIndicator size='small' color={variantStyles.iconColor} />
@@ -755,17 +589,29 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
 
       {/* Controls */}
       <View style={styles.controls}>
-        {timerState === 'idle' ? (
+        {!selectedCourse ? (
+          <View style={styles.noCourseContainer}>
+            <FontAwesome
+              name='book'
+              size={24}
+              color={Colors.gray[600]}
+              style={{ marginBottom: Spacing[2] }}
+            />
+            <Text style={[styles.noCourseText, { color: Colors.gray[600] }]}>
+              Kronometre kullanmak için bir kurs seçin
+            </Text>
+          </View>
+        ) : timerState === 'idle' ? (
           <TouchableOpacity
             style={[
               styles.primaryButton,
               {
                 backgroundColor: variantStyles.iconColor,
-                opacity: selectedTopic ? 1 : 0.5,
+                opacity: selectedCourse ? 1 : 0.5,
               },
             ]}
             onPress={handleStartTimer}
-            disabled={disabled || timerState !== 'idle' || !selectedTopic}
+            disabled={disabled || timerState !== 'idle' || !selectedCourse}
             testID={`${testID}-start-button`}
           >
             <FontAwesome name='play' size={16} color={Colors.gray[900]} />
@@ -869,99 +715,24 @@ const styles = StyleSheet.create({
     fontFamily: 'SecondaryFont-Bold',
     marginBottom: Spacing[2],
   },
-  topicSelectorContainer: {
+  courseDisplay: {
     marginBottom: Spacing[1],
   },
-  topicSelectorButton: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
+  courseDisplayContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: Spacing[3],
     paddingVertical: Spacing[2],
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: BorderRadius.md,
   },
-  topicSelectorContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  topicIcon: {
+  courseIcon: {
     marginRight: Spacing[2],
   },
-  selectedTopicText: {
+  selectedCourseText: {
     flex: 1,
     fontSize: FontSizes.sm,
     fontFamily: 'SecondaryFont-Regular',
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    width: '85%',
-    maxWidth: 350,
-  },
-  modalDropdown: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    maxHeight: 400,
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 8,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontFamily: 'SecondaryFont-Bold',
-    textAlign: 'center',
-    paddingVertical: Spacing[3],
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  modalTopicsList: {
-    maxHeight: 300,
-  },
-  modalTopicItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[3],
-    borderBottomWidth: 0.5,
-    minHeight: 50,
-  },
-  // Loading and Error States
-  loadingContainer: {
-    padding: Spacing[4],
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: Spacing[2],
-    fontSize: FontSizes.xs,
-    fontFamily: 'SecondaryFont-Regular',
-  },
-  topicItemContent: {
-    flex: 1,
-  },
-  topicTitle: {
-    fontSize: FontSizes.sm,
-    fontFamily: 'SecondaryFont-Regular',
-  },
-  topicDescription: {
-    fontSize: FontSizes.xs,
-    fontFamily: 'SecondaryFont-Regular',
-    opacity: 0.7,
-    marginTop: Spacing[1],
-  },
-  emptyContainer: {
-    padding: Spacing[4],
-    alignItems: 'center',
-  },
-  emptyText: {
-    marginTop: Spacing[2],
-    fontSize: FontSizes.xs,
-    fontFamily: 'SecondaryFont-Regular',
-    textAlign: 'center',
   },
   // Timer Section
   timerSection: {
@@ -972,6 +743,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: 'monospace',
     textAlign: 'center',
+  },
+  breakTimeDisplay: {
+    fontSize: FontSizes.sm,
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'center',
+    opacity: 0.8,
+    marginTop: Spacing[1],
   },
   statusRow: {
     flexDirection: 'row',
@@ -988,6 +766,15 @@ const styles = StyleSheet.create({
   },
   // Controls
   controls: {},
+  noCourseContainer: {
+    alignItems: 'center',
+    padding: Spacing[4],
+  },
+  noCourseText: {
+    fontSize: FontSizes.sm,
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'center',
+  },
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',

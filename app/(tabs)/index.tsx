@@ -2143,9 +2143,17 @@ function HomeScreenContent() {
 
             {preferredCourse && (
               <StudyChronometer
-                courseId={preferredCourse.course_id}
-                courseTitle={preferredCourse.title}
-                category={preferredCourse.category as any}
+                selectedCourse={
+                  preferredCourse
+                    ? {
+                        course_id: preferredCourse.course_id,
+                        title: preferredCourse.title,
+                        description: preferredCourse.description,
+                        category: preferredCourse.category,
+                      }
+                    : null
+                }
+                category={preferredCourse?.category as any}
                 variant='elevated'
                 style={{
                   width: '100%',
@@ -2157,15 +2165,15 @@ function HomeScreenContent() {
                   elevation: 10,
                 }}
                 maxWidth='100%'
-                onTopicChange={(topicId, topicTitle) => {
-                  console.log('Selected topic changed:', topicId, topicTitle);
+                onCourseChange={(courseId, courseTitle) => {
+                  console.log('Course changed:', courseId, courseTitle);
                 }}
-                onSessionStart={(sessionId, topicId) => {
+                onSessionStart={(sessionId, courseId) => {
                   console.log(
                     'Study session started:',
                     sessionId,
-                    'for topic:',
-                    topicId,
+                    'for course:',
+                    courseId,
                   );
                 }}
                 onSessionEnd={(sessionData) => {
