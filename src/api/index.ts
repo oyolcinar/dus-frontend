@@ -16,3 +16,4 @@ export * as notificationService from './notificationService';
 export * as socketService from './socketService';
 export * as userQuestionHistoryService from './userQuestionHistoryService';
 export * as botService from './botService';
+export * as reportService from './reportService';

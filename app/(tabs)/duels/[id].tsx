@@ -37,6 +37,8 @@ import {
   onQuestionPresented, // ✅ UPDATED
 } from '../../../src/api/socketService';
 
+import QuestionReportModal from '../../../components/ui/QuestionReportModal';
+
 import {
   Container,
   PlayfulCard,
@@ -284,6 +286,7 @@ export default function DuelRoomScreen() {
   const [hasAnswered, setHasAnswered] = useState(false);
   const [userData, setUserData] = useState<any>(null);
   const [isLoadingDuelInfo, setIsLoadingDuelInfo] = useState(true);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // ✅ NEW: Add server timing state
   const [serverStartTime, setServerStartTime] = useState<number | null>(null);
@@ -1534,108 +1537,171 @@ export default function DuelRoomScreen() {
     );
   };
 
-  const renderResults = () => (
-    <View style={styles.mainContainer}>
-      <ScrollView
-        style={styles.scrollContainer}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {renderDuelInfoHeader()}
-        <View style={styles.resultsContainer}>
-          <PlayfulCard variant='glass' style={styles.resultsCard}>
-            <Column style={{ alignItems: 'center' as const }}>
-              <PlayfulTitle level={2} style={styles.whiteText}>
-                {questionIndex + 1}. Tur Sonuçları
-              </PlayfulTitle>
+  const renderResults = () => {
+    if (!roundResult || !roundResult.question) {
+      return null;
+    }
 
-              {/* FIXED: Proper container for round results */}
-              {roundResult && (
-                <View style={styles.roundResultContent}>
-                  <View style={styles.correctAnswerContainer}>
-                    <Text style={styles.correctAnswer}>
-                      Doğru Cevap: {roundResult.question?.correctAnswer}){' '}
-                      {roundResult.question?.options?.[
-                        roundResult.question?.correctAnswer
-                      ] || 'N/A'}
-                    </Text>
-                  </View>
+    const userAnswer = roundResult.answers?.find(
+      (a) => a.userId === userData?.userId,
+    );
+    const isUserCorrect = userAnswer?.isCorrect || false;
 
-                  <View style={styles.resultRowContainer}>
-                    <Row style={styles.resultRow}>
-                      {roundResult.answers?.map((answer, idx) => {
-                        if (!answer) return null;
+    return (
+      <View style={styles.mainContainer}>
+        <ScrollView
+          style={styles.scrollContainer}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderDuelInfoHeader()}
+          <View style={styles.resultsContainer}>
+            <PlayfulCard variant='glass' style={styles.resultsCard}>
+              <Column style={{ alignItems: 'center' as const }}>
+                <PlayfulTitle level={2} style={styles.whiteText}>
+                  {questionIndex + 1}. Tur Sonuçları
+                </PlayfulTitle>
 
-                        const isUser = answer.userId === userData?.userId;
-                        const displayName = isUser
-                          ? userData.username
-                          : opponentInfo?.username || 'Rakip';
+                {/* FIXED: Proper container for round results */}
+                {roundResult && (
+                  <View style={styles.roundResultContent}>
+                    <View style={styles.correctAnswerContainer}>
+                      <Text style={styles.correctAnswer}>
+                        Doğru Cevap: {roundResult.question?.correctAnswer}){' '}
+                        {roundResult.question?.options?.[
+                          roundResult.question?.correctAnswer
+                        ] || 'N/A'}
+                      </Text>
+                    </View>
 
-                        return (
-                          <View key={idx} style={styles.playerResultContainer}>
-                            <Column style={styles.playerResult}>
-                              <Text style={styles.playerName}>
-                                {displayName}
-                                {!isUser && opponentInfo?.isBot && ' 🤖'}
-                              </Text>
-                              <Badge
-                                text={answer.isCorrect ? 'Doğru ✓' : 'Yanlış ✗'}
-                                variant={answer.isCorrect ? 'success' : 'error'}
-                                style={styles.resultBadge}
-                                fontFamily='SecondaryFont-Bold'
-                              />
-                              <Text style={styles.timeText}>
-                                {Math.floor((answer.timeTaken / 1000) * 10) /
-                                  10}
-                                s
-                              </Text>
-                            </Column>
-                          </View>
-                        );
-                      })}
-                    </Row>
-                  </View>
+                    <View style={styles.resultRowContainer}>
+                      <Row style={styles.resultRow}>
+                        {roundResult.answers?.map((answer, idx) => {
+                          if (!answer) return null;
 
-                  <View style={styles.currentScoreContainer}>
-                    <Row style={styles.currentScore}>
-                      <Column
-                        style={{ alignItems: 'center' as const, minWidth: 80 }}
+                          const isUser = answer.userId === userData?.userId;
+                          const displayName = isUser
+                            ? userData.username
+                            : opponentInfo?.username || 'Rakip';
+
+                          return (
+                            <View
+                              key={idx}
+                              style={styles.playerResultContainer}
+                            >
+                              <Column style={styles.playerResult}>
+                                <Text style={styles.playerName}>
+                                  {displayName}
+                                  {!isUser && opponentInfo?.isBot && ' 🤖'}
+                                </Text>
+                                <Badge
+                                  text={
+                                    answer.isCorrect ? 'Doğru ✓' : 'Yanlış ✗'
+                                  }
+                                  variant={
+                                    answer.isCorrect ? 'success' : 'error'
+                                  }
+                                  style={styles.resultBadge}
+                                  fontFamily='SecondaryFont-Bold'
+                                />
+                                <Text style={styles.timeText}>
+                                  {Math.floor((answer.timeTaken / 1000) * 10) /
+                                    10}
+                                  s
+                                </Text>
+                              </Column>
+                            </View>
+                          );
+                        })}
+                      </Row>
+                    </View>
+
+                    {/* NEW: Question Report Section - Only show if user got it wrong */}
+
+                    <View style={styles.reportQuestionContainer}>
+                      <Text style={styles.reportQuestionTitle}>
+                        Soruyla ilgili bir sorun mu var?
+                      </Text>
+                      <Text style={styles.reportQuestionDescription}>
+                        Yanlış cevap, yazım hatası veya belirsizlik varsa bize
+                        bildirin
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.reportButton}
+                        onPress={() => setShowReportModal(true)}
+                        activeOpacity={0.8}
                       >
-                        <AnimatedCounter
-                          value={userScore}
-                          style={{ color: Colors.vibrant.mint }}
+                        <FontAwesome
+                          name='flag'
+                          size={16}
+                          color={Colors.white}
+                          style={{ marginRight: Spacing[2] }}
                         />
-                        <Text style={styles.scoreLabel}>Puanınız</Text>
-                      </Column>
-                      <Text style={styles.scoreVs}>-</Text>
-                      <Column
-                        style={{ alignItems: 'center' as const, minWidth: 80 }}
-                      >
-                        <AnimatedCounter
-                          value={opponentScore}
-                          style={{ color: Colors.vibrant.coral }}
-                        />
-                        <Text style={styles.scoreLabel}>
-                          {opponentInfo?.isBot ? 'Bot' : 'Rakip'}
+                        <Text style={styles.reportButtonText}>
+                          Soruyu Bildir
                         </Text>
-                      </Column>
-                    </Row>
+                      </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.currentScoreContainer}>
+                      <Row style={styles.currentScore}>
+                        <Column
+                          style={{
+                            alignItems: 'center' as const,
+                            minWidth: 80,
+                          }}
+                        >
+                          <AnimatedCounter
+                            value={userScore}
+                            style={{ color: Colors.vibrant.mint }}
+                          />
+                          <Text style={styles.scoreLabel}>Puanınız</Text>
+                        </Column>
+                        <Text style={styles.scoreVs}>-</Text>
+                        <Column
+                          style={{
+                            alignItems: 'center' as const,
+                            minWidth: 80,
+                          }}
+                        >
+                          <AnimatedCounter
+                            value={opponentScore}
+                            style={{ color: Colors.vibrant.coral }}
+                          />
+                          <Text style={styles.scoreLabel}>
+                            {opponentInfo?.isBot ? 'Bot' : 'Rakip'}
+                          </Text>
+                        </Column>
+                      </Row>
+                    </View>
                   </View>
+                )}
+
+                <View style={styles.nextQuestionContainer}>
+                  <Paragraph style={styles.lightText}>
+                    Sonraki soru 3 saniye içinde...
+                  </Paragraph>
                 </View>
-              )}
-
-              <View style={styles.nextQuestionContainer}>
-                <Paragraph style={styles.lightText}>
-                  Sonraki soru 3 saniye içinde...
-                </Paragraph>
-              </View>
-            </Column>
-          </PlayfulCard>
-        </View>
-      </ScrollView>
-    </View>
-  );
-
+              </Column>
+            </PlayfulCard>
+          </View>
+          {/* NEW: Question Report Modal */}
+          {currentQuestion && (
+            <QuestionReportModal
+              isVisible={showReportModal}
+              onClose={() => setShowReportModal(false)}
+              questionId={currentQuestion.id}
+              questionText={roundResult.question.text}
+              questionOptions={roundResult.question.options}
+              correctAnswer={roundResult.question.correctAnswer}
+              userAnswer={userAnswer?.selectedAnswer || null}
+              isCorrect={isUserCorrect}
+            />
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
   const renderFinal = () => {
     const botInfo = getBotDisplayInfo();
 
@@ -2575,4 +2641,53 @@ const styles = {
     height: 247,
     borderRadius: 20,
   },
+
+  reportQuestionContainer: {
+    backgroundColor: 'rgba(255, 183, 3, 0.1)', // Subtle yellow background
+    borderRadius: BorderRadius['3xl'],
+    padding: Spacing[4],
+    marginVertical: Spacing[4],
+    borderWidth: 1,
+    borderColor: 'rgba(255, 183, 3, 0.3)',
+    alignItems: 'center' as const,
+  } as ViewStyle,
+
+  reportQuestionTitle: {
+    fontSize: 14,
+    fontWeight: 'bold' as const,
+    color: Colors.vibrant?.yellow || '#fbbf24',
+    textAlign: 'center' as const,
+    marginBottom: Spacing[2],
+    fontFamily: 'SecondaryFont-Bold',
+  } as TextStyle,
+
+  reportQuestionDescription: {
+    fontSize: 12,
+    color: Colors.gray?.[300] || '#d1d5db',
+    textAlign: 'center' as const,
+    marginBottom: Spacing[3],
+    fontFamily: 'SecondaryFont-Regular',
+    lineHeight: 16,
+  } as TextStyle,
+
+  reportButton: {
+    backgroundColor: Colors.vibrant?.coral || '#f87171',
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+    borderRadius: BorderRadius.lg,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  } as ViewStyle,
+
+  reportButtonText: {
+    color: Colors.white,
+    fontSize: 13,
+    fontWeight: '600' as const,
+    fontFamily: 'SecondaryFont-Bold',
+  } as TextStyle,
 };
