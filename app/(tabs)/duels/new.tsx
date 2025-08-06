@@ -641,8 +641,8 @@ function NewDuelScreenContent() {
           activeTab === filter
             ? contextColor // Use context color for active filter
             : isDark
-            ? Colors.white
-            : Colors.white,
+              ? Colors.white
+              : Colors.white,
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: 36,
@@ -662,8 +662,8 @@ function NewDuelScreenContent() {
             activeTab === filter
               ? Colors.white
               : isDark
-              ? Colors.gray[700]
-              : Colors.gray[700],
+                ? Colors.gray[700]
+                : Colors.gray[700],
           textAlign: 'center',
           fontFamily: 'SecondaryFont-Regular',
         }}
@@ -778,8 +778,8 @@ function NewDuelScreenContent() {
                 isConnectingSocket
                   ? 'Bağlanıyor...'
                   : !isAuthenticated
-                  ? 'Giriş Gerekli'
-                  : 'Meydan Oku'
+                    ? 'Giriş Gerekli'
+                    : 'Meydan Oku'
               }
               variant='primary'
               size='small'
@@ -1110,7 +1110,7 @@ function NewDuelScreenContent() {
                   }}
                 >
                   <SpinningWheel
-                    items={courses.map((c) => c.title)}
+                    items={courses.map((c) => c.nicknames || c.title)}
                     onSpinEnd={handleCourseSpinComplete}
                     size={280}
                     spinButtonText='ÇEVİR'

@@ -198,7 +198,7 @@ interface MessagePayload {
 }
 
 // ===============================
-// SERVICE INPUT DTOs
+// SERVICE INPUT DTOs - UPDATED WITH NICKNAMES
 // ===============================
 
 export interface CreateCourseRequest {
@@ -206,6 +206,7 @@ export interface CreateCourseRequest {
   description?: string;
   imageUrl?: string;
   courseType: 'temel_dersler' | 'klinik_dersler';
+  nicknames?: string; // ✅ NEW: Nicknames field
 }
 
 export interface UpdateCourseRequest {
@@ -213,6 +214,7 @@ export interface UpdateCourseRequest {
   description?: string;
   imageUrl?: string;
   courseType?: 'temel_dersler' | 'klinik_dersler';
+  nicknames?: string; // ✅ NEW: Nicknames field
 }
 
 export interface UpdateCourseProgressRequest {
@@ -766,4 +768,67 @@ export const getCourseComprehensiveData = async (courseId: number) => {
       hasActiveSession: false,
     };
   }
+};
+
+// ===============================
+// UTILITY FUNCTIONS FOR NICKNAMES
+// ===============================
+
+/**
+ * Search courses by title or nicknames
+ */
+export const searchCourses = (
+  courses: Course[],
+  searchTerm: string,
+): Course[] => {
+  if (!searchTerm.trim()) return courses;
+
+  const searchLower = searchTerm.toLowerCase();
+
+  return courses.filter((course) => {
+    // Search in title
+    if (course.title.toLowerCase().includes(searchLower)) {
+      return true;
+    }
+
+    // Search in nicknames
+    if (
+      course.nicknames &&
+      course.nicknames.toLowerCase().includes(searchLower)
+    ) {
+      return true;
+    }
+
+    // Search in description
+    if (
+      course.description &&
+      course.description.toLowerCase().includes(searchLower)
+    ) {
+      return true;
+    }
+
+    return false;
+  });
+};
+
+/**
+ * Get all nicknames as an array from a course's nicknames string
+ */
+export const getCourseNicknamesArray = (course: Course): string[] => {
+  if (!course.nicknames) return [];
+
+  return course.nicknames
+    .split(',')
+    .map((nickname) => nickname.trim())
+    .filter((nickname) => nickname.length > 0);
+};
+
+/**
+ * Format nicknames for display
+ */
+export const formatCourseNicknames = (course: Course): string => {
+  const nicknames = getCourseNicknamesArray(course);
+  if (nicknames.length === 0) return '';
+
+  return nicknames.join(' • ');
 };

@@ -26,13 +26,14 @@ export interface AuthResponse {
   refreshToken: string | null;
 }
 
-// Course related types - UPDATED WITH COURSE_TYPE
+// Course related types - UPDATED WITH COURSE_TYPE AND NICKNAMES
 export interface Course {
   course_id: number;
   title: string;
   description?: string;
   image_url?: string;
   course_type: 'temel_dersler' | 'klinik_dersler'; // Course type field
+  nicknames?: string | null; // ✅ NEW: Nicknames field
   created_at: string;
 }
 
