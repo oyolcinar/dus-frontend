@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// screens/OptimizedHomeScreen.tsx
+import React, { useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +10,9 @@ import {
   RefreshControl,
   Alert as RNAlert,
   Dimensions,
+  FlatList,
+  StyleSheet,
+  ListRenderItem,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -16,152 +20,298 @@ import {
   PlayfulCard,
   EmptyState,
   Avatar,
-  AppLink,
   Container,
   Paragraph,
   Alert,
-  ProgressBar,
   FloatingElement,
-  BouncyButton,
   PulseElement,
   StudyChronometer,
   CourseSelectionModal,
-  SlideInElement,
   Button,
-  Input,
-  Checkbox,
-  Row,
 } from '../../components/ui';
 import { courseService, analyticsService, studyService } from '../../src/api';
-import {
-  getUserLongestStreaks,
-  getUserDailyProgress,
-  getUserWeeklyProgress,
-  getUserTopCourses,
-  getUserStreaksSummary,
-} from '../../src/api/analyticsService';
 import { checkAndRefreshSession } from '../../src/api/authService';
 import { useAuth } from '../../context/AuthContext';
 import {
   usePreferredCourse,
   PreferredCourseProvider,
-  CourseCategory,
 } from '../../context/PreferredCourseContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Course,
   StudyStatistics,
-  LongestStreak,
-  DailyProgress,
-  WeeklyProgress,
-  TopCourse,
-  StreaksSummary,
+  CourseWithProgress,
+  EditingCourseDetails,
+  User,
 } from '../../src/types/models';
 import { Colors, Spacing } from '../../constants/theme';
 
-// Get screen dimensions for swipe functionality
+// Import optimized hooks and components
+import { useHomeScreenState } from '../../src/hooks/useHomeScreenState';
+import {
+  useUtilityFunctions,
+  useDataMapping,
+  useCourseProcessing,
+} from '../../src/hooks/useOptimizedDataProcessing';
+import { useOptimizedAPIService } from '../../services/optimizedAPIService';
+import {
+  OptimizedCourseAnalytics,
+  OptimizedStudySessionCard,
+  OptimizedCourseDetailsForm,
+  OptimizedPerformanceSummary,
+} from '../../components/OptimizedHomeComponents';
+
+// Get screen dimensions once
 const { width: screenWidth } = Dimensions.get('window');
 
-// Use the theme constants correctly
-const VIBRANT_COLORS = Colors.vibrant;
+// StyleSheet for performance optimization (keeping original styles)
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingVertical: Spacing[8],
+  },
+  headerContainer: {
+    flexDirection: 'column',
+    marginBottom: Spacing[6],
+    paddingHorizontal: Spacing[4],
+  },
+  headerContent: {
+    alignItems: 'flex-end',
+    marginBottom: Spacing[3],
+  },
+  welcomeText: {
+    fontSize: 18,
+    textAlign: 'right',
+    fontFamily: 'PrimaryFont',
+    marginBottom: Spacing[1],
+  },
+  welcomeSubtext: {
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'right',
+    fontSize: 12,
+  },
+  headerStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing[4],
+  },
+  streakContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.vibrant.orange,
+    borderRadius: 999,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    minWidth: 80,
+    justifyContent: 'center',
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 2, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  streakText: {
+    marginLeft: Spacing[2],
+    fontSize: 14,
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  avatarStyle: {
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 2, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  chronometerContainer: {
+    width: '100%',
+    alignSelf: 'stretch',
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 2, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing[8],
+  },
+  loadingText: {
+    marginTop: Spacing[4],
+    fontFamily: 'SecondaryFont-Regular',
+    fontSize: 16,
+  },
+  errorContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing[4],
+  },
+  errorContent: {
+    alignItems: 'center',
+    maxWidth: 300,
+  },
+  errorIcon: {
+    marginBottom: Spacing[4],
+  },
+  errorTitle: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: Spacing[2],
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  errorAlert: {
+    marginBottom: Spacing[6],
+  },
+  courseCardContainer: {
+    width: screenWidth,
+    paddingHorizontal: Spacing[4],
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 2, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+    paddingTop: Spacing[6],
+    paddingBottom: Spacing[12],
+  },
+  courseCard: {
+    width: '100%',
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 4, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  courseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing[4],
+  },
+  courseIcon: {
+    padding: Spacing[3],
+    borderRadius: 50,
+    marginRight: Spacing[3],
+  },
+  courseTitleContainer: {
+    flex: 1,
+  },
+  courseTitle: {
+    fontSize: 16,
+    fontFamily: 'SecondaryFont-Bold',
+    marginBottom: Spacing[1],
+  },
+  courseDescription: {
+    fontSize: 12,
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontFamily: 'SecondaryFont-Bold',
+    marginBottom: Spacing[3],
+  },
+  toggleButton: {
+    padding: Spacing[3],
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: Spacing[4],
+  },
+  toggleButtonText: {
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  detailsFormContainer: {
+    marginBottom: Spacing[4],
+  },
+  emptySessionContainer: {
+    alignItems: 'center',
+    padding: Spacing[4],
+  },
+  emptySessionIcon: {
+    marginBottom: Spacing[2],
+  },
+  emptySessionText: {
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'center',
+  },
+  navigationIndicators: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing[4],
+  },
+  indicator: {
+    marginHorizontal: 4,
+    marginBottom: Spacing[4],
+  },
+  emptyStateContainer: {
+    backgroundColor: Colors.white,
+    padding: Spacing[4],
+    borderRadius: 8,
+  },
+  spacer: {
+    height: Spacing[8],
+  },
+  debugContainer: {
+    backgroundColor: '#f0f0f0',
+    padding: 16,
+    margin: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  debugText: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    marginBottom: 4,
+  },
+});
 
-// Define our local interfaces for course study data
-interface CourseStudySession {
-  sessionId: number;
-  startTime: string;
-  endTime?: string | null;
-  studyDurationSeconds?: number;
-  breakDurationSeconds?: number;
-  totalDurationSeconds?: number;
-  studyDurationMinutes?: number;
-  breakDurationMinutes?: number;
-  sessionDate: string;
-  sessionStatus: 'active' | 'completed' | 'paused';
-  notes?: string | null;
-}
+// Color getter functions (keeping original implementations)
+const getTextColor = (isDark: boolean): string =>
+  isDark ? Colors.gray[900] : Colors.gray[900];
+const getSecondaryTextColor = (isDark: boolean): string =>
+  isDark ? Colors.gray[700] : Colors.gray[700];
+const getWhiteTextColor = (isDark: boolean): string =>
+  isDark ? Colors.white : Colors.white;
+const getTertiaryTextColor = (isDark: boolean): string =>
+  isDark ? Colors.gray[300] : Colors.gray[300];
 
-interface CourseProgressInfo {
-  courseId: number;
-  userId: number;
-  tekrarSayisi?: number;
-  konuKaynaklari?: string[] | null;
-  soruBankasiKaynaklari?: string[] | null;
-  totalStudyTimeSeconds?: number;
-  totalBreakTimeSeconds?: number;
-  totalSessionCount?: number;
-  totalStudyTimeMinutes?: number;
-  totalStudyTimeHours?: number;
-  lastStudiedAt?: string | null;
-  difficultyRating?: number | null;
-  completionPercentage?: number;
-  isCompleted?: boolean;
-  notes?: string | null;
-}
+// Memoized Components
+const MemoizedPlayfulCard = memo(PlayfulCard);
+const MemoizedStudyChronometer = memo(StudyChronometer);
 
-// Define interface to extend Course with additional fields we need
-interface CourseWithProgress extends Course {
-  progress: CourseProgressInfo | null;
-  iconName: string;
-  studySessions: CourseStudySession[];
-  isSessionsExpanded: boolean;
-  category?: CourseCategory;
-}
+// Debug Component
+// const DebugInfo = memo(({ state, preferredCourse }: any) => {
+//   return (
+//     <View style={styles.debugContainer}>
+//       <Text style={styles.debugText}>🐛 DEBUG INFO:</Text>
+//       <Text style={styles.debugText}>
+//         Loading: {state.uiState.loading.toString()}
+//       </Text>
+//       <Text style={styles.debugText}>
+//         Courses Loading: {state.courseData.coursesLoading.toString()}
+//       </Text>
+//       <Text style={styles.debugText}>
+//         Courses Count: {state.courseData.courses.length}
+//       </Text>
+//       <Text style={styles.debugText}>
+//         Selected Course: {state.courseData.selectedCourse ? 'Yes' : 'No'}
+//       </Text>
+//       <Text style={styles.debugText}>
+//         Preferred Course: {preferredCourse ? preferredCourse.title : 'None'}
+//       </Text>
+//       <Text style={styles.debugText}>
+//         Show Modal: {state.uiState.showCourseModal.toString()}
+//       </Text>
+//       <Text style={styles.debugText}>
+//         Error: {state.uiState.error || 'None'}
+//       </Text>
+//     </View>
+//   );
+// });
 
-// Define interface for Analytics data
-interface AnalyticsData {
-  coursePerformance?: Array<{
-    courseId: number;
-    courseName: string;
-    averageScore: number;
-    totalQuestions: number;
-    correctAnswers: number;
-  }>;
-  totalQuestionsAnswered?: number;
-  overallAccuracy?: number;
-  studyTime?: number;
-  studySessions?: number;
-  averageSessionDuration?: number;
-}
-
-// Define interface for editing course details
-interface EditingCourseDetails {
-  courseId?: number;
-  tekrarSayisi?: number;
-  konuKaynaklari?: string[];
-  soruBankasiKaynaklari?: string[];
-  difficulty_rating?: number;
-  notes?: string;
-  is_completed?: boolean;
-  completionPercentage?: number;
-}
-
-// Utility function to ensure safe numeric values
-const ensureSafeNumber = (
-  value: number | undefined,
-  fallback: number = 0,
-): number => {
-  if (value === undefined || isNaN(value) || !isFinite(value)) {
-    return fallback;
-  }
-  return Math.round(value);
-};
-
-/**
- * HomeScreen Component
- *
- * ✅ FULLY DECOUPLED Course Selection Logic:
- * - preferredCourse: User's saved preference (COSMETIC ONLY) - set in CourseSelectionModal, persists across sessions
- * - selectedCourse: Currently displayed course for UI/analytics ONLY - changes when user swipes courses (VIEWING ONLY)
- * - StudyChronometer: Manages its own active session state COMPLETELY INDEPENDENTLY
- *
- * ✅ ZERO COUPLING:
- * - Switching selectedCourse NEVER affects chronometer or preferredCourse
- * - preferredCourse is ONLY used for initial selectedCourse and is PURELY COSMETIC
- * - Chronometer tracks its own active session regardless of what course is selected for viewing
- * - NO MORE FUCKING CONFLICTS when switching courses for viewing!
- */
-
-// Main Home Screen Component (wrapped with context)
+// Main Home Screen Component
 function HomeScreenContent() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -174,1857 +324,818 @@ function HomeScreenContent() {
     getCourseCategory,
   } = usePreferredCourse();
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [userData, setUserData] = useState<{ username?: string } | null>(null);
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(
-    null,
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [showCourseModal, setShowCourseModal] = useState(false);
+  // Use refs to prevent infinite loops
+  const initialLoadRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  // Course-based states
-  const [courses, setCourses] = useState<CourseWithProgress[]>([]);
-  // ✅ FIXED: selectedCourse is ONLY for UI display/analytics - NEVER affects chronometer
-  const [selectedCourse, setSelectedCourse] =
-    useState<CourseWithProgress | null>(null);
-  const [coursesLoading, setCoursesLoading] = useState(false);
-  const [editingCourseId, setEditingCourseId] = useState<number | null>(null);
-  const [editingDetails, setEditingDetails] = useState<EditingCourseDetails>(
-    {},
-  );
-  const [updatingCourse, setUpdatingCourse] = useState<number | null>(null);
+  // Use optimized state management
+  const { state, actions } = useHomeScreenState();
 
-  // Enhanced functionality states
-  const [isStudyCardCollapsed, setIsStudyCardCollapsed] = useState(false);
-  const [studyStatistics, setStudyStatistics] =
-    useState<StudyStatistics | null>(null);
+  // Add debug logging
+  // useEffect(() => {
+  //   console.log('🏠 HomeScreen State Updated:', {
+  //     loading: state.uiState.loading,
+  //     coursesLoading: state.courseData.coursesLoading,
+  //     coursesCount: state.courseData.courses.length,
+  //     selectedCourse: !!state.courseData.selectedCourse,
+  //     preferredCourse: preferredCourse?.title || 'None',
+  //     showModal: state.uiState.showCourseModal,
+  //     error: state.uiState.error,
+  //   });
+  // }, [state, preferredCourse]);
 
-  // Performance data states
-  const [performanceData, setPerformanceData] = useState<{
-    longestStreaks: LongestStreak[];
-    streaksSummary: StreaksSummary | null;
-    dailyProgress: DailyProgress[];
-    weeklyProgress: WeeklyProgress[];
-    topCourses: TopCourse[];
-  }>({
-    longestStreaks: [],
-    streaksSummary: null,
-    dailyProgress: [],
-    weeklyProgress: [],
-    topCourses: [],
+  // Use optimized utility functions
+  const {
+    ensureSafeNumber,
+    getIconForCourse,
+    getDifficultyColor,
+    getDifficultyText,
+    formatTimeFromSeconds,
+    formatTimeForDisplay,
+  } = useUtilityFunctions();
+
+  // Use optimized data processing
+  const { mapProgressData, mapSessionsData } = useDataMapping();
+
+  // Use optimized API service
+  const apiService = useOptimizedAPIService({
+    courseService,
+    analyticsService,
+    studyService,
   });
-  const [performanceLoading, setPerformanceLoading] = useState(false);
-  const [performanceError, setPerformanceError] = useState<string | null>(null);
 
-  // Load user data from AsyncStorage
+  // Simplified and more robust course fetching
+  const stableFetchCoursesWithData = useCallback(async () => {
+    if (!mountedRef.current) return;
+
+    try {
+      console.log('🔄 Starting course fetch...');
+      actions.setCoursesLoading(true);
+      actions.setError(null);
+
+      // First get all courses
+      const allCourses = await apiService.fetchAllCourses();
+      console.log('📚 Fetched courses:', allCourses?.length || 0);
+
+      if (!mountedRef.current || !allCourses?.length) {
+        console.log('❌ No courses or component unmounted');
+        if (mountedRef.current) {
+          actions.setCourses([]);
+        }
+        return;
+      }
+
+      // Filter to klinik courses only
+      const klinikCourses = allCourses.filter(
+        (course: Course) => course.course_type === 'klinik_dersler',
+      );
+
+      console.log('🏥 Klinik courses:', klinikCourses.length);
+
+      if (!klinikCourses.length) {
+        console.log('❌ No klinik courses found');
+        if (mountedRef.current) {
+          actions.setCourses([]);
+        }
+        return;
+      }
+
+      // Process courses with timeout protection
+      const coursesWithProgress: CourseWithProgress[] = [];
+
+      for (let i = 0; i < klinikCourses.length; i++) {
+        const course = klinikCourses[i];
+
+        try {
+          console.log(
+            `🔄 Processing course ${i + 1}/${klinikCourses.length}: ${course.title} (ID: ${course.course_id})`,
+          );
+
+          // Add timeout protection for each course
+          const coursePromise = Promise.race([
+            Promise.allSettled([
+              apiService.fetchCourseProgress(course.course_id),
+              apiService.fetchStudySessions(1, 5, course.course_id),
+            ]),
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error('Course processing timeout')),
+                10000,
+              ),
+            ),
+          ]);
+
+          const [progressResult, sessionsResult] = (await coursePromise) as any;
+
+          const progress =
+            progressResult.status === 'fulfilled'
+              ? mapProgressData(
+                  progressResult.value?.progress || progressResult.value,
+                )
+              : null;
+
+          const sessions =
+            sessionsResult.status === 'fulfilled'
+              ? mapSessionsData(sessionsResult.value?.sessions || [])
+              : [];
+
+          console.log(
+            `✅ Processed course ${course.course_id}: Progress=${!!progress}, Sessions=${sessions.length}`,
+          );
+
+          const processedCourse: CourseWithProgress = {
+            ...course,
+            progress,
+            studySessions: sessions,
+            iconName: getIconForCourse(course.title),
+            isSessionsExpanded: false,
+            category: getCourseCategory(course.title),
+          };
+
+          coursesWithProgress.push(processedCourse);
+        } catch (error) {
+          console.error(
+            `❌ Error processing course ${course.course_id}:`,
+            error,
+          );
+
+          // Still add the course but without progress data
+          const fallbackCourse: CourseWithProgress = {
+            ...course,
+            progress: null,
+            studySessions: [],
+            iconName: getIconForCourse(course.title),
+            isSessionsExpanded: false,
+            category: getCourseCategory(course.title),
+          };
+
+          coursesWithProgress.push(fallbackCourse);
+        }
+
+        // Check if component is still mounted after each course
+        if (!mountedRef.current) {
+          console.log('❌ Component unmounted during processing');
+          return;
+        }
+      }
+
+      console.log('✅ All courses processed:', coursesWithProgress.length);
+
+      if (mountedRef.current && coursesWithProgress.length > 0) {
+        // Sort by study time
+        const sortedCourses = coursesWithProgress.sort(
+          (a, b) =>
+            (b.progress?.total_study_time_seconds || 0) -
+            (a.progress?.total_study_time_seconds || 0),
+        );
+
+        console.log('🎯 Setting courses in state:', sortedCourses.length);
+        actions.setCourses(sortedCourses);
+        console.log('✅ Courses successfully set in state!');
+      } else {
+        console.log('❌ No courses to set or component unmounted');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching courses with data:', error);
+      if (mountedRef.current) {
+        actions.setError('Dersler yüklenirken bir hata oluştu.');
+      }
+    } finally {
+      if (mountedRef.current) {
+        actions.setCoursesLoading(false);
+        console.log('✅ Course loading complete');
+      }
+    }
+  }, [
+    actions.setCoursesLoading,
+    actions.setCourses,
+    actions.setError,
+    apiService,
+    mapProgressData,
+    mapSessionsData,
+    getIconForCourse,
+    getCourseCategory,
+  ]);
+
+  const stableFetchAnalyticsData = useCallback(async () => {
+    if (!mountedRef.current) return;
+
+    try {
+      console.log('📊 Fetching analytics data...');
+      const [analyticsResult, statsResult] = await Promise.allSettled([
+        apiService.fetchAnalyticsData(),
+        apiService.fetchStudyStatistics(),
+      ]);
+
+      if (mountedRef.current) {
+        actions.updateAppData({
+          analyticsData:
+            analyticsResult.status === 'fulfilled'
+              ? analyticsResult.value
+              : null,
+          studyStatistics:
+            statsResult.status === 'fulfilled' ? statsResult.value : null,
+        });
+        console.log('✅ Analytics data updated');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching analytics data:', error);
+    }
+  }, [actions.updateAppData, apiService]);
+
+  const stableFetchPerformanceData = useCallback(async () => {
+    if (!mountedRef.current) return;
+
+    try {
+      console.log('🏆 Fetching performance data...');
+      actions.setPerformanceLoading(true);
+      actions.setPerformanceError(null);
+
+      const performanceData = await apiService.fetchPerformanceDataOptimized();
+
+      if (mountedRef.current) {
+        actions.setPerformanceData(performanceData);
+        console.log('✅ Performance data updated');
+      }
+    } catch (error) {
+      console.error('❌ Error fetching performance data:', error);
+      if (mountedRef.current) {
+        actions.setPerformanceError(
+          'Performans verileri yüklenirken bir hata oluştu.',
+        );
+      }
+    } finally {
+      if (mountedRef.current) {
+        actions.setPerformanceLoading(false);
+      }
+    }
+  }, [
+    actions.setPerformanceLoading,
+    actions.setPerformanceError,
+    actions.setPerformanceData,
+    apiService,
+  ]);
+
+  // Load user data from AsyncStorage (only once)
   useEffect(() => {
     const loadUserData = async () => {
       try {
         const userData = await AsyncStorage.getItem('userData');
-        if (userData) {
-          setUserData(JSON.parse(userData));
+        if (userData && mountedRef.current) {
+          actions.setUserData(JSON.parse(userData));
+          console.log('👤 User data loaded from storage');
         }
       } catch (error) {
-        console.error('Error loading user data from AsyncStorage:', error);
+        console.error('❌ Error loading user data from AsyncStorage:', error);
       }
     };
-
     loadUserData();
-  }, []);
+  }, [actions.setUserData]);
 
-  // Check if we should show the course selection modal (preferredCourse is COSMETIC)
+  // Course selection modal logic (simplified)
   useEffect(() => {
-    if (!courseLoading && !preferredCourse && !loading) {
-      setShowCourseModal(true);
-    }
-  }, [preferredCourse, courseLoading, loading]);
+    console.log('🎯 Modal logic check:', {
+      courseLoading,
+      preferredCourse: !!preferredCourse,
+      loading: state.uiState.loading,
+      showModal: state.uiState.showCourseModal,
+      coursesLength: state.courseData.courses.length,
+    });
 
-  // ✅ FIXED: Set initial selectedCourse from preferredCourse (ONE-TIME ONLY, NO ONGOING SYNC)
-  useEffect(() => {
-    if (preferredCourse && courses.length > 0 && !selectedCourse) {
-      console.log(
-        '✅ Setting INITIAL selectedCourse from preferredCourse (ONE-TIME ONLY):',
-        preferredCourse.course_id,
-      );
-      const preferredCourseWithProgress = courses.find(
-        (c) => c.course_id === preferredCourse.course_id,
-      );
-      if (preferredCourseWithProgress) {
-        setSelectedCourse(preferredCourseWithProgress);
-      } else {
-        // If preferred course not found, select first course
-        console.log('✅ Preferred course not found, selecting first available');
-        setSelectedCourse(courses[0] || null);
-      }
-    } else if (!selectedCourse && courses.length > 0 && !preferredCourse) {
-      // If no preferred course and no selected course, select first one
-      console.log('✅ No preferred course, selecting first from courses list');
-      setSelectedCourse(courses[0]);
-    }
-  }, [preferredCourse, courses]); // This only runs when these change initially
-
-  // Fetch performance data function
-  const fetchPerformanceData = useCallback(async () => {
-    try {
-      setPerformanceLoading(true);
-      setPerformanceError(null);
-
-      const [
-        streaksResponse,
-        streaksSummaryResponse,
-        dailyProgressResponse,
-        weeklyProgressResponse,
-        topCoursesResponse,
-      ] = await Promise.allSettled([
-        getUserLongestStreaks(),
-        getUserStreaksSummary(),
-        getUserDailyProgress(undefined, undefined, 7),
-        getUserWeeklyProgress(4),
-        getUserTopCourses(3),
-      ]);
-
-      setPerformanceData({
-        longestStreaks:
-          streaksResponse.status === 'fulfilled'
-            ? streaksResponse.value.streaks
-            : [],
-        streaksSummary:
-          streaksSummaryResponse.status === 'fulfilled'
-            ? streaksSummaryResponse.value
-            : null,
-        dailyProgress:
-          dailyProgressResponse.status === 'fulfilled'
-            ? dailyProgressResponse.value.dailyProgress
-            : [],
-        weeklyProgress:
-          weeklyProgressResponse.status === 'fulfilled'
-            ? weeklyProgressResponse.value
-            : [],
-        topCourses:
-          topCoursesResponse.status === 'fulfilled'
-            ? topCoursesResponse.value
-            : [],
-      });
-    } catch (error) {
-      console.error('Error fetching performance data:', error);
-      setPerformanceError('Performans verileri yüklenirken bir hata oluştu.');
-    } finally {
-      setPerformanceLoading(false);
-    }
-  }, []);
-
-  // Fetch courses with their progress and study sessions
-  const fetchCoursesWithData = useCallback(async () => {
-    try {
-      setCoursesLoading(true);
-      console.log('Fetching courses with data...');
-
-      // Get all courses
-      const allCourses = await courseService.getAllCourses();
-      console.log('Loaded courses:', allCourses.length);
-
-      // Fetch progress and sessions for each course
-      const coursesWithData: CourseWithProgress[] = await Promise.all(
-        allCourses.slice(0, 6).map(async (course) => {
-          try {
-            const [progressResult, sessionsResult] = await Promise.allSettled([
-              courseService.getCourseProgress(course.course_id),
-              studyService.getUserStudySessions(1, 10, course.course_id),
-            ]);
-
-            // Map the progress data to our local interface
-            let mappedProgress: CourseProgressInfo | null = null;
-            if (progressResult.status === 'fulfilled' && progressResult.value) {
-              const p = progressResult.value;
-              mappedProgress = {
-                courseId: course.course_id,
-                userId: p.userId || 0,
-                tekrarSayisi: p.tekrarSayisi || 0,
-                konuKaynaklari: p.konuKaynaklari || null,
-                soruBankasiKaynaklari: p.soruBankasiKaynaklari || null,
-                totalStudyTimeSeconds: p.studyTimeSeconds || 0,
-                totalBreakTimeSeconds: p.breakTimeSeconds || 0,
-                totalSessionCount: p.sessionCount || 0,
-                totalStudyTimeMinutes: Math.floor(
-                  (p.studyTimeSeconds || 0) / 60,
-                ),
-                totalStudyTimeHours: Math.floor(
-                  (p.studyTimeSeconds || 0) / 3600,
-                ),
-                lastStudiedAt: p.lastStudiedAt || null,
-                difficultyRating: p.difficultyRating || null,
-                completionPercentage: p.completionPercentage || 0,
-                isCompleted: p.isCompleted || false,
-                notes: p.notes || null,
-              };
-            }
-
-            // Map the sessions data to our local interface
-            const mappedSessions: CourseStudySession[] =
-              sessionsResult.status === 'fulfilled' && sessionsResult.value
-                ? sessionsResult.value.sessions.map((session) => ({
-                    sessionId: session.sessionId,
-                    startTime: session.startTime,
-                    endTime: session.endTime || null,
-                    studyDurationSeconds: session.studyDurationSeconds || 0,
-                    breakDurationSeconds: session.breakDurationSeconds || 0,
-                    totalDurationSeconds: session.totalDurationSeconds || 0,
-                    studyDurationMinutes: Math.floor(
-                      (session.studyDurationSeconds || 0) / 60,
-                    ),
-                    breakDurationMinutes: Math.floor(
-                      (session.breakDurationSeconds || 0) / 60,
-                    ),
-                    sessionDate: session.sessionDate,
-                    sessionStatus: session.sessionStatus,
-                    notes: session.notes || null,
-                  }))
-                : [];
-
-            return {
-              ...course,
-              progress: mappedProgress,
-              iconName: getIconForCourse(course.title),
-              studySessions: mappedSessions,
-              isSessionsExpanded: false,
-              category: getCourseCategory(course.title),
-            };
-          } catch (error) {
-            console.error(
-              `Error fetching data for course ${course.course_id}:`,
-              error,
-            );
-            return {
-              ...course,
-              progress: null,
-              iconName: getIconForCourse(course.title),
-              studySessions: [],
-              isSessionsExpanded: false,
-              category: getCourseCategory(course.title),
-            };
-          }
-        }),
-      );
-
-      // Sort by study time or progress
-      coursesWithData.sort((a, b) => {
-        const aStudyTime = a.progress?.totalStudyTimeSeconds || 0;
-        const bStudyTime = b.progress?.totalStudyTimeSeconds || 0;
-        return bStudyTime - aStudyTime;
-      });
-
-      console.log('Courses with data loaded:', coursesWithData.length);
-      setCourses(coursesWithData);
-    } catch (error) {
-      console.error('Error fetching courses with data:', error);
-    } finally {
-      setCoursesLoading(false);
-    }
-  }, [getCourseCategory]);
-
-  // Fetch general analytics and statistics
-  const fetchAnalyticsData = useCallback(async () => {
-    try {
-      const [analyticsResult, statsResult] = await Promise.allSettled([
-        analyticsService.getUserPerformanceAnalytics(),
-        studyService.getUserStudyStatistics(),
-      ]);
-
-      if (analyticsResult.status === 'fulfilled') {
-        setAnalyticsData(analyticsResult.value);
-      }
-
-      if (statsResult.status === 'fulfilled') {
-        setStudyStatistics(statsResult.value);
-      }
-    } catch (error) {
-      console.error('Error fetching analytics data:', error);
-    }
-  }, []);
-
-  // Main data fetching effect
-  useEffect(() => {
-    if (!isStudyCardCollapsed) {
-      fetchCoursesWithData();
-      fetchAnalyticsData();
-      fetchPerformanceData();
+    // Only show modal if we have no preferred course and we're not loading
+    if (
+      !courseLoading &&
+      !preferredCourse &&
+      !state.uiState.loading &&
+      !state.uiState.showCourseModal &&
+      state.courseData.courses.length > 0
+    ) {
+      console.log('🎯 Showing course selection modal');
+      actions.setShowCourseModal(true);
     }
   }, [
-    isStudyCardCollapsed,
-    fetchCoursesWithData,
-    fetchAnalyticsData,
-    fetchPerformanceData,
+    courseLoading,
+    preferredCourse,
+    state.uiState.loading,
+    state.uiState.showCourseModal,
+    state.courseData.courses.length,
+    actions.setShowCourseModal,
   ]);
 
-  // ✅ FIXED: Handle course selection ONLY for viewing/analytics (ZERO chronometer impact)
-  const handleCourseSelect = useCallback((course: CourseWithProgress) => {
-    console.log(
-      '✅ Course selected for VIEWING ONLY (ZERO impact on chronometer):',
-      course.course_id,
-      course.title,
-    );
-    setSelectedCourse(course);
-  }, []);
+  // Set initial selected course (simplified)
+  useEffect(() => {
+    if (
+      preferredCourse &&
+      state.courseData.courses.length > 0 &&
+      !state.courseData.selectedCourse
+    ) {
+      console.log('🎯 Setting preferred course as selected');
+      const preferredCourseWithProgress = state.courseData.courses.find(
+        (c) => c.course_id === preferredCourse.course_id,
+      );
+      const courseToSelect =
+        preferredCourseWithProgress || state.courseData.courses[0];
+      actions.setSelectedCourse(courseToSelect);
+      console.log('✅ Selected course set:', courseToSelect?.title);
+    } else if (
+      !state.courseData.selectedCourse &&
+      state.courseData.courses.length > 0 &&
+      !preferredCourse
+    ) {
+      console.log('🎯 Setting first course as selected (no preferred)');
+      actions.setSelectedCourse(state.courseData.courses[0]);
+    }
+  }, [
+    preferredCourse?.course_id,
+    state.courseData.courses.length,
+    state.courseData.selectedCourse,
+    actions.setSelectedCourse,
+  ]);
 
-  // Handle toggle sessions expansion
-  const handleToggleSessionsExpansion = useCallback((courseId: number) => {
-    setCourses((prev) =>
-      prev.map((course) =>
-        course.course_id === courseId
-          ? { ...course, isSessionsExpanded: !course.isSessionsExpanded }
-          : course,
-      ),
-    );
-  }, []);
+  // Course editing handlers
+  const handleEditCourseDetails = useCallback(
+    (course: CourseWithProgress) => {
+      actions.setEditingCourse(course.course_id, {
+        courseId: course.course_id,
+        tekrarSayisi: course.progress?.tekrar_sayisi || 0,
+        konuKaynaklari: course.progress?.konu_kaynaklari
+          ? [...course.progress.konu_kaynaklari]
+          : [],
+        soruBankasiKaynaklari: course.progress?.soru_bankasi_kaynaklari
+          ? [...course.progress.soru_bankasi_kaynaklari]
+          : [],
+        difficulty_rating: course.progress?.difficulty_rating || 1,
+        notes: course.progress?.notes || '',
+        is_completed: course.progress?.is_completed || false,
+        completionPercentage: course.progress?.completion_percentage || 0,
+      });
+    },
+    [actions.setEditingCourse],
+  );
 
-  // Handle edit course details
-  const handleEditCourseDetails = useCallback((course: CourseWithProgress) => {
-    setEditingCourseId(course.course_id);
-    setEditingDetails({
-      courseId: course.course_id,
-      tekrarSayisi: course.progress?.tekrarSayisi || 0,
-      konuKaynaklari: course.progress?.konuKaynaklari
-        ? [...course.progress.konuKaynaklari]
-        : [],
-      soruBankasiKaynaklari: course.progress?.soruBankasiKaynaklari
-        ? [...course.progress.soruBankasiKaynaklari]
-        : [],
-      difficulty_rating: course.progress?.difficultyRating || 1,
-      notes: course.progress?.notes || '',
-      is_completed: course.progress?.isCompleted || false,
-      completionPercentage: course.progress?.completionPercentage || 0,
-    });
-  }, []);
-
-  // Handle save course details
   const handleSaveCourseDetails = useCallback(async () => {
-    if (!editingCourseId || !editingDetails.courseId) return;
+    if (
+      !state.editingState.editingCourseId ||
+      !state.editingState.editingDetails.courseId
+    )
+      return;
 
     try {
-      setUpdatingCourse(editingCourseId);
+      actions.setUpdatingCourse(state.editingState.editingCourseId);
 
       await studyService.updateUserCourseProgress({
-        courseId: editingDetails.courseId,
-        tekrarSayisi: editingDetails.tekrarSayisi,
-        konuKaynaklari: editingDetails.konuKaynaklari,
-        soruBankasiKaynaklari: editingDetails.soruBankasiKaynaklari,
-        difficultyRating: editingDetails.difficulty_rating,
-        notes: editingDetails.notes || undefined,
-        isCompleted: editingDetails.is_completed,
-        completionPercentage: editingDetails.completionPercentage,
+        courseId: state.editingState.editingDetails.courseId,
+        tekrarSayisi: state.editingState.editingDetails.tekrarSayisi,
+        konuKaynaklari: state.editingState.editingDetails.konuKaynaklari,
+        soruBankasiKaynaklari:
+          state.editingState.editingDetails.soruBankasiKaynaklari,
+        difficultyRating: state.editingState.editingDetails.difficulty_rating,
+        notes: state.editingState.editingDetails.notes || undefined,
+        isCompleted: state.editingState.editingDetails.is_completed,
+        completionPercentage:
+          state.editingState.editingDetails.completionPercentage,
       });
 
-      // Refresh course data
-      await fetchCoursesWithData();
-
-      setEditingCourseId(null);
-      setEditingDetails({});
-
+      await stableFetchCoursesWithData();
+      actions.setEditingCourse(null, {});
       RNAlert.alert('Başarılı', 'Ders detayları güncellendi!');
     } catch (error) {
       console.error('Error updating course details:', error);
       RNAlert.alert('Hata', 'Ders detayları güncellenirken bir hata oluştu.');
     } finally {
-      setUpdatingCourse(null);
+      actions.setUpdatingCourse(null);
     }
-  }, [editingCourseId, editingDetails, fetchCoursesWithData]);
+  }, [
+    state.editingState,
+    actions.setUpdatingCourse,
+    actions.setEditingCourse,
+    stableFetchCoursesWithData,
+  ]);
 
-  // Handle cancel edit
   const handleCancelEdit = useCallback(() => {
-    setEditingCourseId(null);
-    setEditingDetails({});
+    actions.setEditingCourse(null, {});
+  }, [actions.setEditingCourse]);
+
+  const handleToggleSessionsExpansion = useCallback(
+    (courseId: number) => {
+      actions.toggleSessionExpansion(courseId);
+    },
+    [actions.toggleSessionExpansion],
+  );
+
+  // Optimized refresh handler
+  const handleRefresh = useCallback(async () => {
+    if (state.uiState.refreshing || !mountedRef.current) return;
+
+    try {
+      console.log('🔄 Refreshing data...');
+      actions.setRefreshing(true);
+      actions.setError(null);
+
+      const sessionValid = await checkAndRefreshSession();
+      if (!sessionValid) {
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      await Promise.all([
+        stableFetchCoursesWithData(),
+        stableFetchAnalyticsData(),
+        stableFetchPerformanceData(),
+      ]);
+      console.log('✅ Refresh complete');
+    } catch (error) {
+      console.error('❌ Refresh failed:', error);
+      if (mountedRef.current) {
+        actions.setError('Yenileme başarısız.');
+      }
+    } finally {
+      if (mountedRef.current) {
+        actions.setRefreshing(false);
+      }
+    }
+  }, [
+    state.uiState.refreshing,
+    actions.setRefreshing,
+    actions.setError,
+    router,
+    stableFetchCoursesWithData,
+    stableFetchAnalyticsData,
+    stableFetchPerformanceData,
+  ]);
+
+  // Initial data fetch (only once)
+  useEffect(() => {
+    if (initialLoadRef.current) return;
+
+    const initialLoad = async () => {
+      if (!mountedRef.current) return;
+
+      console.log('🚀 Starting initial load...');
+      initialLoadRef.current = true;
+      actions.setLoading(true);
+
+      try {
+        const sessionValid = await checkAndRefreshSession();
+        if (!sessionValid) {
+          router.replace('/(auth)/login');
+          return;
+        }
+
+        if (mountedRef.current) {
+          await Promise.all([
+            stableFetchCoursesWithData(),
+            stableFetchAnalyticsData(),
+            stableFetchPerformanceData(),
+          ]);
+          console.log('✅ Initial load complete');
+        }
+      } catch (error) {
+        console.error('❌ Initial load error:', error);
+        if (mountedRef.current) {
+          actions.setError('Başlangıç verisi yüklenemedi.');
+        }
+      } finally {
+        if (mountedRef.current) {
+          actions.setLoading(false);
+        }
+      }
+    };
+
+    initialLoad();
+  }, [
+    actions.setLoading,
+    actions.setError,
+    router,
+    stableFetchCoursesWithData,
+    stableFetchAnalyticsData,
+    stableFetchPerformanceData,
+  ]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
-  // Helper functions
-  const formatTimeForDisplay = (minutes: number): string => {
-    if (minutes < 60) {
-      return `${Math.round(minutes)}dk`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = Math.round(minutes % 60);
-    return remainingMinutes > 0
-      ? `${hours}sa ${remainingMinutes}dk`
-      : `${hours}sa`;
-  };
+  // Modal handlers
+  const handleCourseModalClose = useCallback(() => {
+    actions.setShowCourseModal(false);
+  }, [actions.setShowCourseModal]);
 
-  const formatTimeFromSeconds = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
-    return formatTimeForDisplay(minutes);
-  };
+  const handleCourseSelected = useCallback(() => {
+    actions.setShowCourseModal(false);
+  }, [actions.setShowCourseModal]);
 
-  const getProgressChartData = (dailyData: DailyProgress[]) => {
-    const maxValue = Math.max(
-      ...dailyData.map((d) => d.daily_study_minutes),
-      1,
-    );
-    return dailyData.map((day) => ({
-      ...day,
-      percentage: ensureSafeNumber((day.daily_study_minutes / maxValue) * 100),
-      date: new Date(day.study_date).toLocaleDateString('tr-TR', {
-        weekday: 'short',
-        day: 'numeric',
-      }),
-    }));
-  };
+  // Memoized setEditingDetails function
+  const setEditingDetails = useCallback(
+    (details: EditingCourseDetails) => {
+      actions.setEditingCourse(state.editingState.editingCourseId, details);
+    },
+    [actions.setEditingCourse, state.editingState.editingCourseId],
+  );
 
-  const getIconForCourse = (title?: string): string => {
-    const titleLower = title?.toLowerCase() || '';
-
-    if (titleLower.includes('anatomi')) return 'tooth';
-    if (titleLower.includes('patoloji')) return 'microscope';
-    if (titleLower.includes('cerrahi')) return 'cut';
-    if (titleLower.includes('protez') || titleLower.includes('protetik'))
-      return 'cogs';
-    if (titleLower.includes('periodon')) return 'heartbeat';
-    if (titleLower.includes('pedodonti')) return 'child';
-    if (titleLower.includes('endodonti')) return 'medkit';
-    if (titleLower.includes('ortodonti')) return 'exchange';
-    if (titleLower.includes('radyoloji')) return 'eye';
-    if (titleLower.includes('restoratif')) return 'tooth';
-
-    return 'book-medical';
-  };
-
-  const getDifficultyColor = (rating: number) => {
-    switch (rating) {
-      case 1:
-        return Colors.vibrant.greenLight;
-      case 2:
-        return Colors.vibrant.green;
-      case 3:
-        return Colors.vibrant.yellowLight;
-      case 4:
-        return Colors.vibrant.yellow;
-      case 5:
-        return Colors.vibrant.pink;
-      default:
-        return Colors.gray[400];
-    }
-  };
-
-  const getDifficultyText = (rating: number) => {
-    switch (rating) {
-      case 1:
-        return 'Çok Kolay';
-      case 2:
-        return 'Kolay';
-      case 3:
-        return 'Orta';
-      case 4:
-        return 'Zor';
-      case 5:
-        return 'Çok Zor';
-      default:
-        return 'Belirlenmemiş';
-    }
-  };
-
-  // Render course analytics
-  const renderCourseAnalytics = (course: CourseWithProgress) => {
-    if (!course.progress) return null;
-
-    return (
-      <View style={{ marginBottom: Spacing[3] }}>
-        <View
-          style={{
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            gap: Spacing[2],
-            marginBottom: Spacing[3],
-          }}
+  // Render course card function
+  const renderCourseCard: ListRenderItem<CourseWithProgress> = useCallback(
+    ({ item: course }) => (
+      <View style={styles.courseCardContainer}>
+        <MemoizedPlayfulCard
+          title='Çalışmaya Devam Et'
+          style={styles.courseCard}
+          titleFontFamily='PrimaryFont'
+          variant='elevated'
+          category={preferredCourse?.category}
+          animated={false}
+          floatingAnimation={false}
         >
-          {/* Study Time */}
-          <View
-            style={{
-              backgroundColor: Colors.vibrant.blue,
-              paddingHorizontal: Spacing[3],
-              paddingVertical: Spacing[2],
-              borderRadius: 12,
-              shadowColor: Colors.gray[900],
-              shadowOffset: { width: 10, height: 20 },
-              shadowOpacity: 0.8,
-              shadowRadius: 10,
-              elevation: 10,
-            }}
-          >
-            <Text
-              style={{
-                color: Colors.white,
-                fontSize: 12,
-                fontFamily: 'SecondaryFont-Bold',
-              }}
-            >
-              📚{' '}
-              {formatTimeFromSeconds(
-                course.progress.totalStudyTimeSeconds || 0,
-              )}
-            </Text>
-          </View>
-
-          {/* Session Count */}
-          <View
-            style={{
-              backgroundColor: Colors.vibrant.green,
-              paddingHorizontal: Spacing[3],
-              paddingVertical: Spacing[2],
-              borderRadius: 12,
-              shadowColor: Colors.gray[900],
-              shadowOffset: { width: 10, height: 20 },
-              shadowOpacity: 0.8,
-              shadowRadius: 10,
-              elevation: 10,
-            }}
-          >
-            <Text
-              style={{
-                color: Colors.white,
-                fontSize: 12,
-                fontFamily: 'SecondaryFont-Bold',
-              }}
-            >
-              🔁 {course.progress.tekrarSayisi} tekrar
-            </Text>
-          </View>
-
-          {/* Difficulty */}
-          <View
-            style={{
-              backgroundColor: getDifficultyColor(
-                course.progress.difficultyRating || 1,
-              ),
-              paddingHorizontal: Spacing[3],
-              paddingVertical: Spacing[2],
-              borderRadius: 12,
-              shadowColor: Colors.gray[900],
-              shadowOffset: { width: 10, height: 20 },
-              shadowOpacity: 0.8,
-              shadowRadius: 10,
-              elevation: 10,
-            }}
-          >
-            <Text
-              style={{
-                color: Colors.white,
-                fontSize: 12,
-                fontFamily: 'SecondaryFont-Bold',
-              }}
-            >
-              {getDifficultyText(course.progress.difficultyRating || 1)}
-            </Text>
-          </View>
-
-          {/* Completion Status */}
-          {course.progress.isCompleted && (
-            <View
-              style={{
-                backgroundColor: Colors.vibrant.green,
-                paddingHorizontal: Spacing[3],
-                paddingVertical: Spacing[2],
-                borderRadius: 12,
-              }}
-            >
-              <Text
-                style={{
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
-              >
-                ✅ Tamamlandı
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Completion Progress */}
-        <View style={{ marginBottom: Spacing[3] }}>
-          <Text
-            style={{
-              fontSize: 12,
-              color: isDark ? Colors.gray[700] : Colors.gray[700],
-              fontFamily: 'SecondaryFont-Regular',
-              marginBottom: Spacing[2],
-            }}
-          >
-            İlerleme: %{ensureSafeNumber(course.progress.completionPercentage)}
-          </Text>
-          <ProgressBar
-            progress={ensureSafeNumber(
-              course.progress.completionPercentage || 0,
-            )}
-            height={8}
-            width='100%'
-            trackColor={Colors.gray[300]}
-            progressColor={Colors.vibrant.green}
-            animated
-          />
-        </View>
-
-        {/* Last Studied */}
-        {course.progress.lastStudiedAt && (
-          <Text
-            style={{
-              fontSize: 12,
-              color: isDark ? Colors.gray[700] : Colors.gray[700],
-              fontFamily: 'SecondaryFont-Regular',
-            }}
-          >
-            Son çalışma:{' '}
-            {new Date(course.progress.lastStudiedAt).toLocaleDateString(
-              'tr-TR',
-            )}
-          </Text>
-        )}
-      </View>
-    );
-  };
-
-  // Render course details editing form
-  const renderCourseDetailsForm = (course: CourseWithProgress) => {
-    const isEditing = editingCourseId === course.course_id;
-    const isUpdating = updatingCourse === course.course_id;
-
-    if (!isEditing && !course.progress) {
-      return (
-        <View style={{ padding: Spacing[4], alignItems: 'center' }}>
-          <Text
-            style={{
-              color: isDark ? Colors.gray[600] : Colors.gray[600],
-              fontFamily: 'SecondaryFont-Regular',
-              textAlign: 'center',
-            }}
-          >
-            Bu ders için henüz detay bilgisi yok.
-          </Text>
-        </View>
-      );
-    }
-
-    return (
-      <View>
-        {!isEditing ? (
-          // View mode
           <View>
-            <View style={{ marginBottom: Spacing[4] }}>
-              <Text
-                style={{
-                  marginBottom: Spacing[2],
-                  color: isDark ? Colors.white : Colors.white,
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
-              >
-                Ders Detayları:
-              </Text>
+            {/* Course Header */}
+            <View style={styles.courseHeader}>
               <View
-                style={{
-                  borderBottomColor: Colors.white,
-                  borderBottomWidth: 1,
-                  marginBottom: Spacing[2],
-                  width: '100%',
-                }}
-              />
-              <View
-                style={{
-                  flexDirection: 'column',
-                  flexWrap: 'wrap',
-                  gap: Spacing[2],
-                }}
+                style={[
+                  styles.courseIcon,
+                  {
+                    backgroundColor: preferredCourse?.category
+                      ? getCourseColor(preferredCourse?.category)
+                      : Colors.vibrant.blue,
+                  },
+                ]}
               >
-                <Text
-                  style={{
-                    color: isDark ? Colors.white : Colors.white,
-                    fontFamily: 'SecondaryFont-Regular',
-                  }}
-                >
-                  Tekrar Sayısı: {course.progress?.tekrarSayisi || 0}
-                </Text>
-                <View
-                  style={{
-                    borderBottomColor: Colors.white,
-                    borderBottomWidth: 1,
-                    marginBottom: Spacing[2],
-                    width: '100%',
-                  }}
+                <FontAwesome
+                  name={course.iconName as any}
+                  size={24}
+                  color={Colors.white}
                 />
-
+              </View>
+              <View style={styles.courseTitleContainer}>
                 <Text
-                  style={{
-                    color: Colors.white,
-                    fontFamily: 'SecondaryFont-Regular',
-                  }}
+                  style={[
+                    styles.courseTitle,
+                    { color: getWhiteTextColor(isDark) },
+                  ]}
                 >
-                  Zorluk:{' '}
-                  {getDifficultyText(course.progress?.difficultyRating || 1)}
+                  {course.title}
                 </Text>
-
-                <View
-                  style={{
-                    borderBottomColor: Colors.white,
-                    borderBottomWidth: 1,
-                    marginBottom: Spacing[2],
-                    width: '100%',
-                  }}
-                />
-
-                {course.progress?.isCompleted && (
-                  <View
-                    style={{
-                      backgroundColor: Colors.vibrant.green,
-                      paddingHorizontal: Spacing[2],
-                      paddingVertical: Spacing[1],
-                      borderRadius: 12,
-                    }}
+                {course.description && (
+                  <Text
+                    style={[
+                      styles.courseDescription,
+                      { color: getTertiaryTextColor(isDark) },
+                    ]}
                   >
-                    <Text
-                      style={{
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontFamily: 'SecondaryFont-Bold',
-                      }}
-                    >
-                      Tamamlandı
-                    </Text>
-                  </View>
+                    {course.description.length > 100
+                      ? `${course.description.substring(0, 100)}...`
+                      : course.description}
+                  </Text>
                 )}
               </View>
             </View>
 
-            {/* Render Konu Kaynakları */}
-            {course.progress?.konuKaynaklari &&
-              course.progress.konuKaynaklari.length > 0 && (
-                <View style={{ marginBottom: Spacing[4] }}>
-                  <Text
-                    style={{
-                      marginBottom: Spacing[2],
-                      color: isDark ? Colors.white : Colors.white,
-                      fontFamily: 'SecondaryFont-Bold',
-                    }}
-                  >
-                    Konu Kaynakları
-                  </Text>
-                  <Text
-                    style={{
-                      color: isDark ? Colors.gray[300] : Colors.gray[300],
-                      fontFamily: 'SecondaryFont-Regular',
-                    }}
-                  >
-                    {course.progress.konuKaynaklari.join('\n')}
-                  </Text>
-                </View>
-              )}
-
-            {/* Render Soru Bankası Kaynakları */}
-            {course.progress?.soruBankasiKaynaklari &&
-              course.progress.soruBankasiKaynaklari.length > 0 && (
-                <View style={{ marginBottom: Spacing[4] }}>
-                  <Text
-                    style={{
-                      marginBottom: Spacing[2],
-                      color: isDark ? Colors.white : Colors.white,
-                      fontFamily: 'SecondaryFont-Bold',
-                    }}
-                  >
-                    Soru Bankası Kaynakları
-                  </Text>
-                  <Text
-                    style={{
-                      color: isDark ? Colors.gray[300] : Colors.gray[300],
-                      fontFamily: 'SecondaryFont-Regular',
-                    }}
-                  >
-                    {course.progress.soruBankasiKaynaklari.join('\n')}
-                  </Text>
-                </View>
-              )}
-
-            {course.progress?.notes && (
-              <View style={{ marginBottom: Spacing[4] }}>
-                <Text
-                  style={{
-                    marginBottom: Spacing[2],
-                    color: isDark ? Colors.white : Colors.white,
-                    fontFamily: 'SecondaryFont-Bold',
-                  }}
-                >
-                  Notlar
-                </Text>
-                <Text
-                  style={{
-                    color: isDark ? Colors.gray[300] : Colors.gray[300],
-                    fontFamily: 'SecondaryFont-Regular',
-                  }}
-                >
-                  {course.progress.notes}
-                </Text>
-              </View>
-            )}
-
-            <Button
-              title='Düzenle'
-              onPress={() => handleEditCourseDetails(course)}
-              variant='secondary'
-              size='small'
-              style={{ alignSelf: 'flex-start' }}
-            />
-          </View>
-        ) : (
-          // Edit mode
-          <View>
-            <Text
-              style={{
-                marginBottom: Spacing[4],
-                color: isDark ? Colors.white : Colors.white,
-                fontFamily: 'SecondaryFont-Bold',
-              }}
-            >
-              Ders Detaylarını Düzenle
-            </Text>
-            <View
-              style={{
-                borderBottomColor: Colors.white,
-                borderBottomWidth: 1,
-                marginBottom: Spacing[2],
-                width: '100%',
-              }}
+            {/* Course Analytics */}
+            <OptimizedCourseAnalytics
+              course={course}
+              isDark={isDark}
+              formatTime={formatTimeFromSeconds}
+              ensureSafeNumber={ensureSafeNumber}
+              getDifficultyColor={getDifficultyColor}
+              getDifficultyText={getDifficultyText}
             />
 
-            <Input
-              label='Tekrar Sayısı:'
-              value={editingDetails.tekrarSayisi?.toString() || '0'}
-              onChangeText={(text) =>
-                setEditingDetails((prev) => ({
-                  ...prev,
-                  tekrarSayisi: parseInt(text) || 0,
-                }))
-              }
-              labelStyle={{
-                fontFamily: 'SecondaryFont-Bold',
-                color: Colors.white,
-              }}
-              inputStyle={{
-                fontFamily: 'SecondaryFont-Regular',
-                color: Colors.white,
-              }}
-              inputMode='numeric'
-              containerStyle={{ marginBottom: Spacing[3] }}
-            />
-
-            <View style={{ marginBottom: Spacing[3] }}>
+            {/* Current Session */}
+            <View style={styles.detailsFormContainer}>
               <Text
-                style={{
-                  marginBottom: Spacing[2],
-                  color: isDark ? Colors.white : Colors.white,
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
+                style={[
+                  styles.sectionTitle,
+                  { color: getWhiteTextColor(isDark) },
+                ]}
               >
-                Zorluk Derecesi:
+                📝 Aktif Çalışma Seansı
               </Text>
-              <View style={{ flexDirection: 'row', gap: Spacing[2] }}>
-                {[1, 2, 3, 4, 5].map((rating) => (
-                  <TouchableOpacity
-                    key={rating}
-                    onPress={() =>
-                      setEditingDetails((prev) => ({
-                        ...prev,
-                        difficulty_rating: rating,
-                      }))
-                    }
-                    style={{
-                      backgroundColor:
-                        editingDetails.difficulty_rating === rating
-                          ? getDifficultyColor(rating)
-                          : Colors.gray[600],
-                      paddingHorizontal: Spacing[3],
-                      paddingVertical: Spacing[2],
-                      borderRadius: 8,
-                      minWidth: 40,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: Colors.white,
-                        fontFamily: 'SecondaryFont-Bold',
-                        fontSize: 12,
-                      }}
-                    >
-                      {rating}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
 
-            <Input
-              label='Konu Kaynakları:'
-              value={
-                Array.isArray(editingDetails.konuKaynaklari)
-                  ? editingDetails.konuKaynaklari.join('\n')
-                  : ''
-              }
-              onChangeText={(text) =>
-                setEditingDetails((prev) => ({
-                  ...prev,
-                  konuKaynaklari: text
-                    ? text.split('\n').filter((item) => item.trim() !== '')
-                    : [],
-                }))
-              }
-              labelStyle={{
-                fontFamily: 'SecondaryFont-Bold',
-                color: Colors.white,
-              }}
-              inputStyle={{
-                fontFamily: 'SecondaryFont-Regular',
-                color: Colors.white,
-              }}
-              multiline
-              numberOfLines={3}
-              placeholder='Her satıra bir kaynak yazın...'
-              containerStyle={{ marginBottom: Spacing[3] }}
-            />
-
-            <Input
-              label='Soru Bankası Kaynakları:'
-              value={
-                Array.isArray(editingDetails.soruBankasiKaynaklari)
-                  ? editingDetails.soruBankasiKaynaklari.join('\n')
-                  : ''
-              }
-              onChangeText={(text) =>
-                setEditingDetails((prev) => ({
-                  ...prev,
-                  soruBankasiKaynaklari: text
-                    ? text.split('\n').filter((item) => item.trim() !== '')
-                    : [],
-                }))
-              }
-              labelStyle={{
-                fontFamily: 'SecondaryFont-Bold',
-                color: Colors.white,
-              }}
-              inputStyle={{
-                fontFamily: 'SecondaryFont-Regular',
-                color: Colors.white,
-              }}
-              multiline
-              numberOfLines={3}
-              placeholder='Her satıra bir soru bankası yazın...'
-              containerStyle={{ marginBottom: Spacing[3] }}
-            />
-
-            <Input
-              label='Notlar:'
-              value={editingDetails.notes || ''}
-              onChangeText={(text) =>
-                setEditingDetails((prev) => ({ ...prev, notes: text }))
-              }
-              labelStyle={{
-                fontFamily: 'SecondaryFont-Bold',
-                color: Colors.white,
-              }}
-              inputStyle={{
-                fontFamily: 'SecondaryFont-Regular',
-                color: Colors.white,
-              }}
-              multiline
-              numberOfLines={3}
-              containerStyle={{ marginBottom: Spacing[3] }}
-            />
-
-            <Checkbox
-              checked={editingDetails.is_completed || false}
-              onPress={() =>
-                setEditingDetails((prev) => ({
-                  ...prev,
-                  is_completed: !prev.is_completed,
-                }))
-              }
-              labelStyle={{ fontFamily: 'SecondaryFont-Bold' }}
-              label='Ders tamamlandı'
-              style={{ marginBottom: Spacing[4] }}
-            />
-
-            <View style={{ flexDirection: 'row', gap: Spacing[2] }}>
-              <Button
-                title='Güncelle'
-                onPress={handleSaveCourseDetails}
-                loading={isUpdating}
-                disabled={isUpdating}
-                variant='secondary'
-                style={{ flex: 1 }}
-              />
-              <Button
-                title='İptal'
-                onPress={handleCancelEdit}
-                variant='secondary'
-                disabled={isUpdating}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  // Render study session card
-  const renderStudySessionCard = (
-    session: CourseStudySession,
-    isCurrentSession: boolean = false,
-  ) => {
-    return (
-      <PlayfulCard
-        key={session.sessionId}
-        title={
-          isCurrentSession
-            ? 'Mevcut Çalışma Seansı'
-            : `Çalışma Seansı #${session.sessionId}`
-        }
-        variant='outlined'
-        category={preferredCourse?.category as any}
-        style={{
-          marginBottom: Spacing[3],
-          shadowColor: Colors.gray[900],
-          shadowOffset: { width: 5, height: 10 },
-          shadowOpacity: 0.6,
-          shadowRadius: 8,
-          elevation: 8,
-        }}
-        titleFontFamily='SecondaryFont-Bold'
-      >
-        <View>
-          <View
-            style={{
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              gap: Spacing[2],
-              marginBottom: Spacing[3],
-            }}
-          >
-            {/* Study Duration */}
-            <View
-              style={{
-                backgroundColor: Colors.vibrant.blue,
-                paddingHorizontal: Spacing[2],
-                paddingVertical: Spacing[1],
-                borderRadius: 8,
-              }}
-            >
-              <Text
-                style={{
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
-              >
-                📚 {formatTimeFromSeconds(session.studyDurationSeconds || 0)}
-              </Text>
-            </View>
-
-            {/* Break Duration */}
-            {session.breakDurationSeconds &&
-              session.breakDurationSeconds > 0 && (
-                <View
-                  style={{
-                    backgroundColor: Colors.vibrant.yellow,
-                    paddingHorizontal: Spacing[2],
-                    paddingVertical: Spacing[1],
-                    borderRadius: 8,
-                  }}
+              {course.studySessions.find(
+                (s) => s.session_status === 'active',
+              ) ? (
+                <OptimizedStudySessionCard
+                  session={
+                    course.studySessions.find(
+                      (s) => s.session_status === 'active',
+                    )!
+                  }
+                  isCurrentSession={true}
+                  isDark={isDark}
+                  category={preferredCourse?.category}
+                  formatTime={formatTimeFromSeconds}
+                  getSecondaryTextColor={getSecondaryTextColor}
+                  getTertiaryTextColor={getTertiaryTextColor}
+                />
+              ) : (
+                <MemoizedPlayfulCard
+                  title='Yeni Çalışma Seansı Başlat'
+                  variant='outlined'
+                  category={preferredCourse?.category}
+                  style={[
+                    { marginBottom: 12 },
+                    { backgroundColor: Colors.gray[100] },
+                  ]}
                 >
-                  <Text
-                    style={{
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontFamily: 'SecondaryFont-Bold',
-                    }}
-                  >
-                    ☕ {formatTimeFromSeconds(session.breakDurationSeconds)}
-                  </Text>
-                </View>
-              )}
-
-            {/* Session Status */}
-            <View
-              style={{
-                backgroundColor:
-                  session.sessionStatus === 'active'
-                    ? Colors.vibrant.green
-                    : session.sessionStatus === 'completed'
-                      ? Colors.vibrant.blue
-                      : Colors.gray[500],
-                paddingHorizontal: Spacing[2],
-                paddingVertical: Spacing[1],
-                borderRadius: 8,
-              }}
-            >
-              <Text
-                style={{
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
-              >
-                {session.sessionStatus === 'active'
-                  ? '🟢 Aktif'
-                  : session.sessionStatus === 'completed'
-                    ? '✅ Tamamlandı'
-                    : '⏸️ Duraklatıldı'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Session Date and Time */}
-          <Text
-            style={{
-              fontSize: 12,
-              color: isDark ? Colors.gray[700] : Colors.gray[700],
-              fontFamily: 'SecondaryFont-Regular',
-              marginBottom: Spacing[2],
-            }}
-          >
-            📅 {new Date(session.sessionDate).toLocaleDateString('tr-TR')}
-            {session.startTime &&
-              ` • ${new Date(session.startTime).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`}
-          </Text>
-
-          {/* Session Notes */}
-          {session.notes && (
-            <Text
-              style={{
-                fontSize: 12,
-                color: isDark ? Colors.gray[600] : Colors.gray[600],
-                fontFamily: 'SecondaryFont-Regular',
-                fontStyle: 'italic',
-              }}
-            >
-              💭 {session.notes}
-            </Text>
-          )}
-        </View>
-      </PlayfulCard>
-    );
-  };
-
-  // Render performance summary section
-  const renderPerformanceSummary = () => {
-    if (performanceLoading) {
-      return (
-        <SlideInElement direction='right' delay={400}>
-          <PlayfulCard
-            title='Genel Performans Özeti'
-            style={{
-              marginBottom: Spacing[6],
-              shadowColor: Colors.gray[900],
-              shadowOffset: { width: 20, height: 40 },
-              shadowOpacity: 0.9,
-              shadowRadius: 20,
-              elevation: 20,
-            }}
-            titleFontFamily='PrimaryFont'
-            variant='elevated'
-            category={preferredCourse?.category as any}
-            animated
-            floatingAnimation
-          >
-            <View style={{ alignItems: 'center', padding: Spacing[4] }}>
-              <ActivityIndicator
-                size='small'
-                color={
-                  preferredCourse?.category
-                    ? getCourseColor(preferredCourse.category)
-                    : Colors.vibrant.blue
-                }
-              />
-              <Text
-                style={{
-                  marginTop: Spacing[2],
-                  color: isDark ? Colors.gray[400] : Colors.gray[400],
-                  fontFamily: 'SecondaryFont-Regular',
-                }}
-              >
-                Performans verileri yükleniyor...
-              </Text>
-            </View>
-          </PlayfulCard>
-        </SlideInElement>
-      );
-    }
-
-    if (performanceError) {
-      return (
-        <SlideInElement direction='right' delay={400}>
-          <PlayfulCard
-            title='Genel Performans Özeti'
-            style={{
-              marginBottom: Spacing[6],
-              shadowColor: Colors.gray[900],
-              shadowOffset: { width: 20, height: 40 },
-              shadowOpacity: 0.9,
-              shadowRadius: 20,
-              elevation: 20,
-            }}
-            titleFontFamily='PrimaryFont'
-            variant='elevated'
-            category={preferredCourse?.category as any}
-          >
-            <Alert
-              type='error'
-              message={performanceError}
-              style={{ marginBottom: Spacing[4] }}
-            />
-          </PlayfulCard>
-        </SlideInElement>
-      );
-    }
-
-    const chartData = getProgressChartData(performanceData.dailyProgress);
-    const longestStreak =
-      performanceData.streaksSummary?.longest_single_session_minutes || 0;
-    const topCourse = performanceData.topCourses[0];
-
-    return (
-      <SlideInElement direction='right' delay={400}>
-        <View
-          style={{
-            marginTop: Spacing[4],
-            shadowColor: Colors.gray[900],
-            shadowOffset: { width: 10, height: 20 },
-            shadowOpacity: 0.8,
-            shadowRadius: 10,
-            elevation: 10,
-          }}
-        >
-          <PlayfulCard
-            title='Genel Performans Özeti'
-            style={{
-              marginBottom: Spacing[6],
-              shadowColor: Colors.gray[900],
-              shadowOffset: { width: 20, height: 40 },
-              shadowOpacity: 0.9,
-              shadowRadius: 20,
-              elevation: 20,
-            }}
-            titleFontFamily='PrimaryFont'
-            variant='elevated'
-            category={preferredCourse?.category as any}
-            animated
-            floatingAnimation
-          >
-            <View>
-              {/* En Uzun Kronometre Süresi */}
-              <View style={{ marginBottom: Spacing[10] }}>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    color: isDark ? Colors.white : Colors.white,
-                    marginBottom: Spacing[3],
-                    fontFamily: 'SecondaryFont-Bold',
-                  }}
-                >
-                  🏆 En Uzun Çalışma Seansı
-                </Text>
-
-                <View
-                  style={{
-                    backgroundColor: Colors.white,
-                    padding: Spacing[4],
-                    borderRadius: 12,
-                    alignItems: 'center',
-                    shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 10, height: 20 },
-                    shadowOpacity: 0.8,
-                    shadowRadius: 10,
-                    elevation: 10,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 28,
-                      color: Colors.gray[900],
-                      fontFamily: 'PrimaryFont',
-                      marginBottom: Spacing[1],
-                    }}
-                  >
-                    {formatTimeForDisplay(longestStreak)}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: Colors.gray[700],
-                      fontFamily: 'SecondaryFont-Regular',
-                      opacity: 0.8,
-                    }}
-                  >
-                    Tek seansta en uzun çalışma süren
-                  </Text>
-                </View>
-              </View>
-
-              {/* Günlük İlerleme Grafiği */}
-              <View style={{ marginBottom: Spacing[10] }}>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    color: isDark ? Colors.white : Colors.white,
-                    marginBottom: Spacing[3],
-                    fontFamily: 'SecondaryFont-Bold',
-                  }}
-                >
-                  📊 Son 7 Gün İlerleme
-                </Text>
-
-                {chartData.length > 0 ? (
-                  <View>
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'flex-end',
-                        justifyContent: 'space-between',
-                        height: 120,
-                        marginBottom: Spacing[3],
-                        paddingHorizontal: Spacing[2],
-                      }}
-                    >
-                      {chartData.map((day, index) => (
-                        <View
-                          key={day.study_date}
-                          style={{
-                            alignItems: 'center',
-                            flex: 1,
-                            marginHorizontal: 2,
-                          }}
-                        >
-                          <View
-                            style={{
-                              backgroundColor:
-                                day.daily_study_minutes > 0
-                                  ? Colors.vibrant.green
-                                  : Colors.white,
-                              height: Math.max(
-                                ensureSafeNumber(day.percentage * 0.8),
-                                4,
-                              ),
-                              borderRadius: 4,
-                              minHeight: 4,
-                              width: '100%',
-                              marginBottom: Spacing[2],
-                            }}
-                          />
-                          <Text
-                            style={{
-                              fontSize: 10,
-                              color: isDark
-                                ? Colors.gray[900]
-                                : Colors.gray[900],
-                              fontFamily: 'SecondaryFont-Regular',
-                              textAlign: 'center',
-                            }}
-                          >
-                            {day.date}
-                          </Text>
-                          <Text
-                            style={{
-                              fontSize: 9,
-                              color: isDark
-                                ? Colors.gray[700]
-                                : Colors.gray[700],
-                              fontFamily: 'SecondaryFont-Regular',
-                              textAlign: 'center',
-                            }}
-                          >
-                            {day.daily_study_minutes > 0
-                              ? `${ensureSafeNumber(day.daily_study_minutes)}dk`
-                              : '0'}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-
-                    {/* Chart Summary */}
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        backgroundColor: isDark
-                          ? Colors.gray[700]
-                          : Colors.gray[700],
-                        padding: Spacing[3],
-                        borderRadius: 8,
-                        shadowColor: Colors.gray[900],
-                        shadowOffset: { width: 10, height: 20 },
-                        shadowOpacity: 0.8,
-                        shadowRadius: 10,
-                        elevation: 10,
-                      }}
-                    >
-                      <View style={{ alignItems: 'center' }}>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: isDark ? Colors.gray[300] : Colors.gray[300],
-                            fontFamily: 'SecondaryFont-Regular',
-                          }}
-                        >
-                          Toplam
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color: isDark ? Colors.white : Colors.white,
-                            fontFamily: 'SecondaryFont-Bold',
-                          }}
-                        >
-                          {formatTimeForDisplay(
-                            chartData.reduce(
-                              (sum, day) => sum + day.daily_study_minutes,
-                              0,
-                            ),
-                          )}
-                        </Text>
-                      </View>
-
-                      <View style={{ alignItems: 'center' }}>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: isDark ? Colors.gray[300] : Colors.gray[300],
-                            fontFamily: 'SecondaryFont-Regular',
-                          }}
-                        >
-                          Ortalama
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color: isDark ? Colors.white : Colors.white,
-                            fontFamily: 'SecondaryFont-Bold',
-                          }}
-                        >
-                          {formatTimeForDisplay(
-                            chartData.reduce(
-                              (sum, day) => sum + day.daily_study_minutes,
-                              0,
-                            ) / Math.max(chartData.length, 1),
-                          )}
-                        </Text>
-                      </View>
-
-                      <View style={{ alignItems: 'center' }}>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: isDark ? Colors.gray[300] : Colors.gray[300],
-                            fontFamily: 'SecondaryFont-Regular',
-                          }}
-                        >
-                          Aktif Gün
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color: isDark ? Colors.white : Colors.white,
-                            fontFamily: 'SecondaryFont-Bold',
-                          }}
-                        >
-                          {
-                            chartData.filter(
-                              (day) => day.daily_study_minutes > 0,
-                            ).length
-                          }
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ) : (
-                  <EmptyState
-                    icon='bar-chart'
-                    title='Veri bulunamadı'
-                    message='Son 7 günde çalışma verisi bulunmuyor.'
-                    style={{
-                      backgroundColor: isDark ? Colors.white : Colors.white,
-                      padding: Spacing[4],
-                      borderRadius: 8,
-                    }}
-                  />
-                )}
-              </View>
-
-              {/* En Çok Zaman Harcanan Ders */}
-              <View>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    color: isDark ? Colors.white : Colors.white,
-                    marginBottom: Spacing[3],
-                    fontFamily: 'SecondaryFont-Bold',
-                  }}
-                >
-                  🎯 En Çok Zaman Harcanan Ders
-                </Text>
-
-                {topCourse ? (
-                  <View
-                    style={{
-                      backgroundColor: Colors.gray[700],
-                      padding: Spacing[4],
-                      borderRadius: 12,
-                      shadowColor: Colors.gray[900],
-                      shadowOffset: { width: 10, height: 20 },
-                      shadowOpacity: 0.8,
-                      shadowRadius: 10,
-                      elevation: 10,
-                    }}
-                  >
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: Spacing[3],
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 18,
-                          color: Colors.white,
-                          fontFamily: 'SecondaryFont-Bold',
-                          flex: 1,
-                        }}
-                      >
-                        {topCourse.course_title}
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          color: Colors.white,
-                          fontFamily: 'PrimaryFont',
-                        }}
-                      >
-                        {formatTimeForDisplay(
-                          (topCourse.total_time_hours || 0) * 60,
-                        )}
-                      </Text>
-                    </View>
-
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        marginBottom: Spacing[3],
-                      }}
-                    >
-                      <View style={{ alignItems: 'center' }}>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: Colors.white,
-                            fontFamily: 'SecondaryFont-Regular',
-                            opacity: 0.8,
-                          }}
-                        >
-                          Kronometre
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color: Colors.white,
-                            fontFamily: 'SecondaryFont-Bold',
-                          }}
-                        >
-                          {formatTimeForDisplay(
-                            (topCourse.study_session_hours || 0) * 60,
-                          )}
-                        </Text>
-                      </View>
-
-                      <View style={{ alignItems: 'center' }}>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: Colors.white,
-                            fontFamily: 'SecondaryFont-Regular',
-                            opacity: 0.8,
-                          }}
-                        >
-                          Toplam Saat
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color: Colors.white,
-                            fontFamily: 'SecondaryFont-Bold',
-                          }}
-                        >
-                          {Math.round(topCourse.total_time_hours || 0)}sa
-                        </Text>
-                      </View>
-
-                      <View style={{ alignItems: 'center' }}>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: Colors.white,
-                            fontFamily: 'SecondaryFont-Regular',
-                            opacity: 0.8,
-                          }}
-                        >
-                          Çalışma Saati
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color: Colors.white,
-                            fontFamily: 'SecondaryFont-Bold',
-                          }}
-                        >
-                          {Math.round(topCourse.study_session_hours || 0)}sa
-                        </Text>
-                      </View>
-                    </View>
-
-                    <ProgressBar
-                      progress={85}
-                      height={8}
-                      width='100%'
-                      trackColor={Colors.white}
-                      progressColor={Colors.vibrant.green}
-                      style={{ marginTop: Spacing[2] }}
-                      animated
+                  <View style={styles.emptySessionContainer}>
+                    <FontAwesome
+                      name='play-circle'
+                      size={48}
+                      color={
+                        preferredCourse?.category
+                          ? getCourseColor(preferredCourse.category)
+                          : Colors.vibrant.blue
+                      }
+                      style={styles.emptySessionIcon}
                     />
                     <Text
-                      style={{
-                        fontSize: 12,
-                        color: Colors.white,
-                        fontFamily: 'SecondaryFont-Regular',
-                        textAlign: 'center',
-                        marginTop: Spacing[1],
-                        opacity: 0.8,
-                      }}
+                      style={[
+                        styles.emptySessionText,
+                        { color: Colors.gray[600] },
+                      ]}
                     >
-                      Toplam çalışma süresi
+                      Bu ders için aktif bir çalışma seansı yok. Yukarıdaki
+                      kronometre ile yeni bir seans başlatabilirsiniz.
                     </Text>
                   </View>
-                ) : (
-                  <EmptyState
-                    icon='trophy'
-                    title='Veri bulunamadı'
-                    message='Henüz ders bazında çalışma verisi bulunmuyor.'
-                    style={{
-                      backgroundColor: isDark ? Colors.white : Colors.white,
-                      padding: Spacing[4],
-                      borderRadius: 8,
-                    }}
+                </MemoizedPlayfulCard>
+              )}
+            </View>
+
+            {/* Recent 3 Sessions */}
+            <View style={styles.detailsFormContainer}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: getWhiteTextColor(isDark) },
+                ]}
+              >
+                📚 Son 3 Çalışma Seansı
+              </Text>
+
+              <FlatList
+                data={course.studySessions
+                  .filter((s) => s.session_status === 'completed')
+                  .slice(0, 3)}
+                keyExtractor={(item) => item.session_id.toString()}
+                renderItem={({ item }) => (
+                  <OptimizedStudySessionCard
+                    session={item}
+                    isCurrentSession={false}
+                    isDark={isDark}
+                    category={preferredCourse?.category}
+                    formatTime={formatTimeFromSeconds}
+                    getSecondaryTextColor={getSecondaryTextColor}
+                    getTertiaryTextColor={getTertiaryTextColor}
                   />
                 )}
-              </View>
+                scrollEnabled={false}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={3}
+                windowSize={5}
+                ListEmptyComponent={
+                  <EmptyState
+                    icon='history'
+                    title='Henüz tamamlanmış seans yok'
+                    message='Bu ders için tamamlanmış çalışma seansı bulunmuyor.'
+                    style={styles.emptyStateContainer}
+                  />
+                }
+              />
             </View>
-          </PlayfulCard>
-        </View>
-      </SlideInElement>
-    );
-  };
 
-  // Enhanced fetchData function
-  const fetchData = useCallback(async () => {
-    try {
-      setError(null);
+            {/* All Sessions Toggle */}
+            {course.studySessions.length > 3 && (
+              <View>
+                <TouchableOpacity
+                  onPress={() =>
+                    handleToggleSessionsExpansion(course.course_id)
+                  }
+                  style={[
+                    styles.toggleButton,
+                    { backgroundColor: Colors.gray[700] },
+                  ]}
+                >
+                  <Text style={styles.toggleButtonText}>
+                    {course.isSessionsExpanded
+                      ? 'Tüm Seansları Gizle'
+                      : `Tüm Seansları Göster (${course.studySessions.length - 3} tane daha)`}
+                  </Text>
+                </TouchableOpacity>
 
-      const sessionValid = await checkAndRefreshSession();
-      if (!sessionValid) {
-        console.log('Session invalid, redirecting to login');
-        router.replace('/(auth)/login');
-        return;
-      }
+                {course.isSessionsExpanded && (
+                  <View>
+                    <Text
+                      style={[
+                        styles.sectionTitle,
+                        { color: getWhiteTextColor(isDark) },
+                      ]}
+                    >
+                      📋 Tüm Çalışma Seansları
+                    </Text>
 
-      const [analyticsResponse] = await Promise.allSettled([
-        analyticsService.getUserPerformanceAnalytics(),
-      ]);
+                    <FlatList
+                      data={course.studySessions
+                        .filter((s) => s.session_status === 'completed')
+                        .slice(3)}
+                      keyExtractor={(item) => item.session_id.toString()}
+                      renderItem={({ item }) => (
+                        <OptimizedStudySessionCard
+                          session={item}
+                          isCurrentSession={false}
+                          isDark={isDark}
+                          category={preferredCourse?.category}
+                          formatTime={formatTimeFromSeconds}
+                          getSecondaryTextColor={getSecondaryTextColor}
+                          getTertiaryTextColor={getTertiaryTextColor}
+                        />
+                      )}
+                      scrollEnabled={false}
+                      removeClippedSubviews={true}
+                      maxToRenderPerBatch={5}
+                      windowSize={10}
+                    />
+                  </View>
+                )}
+              </View>
+            )}
 
-      if (analyticsResponse.status === 'fulfilled') {
-        setAnalyticsData(analyticsResponse.value);
-      }
-    } catch (error) {
-      console.error('Error fetching homepage data:', error);
-      if (
-        error instanceof Error &&
-        error.message.includes('Oturum süresi doldu')
-      ) {
-        router.replace('/(auth)/login');
-        return;
-      }
-      setError('Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
-    }
-  }, [router]);
+            {/* Course Details Form */}
+            <View>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: getWhiteTextColor(isDark) },
+                ]}
+              >
+                ⚙️ Ders Detayları
+              </Text>
+              <OptimizedCourseDetailsForm
+                course={course}
+                editingCourseId={state.editingState.editingCourseId}
+                editingDetails={state.editingState.editingDetails}
+                setEditingDetails={setEditingDetails}
+                handleEditCourseDetails={handleEditCourseDetails}
+                handleSaveCourseDetails={handleSaveCourseDetails}
+                handleCancelEdit={handleCancelEdit}
+                updatingCourse={state.editingState.updatingCourse}
+                isDark={isDark}
+                getDifficultyColor={getDifficultyColor}
+                getDifficultyText={getDifficultyText}
+                getWhiteTextColor={getWhiteTextColor}
+                getTertiaryTextColor={getTertiaryTextColor}
+              />
+            </View>
+          </View>
+        </MemoizedPlayfulCard>
+      </View>
+    ),
+    [
+      isDark,
+      preferredCourse,
+      getCourseColor,
+      formatTimeFromSeconds,
+      ensureSafeNumber,
+      getDifficultyColor,
+      getDifficultyText,
+      getWhiteTextColor,
+      getTertiaryTextColor,
+      getSecondaryTextColor,
+      handleToggleSessionsExpansion,
+      state.editingState,
+      setEditingDetails,
+      handleEditCourseDetails,
+      handleSaveCourseDetails,
+      handleCancelEdit,
+    ],
+  );
 
-  // Enhanced handleRefresh function
-  const handleRefresh = useCallback(async () => {
-    try {
-      setRefreshing(true);
-      setError(null);
-
-      const sessionValid = await checkAndRefreshSession();
-      if (!sessionValid) {
-        router.replace('/(auth)/login');
-        return;
-      }
-
-      await Promise.all([
-        fetchData(),
-        fetchCoursesWithData(),
-        fetchAnalyticsData(),
-        fetchPerformanceData(),
-      ]);
-    } catch (error) {
-      console.error('Refresh failed:', error);
-      if (
-        error instanceof Error &&
-        error.message.includes('Oturum süresi doldu')
-      ) {
-        router.replace('/(auth)/login');
-        return;
-      }
-      setError('Yenileme başarısız. Lütfen tekrar deneyin.');
-    } finally {
-      setRefreshing(false);
-    }
-  }, [
-    fetchData,
-    fetchCoursesWithData,
-    fetchAnalyticsData,
-    fetchPerformanceData,
-    router,
-  ]);
-
-  // Enhanced handleRetry function
-  const handleRetry = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      try {
-        await refreshSession();
-      } catch (sessionError) {
-        const sessionValid = await checkAndRefreshSession();
-        if (!sessionValid) {
-          router.replace('/(auth)/login');
-          return;
-        }
-      }
-
-      await Promise.all([
-        fetchData(),
-        fetchCoursesWithData(),
-        fetchAnalyticsData(),
-        fetchPerformanceData(),
-      ]);
-    } catch (error) {
-      console.error('Retry failed:', error);
-      if (
-        error instanceof Error &&
-        error.message.includes('Oturum süresi doldu')
-      ) {
-        router.replace('/(auth)/login');
-        return;
-      }
-      setError('Yeniden deneme başarısız. Lütfen uygulamayı yeniden başlatın.');
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    fetchData,
-    fetchCoursesWithData,
-    fetchAnalyticsData,
-    fetchPerformanceData,
-    router,
-    refreshSession,
-  ]);
-
-  // Enhanced initial fetch
-  useEffect(() => {
-    async function initialFetch() {
-      setLoading(true);
-
-      try {
-        const sessionValid = await checkAndRefreshSession();
-        if (!sessionValid) {
-          setLoading(false);
-          router.replace('/(auth)/login');
-          return;
-        }
-
-        await Promise.all([
-          fetchData(),
-          fetchCoursesWithData(),
-          fetchAnalyticsData(),
-          fetchPerformanceData(),
-        ]);
-      } catch (error) {
-        console.error('Initial fetch error:', error);
-        setError('Başlangıç verisi yüklenemedi. Lütfen tekrar deneyin.');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    initialFetch();
-  }, [
-    fetchData,
-    fetchCoursesWithData,
-    fetchAnalyticsData,
-    fetchPerformanceData,
-    router,
-  ]);
-
-  // Handle course modal close
-  const handleCourseModalClose = () => {
-    setShowCourseModal(false);
-  };
-
-  // Handle course selection from modal
-  const handleCourseSelected = () => {
-    setShowCourseModal(false);
-  };
-
-  // Enhanced error screen
-  if (error && !loading) {
+  // Error screen
+  if (state.uiState.error && !state.uiState.loading) {
     return (
-      <Container
-        style={{
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: Spacing[4],
-        }}
-      >
-        <View style={{ alignItems: 'center', maxWidth: 300 }}>
+      <Container style={styles.errorContainer}>
+        <View style={styles.errorContent}>
           <FontAwesome
             name='exclamation-triangle'
             size={64}
             color={Colors.vibrant?.orange || Colors.warning}
-            style={{ marginBottom: Spacing[4] }}
+            style={styles.errorIcon}
           />
-
-          <Text
-            style={{
-              fontSize: 18,
-              color: isDark ? Colors.gray[800] : Colors.gray[800],
-              textAlign: 'center',
-              marginBottom: Spacing[2],
-              fontFamily: 'SecondaryFont-Bold',
-            }}
-          >
+          <Text style={[styles.errorTitle, { color: getTextColor(isDark) }]}>
             Bir Sorun Oluştu
           </Text>
-
           <Alert
             type='error'
-            message={error}
-            style={{ marginBottom: Spacing[6] }}
+            message={state.uiState.error}
+            style={styles.errorAlert}
           />
-
-          <Button title='Tekrar Dene' onPress={handleRetry} variant='primary' />
+          <Button
+            title='Tekrar Dene'
+            onPress={handleRefresh}
+            variant='primary'
+          />
         </View>
       </Container>
     );
@@ -2033,14 +1144,10 @@ function HomeScreenContent() {
   return (
     <>
       <ScrollView
-        style={{
-          flex: 1,
-          paddingHorizontal: Spacing[4],
-          paddingVertical: Spacing[8],
-        }}
+        style={styles.container}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={state.uiState.refreshing}
             onRefresh={handleRefresh}
             tintColor={
               preferredCourse?.category
@@ -2053,154 +1160,103 @@ function HomeScreenContent() {
                 : Colors.vibrant.blue,
             ]}
             title='Yenileniyor...'
-            titleColor={isDark ? Colors.gray[600] : Colors.gray[600]}
+            titleColor={getSecondaryTextColor(isDark)}
           />
         }
+        removeClippedSubviews={true}
+        showsVerticalScrollIndicator={false}
       >
+        {/* DEBUG INFO - Remove this in production */}
+        {/* <DebugInfo state={state} preferredCourse={preferredCourse} /> */}
+
         {/* Header */}
-        <SlideInElement direction='down' delay={0}>
-          <View style={{ flexDirection: 'column', marginBottom: Spacing[6] }}>
-            <View style={{ alignItems: 'flex-end', marginBottom: Spacing[3] }}>
-              <Text
-                style={{
-                  fontSize: 18,
-                  color: isDark ? Colors.gray[900] : Colors.gray[900],
-                  textAlign: 'right',
-                  fontFamily: 'PrimaryFont',
-                  marginBottom: Spacing[1],
-                }}
-              >
-                Merhaba {userData?.username || 'Öğrenci'}!
-              </Text>
-              <Paragraph
-                color={isDark ? Colors.gray[700] : Colors.gray[700]}
-                style={{
-                  fontFamily: 'SecondaryFont-Regular',
-                  textAlign: 'right',
-                  fontSize: 12,
-                }}
-              >
-                DUS sınavına hazırlanmaya devam edelim
-              </Paragraph>
-            </View>
-
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: Spacing[4],
-              }}
+        <View style={styles.headerContainer}>
+          <View style={styles.headerContent}>
+            <Text style={[styles.welcomeText, { color: getTextColor(isDark) }]}>
+              Merhaba {state.appData.userData?.username || 'Öğrenci'}!
+            </Text>
+            <Paragraph
+              color={getSecondaryTextColor(isDark)}
+              style={styles.welcomeSubtext}
             >
-              <FloatingElement>
-                <PulseElement>
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: isDark
-                        ? Colors.vibrant.orange
-                        : Colors.vibrant.orange,
-                      borderRadius: 999,
-                      paddingHorizontal: Spacing[3],
-                      paddingVertical: Spacing[2],
-                      minWidth: 80,
-                      justifyContent: 'center',
-                      shadowColor: Colors.gray[900],
-                      shadowOffset: { width: 10, height: 20 },
-                      shadowOpacity: 0.8,
-                      shadowRadius: 10,
-                      elevation: 10,
-                    }}
-                  >
-                    <FontAwesome
-                      name='fire'
-                      size={16}
-                      color={
-                        isDark ? Colors.secondary.light : Colors.secondary.light
-                      }
-                    />
-                    <Text
-                      style={{
-                        marginLeft: Spacing[2],
-                        color: isDark ? Colors.gray[800] : Colors.gray[800],
-                        fontSize: 14,
-                        fontFamily: 'SecondaryFont-Bold',
-                      }}
-                    >
-                      {analyticsData?.studySessions || 0} gün
-                    </Text>
-                  </View>
-                </PulseElement>
-              </FloatingElement>
-
-              <Avatar
-                name={userData?.username?.charAt(0).toUpperCase() || 'Ö'}
-                size='lg'
-                bgColor={
-                  preferredCourse?.category
-                    ? getCourseColor(preferredCourse.category)
-                    : Colors.vibrant.blue
-                }
-                borderGlow
-                animated
-                style={{
-                  shadowColor: Colors.gray[900],
-                  shadowOffset: { width: 10, height: 20 },
-                  shadowOpacity: 0.8,
-                  shadowRadius: 10,
-                  elevation: 10,
-                }}
-              />
-            </View>
-
-            {/* ✅ FULLY DECOUPLED StudyChronometer - ZERO coupling with course selection */}
-            {selectedCourse && (
-              <StudyChronometer
-                selectedCourse={{
-                  course_id: selectedCourse.course_id,
-                  title: selectedCourse.title,
-                  description: selectedCourse.description,
-                  category: selectedCourse.category,
-                }}
-                category={preferredCourse?.category as any}
-                variant='elevated'
-                style={{
-                  width: '100%',
-                  alignSelf: 'stretch',
-                  shadowColor: Colors.gray[900],
-                  shadowOffset: { width: 10, height: 20 },
-                  shadowOpacity: 0.8,
-                  shadowRadius: 10,
-                  elevation: 10,
-                }}
-                maxWidth='100%'
-                onSessionStart={(sessionId, courseId) => {
-                  console.log(
-                    '✅ Study session started:',
-                    sessionId,
-                    'for course:',
-                    courseId,
-                  );
-                }}
-                onSessionEnd={(sessionData) => {
-                  console.log('✅ Study session ended:', sessionData);
-                  fetchPerformanceData();
-                  fetchCoursesWithData();
-                }}
-              />
-            )}
+              DUS sınavına hazırlanmaya devam edelim
+            </Paragraph>
           </View>
-        </SlideInElement>
 
-        {loading ? (
-          <View
-            style={{
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: Spacing[8],
-            }}
-          >
+          <View style={styles.headerStats}>
+            <FloatingElement>
+              <PulseElement>
+                <View style={[styles.streakContainer]}>
+                  <FontAwesome
+                    name='fire'
+                    size={16}
+                    color={Colors.secondary.light}
+                  />
+                  <Text
+                    style={[styles.streakText, { color: getTextColor(isDark) }]}
+                  >
+                    {state.appData.analyticsData?.studySessions || 0} gün
+                  </Text>
+                </View>
+              </PulseElement>
+            </FloatingElement>
+
+            <Avatar
+              name={
+                state.appData.userData?.username?.charAt(0).toUpperCase() || 'Ö'
+              }
+              size='lg'
+              bgColor={
+                preferredCourse?.category
+                  ? getCourseColor(preferredCourse.category)
+                  : Colors.vibrant.blue
+              }
+              borderGlow
+              animated
+              style={styles.avatarStyle}
+            />
+          </View>
+
+          {/* Chronometer */}
+          {state.courseData.selectedCourse && (
+            <MemoizedStudyChronometer
+              selectedCourse={{
+                course_id:
+                  state.courseData.courses[state.courseData.activeCourseIndex]
+                    ?.course_id,
+                title:
+                  state.courseData.courses[state.courseData.activeCourseIndex]
+                    ?.title,
+                description:
+                  state.courseData.courses[state.courseData.activeCourseIndex]
+                    ?.description,
+                category:
+                  state.courseData.courses[state.courseData.activeCourseIndex]
+                    ?.category,
+              }}
+              category={preferredCourse?.category as any}
+              variant='elevated'
+              style={styles.chronometerContainer}
+              maxWidth='100%'
+              onSessionStart={(sessionId: number, courseId: number) => {
+                console.log(
+                  'Study session started:',
+                  sessionId,
+                  'for course:',
+                  courseId,
+                );
+              }}
+              onSessionEnd={(sessionData: any) => {
+                console.log('Study session ended:', sessionData);
+                stableFetchPerformanceData();
+                stableFetchCoursesWithData();
+              }}
+            />
+          )}
+        </View>
+
+        {state.uiState.loading ? (
+          <View style={styles.loadingContainer}>
             <ActivityIndicator
               size='large'
               color={
@@ -2210,347 +1266,213 @@ function HomeScreenContent() {
               }
             />
             <Text
-              style={{
-                marginTop: Spacing[4],
-                color: isDark ? Colors.white : Colors.white,
-                fontFamily: 'SecondaryFont-Regular',
-                fontSize: 16,
-              }}
+              style={[styles.loadingText, { color: getWhiteTextColor(isDark) }]}
             >
               Ana sayfa yükleniyor...
             </Text>
           </View>
         ) : (
           <>
-            {/* Courses Section */}
-            <SlideInElement direction='left' delay={200}>
-              <View
-                style={{
-                  shadowColor: Colors.gray[900],
-                  shadowOffset: { width: 10, height: 20 },
-                  shadowOpacity: 0.8,
-                  shadowRadius: 10,
-                  elevation: 10,
-                }}
-              >
-                <PlayfulCard
+            {/* Course Cards */}
+            {state.courseData.courses.length > 0 ? (
+              <View>
+                <FlatList
+                  horizontal
+                  data={state.courseData.courses}
+                  keyExtractor={(item) => item.course_id.toString()}
+                  renderItem={renderCourseCard}
+                  showsHorizontalScrollIndicator={false}
+                  pagingEnabled
+                  snapToInterval={screenWidth}
+                  decelerationRate='fast'
+                  removeClippedSubviews={true}
+                  maxToRenderPerBatch={1}
+                  windowSize={3}
+                  getItemLayout={(data, index) => ({
+                    length: screenWidth,
+                    offset: screenWidth * index,
+                    index,
+                  })}
+                  onScroll={(event) => {
+                    const slideIndex = Math.round(
+                      event.nativeEvent.contentOffset.x / screenWidth,
+                    );
+                    if (
+                      slideIndex !== state.courseData.activeCourseIndex &&
+                      slideIndex >= 0 &&
+                      slideIndex < state.courseData.courses.length
+                    ) {
+                      actions.setActiveCourseIndex(slideIndex);
+                    }
+                  }}
+                  scrollEventThrottle={16}
+                />
+
+                {/* Navigation Indicators */}
+                <View style={styles.navigationIndicators}>
+                  {state.courseData.courses.map((course, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.indicator,
+                        {
+                          width:
+                            index === state.courseData.activeCourseIndex
+                              ? 12
+                              : 8,
+                          height:
+                            index === state.courseData.activeCourseIndex
+                              ? 12
+                              : 8,
+                          borderRadius:
+                            index === state.courseData.activeCourseIndex
+                              ? 6
+                              : 4,
+                          backgroundColor:
+                            index === state.courseData.activeCourseIndex
+                              ? preferredCourse?.category
+                                ? getCourseColor(preferredCourse.category)
+                                : Colors.vibrant.blue
+                              : Colors.gray[500],
+                          opacity:
+                            index === state.courseData.activeCourseIndex
+                              ? 1
+                              : 0.6,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+            ) : state.courseData.coursesLoading ? (
+              <View style={styles.courseCardContainer}>
+                <MemoizedPlayfulCard
                   title='Çalışmaya Devam Et'
+                  style={styles.courseCard}
+                  titleFontFamily='PrimaryFont'
+                  variant='elevated'
+                  category={preferredCourse?.category}
+                >
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator
+                      size='small'
+                      color={
+                        preferredCourse?.category
+                          ? getCourseColor(preferredCourse.category)
+                          : Colors.vibrant.blue
+                      }
+                    />
+                    <Text
+                      style={[styles.loadingText, { color: Colors.gray[400] }]}
+                    >
+                      Dersler yükleniyor...
+                    </Text>
+                  </View>
+                </MemoizedPlayfulCard>
+              </View>
+            ) : (
+              <View style={styles.courseCardContainer}>
+                <MemoizedPlayfulCard
+                  title='Çalışmaya Devam Et'
+                  style={styles.courseCard}
+                  titleFontFamily='PrimaryFont'
+                  variant='elevated'
+                  category={preferredCourse?.category}
+                >
+                  <EmptyState
+                    icon='book'
+                    title='Henüz ders yok'
+                    message='Dersler sekmesinden ilk dersinizi seçin ve çalışmaya başlayın.'
+                    buttonFontFamily='PrimaryFont'
+                    style={styles.emptyStateContainer}
+                  />
+                </MemoizedPlayfulCard>
+              </View>
+            )}
+
+            {/* Performance Summary */}
+            {!state.uiState.performanceLoading &&
+              !state.uiState.performanceError && (
+                <OptimizedPerformanceSummary
+                  performanceData={state.performanceData}
+                  isDark={isDark}
+                  preferredCourseCategory={preferredCourse?.category}
+                  formatTime={formatTimeForDisplay}
+                  ensureSafeNumber={ensureSafeNumber}
+                  getTextColor={getTextColor}
+                  getSecondaryTextColor={getSecondaryTextColor}
+                  getWhiteTextColor={getWhiteTextColor}
+                  getTertiaryTextColor={getTertiaryTextColor}
+                />
+              )}
+
+            {state.uiState.performanceLoading && (
+              <View style={{ marginTop: 16, paddingHorizontal: 16 }}>
+                <MemoizedPlayfulCard
+                  title='Genel Performans Özeti'
                   style={{
-                    marginBottom: Spacing[6],
+                    marginBottom: 24,
                     shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 20, height: 40 },
-                    shadowOpacity: 0.9,
-                    shadowRadius: 20,
-                    elevation: 20,
+                    shadowOffset: { width: 4, height: 8 },
+                    shadowOpacity: 0.4,
+                    shadowRadius: 8,
+                    elevation: 8,
                   }}
                   titleFontFamily='PrimaryFont'
                   variant='elevated'
-                  category={preferredCourse?.category as any}
-                  animated
-                  floatingAnimation
-                  collapsible
-                  defaultCollapsed={isStudyCardCollapsed}
-                  onCollapseToggle={setIsStudyCardCollapsed}
+                  category={preferredCourse?.category}
                 >
-                  {courses.length > 0 ? (
-                    <View>
-                      {/* ✅ Course Selection Tabs - ZERO impact on chronometer */}
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={{ marginBottom: Spacing[4] }}
-                        contentContainerStyle={{
-                          paddingHorizontal: Spacing[2],
-                        }}
-                      >
-                        {courses.map((course, index) => (
-                          <TouchableOpacity
-                            key={course.course_id}
-                            onPress={() => handleCourseSelect(course)}
-                            style={{
-                              backgroundColor:
-                                preferredCourse?.course_id === course.course_id
-                                  ? course.category
-                                    ? getCourseColor(course.category)
-                                    : Colors.vibrant.blue
-                                  : Colors.gray[600],
-                              paddingHorizontal: Spacing[4],
-                              paddingVertical: Spacing[3],
-                              borderRadius: 25,
-                              marginRight: Spacing[3],
-                              minWidth: 120,
-                              alignItems: 'center',
-                              shadowColor: Colors.gray[900],
-                              shadowOffset: { width: 5, height: 10 },
-                              shadowOpacity: 0.6,
-                              shadowRadius: 8,
-                              elevation: 8,
-                            }}
-                          >
-                            <FontAwesome
-                              name={course.iconName as any}
-                              size={16}
-                              color={Colors.white}
-                              style={{ marginBottom: Spacing[1] }}
-                            />
-                            <Text
-                              style={{
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontFamily: 'SecondaryFont-Bold',
-                                textAlign: 'center',
-                              }}
-                            >
-                              {course.title.length > 15
-                                ? `${course.title.substring(0, 15)}...`
-                                : course.title}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-
-                      {/* Selected Course Content - VIEWING ONLY */}
-                      {selectedCourse && (
-                        <View>
-                          <Text
-                            style={{
-                              fontSize: 18,
-                              color: isDark ? Colors.white : Colors.white,
-                              marginBottom: Spacing[4],
-                              fontFamily: 'SecondaryFont-Bold',
-                              textAlign: 'center',
-                            }}
-                          >
-                            {selectedCourse.title}
-                          </Text>
-
-                          {/* Course Analytics */}
-                          <View style={{ marginBottom: Spacing[4] }}>
-                            {renderCourseAnalytics(selectedCourse)}
-                          </View>
-
-                          {/* Current Session */}
-                          <View style={{ marginBottom: Spacing[4] }}>
-                            <Text
-                              style={{
-                                fontSize: 16,
-                                color: isDark ? Colors.white : Colors.white,
-                                marginBottom: Spacing[3],
-                                fontFamily: 'SecondaryFont-Bold',
-                              }}
-                            >
-                              📝 Aktif Çalışma Seansı
-                            </Text>
-
-                            {selectedCourse.studySessions.find(
-                              (s) => s.sessionStatus === 'active',
-                            ) ? (
-                              renderStudySessionCard(
-                                selectedCourse.studySessions.find(
-                                  (s) => s.sessionStatus === 'active',
-                                )!,
-                                true,
-                              )
-                            ) : (
-                              <PlayfulCard
-                                title='Yeni Çalışma Seansı Başlat'
-                                variant='outlined'
-                                category={preferredCourse?.category as any}
-                                style={{
-                                  marginBottom: Spacing[3],
-                                  backgroundColor: Colors.gray[100],
-                                }}
-                              >
-                                <View
-                                  style={{
-                                    alignItems: 'center',
-                                    padding: Spacing[4],
-                                  }}
-                                >
-                                  <FontAwesome
-                                    name='play-circle'
-                                    size={48}
-                                    color={
-                                      preferredCourse?.category
-                                        ? getCourseColor(
-                                            preferredCourse?.category,
-                                          )
-                                        : Colors.vibrant.blue
-                                    }
-                                    style={{ marginBottom: Spacing[2] }}
-                                  />
-                                  <Text
-                                    style={{
-                                      color: Colors.gray[600],
-                                      fontFamily: 'SecondaryFont-Regular',
-                                      textAlign: 'center',
-                                    }}
-                                  >
-                                    Bu ders için aktif bir çalışma seansı yok.
-                                    Yukarıdaki kronometre ile yeni bir seans
-                                    başlatabilirsiniz.
-                                  </Text>
-                                </View>
-                              </PlayfulCard>
-                            )}
-                          </View>
-
-                          {/* Recent 3 Sessions */}
-                          <View style={{ marginBottom: Spacing[4] }}>
-                            <Text
-                              style={{
-                                fontSize: 16,
-                                color: isDark ? Colors.white : Colors.white,
-                                marginBottom: Spacing[3],
-                                fontFamily: 'SecondaryFont-Bold',
-                              }}
-                            >
-                              📚 Son 3 Çalışma Seansı
-                            </Text>
-
-                            {selectedCourse.studySessions
-                              .filter((s) => s.sessionStatus === 'completed')
-                              .slice(0, 3)
-                              .map((session) =>
-                                renderStudySessionCard(session),
-                              )}
-
-                            {selectedCourse.studySessions.filter(
-                              (s) => s.sessionStatus === 'completed',
-                            ).length === 0 && (
-                              <EmptyState
-                                icon='history'
-                                title='Henüz tamamlanmış seans yok'
-                                message='Bu ders için tamamlanmış çalışma seansı bulunmuyor.'
-                                style={{
-                                  backgroundColor: Colors.white,
-                                  padding: Spacing[4],
-                                  borderRadius: 8,
-                                }}
-                              />
-                            )}
-                          </View>
-
-                          {/* All Sessions Toggle */}
-                          {selectedCourse.studySessions.length > 3 && (
-                            <View>
-                              <TouchableOpacity
-                                onPress={() =>
-                                  handleToggleSessionsExpansion(
-                                    selectedCourse.course_id,
-                                  )
-                                }
-                                style={{
-                                  backgroundColor: Colors.gray[700],
-                                  padding: Spacing[3],
-                                  borderRadius: 8,
-                                  alignItems: 'center',
-                                  marginBottom: Spacing[4],
-                                }}
-                              >
-                                <Text
-                                  style={{
-                                    color: Colors.white,
-                                    fontFamily: 'SecondaryFont-Bold',
-                                  }}
-                                >
-                                  {selectedCourse.isSessionsExpanded
-                                    ? 'Tüm Seansları Gizle'
-                                    : `Tüm Seansları Göster (${selectedCourse.studySessions.length - 3} tane daha)`}
-                                </Text>
-                              </TouchableOpacity>
-
-                              {selectedCourse.isSessionsExpanded && (
-                                <View>
-                                  <Text
-                                    style={{
-                                      fontSize: 16,
-                                      color: isDark
-                                        ? Colors.white
-                                        : Colors.white,
-                                      marginBottom: Spacing[3],
-                                      fontFamily: 'SecondaryFont-Bold',
-                                    }}
-                                  >
-                                    📋 Tüm Çalışma Seansları
-                                  </Text>
-
-                                  {selectedCourse.studySessions
-                                    .filter(
-                                      (s) => s.sessionStatus === 'completed',
-                                    )
-                                    .slice(3)
-                                    .map((session) =>
-                                      renderStudySessionCard(session),
-                                    )}
-                                </View>
-                              )}
-                            </View>
-                          )}
-
-                          {/* Course Details Form */}
-                          <View>
-                            <Text
-                              style={{
-                                fontSize: 16,
-                                color: isDark ? Colors.white : Colors.white,
-                                marginBottom: Spacing[3],
-                                fontFamily: 'SecondaryFont-Bold',
-                              }}
-                            >
-                              ⚙️ Ders Detayları
-                            </Text>
-                            {renderCourseDetailsForm(selectedCourse)}
-                          </View>
-                        </View>
-                      )}
-                    </View>
-                  ) : coursesLoading ? (
-                    <View style={{ alignItems: 'center', padding: Spacing[4] }}>
-                      <ActivityIndicator
-                        size='small'
-                        color={
-                          preferredCourse?.category
-                            ? getCourseColor(preferredCourse.category)
-                            : Colors.vibrant.blue
-                        }
-                      />
-                      <Text
-                        style={{
-                          marginTop: Spacing[2],
-                          color: isDark ? Colors.gray[400] : Colors.gray[400],
-                          fontFamily: 'SecondaryFont-Regular',
-                        }}
-                      >
-                        Derslar yükleniyor...
-                      </Text>
-                    </View>
-                  ) : (
-                    <EmptyState
-                      icon='book'
-                      title='Henüz ders yok'
-                      message='Dersler sekmesinden ilk dersinizi seçin ve çalışmaya başlayın.'
-                      buttonFontFamily='PrimaryFont'
-                      style={{
-                        backgroundColor: isDark ? Colors.white : Colors.white,
-                      }}
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator
+                      size='small'
+                      color={
+                        preferredCourse?.category
+                          ? getCourseColor(preferredCourse.category)
+                          : Colors.vibrant.blue
+                      }
                     />
-                  )}
-                </PlayfulCard>
+                    <Text
+                      style={[styles.loadingText, { color: Colors.gray[400] }]}
+                    >
+                      Performans verileri yükleniyor...
+                    </Text>
+                  </View>
+                </MemoizedPlayfulCard>
               </View>
-            </SlideInElement>
+            )}
 
-            {/* Performance Summary */}
-            {!loading && renderPerformanceSummary()}
+            {state.uiState.performanceError && (
+              <View style={{ marginTop: 16, paddingHorizontal: 16 }}>
+                <MemoizedPlayfulCard
+                  title='Genel Performans Özeti'
+                  style={{
+                    marginBottom: 24,
+                    shadowColor: Colors.gray[900],
+                    shadowOffset: { width: 4, height: 8 },
+                    shadowOpacity: 0.4,
+                    shadowRadius: 8,
+                    elevation: 8,
+                  }}
+                  titleFontFamily='PrimaryFont'
+                  variant='elevated'
+                >
+                  <Alert
+                    type='error'
+                    message={state.uiState.performanceError}
+                    style={styles.errorAlert}
+                  />
+                </MemoizedPlayfulCard>
+              </View>
+            )}
           </>
         )}
 
-        <View style={{ height: Spacing[8] }} />
+        <View style={styles.spacer} />
       </ScrollView>
 
       {/* Course Selection Modal */}
       <CourseSelectionModal
-        visible={showCourseModal}
+        visible={state.uiState.showCourseModal}
         onClose={handleCourseModalClose}
         onCourseSelected={handleCourseSelected}
       />
@@ -2559,7 +1481,7 @@ function HomeScreenContent() {
 }
 
 // Main component with context provider
-export default function HomeScreen() {
+export default function OptimizedHomeScreen() {
   return (
     <PreferredCourseProvider>
       <HomeScreenContent />

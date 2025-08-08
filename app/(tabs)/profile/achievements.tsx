@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -65,6 +65,15 @@ interface EnhancedAchievement extends Achievement {
   next_milestone?: string | null;
 }
 
+// Optimized shadow style
+const OPTIMIZED_SHADOW = {
+  shadowColor: Colors.gray[900],
+  shadowOffset: { width: 2, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 4,
+  elevation: 4,
+};
+
 function AchievementScreenContent() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
@@ -102,62 +111,100 @@ function AchievementScreenContent() {
   const [error, setError] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
 
-  // Get the current context color
-  const contextColor =
-    (preferredCourse as any)?.category &&
-    getCourseColor((preferredCourse as any).category);
+  // Memoized context color
+  const contextColor = useMemo(() => {
+    return (
+      ((preferredCourse as any)?.category &&
+        getCourseColor((preferredCourse as any).category)) ||
+      Colors.vibrant?.purple ||
+      '#8b5cf6'
+    );
+  }, [preferredCourse, getCourseColor]);
 
-  // Safe color fallbacks
-  const getHeaderColor = () => {
-    return contextColor;
-  };
+  // Memoized dynamic styles
+  const dynamicStyles = useMemo(
+    () =>
+      StyleSheet.create({
+        contextBackground: {
+          backgroundColor: contextColor,
+        },
+        filterButtonActive: {
+          backgroundColor: '#FFFFFF',
+          borderColor: '#FFFFFF',
+        },
+        filterButtonInactive: {
+          backgroundColor: 'transparent',
+          borderColor: 'rgba(255, 255, 255, 0.3)',
+        },
+        activeFilterText: {
+          color: contextColor,
+        },
+        inactiveFilterText: {
+          color: '#FFFFFF',
+        },
+      }),
+    [contextColor],
+  );
 
-  const getCoralColor = () => {
-    return Colors.vibrant?.coral || '#f97316';
-  };
+  // Safe color fallbacks - memoized
+  const colorHelpers = useMemo(
+    () => ({
+      getHeaderColor: () => contextColor,
+      getCoralColor: () => Colors.vibrant?.coral || '#f97316',
+      getYellowColor: () => Colors.vibrant?.yellow || '#fbbf24',
+    }),
+    [contextColor],
+  );
 
-  const getYellowColor = () => {
-    return Colors.vibrant?.yellow || '#fbbf24';
-  };
+  // Helper function to safely handle progress values - memoized
+  const safeProgress = useCallback(
+    (value: number | undefined | null): number => {
+      if (value === undefined || value === null || isNaN(value)) {
+        return 0;
+      }
+      return Math.max(0, Math.min(100, value));
+    },
+    [],
+  );
 
-  // Helper function to safely handle progress values
-  const safeProgress = (value: number | undefined | null): number => {
-    if (value === undefined || value === null || isNaN(value)) {
-      return 0;
-    }
-    return Math.max(0, Math.min(100, value));
-  };
+  // Helper functions - memoized
+  const determineRarity = useCallback(
+    (
+      points?: number,
+    ): 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' => {
+      if (!points) return 'common';
+      if (points < 25) return 'common';
+      if (points < 50) return 'uncommon';
+      if (points < 100) return 'rare';
+      if (points < 200) return 'epic';
+      return 'legendary';
+    },
+    [],
+  );
 
-  // Helper functions
-  const determineRarity = (
-    points?: number,
-  ): 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' => {
-    if (!points) return 'common';
-    if (points < 25) return 'common';
-    if (points < 50) return 'uncommon';
-    if (points < 100) return 'rare';
-    if (points < 200) return 'epic';
-    return 'legendary';
-  };
+  const getRarityColor = useCallback(
+    (rarity: string) => {
+      switch (rarity) {
+        case 'common':
+          return contextColor || '#6b7280';
+        case 'uncommon':
+          return Colors.vibrant?.green || Colors.success || '#10b981';
+        case 'rare':
+          return Colors.vibrant?.blue || Colors.primary?.DEFAULT || '#3b82f6';
+        case 'epic':
+          return Colors.vibrant?.purple || Colors.primary?.dark || '#8b5cf6';
+        case 'legendary':
+          return (
+            Colors.vibrant?.orange || Colors.secondary?.DEFAULT || '#f59e0b'
+          );
+        default:
+          return Colors.gray?.[500] || '#6b7280';
+      }
+    },
+    [contextColor],
+  );
 
-  const getRarityColor = (rarity: string) => {
-    switch (rarity) {
-      case 'common':
-        return contextColor || '#6b7280';
-      case 'uncommon':
-        return Colors.vibrant?.green || Colors.success || '#10b981';
-      case 'rare':
-        return Colors.vibrant?.blue || Colors.primary?.DEFAULT || '#3b82f6';
-      case 'epic':
-        return Colors.vibrant?.purple || Colors.primary?.dark || '#8b5cf6';
-      case 'legendary':
-        return Colors.vibrant?.orange || Colors.secondary?.DEFAULT || '#f59e0b';
-      default:
-        return Colors.gray?.[500] || '#6b7280';
-    }
-  };
-
-  const getRarityBadgeVariant = (rarity: string) => {
+  const getRarityBadgeVariant = useCallback((rarity: string) => {
     switch (rarity) {
       case 'common':
         return 'secondary' as const;
@@ -172,36 +219,44 @@ function AchievementScreenContent() {
       default:
         return 'secondary' as const;
     }
-  };
+  }, []);
 
-  const enhanceAchievement = (
-    baseAchievement: Achievement,
-    userAchievement?: UserAchievement,
-    progressData?: AchievementProgress,
-  ): EnhancedAchievement => {
-    const rawProgress =
-      progressData?.overall_progress || (userAchievement ? 100 : 0);
-    const overall_progress = safeProgress(rawProgress);
+  const enhanceAchievement = useCallback(
+    (
+      baseAchievement: Achievement,
+      userAchievement?: UserAchievement,
+      progressData?: AchievementProgress,
+    ): EnhancedAchievement => {
+      const rawProgress =
+        progressData?.overall_progress || (userAchievement ? 100 : 0);
+      const overall_progress = safeProgress(rawProgress);
 
-    return {
-      ...baseAchievement,
-      date_earned: userAchievement?.date_earned,
-      progress_data: progressData,
-      rarity: determineRarity(baseAchievement.points),
-      is_unlocked: !!userAchievement,
-      overall_progress,
-      next_milestone: progressData ? getNextMilestone(progressData) : null,
-    };
-  };
+      return {
+        ...baseAchievement,
+        date_earned: userAchievement?.date_earned,
+        progress_data: progressData,
+        rarity: determineRarity(baseAchievement.points),
+        is_unlocked: !!userAchievement,
+        overall_progress,
+        next_milestone: progressData ? getNextMilestone(progressData) : null,
+      };
+    },
+    [safeProgress, determineRarity],
+  );
 
-  // Data fetching for detail mode
+  // Data fetching for detail mode with cleanup
   const fetchAchievementData = useCallback(async () => {
+    let isMounted = true;
+
     try {
+      if (!isMounted) return;
       setLoading(true);
       setError(null);
 
       if (!id) {
-        setError("Başarı ID'si bulunamadı");
+        if (isMounted) {
+          setError("Başarı ID'si bulunamadı");
+        }
         return;
       }
 
@@ -213,7 +268,9 @@ function AchievementScreenContent() {
         !Number.isInteger(achievementId) ||
         achievementId <= 0
       ) {
-        setError("Geçersiz başarı ID'si");
+        if (isMounted) {
+          setError("Geçersiz başarı ID'si");
+        }
         return;
       }
 
@@ -224,6 +281,8 @@ function AchievementScreenContent() {
           getUserAchievements(),
           getUserAchievementProgress(),
         ]);
+
+      if (!isMounted) return;
 
       if (!achievementData) {
         setError('Başarı bulunamadı');
@@ -263,7 +322,10 @@ function AchievementScreenContent() {
               );
               return enhanceAchievement(a, userAch, achProgress);
             });
-          setRelatedAchievements(relatedList);
+
+          if (isMounted) {
+            setRelatedAchievements(relatedList);
+          }
         } catch (err) {
           console.error('Error fetching related achievements:', err);
         }
@@ -273,12 +335,18 @@ function AchievementScreenContent() {
       if (enhanced.is_unlocked && enhanced.date_earned) {
         const unlockTime = new Date(enhanced.date_earned).getTime();
         const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-        if (unlockTime > fiveMinutesAgo) {
-          setTimeout(() => setShowCelebration(true), 500);
+        if (unlockTime > fiveMinutesAgo && isMounted) {
+          setTimeout(() => {
+            if (isMounted) {
+              setShowCelebration(true);
+            }
+          }, 500);
         }
       }
     } catch (err) {
       console.error('Error fetching achievement:', err);
+      if (!isMounted) return;
+
       if (err instanceof Error) {
         if (err.message.includes('Failed to retrieve achievement')) {
           setError('Başarı bilgileri alınamadı');
@@ -291,13 +359,22 @@ function AchievementScreenContent() {
         setError('Başarı bilgileri yüklenirken hata oluştu');
       }
     } finally {
-      setLoading(false);
+      if (isMounted) {
+        setLoading(false);
+      }
     }
-  }, [id]);
 
-  // Data fetching for list mode
+    return () => {
+      isMounted = false;
+    };
+  }, [id, enhanceAchievement]);
+
+  // Data fetching for list mode with cleanup
   const fetchAllAchievements = useCallback(async () => {
+    let isMounted = true;
+
     try {
+      if (!isMounted) return;
       setLoading(true);
       setError(null);
 
@@ -312,7 +389,7 @@ function AchievementScreenContent() {
               'social',
               'progress',
               'special',
-              'course', // ✅ FIXED: Added 'course' category
+              'course',
             ];
             return Promise.all(
               categories.map(async (category) => {
@@ -328,6 +405,8 @@ function AchievementScreenContent() {
           getUserAchievements(),
           getUserAchievementProgress(),
         ]);
+
+      if (!isMounted) return;
 
       // Remove duplicates based on achievement_id
       const uniqueAchievements = allAchievements.filter(
@@ -348,17 +427,27 @@ function AchievementScreenContent() {
         return enhanceAchievement(ach, userAch, achProgress);
       });
 
-      setAchievements(enhancedAchievements);
-      setFilteredAchievements(enhancedAchievements);
+      if (isMounted) {
+        setAchievements(enhancedAchievements);
+        setFilteredAchievements(enhancedAchievements);
+      }
     } catch (err) {
       console.error('Error fetching achievements:', err);
-      setError('Başarılar yüklenirken hata oluştu');
+      if (isMounted) {
+        setError('Başarılar yüklenirken hata oluştu');
+      }
     } finally {
-      setLoading(false);
+      if (isMounted) {
+        setLoading(false);
+      }
     }
-  }, []);
 
-  // Filter achievements - immediate without delays
+    return () => {
+      isMounted = false;
+    };
+  }, [enhanceAchievement]);
+
+  // Filter achievements - memoized and immediate without delays
   const filterAchievements = useCallback(() => {
     if (achievements.length === 0) return;
 
@@ -379,167 +468,191 @@ function AchievementScreenContent() {
     setFilteredAchievements(filtered);
   }, [achievements, selectedCategory, selectedStatus]);
 
+  // Effect hooks with cleanup
   useEffect(() => {
+    let isMounted = true;
+
     if (isListMode) {
       fetchAllAchievements();
     } else {
       fetchAchievementData();
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [isListMode, fetchAllAchievements, fetchAchievementData]);
 
   useEffect(() => {
-    if (isListMode) {
+    let isMounted = true;
+
+    if (isListMode && isMounted) {
       filterAchievements();
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [isListMode, filterAchievements]);
 
-  // Get unique categories for filter
-  const getCategories = (): string[] => {
+  // Get unique categories for filter - memoized
+  const getCategories = useCallback((): string[] => {
     const categories = achievements
       .map((ach) => ach.category)
       .filter((category): category is string => Boolean(category))
       .filter((category, index, self) => self.indexOf(category) === index);
     return ['all', ...categories];
-  };
+  }, [achievements]);
 
-  // Helper function to safely set category
-  const handleCategoryChange = (category: string | undefined) => {
+  // Helper function to safely set category - memoized
+  const handleCategoryChange = useCallback((category: string | undefined) => {
     setSelectedCategory(category || 'all');
-  };
+  }, []);
 
-  // Event handlers
-  const handleShareAchievement = () => {
+  // Event handlers - memoized
+  const handleShareAchievement = useCallback(() => {
     console.log('Sharing achievement:', achievement?.name);
-  };
+  }, [achievement]);
 
-  const handleViewAllAchievements = () => {
+  const handleViewAllAchievements = useCallback(() => {
     router.push('/(tabs)/profile/achievements' as any);
-  };
+  }, [router]);
 
-  const handleAchievementPress = (achievementItem: EnhancedAchievement) => {
-    router.push(
-      `/(tabs)/profile/achievement/${achievementItem.achievement_id}` as any,
-    );
-  };
+  const handleAchievementPress = useCallback(
+    (achievementItem: EnhancedAchievement) => {
+      router.push(
+        `/(tabs)/profile/achievement/${achievementItem.achievement_id}` as any,
+      );
+    },
+    [router],
+  );
 
   // ✅ FIXED: Render progress requirements detail with Turkish translations and proper typing
-  const renderProgressRequirements = (progressData: AchievementProgress) => {
-    const requirements = Object.entries(progressData.requirements);
+  const renderProgressRequirements = useCallback(
+    (progressData: AchievementProgress) => {
+      const requirements = Object.entries(progressData.requirements);
 
-    return (
-      <Column style={styles.requirementsContainer}>
-        <Text style={styles.requirementsTitle}>Gereksinimler:</Text>
-        {requirements.map(
-          ([key, req]: [
-            string,
-            { current: number; required: number | boolean; progress: number },
-          ]) => (
-            <View key={key} style={styles.requirementItem}>
-              <Row style={styles.requirementHeader}>
-                <Text style={styles.requirementLabel}>
-                  {getTurkishRequirementName(key)}
-                </Text>
-              </Row>
-              <ProgressBar
-                progress={req.progress}
-                height={22}
-                width='100%'
-                trackColor={contextColor || '#e5e7eb'}
-                progressColor={getRarityColor(
-                  progressData.overall_progress >= 100 ? 'legendary' : 'rare',
-                )}
-                style={styles.requirementProgressBar}
-                showPercentageInside={true}
-                animated
-              />
-              <Text style={styles.requirementDetail}>
-                {getTurkishRequirementDetail(key, req)}
-              </Text>
-            </View>
-          ),
-        )}
-      </Column>
-    );
-  };
-
-  // Render achievement list item with improved layout and Turkish support
-  const renderAchievementItem = ({ item }: { item: EnhancedAchievement }) => (
-    <SlideInElement delay={0}>
-      <TouchableOpacity
-        style={styles.achievementListItem}
-        onPress={() => handleAchievementPress(item)}
-      >
-        <GlassCard style={styles.listItemCard}>
-          {/* Fixed horizontal alignment by wrapping content */}
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {/* Achievement Icon */}
-            <View
-              style={[
-                styles.achievementIconSmall,
-                {
-                  backgroundColor: item.is_unlocked
-                    ? getRarityColor(item.rarity)
-                    : Colors.gray?.[400] || '#9ca3af',
-                  opacity: item.is_unlocked ? 1 : 0.6,
-                },
-              ]}
-            >
-              <FontAwesome
-                name={(item.icon as any) || 'star'}
-                size={18}
-                color={Colors.white || '#ffffff'}
-              />
-            </View>
-
-            {/* Achievement Info */}
-            <Column style={styles.listItemText}>
-              <Text style={styles.listItemTitle}>{item.name}</Text>
-
-              {/* Full description display */}
-              <Text style={styles.listItemDescription}>
-                {item.description || 'Açıklama bulunmuyor'}
-              </Text>
-
-              {/* Progress info for locked achievements */}
-              {!item.is_unlocked && item.next_milestone && (
-                <Text style={styles.nextMilestone}>{item.next_milestone}</Text>
-              )}
-
-              {/* Status badge - no percentage anymore */}
-              <Row style={styles.listItemFooter}>
-                <Badge
-                  text={item.is_unlocked ? 'Tamamlandı' : 'Devam Ediyor'}
-                  variant={item.is_unlocked ? 'success' : 'warning'}
-                  size='sm'
-                  fontFamily='SecondaryFont-Bold'
-                />
-              </Row>
-
-              {/* Progress bar with percentage inside for incomplete achievements */}
-              {!item.is_unlocked && (
+      return (
+        <Column style={styles.requirementsContainer}>
+          <Text style={styles.requirementsTitle}>Gereksinimler:</Text>
+          {requirements.map(
+            ([key, req]: [
+              string,
+              { current: number; required: number | boolean; progress: number },
+            ]) => (
+              <View key={key} style={styles.requirementItem}>
+                <Row style={styles.requirementHeader}>
+                  <Text style={styles.requirementLabel}>
+                    {getTurkishRequirementName(key)}
+                  </Text>
+                </Row>
                 <ProgressBar
-                  progress={safeProgress(item.overall_progress)}
-                  height={24}
+                  progress={req.progress}
+                  height={22}
                   width='100%'
-                  trackColor={Colors.gray?.[200] || '#e5e7eb'}
-                  progressColor={getRarityColor(item.rarity)}
-                  style={styles.listItemProgress}
+                  trackColor={contextColor || '#e5e7eb'}
+                  progressColor={getRarityColor(
+                    progressData.overall_progress >= 100 ? 'legendary' : 'rare',
+                  )}
+                  style={styles.requirementProgressBar}
                   showPercentageInside={true}
                   animated
                 />
-              )}
-            </Column>
-          </View>
-        </GlassCard>
-      </TouchableOpacity>
-    </SlideInElement>
+                <Text style={styles.requirementDetail}>
+                  {getTurkishRequirementDetail(key, req)}
+                </Text>
+              </View>
+            ),
+          )}
+        </Column>
+      );
+    },
+    [contextColor, getRarityColor],
   );
 
-  // Get header title
-  const getHeaderTitle = () => {
+  // Render achievement list item with improved layout and Turkish support - memoized
+  const renderAchievementItem = useCallback(
+    ({ item }: { item: EnhancedAchievement }) => (
+      <SlideInElement delay={0}>
+        <TouchableOpacity
+          style={styles.achievementListItem}
+          onPress={() => handleAchievementPress(item)}
+        >
+          <GlassCard style={styles.listItemCard}>
+            {/* Fixed horizontal alignment by wrapping content */}
+            <View style={styles.listItemContainer}>
+              {/* Achievement Icon */}
+              <View
+                style={[
+                  styles.achievementIconSmall,
+                  {
+                    backgroundColor: item.is_unlocked
+                      ? getRarityColor(item.rarity)
+                      : Colors.gray?.[400] || '#9ca3af',
+                    opacity: item.is_unlocked ? 1 : 0.6,
+                  },
+                ]}
+              >
+                <FontAwesome
+                  name={(item.icon as any) || 'star'}
+                  size={18}
+                  color={Colors.white || '#ffffff'}
+                />
+              </View>
+
+              {/* Achievement Info */}
+              <Column style={styles.listItemText}>
+                <Text style={styles.listItemTitle}>{item.name}</Text>
+
+                {/* Full description display */}
+                <Text style={styles.listItemDescription}>
+                  {item.description || 'Açıklama bulunmuyor'}
+                </Text>
+
+                {/* Progress info for locked achievements */}
+                {!item.is_unlocked && item.next_milestone && (
+                  <Text style={styles.nextMilestone}>
+                    {item.next_milestone}
+                  </Text>
+                )}
+
+                {/* Status badge - no percentage anymore */}
+                <Row style={styles.listItemFooter}>
+                  <Badge
+                    text={item.is_unlocked ? 'Tamamlandı' : 'Devam Ediyor'}
+                    variant={item.is_unlocked ? 'success' : 'warning'}
+                    size='sm'
+                    fontFamily='SecondaryFont-Bold'
+                  />
+                </Row>
+
+                {/* Progress bar with percentage inside for incomplete achievements */}
+                {!item.is_unlocked && (
+                  <ProgressBar
+                    progress={safeProgress(item.overall_progress)}
+                    height={24}
+                    width='100%'
+                    trackColor={Colors.gray?.[200] || '#e5e7eb'}
+                    progressColor={getRarityColor(item.rarity)}
+                    style={styles.listItemProgress}
+                    showPercentageInside={true}
+                    animated
+                  />
+                )}
+              </Column>
+            </View>
+          </GlassCard>
+        </TouchableOpacity>
+      </SlideInElement>
+    ),
+    [handleAchievementPress, getRarityColor, safeProgress],
+  );
+
+  // Get header title - memoized
+  const getHeaderTitle = useCallback(() => {
     if (isListMode) return 'Başarılar';
     return achievement?.name || 'Başarı';
-  };
+  }, [isListMode, achievement]);
 
   // Loading state
   if (loading) {
@@ -548,7 +661,7 @@ function AchievementScreenContent() {
         <Stack.Screen
           options={{
             title: getHeaderTitle(),
-            headerStyle: { backgroundColor: getHeaderColor() },
+            headerStyle: { backgroundColor: colorHelpers.getHeaderColor() },
             headerTintColor: Colors.white || '#ffffff',
             headerTitleStyle: {
               fontFamily: 'PrimaryFont',
@@ -556,7 +669,10 @@ function AchievementScreenContent() {
           }}
         />
         <View style={styles.centerContent}>
-          <ActivityIndicator size='large' color={getCoralColor()} />
+          <ActivityIndicator
+            size='large'
+            color={colorHelpers.getCoralColor()}
+          />
           <Text style={styles.loadingText}>
             {isListMode ? 'Başarılar' : 'Başarı'} yükleniyor...
           </Text>
@@ -572,7 +688,7 @@ function AchievementScreenContent() {
         <Stack.Screen
           options={{
             title: getHeaderTitle(),
-            headerStyle: { backgroundColor: getHeaderColor() },
+            headerStyle: { backgroundColor: colorHelpers.getHeaderColor() },
             headerTintColor: Colors.white || '#ffffff',
             headerTitleStyle: {
               fontFamily: 'PrimaryFont',
@@ -596,7 +712,7 @@ function AchievementScreenContent() {
             variant: 'primary',
           }}
           buttonFontFamily='PrimaryFont'
-          style={{ margin: Spacing?.[4] || 16 }}
+          style={styles.emptyStateContainer}
         />
       </View>
     );
@@ -609,7 +725,7 @@ function AchievementScreenContent() {
         <Stack.Screen
           options={{
             title: 'Başarılar',
-            headerStyle: { backgroundColor: getHeaderColor() },
+            headerStyle: { backgroundColor: colorHelpers.getHeaderColor() },
             headerTintColor: Colors.white || '#ffffff',
             headerTitleStyle: {
               fontFamily: 'PrimaryFont',
@@ -628,41 +744,30 @@ function AchievementScreenContent() {
               variant='playful'
               titleFontFamily='PrimaryFont'
               category={(preferredCourse as any)?.category}
-              style={{
-                margin: Spacing?.[4] || 16,
-                marginBottom: Spacing?.[3] || 12,
-                shadowColor: Colors.gray[900],
-                shadowOffset: { width: 10, height: 20 },
-                shadowOpacity: 0.8,
-                shadowRadius: 10,
-                elevation: 10,
-                backgroundColor: contextColor,
-              }}
+              style={[
+                styles.filterCard,
+                dynamicStyles.contextBackground,
+                OPTIMIZED_SHADOW,
+              ]}
               animated
               floatingAnimation
             >
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
+              <View style={styles.filterContainer}>
                 <TouchableOpacity
                   onPress={() => setSelectedStatus('all')}
                   style={[
                     styles.filterButton,
                     selectedStatus === 'all'
-                      ? styles.filterButtonActive
-                      : styles.filterButtonInactive,
+                      ? dynamicStyles.filterButtonActive
+                      : dynamicStyles.filterButtonInactive,
                   ]}
                 >
                   <Text
                     style={[
                       styles.filterButtonText,
                       selectedStatus === 'all'
-                        ? { color: contextColor }
-                        : { color: '#FFFFFF' },
+                        ? dynamicStyles.activeFilterText
+                        : dynamicStyles.inactiveFilterText,
                     ]}
                   >
                     Tümü
@@ -673,18 +778,18 @@ function AchievementScreenContent() {
                   onPress={() => setSelectedStatus('unlocked')}
                   style={[
                     styles.filterButton,
-                    { marginHorizontal: 4 },
+                    styles.filterButtonMiddle,
                     selectedStatus === 'unlocked'
-                      ? styles.filterButtonActive
-                      : styles.filterButtonInactive,
+                      ? dynamicStyles.filterButtonActive
+                      : dynamicStyles.filterButtonInactive,
                   ]}
                 >
                   <Text
                     style={[
                       styles.filterButtonText,
                       selectedStatus === 'unlocked'
-                        ? { color: contextColor }
-                        : { color: '#FFFFFF' },
+                        ? dynamicStyles.activeFilterText
+                        : dynamicStyles.inactiveFilterText,
                     ]}
                   >
                     Tamamlanan
@@ -696,16 +801,16 @@ function AchievementScreenContent() {
                   style={[
                     styles.filterButton,
                     selectedStatus === 'locked'
-                      ? styles.filterButtonActive
-                      : styles.filterButtonInactive,
+                      ? dynamicStyles.filterButtonActive
+                      : dynamicStyles.filterButtonInactive,
                   ]}
                 >
                   <Text
                     style={[
                       styles.filterButtonText,
                       selectedStatus === 'locked'
-                        ? { color: contextColor }
-                        : { color: '#FFFFFF' },
+                        ? dynamicStyles.activeFilterText
+                        : dynamicStyles.inactiveFilterText,
                     ]}
                   >
                     Devam Eden
@@ -735,7 +840,7 @@ function AchievementScreenContent() {
             />
           </View>
 
-          <View style={{ height: Spacing?.[8] || 32 }} />
+          <View style={styles.bottomSpacing} />
         </ScrollView>
       </View>
     );
@@ -747,7 +852,7 @@ function AchievementScreenContent() {
       <Stack.Screen
         options={{
           title: achievement!.name,
-          headerStyle: { backgroundColor: getHeaderColor() },
+          headerStyle: { backgroundColor: colorHelpers.getHeaderColor() },
           headerTintColor: Colors.white || '#ffffff',
           headerTitleStyle: {
             fontFamily: 'PrimaryFont',
@@ -756,8 +861,8 @@ function AchievementScreenContent() {
       />
 
       <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: Spacing?.[4] || 16 }}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero Section */}
@@ -829,7 +934,7 @@ function AchievementScreenContent() {
           <PlayfulCard
             title='İlerleme'
             titleFontFamily='PrimaryFont'
-            style={styles.sectionCard}
+            style={[styles.sectionCard, OPTIMIZED_SHADOW]}
             variant='elevated'
             animated
           >
@@ -908,7 +1013,7 @@ function AchievementScreenContent() {
           <PlayfulCard
             title='Hızlı İşlemler'
             titleFontFamily='PrimaryFont'
-            style={styles.sectionCard}
+            style={[styles.sectionCard, OPTIMIZED_SHADOW]}
             variant='playful'
             animated
           >
@@ -918,11 +1023,7 @@ function AchievementScreenContent() {
                   title='Başarıyı Paylaş'
                   onPress={handleShareAchievement}
                   variant='outline'
-                  style={{
-                    flex: 1,
-                    marginRight: Spacing?.[1] || 4,
-                    alignSelf: 'stretch',
-                  }}
+                  style={styles.shareButton}
                   icon='share'
                   animated
                   size='xs'
@@ -933,11 +1034,10 @@ function AchievementScreenContent() {
                 title='Tüm Başarıları Gör'
                 onPress={handleViewAllAchievements}
                 variant='outline'
-                style={{
-                  flex: 1,
-                  marginLeft: achievement!.is_unlocked ? Spacing?.[1] || 4 : 0,
-                  alignSelf: 'stretch',
-                }}
+                style={[
+                  styles.viewAllButton,
+                  !achievement!.is_unlocked && styles.viewAllButtonFull,
+                ]}
                 icon='list'
                 animated
                 size='xs'
@@ -953,7 +1053,7 @@ function AchievementScreenContent() {
             <PlayfulCard
               title='İlgili Başarılar'
               titleFontFamily='PrimaryFont'
-              style={styles.sectionCard}
+              style={[styles.sectionCard, OPTIMIZED_SHADOW]}
               variant='glass'
               animated
               floatingAnimation
@@ -998,7 +1098,7 @@ function AchievementScreenContent() {
                           variant={related.is_unlocked ? 'success' : 'warning'}
                           size='sm'
                           fontFamily='SecondaryFont-Bold'
-                          style={styles.relatedItemBadge}
+                          style={[styles.relatedItemBadge, OPTIMIZED_SHADOW]}
                         />
                       </Column>
                       <FontAwesome
@@ -1014,7 +1114,7 @@ function AchievementScreenContent() {
           </SlideInElement>
         )}
 
-        <View style={{ height: Spacing?.[8] || 32 }} />
+        <View style={styles.bottomSpacing} />
       </ScrollView>
 
       {/* Celebration Modal */}
@@ -1054,6 +1154,9 @@ const styles = StyleSheet.create({
     fontFamily: 'SecondaryFont-Regular',
     fontSize: 16,
   },
+  emptyStateContainer: {
+    margin: Spacing?.[4] || 16,
+  },
 
   // List Mode Styles
   listContainer: {
@@ -1063,11 +1166,43 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: Spacing?.[4] || 16,
   },
+  filterCard: {
+    margin: Spacing?.[4] || 16,
+    marginBottom: Spacing?.[3] || 12,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  filterButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+  },
+  filterButtonMiddle: {
+    marginHorizontal: 4,
+  },
+  filterButtonText: {
+    fontSize: 11,
+    fontFamily: 'PrimaryFont',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
   achievementListItem: {
     marginBottom: Spacing?.[3] || 12,
   },
   listItemCard: {
     padding: Spacing?.[4] || 16,
+  },
+  listItemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   achievementIconSmall: {
     width: 40,
@@ -1117,33 +1252,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing?.[1] || 4,
   },
 
-  // Filter Button Styles - Static to avoid render delays
-  filterButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 36,
-  },
-  filterButtonActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  filterButtonInactive: {
-    backgroundColor: 'transparent',
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  filterButtonText: {
-    fontSize: 11,
-    fontFamily: 'PrimaryFont',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-
   // Detail Mode Styles
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing?.[4] || 16,
+  },
   heroCard: {
     marginBottom: Spacing?.[6] || 24,
   },
@@ -1193,11 +1308,6 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     marginBottom: Spacing?.[4] || 16,
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 10, height: 20 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
   },
   progressContent: {
     gap: Spacing?.[3] || 12,
@@ -1276,6 +1386,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing?.[4] || 16,
   },
+  shareButton: {
+    flex: 1,
+    marginRight: Spacing?.[1] || 4,
+    alignSelf: 'stretch',
+  },
+  viewAllButton: {
+    flex: 1,
+    marginLeft: Spacing?.[1] || 4,
+    alignSelf: 'stretch',
+  },
+  viewAllButtonFull: {
+    marginLeft: 0,
+  },
   relatedContent: {
     gap: Spacing?.[3] || 12,
   },
@@ -1307,11 +1430,9 @@ const styles = StyleSheet.create({
   },
   relatedItemBadge: {
     alignSelf: 'flex-start',
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 10, height: 20 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
+  },
+  bottomSpacing: {
+    height: Spacing?.[8] || 32,
   },
 });
 

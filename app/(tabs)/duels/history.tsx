@@ -1,6 +1,12 @@
-// app/(tabs)/duels/history.tsx - Duel History Screen with real data
+// app/(tabs)/duels/history.tsx - Optimized Duel History Screen
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import {
   View,
   Text,
@@ -9,6 +15,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   useColorScheme,
+  StyleSheet,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -53,7 +60,6 @@ interface ExtendedDuelResult extends DuelResult {
 }
 
 interface DuelHistoryItem extends ExtendedDuelResult {
-  // Extend DuelResult with computed properties for display
   result: 'won' | 'lost' | 'draw';
   opponentName?: string;
   courseName?: string;
@@ -62,7 +68,225 @@ interface DuelHistoryItem extends ExtendedDuelResult {
   duelInfo?: Duel;
 }
 
-export default function DuelHistoryScreen() {
+// Optimized shadow configuration
+const OPTIMIZED_SHADOW = {
+  shadowColor: Colors.gray[900],
+  shadowOffset: { width: 2, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 4,
+  elevation: 4,
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing[4],
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing[8],
+    ...OPTIMIZED_SHADOW,
+  },
+  loadingText: {
+    marginTop: Spacing[3],
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing[4],
+    backgroundColor: '#A29BFE',
+  },
+  errorAlert: {
+    marginBottom: Spacing[4],
+  },
+  headerCard: {
+    marginBottom: Spacing[6],
+    backgroundColor: 'transparent',
+  },
+  headerRow: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerColumn: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontFamily: 'PrimaryFont',
+    color: Colors.gray[900],
+  },
+  headerSubtitle: {
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  filterContainer: {
+    marginBottom: Spacing[6],
+  },
+  filterRow: {
+    marginBottom: Spacing[3],
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  filterButton: {
+    flex: 1,
+    marginHorizontal: Spacing[1],
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[2],
+    borderRadius: BorderRadius.button,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+    ...OPTIMIZED_SHADOW,
+  },
+  filterButtonActive: {
+    backgroundColor: VIBRANT_COLORS.coral,
+  },
+  filterButtonInactive: {
+    backgroundColor: Colors.white,
+  },
+  filterButtonRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterIcon: {
+    marginRight: Spacing[1],
+  },
+  filterText: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  filterTextActive: {
+    fontWeight: '600',
+    color: Colors.white,
+  },
+  filterTextInactive: {
+    fontWeight: '500',
+    color: Colors.gray[700],
+  },
+  statsCard: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    marginBottom: Spacing[3],
+    flex: 1,
+    marginHorizontal: Spacing[1],
+    ...OPTIMIZED_SHADOW,
+  },
+  statsColumn: {
+    alignItems: 'center',
+  },
+  statsTitle: {
+    fontSize: 12,
+    color: Colors.gray[600],
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'center',
+    marginBottom: Spacing[1],
+  },
+  statsValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    fontFamily: 'PrimaryFont',
+    textAlign: 'center',
+  },
+  statsSubtitle: {
+    fontSize: 10,
+    color: Colors.gray[500],
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  overviewCard: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    marginBottom: Spacing[4],
+    ...OPTIMIZED_SHADOW,
+  },
+  overviewColumn: {
+    alignItems: 'center',
+  },
+  overviewTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.gray[800],
+    fontFamily: 'SecondaryFont-Bold',
+    marginBottom: Spacing[3],
+    textAlign: 'center',
+  },
+  overviewRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statsRow: {
+    marginBottom: Spacing[3],
+  },
+  historyCard: {
+    marginBottom: Spacing[3],
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    ...OPTIMIZED_SHADOW,
+  },
+  historyRow: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  historyContent: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  historyColumn: {
+    flex: 1,
+  },
+  historyHeader: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  historyOpponent: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: Colors.gray[800],
+    fontFamily: 'SecondaryFont-Bold',
+    marginRight: Spacing[2],
+  },
+  historyDetails: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  historyInfo: {
+    fontSize: 12,
+    color: Colors.gray[600],
+    fontFamily: 'SecondaryFont-Regular',
+    marginBottom: 2,
+  },
+  historyScore: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    fontFamily: 'PrimaryFont',
+  },
+  historyDate: {
+    fontSize: 11,
+    color: Colors.gray[500],
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  sectionTitle: {
+    marginBottom: Spacing[2],
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  contentContainer: {
+    backgroundColor: Colors.vibrant.orangeLight,
+    marginBottom: Spacing[4],
+    overflow: 'hidden',
+    ...OPTIMIZED_SHADOW,
+  },
+  bottomAlert: {
+    marginTop: Spacing[4],
+  },
+  bottomSpacing: {
+    height: Spacing[8],
+  },
+});
+
+const DuelHistoryScreen = React.memo(() => {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -71,6 +295,10 @@ export default function DuelHistoryScreen() {
     isLoading: authLoading,
     isSessionValid,
   } = useAuth();
+
+  // Refs for cleanup
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // State management
   const [activeTab, setActiveTab] = useState<HistoryTab>('stats');
@@ -86,208 +314,179 @@ export default function DuelHistoryScreen() {
   const [error, setError] = useState<string | null>(null);
   const [userData, setUserData] = useState<any>(null);
 
-  // Load user data
+  // Memoized color calculations
+  const colors = useMemo(
+    () => ({
+      loading: isDark ? Colors.vibrant.coral : Colors.vibrant.coral,
+      text: isDark ? Colors.white : Colors.white,
+      headerText: isDark ? Colors.gray[700] : Colors.gray[700],
+      sectionText: isDark ? Colors.gray[800] : Colors.gray[800],
+    }),
+    [isDark],
+  );
+
+  // Load user data with cleanup
   useEffect(() => {
+    let isCancelled = false;
+
     const loadUserData = async () => {
       try {
         const data = await AsyncStorage.getItem('userData');
-        if (data) {
+        if (data && !isCancelled && isMountedRef.current) {
           setUserData(JSON.parse(data));
         }
       } catch (error) {
-        console.error('Error loading user data:', error);
+        if (!isCancelled) {
+          console.error('Error loading user data:', error);
+        }
       }
     };
+
     loadUserData();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   // Helper function to determine duel result for current user
-  const getDuelResult = (
-    duelResult: DuelResult,
-    currentUserId: number,
-  ): 'won' | 'lost' | 'draw' => {
-    if (duelResult.winner_id === currentUserId) {
-      return 'won';
-    } else if (duelResult.winner_id && duelResult.winner_id !== currentUserId) {
-      return 'lost';
-    }
-    return 'draw'; // If no winner_id or tied scores
-  };
-
-  // Helper function to get opponent info from duel result
-  const getOpponentInfo = async (
-    duel: Duel,
-    duelResult: ExtendedDuelResult,
-    currentUserId: number,
-  ): Promise<{ opponentId: number; opponentName: string }> => {
-    // Determine opponent ID
-    let opponentId: number;
-    if (duel.initiator_id === currentUserId) {
-      opponentId = duel.opponent_id;
-    } else {
-      opponentId = duel.initiator_id;
-    }
-
-    let opponentName = 'Bilinmeyen Rakip';
-
-    // Method 1: Check if opponent info is already in duel object
-    if (duel.opponent?.username && duel.opponent.user_id === opponentId) {
-      opponentName = duel.opponent.username;
-      console.log(`Opponent name from duel.opponent: ${opponentName}`);
-    } else if (
-      duel.initiator?.username &&
-      duel.initiator.user_id === opponentId
-    ) {
-      opponentName = duel.initiator.username;
-      console.log(`Opponent name from duel.initiator: ${opponentName}`);
-    } else if (duel.opponent_username && duel.opponent_id === opponentId) {
-      opponentName = duel.opponent_username;
-      console.log(`Opponent name from duel.opponent_username: ${opponentName}`);
-    } else if (duel.initiator_username && duel.initiator_id === opponentId) {
-      opponentName = duel.initiator_username;
-      console.log(
-        `Opponent name from duel.initiator_username: ${opponentName}`,
-      );
-    }
-    // Method 2: Use winner_username intelligently
-    else if (duelResult.winner_username) {
-      if (duelResult.winner_id === opponentId) {
-        // Opponent won, so winner_username is the opponent's name
-        opponentName = duelResult.winner_username;
-        console.log(
-          `Opponent name from winner_username (opponent won): ${opponentName}`,
-        );
-      } else {
-        // Current user won, need to get opponent name another way
-        // Try API call to get opponent details
-        try {
-          const opponent = await userService.getUserProfile(); // This might need to be changed to getUserById(opponentId)
-          if (opponent && opponent.userId === opponentId) {
-            opponentName = userService.getUserDisplayName(opponent);
-            console.log(`Opponent name from API call: ${opponentName}`);
-          } else {
-            // Fallback to known bots or generic name
-            opponentName = getKnownOpponentName(opponentId);
-            console.log(`Opponent name from fallback: ${opponentName}`);
-          }
-        } catch (error) {
-          console.warn(
-            `Failed to fetch opponent ${opponentId} via API:`,
-            error,
-          );
-          opponentName = getKnownOpponentName(opponentId);
-        }
+  const getDuelResult = useCallback(
+    (
+      duelResult: DuelResult,
+      currentUserId: number,
+    ): 'won' | 'lost' | 'draw' => {
+      if (duelResult.winner_id === currentUserId) {
+        return 'won';
+      } else if (
+        duelResult.winner_id &&
+        duelResult.winner_id !== currentUserId
+      ) {
+        return 'lost';
       }
-    }
-    // Method 3: Last resort - try API or fallback
-    else {
-      try {
-        // If we had a getUserById function, we'd use it here
-        // const opponent = await userService.getUserById(opponentId);
-        opponentName = getKnownOpponentName(opponentId);
-        console.log(`Opponent name from final fallback: ${opponentName}`);
-      } catch (error) {
-        opponentName = getKnownOpponentName(opponentId);
-      }
-    }
+      return 'draw';
+    },
+    [],
+  );
 
-    console.log(
-      `Duel ${duel.duel_id}: opponentId=${opponentId}, final opponentName=${opponentName}`,
-    );
-    return { opponentId, opponentName };
-  };
-
-  // Helper function for known opponents (bots and common users)
-  const getKnownOpponentName = (opponentId: number): string => {
-    // Known bots
+  // Helper function for known opponents
+  const getKnownOpponentName = useCallback((opponentId: number): string => {
     const knownOpponents: Record<number, string> = {
       30: 'dr_bot_easy',
       33: 'dr_bot_expert',
-      // Add more known opponents here as needed
     };
-
     return knownOpponents[opponentId] || `Kullanıcı ${opponentId}`;
-  };
+  }, []);
 
-  // Fetch actual duel history data
+  // Helper function to get opponent info from duel result
+  const getOpponentInfo = useCallback(
+    async (
+      duel: Duel,
+      duelResult: ExtendedDuelResult,
+      currentUserId: number,
+    ): Promise<{ opponentId: number; opponentName: string }> => {
+      let opponentId: number;
+      if (duel.initiator_id === currentUserId) {
+        opponentId = duel.opponent_id;
+      } else {
+        opponentId = duel.initiator_id;
+      }
+
+      let opponentName = 'Bilinmeyen Rakip';
+
+      if (duel.opponent?.username && duel.opponent.user_id === opponentId) {
+        opponentName = duel.opponent.username;
+      } else if (
+        duel.initiator?.username &&
+        duel.initiator.user_id === opponentId
+      ) {
+        opponentName = duel.initiator.username;
+      } else if (duel.opponent_username && duel.opponent_id === opponentId) {
+        opponentName = duel.opponent_username;
+      } else if (duel.initiator_username && duel.initiator_id === opponentId) {
+        opponentName = duel.initiator_username;
+      } else if (duelResult.winner_username) {
+        if (duelResult.winner_id === opponentId) {
+          opponentName = duelResult.winner_username;
+        } else {
+          try {
+            const opponent = await userService.getUserProfile();
+            if (opponent && opponent.userId === opponentId) {
+              opponentName = userService.getUserDisplayName(opponent);
+            } else {
+              opponentName = getKnownOpponentName(opponentId);
+            }
+          } catch (error) {
+            opponentName = getKnownOpponentName(opponentId);
+          }
+        }
+      } else {
+        opponentName = getKnownOpponentName(opponentId);
+      }
+
+      return { opponentId, opponentName };
+    },
+    [getKnownOpponentName],
+  );
+
+  // Fetch actual duel history data with cleanup
   const fetchActualHistoryData = useCallback(async (): Promise<
     DuelHistoryItem[]
   > => {
+    if (!contextUser || !userData?.userId || !isMountedRef.current) {
+      return [];
+    }
+
+    // Create new abort controller for this request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
-      if (!contextUser || !userData?.userId) {
-        console.warn('No user context or userData available');
-        return [];
-      }
-
       const currentUserId = userData.userId;
-
-      // Get completed duels with winner information
       const completedDuels = await duelService.getCompletedDuels();
 
-      if (!completedDuels || completedDuels.length === 0) {
-        console.log('No completed duels found');
+      if (
+        !completedDuels ||
+        completedDuels.length === 0 ||
+        !isMountedRef.current
+      ) {
         return [];
       }
 
-      // Process each duel to get complete information
       const historyPromises = completedDuels.map(
         async (duel): Promise<DuelHistoryItem | null> => {
+          if (!isMountedRef.current) return null;
+
           try {
-            // Get duel result details
             const duelResult = await duelResultService.getDuelResultByDuelId(
               duel.duel_id,
             );
+            if (!duelResult || !isMountedRef.current) return null;
 
-            if (!duelResult) {
-              console.warn(`No result found for duel ${duel.duel_id}`);
-              return null;
-            }
-
-            // Get opponent information using the corrected logic
             const { opponentId, opponentName } = await getOpponentInfo(
               duel,
               duelResult as ExtendedDuelResult,
               currentUserId,
             );
 
-            // Determine result for current user using corrected logic
-            const result = getDuelResult(duelResult, currentUserId);
-            console.log(
-              `Duel ${duel.duel_id}: winner_id=${duelResult.winner_id}, currentUserId=${currentUserId}, result=${result}`,
-            );
+            if (!isMountedRef.current) return null;
 
-            // Fetch course information
+            const result = getDuelResult(duelResult, currentUserId);
+
             let courseName = 'Bilinmeyen Ders';
             try {
-              // First check if course info is already populated in the duel object
               if (duel.course?.title) {
                 courseName = duel.course.title;
-                console.log(`Course found from duel object: ${courseName}`);
               } else if (duel.course_title) {
                 courseName = duel.course_title;
-                console.log(
-                  `Course found from course_title field: ${courseName}`,
-                );
-              } else if (duel.course?.course_id) {
-                // If course object exists but no title, fetch it
-                console.log(
-                  `Fetching course info for course ${duel.course.course_id}`,
-                );
+              } else if (duel.course?.course_id && isMountedRef.current) {
                 const course = await courseService.getCourseById(
                   duel.course.course_id,
                 );
-                if (course) {
+                if (course && isMountedRef.current) {
                   courseName = course.title;
-                  console.log(`Course fetched from API: ${courseName}`);
-                } else {
-                  console.log(
-                    `Course ${duel.course.course_id} not found via API`,
-                  );
                 }
-              } else {
-                console.log(
-                  `No course information available for duel ${duel.duel_id}`,
-                );
               }
             } catch (error) {
               console.warn(
@@ -296,7 +495,8 @@ export default function DuelHistoryScreen() {
               );
             }
 
-            // Format date
+            if (!isMountedRef.current) return null;
+
             const formattedDate = new Date(
               duelResult.created_at,
             ).toLocaleDateString('tr-TR', {
@@ -312,7 +512,7 @@ export default function DuelHistoryScreen() {
               result,
               opponentName,
               courseName,
-              testName: `Test ${duel.duel_id}`, // You might want to get actual test name if available
+              testName: `Test ${duel.duel_id}`,
               formattedDate,
               duelInfo: duel,
             };
@@ -323,13 +523,14 @@ export default function DuelHistoryScreen() {
         },
       );
 
-      // Wait for all promises and filter out null results
       const historyResults = await Promise.all(historyPromises);
+
+      if (!isMountedRef.current) return [];
+
       const validHistory = historyResults.filter(
         (item): item is DuelHistoryItem => item !== null,
       );
 
-      // Sort by date (most recent first)
       validHistory.sort(
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -337,13 +538,61 @@ export default function DuelHistoryScreen() {
 
       return validHistory;
     } catch (error) {
+      if (!isMountedRef.current) return [];
       console.error('Error fetching actual history data:', error);
       throw error;
     }
-  }, [contextUser, userData?.userId]);
+  }, [contextUser, userData?.userId, getOpponentInfo, getDuelResult]);
 
-  // Fetch duel history data
+  // Generate placeholder history (memoized)
+  const generatePlaceholderHistory = useCallback(
+    (stats: UserDuelStatsPayload): DuelHistoryItem[] => {
+      const history: DuelHistoryItem[] = [];
+      const totalDuels = stats.totalDuels || 0;
+
+      if (totalDuels === 0) return [];
+
+      for (let i = 0; i < Math.min(totalDuels, 50); i++) {
+        const isWin = i < (stats.wins || 0);
+        const duelId = 1000 + i;
+
+        history.push({
+          duel_id: duelId,
+          winner_id: isWin ? userData?.userId : (userData?.userId || 0) + 1,
+          initiator_score: isWin
+            ? Math.floor(Math.random() * 20) + 15
+            : Math.floor(Math.random() * 15) + 5,
+          opponent_score: isWin
+            ? Math.floor(Math.random() * 15) + 5
+            : Math.floor(Math.random() * 20) + 15,
+          created_at: new Date(
+            Date.now() - i * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          result: isWin ? 'won' : ('lost' as 'won' | 'lost' | 'draw'),
+          opponentName: `Rakip ${i + 1}`,
+          courseName: ['Matematik', 'Türkçe', 'Fen', 'Sosyal'][i % 4],
+          testName: `Test ${i + 1}`,
+          formattedDate: new Date(
+            Date.now() - i * 24 * 60 * 60 * 1000,
+          ).toLocaleDateString('tr-TR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        } as DuelHistoryItem);
+      }
+
+      return history.reverse();
+    },
+    [userData?.userId],
+  );
+
+  // Fetch duel history data with cleanup
   const fetchHistoryData = useCallback(async () => {
+    if (!isMountedRef.current) return;
+
     try {
       setError(null);
 
@@ -352,7 +601,6 @@ export default function DuelHistoryScreen() {
         return;
       }
 
-      // Fetch both stats and actual history
       const [statsData, actualHistory] = await Promise.all([
         duelResultService.getUserDuelStats(),
         fetchActualHistoryData().catch((error) => {
@@ -360,427 +608,247 @@ export default function DuelHistoryScreen() {
             'Error fetching actual history, falling back to placeholder:',
             error,
           );
-          return []; // Return empty array on error
+          return [];
         }),
       ]);
+
+      if (!isMountedRef.current) return;
 
       setUserStats(statsData);
 
       if (actualHistory.length > 0) {
-        // Use actual data
         setDuelHistory(actualHistory);
         setRecentDuels(actualHistory.slice(0, 10));
       } else {
-        // Fallback to placeholder if no actual data
-        console.log('No actual history available, using placeholder data');
         const placeholderHistory = generatePlaceholderHistory(statsData);
         setDuelHistory(placeholderHistory);
         setRecentDuels(placeholderHistory.slice(0, 10));
       }
     } catch (e) {
+      if (!isMountedRef.current) return;
       console.error('Error fetching history data:', e);
       setError('İstatistik verileri yüklenirken bir hata oluştu.');
     }
-  }, [contextUser, isSessionValid, fetchActualHistoryData]);
-
-  // Keep the original placeholder function as fallback
-  const generatePlaceholderHistory = (
-    stats: UserDuelStatsPayload,
-  ): DuelHistoryItem[] => {
-    const history: DuelHistoryItem[] = [];
-    const totalDuels = stats.totalDuels || 0;
-
-    if (totalDuels === 0) return [];
-
-    // Generate placeholder duels based on win/loss counts
-    for (let i = 0; i < Math.min(totalDuels, 50); i++) {
-      const isWin = i < (stats.wins || 0);
-      const duelId = 1000 + i;
-
-      history.push({
-        duel_id: duelId,
-        winner_id: isWin ? userData?.userId : (userData?.userId || 0) + 1,
-        initiator_score: isWin
-          ? Math.floor(Math.random() * 20) + 15 // Winner gets higher score
-          : Math.floor(Math.random() * 15) + 5, // Loser gets lower score
-        opponent_score: isWin
-          ? Math.floor(Math.random() * 15) + 5 // Opponent gets lower score when user wins
-          : Math.floor(Math.random() * 20) + 15, // Opponent gets higher score when user loses
-        created_at: new Date(
-          Date.now() - i * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-        // Computed properties
-        result: isWin ? 'won' : ('lost' as 'won' | 'lost' | 'draw'),
-        opponentName: `Rakip ${i + 1}`,
-        courseName: ['Matematik', 'Türkçe', 'Fen', 'Sosyal'][i % 4],
-        testName: `Test ${i + 1}`,
-        formattedDate: new Date(
-          Date.now() - i * 24 * 60 * 60 * 1000,
-        ).toLocaleDateString('tr-TR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      } as DuelHistoryItem);
-    }
-
-    return history.reverse(); // Most recent first
-  };
+  }, [
+    contextUser,
+    isSessionValid,
+    fetchActualHistoryData,
+    generatePlaceholderHistory,
+  ]);
 
   const handleRefresh = useCallback(async () => {
+    if (!isMountedRef.current) return;
     setRefreshing(true);
     await fetchHistoryData();
-    setRefreshing(false);
+    if (isMountedRef.current) {
+      setRefreshing(false);
+    }
   }, [fetchHistoryData]);
 
   const handleRetry = useCallback(async () => {
+    if (!isMountedRef.current) return;
     setIsLoading(true);
     await fetchHistoryData();
-    setIsLoading(false);
+    if (isMountedRef.current) {
+      setIsLoading(false);
+    }
   }, [fetchHistoryData]);
 
-  // Initial data fetch
+  // Initial data fetch with cleanup
   useEffect(() => {
+    let isCancelled = false;
+
     const initialFetch = async () => {
-      if (userData) {
+      if (userData && !isCancelled && isMountedRef.current) {
         setIsLoading(true);
         await fetchHistoryData();
-        setIsLoading(false);
+        if (!isCancelled && isMountedRef.current) {
+          setIsLoading(false);
+        }
       }
     };
+
     initialFetch();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [fetchHistoryData, userData]);
 
-  // Filter Button Component
-  const FilterButton = ({
-    filter,
-    title,
-    icon,
-  }: {
-    filter: HistoryTab;
-    title: string;
-    icon: string;
-  }) => (
-    <TouchableOpacity
-      style={{
-        flex: 1,
-        marginHorizontal: Spacing[1],
-        paddingVertical: Spacing[2],
-        paddingHorizontal: Spacing[2],
-        borderRadius: BorderRadius.button,
-        backgroundColor:
-          activeTab === filter
-            ? VIBRANT_COLORS.coral
-            : isDark
-            ? Colors.white
-            : Colors.white,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: Colors.gray[900],
-        shadowOffset: { width: 10, height: 20 },
-        shadowOpacity: 0.8,
-        shadowRadius: 10,
-        elevation: 10,
-        minHeight: 36,
-      }}
-      onPress={() => setActiveTab(filter)}
-    >
-      <Row style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <FontAwesome
-          name={icon as any}
-          size={12}
-          color={
-            activeTab === filter
-              ? Colors.white
-              : isDark
-              ? Colors.gray[700]
-              : Colors.gray[700]
-          }
-          style={{ marginRight: Spacing[1] }}
-        />
-        <Text
-          style={{
-            fontSize: 12,
-            fontWeight: activeTab === filter ? '600' : '500',
-            color:
-              activeTab === filter
-                ? Colors.white
-                : isDark
-                ? Colors.gray[700]
-                : Colors.gray[700],
-            textAlign: 'center',
-            fontFamily: 'SecondaryFont-Regular',
-          }}
-          numberOfLines={1}
-          adjustsFontSizeToFit
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Memoized Filter Button Component
+  const FilterButton = React.memo(
+    ({
+      filter,
+      title,
+      icon,
+    }: {
+      filter: HistoryTab;
+      title: string;
+      icon: string;
+    }) => {
+      const isActive = activeTab === filter;
+
+      return (
+        <TouchableOpacity
+          style={[
+            styles.filterButton,
+            isActive ? styles.filterButtonActive : styles.filterButtonInactive,
+          ]}
+          onPress={() => setActiveTab(filter)}
         >
-          {title}
-        </Text>
-      </Row>
-    </TouchableOpacity>
-  );
-
-  // Stats Card Component
-  const StatsCard = ({
-    title,
-    value,
-    subtitle,
-    color = Colors.vibrant.purple,
-    animated = false,
-  }: {
-    title: string;
-    value: string | number;
-    subtitle?: string;
-    color?: string;
-    animated?: boolean;
-  }) => (
-    <PlayfulCard
-      style={{
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        marginBottom: Spacing[3],
-        flex: 1,
-        marginHorizontal: Spacing[1],
-        shadowColor: Colors.gray[900],
-        shadowOffset: { width: 10, height: 20 },
-        shadowOpacity: 0.8,
-        shadowRadius: 10,
-        elevation: 10,
-      }}
-    >
-      <Column style={{ alignItems: 'center' }}>
-        <Text
-          style={{
-            fontSize: 12,
-            color: Colors.gray[600],
-            fontFamily: 'SecondaryFont-Regular',
-            textAlign: 'center',
-            marginBottom: Spacing[1],
-          }}
-        >
-          {title}
-        </Text>
-        {animated && typeof value === 'number' ? (
-          <AnimatedCounter
-            value={value}
-            style={{
-              fontSize: 24,
-              fontWeight: 'bold',
-              color: color,
-              fontFamily: 'PrimaryFont',
-            }}
-          />
-        ) : (
-          <Text
-            style={{
-              fontSize: 24,
-              fontWeight: 'bold',
-              color: color,
-              fontFamily: 'PrimaryFont',
-              textAlign: 'center',
-            }}
-          >
-            {value}
-          </Text>
-        )}
-        {subtitle && (
-          <Text
-            style={{
-              fontSize: 10,
-              color: Colors.gray[500],
-              fontFamily: 'SecondaryFont-Regular',
-              textAlign: 'center',
-              marginTop: 2,
-            }}
-          >
-            {subtitle}
-          </Text>
-        )}
-      </Column>
-    </PlayfulCard>
-  );
-
-  // Duel History Item Component
-  const DuelHistoryItemComponent = ({ duel }: { duel: DuelHistoryItem }) => {
-    const getResultColor = () => {
-      switch (duel.result) {
-        case 'won':
-          return Colors.vibrant.mint;
-        case 'lost':
-          return Colors.vibrant.coral;
-        case 'draw':
-          return Colors.vibrant.yellow;
-        default:
-          return Colors.gray[500];
-      }
-    };
-
-    const getResultIcon = () => {
-      switch (duel.result) {
-        case 'won':
-          return '🏆';
-        case 'lost':
-          return '😔';
-        case 'draw':
-          return '🤝';
-        default:
-          return '❓';
-      }
-    };
-
-    const getResultText = () => {
-      switch (duel.result) {
-        case 'won':
-          return 'Kazandı';
-        case 'lost':
-          return 'Kaybetti';
-        case 'draw':
-          return 'Berabere';
-        default:
-          return 'Bilinmeyen';
-      }
-    };
-
-    return (
-      <PlayfulCard
-        style={{
-          marginBottom: Spacing[3],
-          backgroundColor: 'rgba(255,255,255,0.95)',
-          shadowColor: Colors.gray[900],
-          shadowOffset: { width: 10, height: 20 },
-          shadowOpacity: 0.8,
-          shadowRadius: 10,
-          elevation: 10,
-        }}
-      >
-        <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <Row style={{ alignItems: 'center', flex: 1 }}>
-            {/* <Avatar
-              size='md'
-              name={getResultIcon()}
-              bgColor={getResultColor()}
-              style={{ marginRight: Spacing[3] }}
-            /> */}
-            <Column style={{ flex: 1 }}>
-              <Row
-                style={{
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: 4,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 'bold',
-                    color: Colors.gray[800],
-                    fontFamily: 'SecondaryFont-Bold',
-                    marginRight: Spacing[2],
-                  }}
-                >
-                  vs {duel.opponentName}
-                </Text>
-                <Badge
-                  text={getResultText()}
-                  variant={
-                    duel.result === 'won'
-                      ? 'success'
-                      : duel.result === 'lost'
-                      ? 'error'
-                      : 'warning'
-                  }
-                  style={{
-                    backgroundColor: getResultColor(),
-                  }}
-                  textStyle={{
-                    color: Colors.white,
-                    fontFamily: 'SecondaryFont-Bold',
-                  }}
-                />
-              </Row>
-              <Row
-                style={{
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: Colors.gray[600],
-                    fontFamily: 'SecondaryFont-Regular',
-                    marginBottom: 2,
-                  }}
-                >
-                  📚 {duel.courseName} • 📝 {duel.testName}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 'bold',
-                    color: getResultColor(),
-                    fontFamily: 'PrimaryFont',
-                  }}
-                >
-                  {duel.initiator_score}-{duel.opponent_score}
-                </Text>
-              </Row>
-              <Text
-                style={{
-                  fontSize: 11,
-                  color: Colors.gray[500],
-                  fontFamily: 'SecondaryFont-Regular',
-                }}
-              >
-                {duel.formattedDate}
-              </Text>
-            </Column>
-          </Row>
-          {/* <Column style={{ alignItems: 'center' }}>
+          <Row style={styles.filterButtonRow}>
+            <FontAwesome
+              name={icon as any}
+              size={12}
+              color={isActive ? Colors.white : Colors.gray[700]}
+              style={styles.filterIcon}
+            />
             <Text
-              style={{
-                fontSize: 18,
-                fontWeight: 'bold',
-                color: getResultColor(),
-                fontFamily: 'PrimaryFont',
-              }}
+              style={[
+                styles.filterText,
+                isActive ? styles.filterTextActive : styles.filterTextInactive,
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
             >
-              {duel.initiator_score}-{duel.opponent_score}
+              {title}
             </Text>
-          </Column> */}
-        </Row>
-      </PlayfulCard>
-    );
-  };
+          </Row>
+        </TouchableOpacity>
+      );
+    },
+  );
 
-  // Render tab content
-  const renderTabContent = () => {
+  // Memoized Stats Card Component
+  const StatsCard = React.memo(
+    ({
+      title,
+      value,
+      subtitle,
+      color = Colors.vibrant.purple,
+      animated = false,
+    }: {
+      title: string;
+      value: string | number;
+      subtitle?: string;
+      color?: string;
+      animated?: boolean;
+    }) => (
+      <PlayfulCard style={styles.statsCard}>
+        <Column style={styles.statsColumn}>
+          <Text style={styles.statsTitle}>{title}</Text>
+          {animated && typeof value === 'number' ? (
+            <AnimatedCounter
+              value={value}
+              style={[styles.statsValue, { color }]}
+            />
+          ) : (
+            <Text style={[styles.statsValue, { color }]}>{value}</Text>
+          )}
+          {subtitle && <Text style={styles.statsSubtitle}>{subtitle}</Text>}
+        </Column>
+      </PlayfulCard>
+    ),
+  );
+
+  // Memoized Duel History Item Component
+  const DuelHistoryItemComponent = React.memo(
+    ({ duel }: { duel: DuelHistoryItem }) => {
+      const resultStyles = useMemo(() => {
+        const getResultColor = () => {
+          switch (duel.result) {
+            case 'won':
+              return Colors.vibrant.mint;
+            case 'lost':
+              return Colors.vibrant.coral;
+            case 'draw':
+              return Colors.vibrant.yellow;
+            default:
+              return Colors.gray[500];
+          }
+        };
+
+        const getResultText = () => {
+          switch (duel.result) {
+            case 'won':
+              return 'Kazandı';
+            case 'lost':
+              return 'Kaybetti';
+            case 'draw':
+              return 'Berabere';
+            default:
+              return 'Bilinmeyen';
+          }
+        };
+
+        const color = getResultColor();
+        return {
+          color,
+          text: getResultText(),
+          variant:
+            duel.result === 'won'
+              ? 'success'
+              : duel.result === 'lost'
+                ? 'error'
+                : 'warning',
+        };
+      }, [duel.result]);
+
+      return (
+        <PlayfulCard style={styles.historyCard}>
+          <Row style={styles.historyRow}>
+            <Row style={styles.historyContent}>
+              <Column style={styles.historyColumn}>
+                <Row style={styles.historyHeader}>
+                  <Text style={styles.historyOpponent}>
+                    vs {duel.opponentName}
+                  </Text>
+                  <Badge
+                    text={resultStyles.text}
+                    variant={resultStyles.variant as any}
+                    style={{ backgroundColor: resultStyles.color }}
+                    textStyle={{
+                      color: Colors.white,
+                      fontFamily: 'SecondaryFont-Bold',
+                    }}
+                  />
+                </Row>
+                <Row style={styles.historyDetails}>
+                  <Text style={styles.historyInfo}>
+                    📚 {duel.courseName} • 📝 {duel.testName}
+                  </Text>
+                  <Text
+                    style={[styles.historyScore, { color: resultStyles.color }]}
+                  >
+                    {duel.initiator_score}-{duel.opponent_score}
+                  </Text>
+                </Row>
+                <Text style={styles.historyDate}>{duel.formattedDate}</Text>
+              </Column>
+            </Row>
+          </Row>
+        </PlayfulCard>
+      );
+    },
+  );
+
+  // Memoized tab content
+  const tabContent = useMemo(() => {
     if (isLoading) {
       return (
-        <View
-          style={{
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: Spacing[8],
-            shadowColor: Colors.gray[900],
-            shadowOffset: { width: 10, height: 20 },
-            shadowOpacity: 0.8,
-            shadowRadius: 10,
-            elevation: 10,
-          }}
-        >
-          <ActivityIndicator
-            size='large'
-            color={isDark ? Colors.vibrant.coral : Colors.vibrant.coral}
-          />
-          <Text
-            style={{
-              marginTop: Spacing[3],
-              color: isDark ? Colors.white : Colors.white,
-              fontFamily: 'SecondaryFont-Regular',
-            }}
-          >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size='large' color={colors.loading} />
+          <Text style={[styles.loadingText, { color: colors.text }]}>
             İstatistikler yükleniyor...
           </Text>
         </View>
@@ -794,42 +862,16 @@ export default function DuelHistoryScreen() {
             {userStats && (
               <>
                 <SlideInElement delay={0} key={`${activeTab}-overview`}>
-                  <PlayfulCard
-                    style={{
-                      backgroundColor: 'rgba(255,255,255,0.95)',
-                      marginBottom: Spacing[4],
-                      shadowColor: Colors.gray[900],
-                      shadowOffset: { width: 10, height: 20 },
-                      shadowOpacity: 0.8,
-                      shadowRadius: 10,
-                      elevation: 10,
-                    }}
-                  >
-                    <Column style={{ alignItems: 'center' }}>
-                      <Text
-                        style={{
-                          fontSize: 18,
-                          fontWeight: 'bold',
-                          color: Colors.gray[800],
-                          fontFamily: 'SecondaryFont-Bold',
-                          marginBottom: Spacing[3],
-                          textAlign: 'center',
-                        }}
-                      >
+                  <PlayfulCard style={styles.overviewCard}>
+                    <Column style={styles.overviewColumn}>
+                      <Text style={styles.overviewTitle}>
                         Genel Performans 📊
                       </Text>
-                      <Row
-                        style={{
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
+                      <Row style={styles.overviewRow}>
                         <ScoreDisplay
                           score={userStats.wins || 0}
                           maxScore={userStats.totalDuels || 0}
-                          label={`${userStats.totalDuels || 0} Düellodan ${
-                            userStats.wins || 0
-                          } Galibiyet`}
+                          label={`${userStats.totalDuels || 0} Düellodan ${userStats.wins || 0} Galibiyet`}
                           variant='gradient'
                           size='large'
                         />
@@ -839,7 +881,7 @@ export default function DuelHistoryScreen() {
                 </SlideInElement>
 
                 <SlideInElement delay={100} key={`${activeTab}-stats-row1`}>
-                  <Row style={{ marginBottom: Spacing[3] }}>
+                  <Row style={styles.statsRow}>
                     <StatsCard
                       title='Toplam Düello'
                       value={userStats.totalDuels || 0}
@@ -850,7 +892,7 @@ export default function DuelHistoryScreen() {
                 </SlideInElement>
 
                 <SlideInElement delay={200} key={`${activeTab}-stats-row2`}>
-                  <Row style={{ marginBottom: Spacing[3] }}>
+                  <Row style={styles.statsRow}>
                     <StatsCard
                       title='Galibiyet'
                       value={userStats.wins || 0}
@@ -867,15 +909,12 @@ export default function DuelHistoryScreen() {
                 </SlideInElement>
 
                 <SlideInElement delay={300} key={`${activeTab}-stats-row3`}>
-                  <Row style={{ marginBottom: Spacing[3] }}>
+                  <Row style={styles.statsRow}>
                     <StatsCard
                       title='Başarı Oranı'
                       value={
                         userStats.totalDuels > 0
-                          ? `${Math.round(
-                              ((userStats.wins || 0) / userStats.totalDuels) *
-                                100,
-                            )}%`
+                          ? `${Math.round(((userStats.wins || 0) / userStats.totalDuels) * 100)}%`
                           : '0%'
                       }
                       subtitle='Kazanma yüzdesi'
@@ -897,11 +936,8 @@ export default function DuelHistoryScreen() {
                 style={[
                   globalStyles.textLg,
                   globalStyles.fontSemibold,
-                  {
-                    color: isDark ? Colors.gray[800] : Colors.gray[800],
-                    marginBottom: Spacing[2],
-                    fontFamily: 'SecondaryFont-Bold',
-                  },
+                  styles.sectionTitle,
+                  { color: colors.sectionText },
                 ]}
               >
                 Son Düellolar ({recentDuels.length})
@@ -937,11 +973,8 @@ export default function DuelHistoryScreen() {
                 style={[
                   globalStyles.textLg,
                   globalStyles.fontSemibold,
-                  {
-                    color: isDark ? Colors.gray[800] : Colors.gray[800],
-                    marginBottom: Spacing[2],
-                    fontFamily: 'SecondaryFont-Bold',
-                  },
+                  styles.sectionTitle,
+                  { color: colors.sectionText },
                 ]}
               >
                 Tüm Düellolar ({duelHistory.length})
@@ -972,28 +1005,18 @@ export default function DuelHistoryScreen() {
       default:
         return null;
     }
-  };
+  }, [activeTab, isLoading, userStats, recentDuels, duelHistory, colors]);
 
   // Show loading while checking auth
   if (authLoading) {
     return (
-      <Container
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: Spacing[4],
-          backgroundColor: '#A29BFE',
-        }}
-      >
+      <Container style={styles.errorContainer}>
         <ActivityIndicator size='large' color={Colors.white} />
         <Text
-          style={{
-            marginTop: Spacing[3],
-            color: Colors.white,
-            fontFamily: 'SecondaryFont-Regular',
-            textAlign: 'center',
-          }}
+          style={[
+            styles.loadingText,
+            { color: Colors.white, textAlign: 'center' },
+          ]}
         >
           Yükleniyor...
         </Text>
@@ -1003,20 +1026,12 @@ export default function DuelHistoryScreen() {
 
   if (error && !isLoading) {
     return (
-      <Container
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: Spacing[4],
-          backgroundColor: '#A29BFE',
-        }}
-      >
+      <Container style={styles.errorContainer}>
         <Alert
           type='error'
           title='Hata'
           message={error}
-          style={{ marginBottom: Spacing[4] }}
+          style={styles.errorAlert}
         />
         <Button
           title='Yenile'
@@ -1029,10 +1044,10 @@ export default function DuelHistoryScreen() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.container}>
       <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: Spacing[4] }}
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1044,25 +1059,19 @@ export default function DuelHistoryScreen() {
       >
         {/* Header Section */}
         <SlideInElement delay={0}>
-          <PlayfulCard
-            style={{ marginBottom: Spacing[6], backgroundColor: 'transparent' }}
-          >
-            <Row
-              style={{ alignItems: 'center', justifyContent: 'space-between' }}
-            >
-              <Column style={{ flex: 1 }}>
+          <PlayfulCard style={styles.headerCard}>
+            <Row style={styles.headerRow}>
+              <Column style={styles.headerColumn}>
                 <PlayfulTitle
                   level={1}
                   gradient='primary'
-                  style={{ fontFamily: 'PrimaryFont', color: Colors.gray[900] }}
+                  style={styles.headerTitle}
                 >
                   Düello Geçmişi 📈
                 </PlayfulTitle>
                 <Paragraph
-                  color={isDark ? Colors.gray[700] : Colors.gray[700]}
-                  style={{
-                    fontFamily: 'SecondaryFont-Regular',
-                  }}
+                  color={colors.headerText}
+                  style={styles.headerSubtitle}
                 >
                   Performansın ve geçmiş düellolarınız
                 </Paragraph>
@@ -1073,14 +1082,8 @@ export default function DuelHistoryScreen() {
 
         {/* Filter Buttons */}
         <SlideInElement delay={100}>
-          <View style={{ marginBottom: Spacing[6] }}>
-            <Row
-              style={{
-                marginBottom: Spacing[3],
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
+          <View style={styles.filterContainer}>
+            <Row style={styles.filterRow}>
               <FilterButton
                 filter='stats'
                 title='İstatistikler'
@@ -1099,22 +1102,8 @@ export default function DuelHistoryScreen() {
         {/* Tab Content */}
         <View>
           <FloatingElement>
-            <GlassCard
-              style={[
-                {
-                  backgroundColor: Colors.vibrant.orangeLight,
-                  marginBottom: Spacing[4],
-                  overflow: 'hidden',
-                  shadowColor: Colors.gray[900],
-                  shadowOffset: { width: 10, height: 20 },
-                  shadowOpacity: 0.8,
-                  shadowRadius: 10,
-                  elevation: 10,
-                },
-              ]}
-              animated
-            >
-              {renderTabContent()}
+            <GlassCard style={styles.contentContainer} animated>
+              {tabContent}
             </GlassCard>
           </FloatingElement>
         </View>
@@ -1124,13 +1113,17 @@ export default function DuelHistoryScreen() {
           <Alert
             type='warning'
             message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
-            style={{ marginTop: Spacing[4] }}
+            style={styles.bottomAlert}
           />
         )}
 
         {/* Bottom spacing to ensure content is fully visible */}
-        <View style={{ height: Spacing[8] }} />
+        <View style={styles.bottomSpacing} />
       </ScrollView>
     </View>
   );
-}
+});
+
+DuelHistoryScreen.displayName = 'DuelHistoryScreen';
+
+export default DuelHistoryScreen;

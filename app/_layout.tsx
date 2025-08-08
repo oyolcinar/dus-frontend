@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, useColorScheme } from 'react-native';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { View, useColorScheme, StyleSheet } from 'react-native';
 import { SplashScreen } from 'expo-router';
 import { useFonts } from 'expo-font';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -46,19 +46,23 @@ export const unstable_settings = {
   initialRouteName: '(auth)',
 };
 
+// Memoized font configuration to prevent recreation
+const fontConfig = {
+  ...FontAwesome.font,
+  // Your custom fonts
+  PrimaryFont: require('../assets/fonts/primaryFont.ttf'),
+  'SecondaryFont-Regular': require('../assets/fonts/secondaryFontRegular.ttf'),
+  'SecondaryFont-Bold': require('../assets/fonts/secondaryFontBold.ttf'),
+};
+
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
-  const [loaded, error] = useFonts({
-    ...FontAwesome.font,
-
-    // Your custom fonts
-    PrimaryFont: require('../assets/fonts/primaryFont.ttf'),
-    'SecondaryFont-Regular': require('../assets/fonts/secondaryFontRegular.ttf'),
-    'SecondaryFont-Bold': require('../assets/fonts/secondaryFontBold.ttf'),
-  });
+  const [loaded, error] = useFonts(fontConfig);
 
   // Initialize app resources and services
   useEffect(() => {
+    let isMounted = true;
+
     async function prepare() {
       try {
         // Initialize error reporting
@@ -72,11 +76,17 @@ export default function RootLayout() {
         console.warn('Error in app initialization:', e);
         ErrorReporting.logError(e as Error);
       } finally {
-        setAppIsReady(true);
+        if (isMounted) {
+          setAppIsReady(true);
+        }
       }
     }
 
     prepare();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
@@ -129,62 +139,59 @@ function RootLayoutNav() {
     }
   }, [colorScheme]);
 
-  // Create a theme context value with the current theme and setter
-  const themeContextValue = {
-    theme,
-    setTheme: (newTheme: string) => {
-      if (newTheme === 'light' || newTheme === 'dark') {
-        setTheme(newTheme);
-      }
-    },
-    isDark: theme === 'dark',
-    toggleTheme: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
-  };
+  // Memoize theme context value to prevent unnecessary re-renders
+  const themeContextValue = useMemo(
+    () => ({
+      theme,
+      setTheme: (newTheme: string) => {
+        if (newTheme === 'light' || newTheme === 'dark') {
+          setTheme(newTheme);
+        }
+      },
+      isDark: theme === 'dark',
+      toggleTheme: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
+    }),
+    [theme],
+  );
+
+  // Memoize navigation theme to prevent recreation on every render
+  const customNavigationTheme = useMemo(() => {
+    const navigationTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
+
+    return {
+      ...navigationTheme,
+      colors: {
+        ...navigationTheme.colors,
+        primary: '#722ea5', // Your primary color from global.css
+        background: 'transparent',
+        card: 'transparent',
+        text: theme === 'dark' ? '#1f2937' : '#1f2937',
+      },
+    };
+  }, [theme]);
+
+  // Memoize status bar style
+  const statusBarStyle = useMemo(
+    () => (theme === 'dark' ? 'light' : 'dark'),
+    [theme],
+  );
 
   // Show a loading screen while checking auth state
   if (isLoading) {
-    return (
-      <View className='flex-1 items-center justify-center bg-white dark:bg-gray-900' />
-    );
+    return <View style={styles.loadingContainer} />;
   }
-
-  // Use appropriate navigation theme based on current theme
-  const navigationTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
-
-  // Customize navigation theme to match your app's color scheme
-  const customNavigationTheme = {
-    ...navigationTheme,
-    colors: {
-      ...navigationTheme.colors,
-      primary: '#722ea5', // Your primary color from global.css
-      // background: theme === 'dark' ? '#1f2937' : '#A29BFE',
-      // card: theme === 'dark' ? '#1f2937' : '#ffffff',
-      background: 'transparent',
-      card: 'transparent',
-      text: theme === 'dark' ? '#1f2937' : '#1f2937',
-    },
-  };
 
   return (
     <ThemeContext.Provider value={themeContextValue}>
       <NotificationProvider>
         <ThemeProvider value={customNavigationTheme}>
-          <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+          <StatusBar style={statusBarStyle} />
           <AppBackground>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation: 'fade',
-                // Apply consistent styling to all screens in the stack
-                // contentStyle: {
-                //   backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-                // },
-              }}
-            >
+            <Stack screenOptions={stackScreenOptions}>
               {/* Your existing Auth Context already handles redirections,
               but we'll set up the screens here for proper stack navigation */}
-              <Stack.Screen name='(auth)' options={{ headerShown: false }} />
-              <Stack.Screen name='(tabs)' options={{ headerShown: false }} />
+              <Stack.Screen name='(auth)' options={authScreenOptions} />
+              <Stack.Screen name='(tabs)' options={tabsScreenOptions} />
 
               {/* These screens are available regardless of authentication state */}
               {/* <Stack.Screen
@@ -238,3 +245,25 @@ function RootLayoutNav() {
     </ThemeContext.Provider>
   );
 }
+
+// Memoized screen options to prevent recreation
+const stackScreenOptions = {
+  headerShown: false,
+  animation: 'fade' as const,
+  // Apply consistent styling to all screens in the stack
+  // contentStyle: {
+  //   backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+  // },
+};
+
+const authScreenOptions = { headerShown: false };
+const tabsScreenOptions = { headerShown: false };
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+});

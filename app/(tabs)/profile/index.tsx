@@ -1,5 +1,5 @@
 // app/(tabs)/profile.tsx
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Text,
   View,
@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   useColorScheme,
   RefreshControl,
+  StyleSheet,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -32,7 +33,7 @@ import {
   SlideInElement,
   PlayfulTitle,
   EmptyState,
-  CourseSelectionModal, // Import CourseSelectionModal
+  CourseSelectionModal,
 } from '../../../components/ui';
 import { Colors, Spacing, FontSizes } from '../../../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -67,6 +68,15 @@ interface DuelStats {
   currentLosingStreak: number;
 }
 
+// Optimized shadow style
+const OPTIMIZED_SHADOW = {
+  shadowColor: Colors.gray[900],
+  shadowOffset: { width: 2, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 4,
+  elevation: 4,
+};
+
 // Main Profile Screen Component (wrapped with context)
 function ProfileScreenContent() {
   const { user, signOut, refreshSession } = useAuth();
@@ -87,16 +97,45 @@ function ProfileScreenContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userData, setUserData] = useState<{ username?: string } | null>(null);
-
-  // Add state for course modal visibility
   const [showCourseModal, setShowCourseModal] = useState(false);
+
+  // Get the current context color - memoized to prevent recalculations
+  const contextColor = useMemo(() => {
+    return (
+      ((preferredCourse as any)?.category &&
+        getCourseColor((preferredCourse as any).category)) ||
+      VIBRANT_COLORS.purple
+    );
+  }, [preferredCourse, getCourseColor]);
+
+  // Create dynamic styles based on context color - memoized
+  const dynamicStyles = useMemo(
+    () =>
+      StyleSheet.create({
+        contextBackground: {
+          backgroundColor: contextColor,
+        },
+        contextSemiTransparent: {
+          backgroundColor: `${contextColor}80`,
+        },
+        contextVeryLight: {
+          backgroundColor: `${contextColor}20`,
+        },
+        refreshControlStyle: {
+          tintColor: contextColor,
+        },
+      }),
+    [contextColor],
+  );
 
   // Load user data from AsyncStorage
   useEffect(() => {
+    let isMounted = true;
+
     const loadUserData = async () => {
       try {
         const userData = await AsyncStorage.getItem('userData');
-        if (userData) {
+        if (userData && isMounted) {
           setUserData(JSON.parse(userData));
         }
       } catch (error) {
@@ -105,18 +144,27 @@ function ProfileScreenContent() {
     };
 
     loadUserData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Enhanced fetchData function with better error handling
   const fetchProfileData = useCallback(async () => {
+    let isMounted = true;
+
     try {
+      if (!isMounted) return;
       setError(null);
 
       // Check session before making requests
       const sessionValid = await checkAndRefreshSession();
       if (!sessionValid) {
         console.log('Session invalid, redirecting to login');
-        router.replace('/(auth)/login');
+        if (isMounted) {
+          router.replace('/(auth)/login');
+        }
         return;
       }
 
@@ -126,6 +174,8 @@ function ProfileScreenContent() {
           achievementService.getUserAchievements(),
           duelService.getDuelUserStats(),
         ]);
+
+      if (!isMounted) return;
 
       // Process each response individually
       let hasData = false;
@@ -160,7 +210,7 @@ function ProfileScreenContent() {
       }
 
       // Check if all requests failed
-      if (!hasData) {
+      if (!hasData && isMounted) {
         const firstError = [achievementsResponse, duelStatsResponse].find(
           (response) => response.status === 'rejected',
         )?.reason;
@@ -175,6 +225,8 @@ function ProfileScreenContent() {
     } catch (error) {
       console.error('Error fetching profile data:', error);
 
+      if (!isMounted) return;
+
       // Check if it's an authentication error
       if (
         error instanceof Error &&
@@ -188,11 +240,18 @@ function ProfileScreenContent() {
 
       setError('Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   // Enhanced handleRefresh function
   const handleRefresh = useCallback(async () => {
+    let isMounted = true;
+
     try {
+      if (!isMounted) return;
       setRefreshing(true);
       setError(null);
 
@@ -202,7 +261,9 @@ function ProfileScreenContent() {
       const sessionValid = await checkAndRefreshSession();
       if (!sessionValid) {
         console.log('Session invalid during refresh, redirecting to login');
-        router.replace('/(auth)/login');
+        if (isMounted) {
+          router.replace('/(auth)/login');
+        }
         return;
       }
 
@@ -210,6 +271,8 @@ function ProfileScreenContent() {
       console.log('Profile refresh completed successfully');
     } catch (error) {
       console.error('Profile refresh failed:', error);
+
+      if (!isMounted) return;
 
       if (
         error instanceof Error &&
@@ -221,13 +284,22 @@ function ProfileScreenContent() {
 
       setError('Yenileme başarısız. Lütfen tekrar deneyin.');
     } finally {
-      setRefreshing(false);
+      if (isMounted) {
+        setRefreshing(false);
+      }
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [fetchProfileData, router]);
 
   // Enhanced handleRetry function
   const handleRetry = useCallback(async () => {
+    let isMounted = true;
+
     try {
+      if (!isMounted) return;
       setLoading(true);
       setError(null);
 
@@ -244,7 +316,9 @@ function ProfileScreenContent() {
         const sessionValid = await checkAndRefreshSession();
         if (!sessionValid) {
           console.log('Manual session check failed, redirecting to login');
-          router.replace('/(auth)/login');
+          if (isMounted) {
+            router.replace('/(auth)/login');
+          }
           return;
         }
       }
@@ -259,6 +333,8 @@ function ProfileScreenContent() {
     } catch (error) {
       console.error('Profile retry failed:', error);
 
+      if (!isMounted) return;
+
       if (
         error instanceof Error &&
         error.message.includes('Oturum süresi doldu')
@@ -269,38 +345,57 @@ function ProfileScreenContent() {
 
       setError('Yeniden deneme başarısız. Lütfen uygulamayı yeniden başlatın.');
     } finally {
-      setLoading(false);
+      if (isMounted) {
+        setLoading(false);
+      }
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [fetchProfileData, router, refreshSession]);
 
   // Enhanced initial fetch
   useEffect(() => {
+    let isMounted = true;
+
     async function initialFetch() {
+      if (!isMounted) return;
       setLoading(true);
 
       try {
         // Check session on app load
         const sessionValid = await checkAndRefreshSession();
         if (!sessionValid) {
-          setLoading(false);
-          router.replace('/(auth)/login');
+          if (isMounted) {
+            setLoading(false);
+            router.replace('/(auth)/login');
+          }
           return;
         }
 
         await fetchProfileData();
       } catch (error) {
         console.error('Initial profile fetch error:', error);
-        setError('Başlangıç verisi yüklenemedi. Lütfen tekrar deneyin.');
+        if (isMounted) {
+          setError('Başlangıç verisi yüklenemedi. Lütfen tekrar deneyin.');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
     initialFetch();
+
+    return () => {
+      isMounted = false;
+    };
   }, [fetchProfileData, router]);
 
   // Get icon for achievement - returns only valid FontAwesome icon names
-  const getAchievementIcon = (achievement: Achievement): string => {
+  const getAchievementIcon = useCallback((achievement: Achievement): string => {
     if (achievement.icon) {
       return achievement.icon;
     }
@@ -314,101 +409,85 @@ function ProfileScreenContent() {
     if (category.includes('streak')) return 'fire';
 
     return 'certificate';
-  };
+  }, []);
 
   // Get achievement category color - now uses context colors as fallback
-  const getAchievementColor = (achievement: Achievement): string => {
-    const category = achievement.category?.toLowerCase() || '';
+  const getAchievementColor = useCallback(
+    (achievement: Achievement): string => {
+      const category = achievement.category?.toLowerCase() || '';
 
-    if (category.includes('course')) return Colors.vibrant?.blue || Colors.info;
-    if (category.includes('study'))
-      return Colors.vibrant?.green || Colors.success;
-    if (category.includes('duel'))
-      return Colors.vibrant?.orange || Colors.warning;
-    if (category.includes('test'))
+      if (category.includes('course'))
+        return Colors.vibrant?.blue || Colors.info;
+      if (category.includes('study'))
+        return Colors.vibrant?.green || Colors.success;
+      if (category.includes('duel'))
+        return Colors.vibrant?.orange || Colors.warning;
+      if (category.includes('test'))
+        return (
+          (preferredCourse as any)?.category &&
+          getCourseColor((preferredCourse as any).category)
+        );
+      if (category.includes('streak'))
+        return Colors.vibrant?.pink || Colors.error;
+
       return (
-        (preferredCourse as any)?.category &&
-        getCourseColor((preferredCourse as any).category)
+        ((preferredCourse as any)?.category &&
+          getCourseColor((preferredCourse as any).category)) ||
+        Colors.vibrant?.yellow ||
+        Colors.secondary.DEFAULT
       );
-    if (category.includes('streak'))
-      return Colors.vibrant?.pink || Colors.error;
+    },
+    [preferredCourse, getCourseColor],
+  );
 
-    return (
-      ((preferredCourse as any)?.category &&
-        getCourseColor((preferredCourse as any).category)) ||
-      Colors.vibrant?.yellow ||
-      Colors.secondary.DEFAULT
-    );
-  };
-
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     try {
       await signOut();
       // Navigation will be handled by the AuthContext
     } catch (error) {
       console.error('Error signing out:', error);
     }
-  };
+  }, [signOut]);
 
   // Handler for showing course modal
-  const handleShowCourseModal = () => {
+  const handleShowCourseModal = useCallback(() => {
     setShowCourseModal(true);
-  };
+  }, []);
 
   // Handler for closing course modal
-  const handleCourseModalClose = () => {
+  const handleCourseModalClose = useCallback(() => {
     setShowCourseModal(false);
-  };
+  }, []);
 
   // Handler for course selection
-  const handleCourseSelected = () => {
+  const handleCourseSelected = useCallback(() => {
     setShowCourseModal(false);
-  };
-
-  // Get the current context color
-  const contextColor =
-    ((preferredCourse as any)?.category &&
-      getCourseColor((preferredCourse as any).category)) ||
-    VIBRANT_COLORS.purple;
+  }, []);
 
   // Enhanced error screen with better retry options
   if (error && !loading) {
     return (
-      <Container
-        style={{
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: Spacing[4],
-        }}
-      >
-        <View style={{ alignItems: 'center', maxWidth: 300 }}>
+      <Container style={styles.errorContainer}>
+        <View style={styles.errorContent}>
           <FontAwesome
             name='exclamation-triangle'
             size={64}
             color={Colors.vibrant?.orange || Colors.warning}
-            style={{ marginBottom: Spacing[4] }}
+            style={styles.errorIcon}
           />
 
           <Text
-            style={{
-              fontSize: 18,
-              fontWeight: 'bold',
-              color: isDark ? Colors.gray[800] : Colors.gray[800],
-              textAlign: 'center',
-              marginBottom: Spacing[2],
-              fontFamily: 'SecondaryFont-Bold',
-            }}
+            style={[
+              styles.errorTitle,
+              { color: isDark ? Colors.gray[800] : Colors.gray[800] },
+            ]}
           >
             Bir Sorun Oluştu
           </Text>
 
-          <Alert
-            type='error'
-            message={error}
-            style={{ marginBottom: Spacing[6] }}
-          />
+          <Alert type='error' message={error} style={styles.errorAlert} />
 
-          <View style={{ width: '100%', gap: Spacing[3] }}>
+          <View style={styles.errorButtons}>
             <PlayfulButton
               title='Yeniden Dene'
               onPress={handleRetry}
@@ -416,10 +495,7 @@ function ProfileScreenContent() {
               animated
               icon='refresh'
               size='medium'
-              style={{
-                width: '100%',
-                backgroundColor: contextColor,
-              }}
+              style={[styles.retryButton, dynamicStyles.contextBackground]}
             />
 
             <PlayfulButton
@@ -427,7 +503,7 @@ function ProfileScreenContent() {
               onPress={() => router.replace('/(auth)/login')}
               variant='outline'
               size='medium'
-              style={{ width: '100%' }}
+              style={styles.loginButton}
             />
           </View>
         </View>
@@ -436,10 +512,10 @@ function ProfileScreenContent() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.container}>
       <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: Spacing[4] }}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -453,12 +529,8 @@ function ProfileScreenContent() {
       >
         {/* Animated Profile Header */}
         <SlideInElement delay={0}>
-          <View
-            style={{
-              marginBottom: Spacing[6],
-            }}
-          >
-            <Column style={{ alignItems: 'center' }}>
+          <View style={styles.headerContainer}>
+            <Column style={styles.headerColumn}>
               <Avatar
                 name={(user?.username || userData?.username)?.[0] || 'U'}
                 size='xl'
@@ -467,49 +539,17 @@ function ProfileScreenContent() {
                 borderGlow
                 animated
                 floatingEffect
-                style={{
-                  marginBottom: Spacing[2],
-                  shadowColor: Colors.gray[900],
-                  shadowOffset: { width: 10, height: 20 },
-                  shadowOpacity: 0.8,
-                  shadowRadius: 10,
-                  elevation: 10,
-                }}
+                style={[styles.avatar, OPTIMIZED_SHADOW]}
               />
-              <PlayfulTitle
-                level={1}
-                style={{
-                  color: Colors.gray[900],
-                  marginBottom: Spacing[1],
-                  fontSize: FontSizes['3xl'],
-                  textAlign: 'center',
-                  fontFamily: 'PrimaryFont',
-                }}
-              >
+              <PlayfulTitle level={1} style={styles.username}>
                 {user?.username || userData?.username || 'Kullanıcı'}
               </PlayfulTitle>
-              <Text
-                style={{
-                  color: Colors.gray[700],
-                  opacity: 0.9,
-                  textAlign: 'center',
-                  fontFamily: 'PrimaryFont',
-                }}
-              >
+              <Text style={styles.email}>
                 {user?.email || 'email@example.com'}
               </Text>
 
               {/* User level/score display */}
-              <View
-                style={{
-                  marginTop: Spacing[4],
-                  shadowColor: Colors.gray[900],
-                  shadowOffset: { width: 10, height: 20 },
-                  shadowOpacity: 0.8,
-                  shadowRadius: 10,
-                  elevation: 10,
-                }}
-              >
+              <View style={[styles.scoreContainer, OPTIMIZED_SHADOW]}>
                 <ScoreDisplay
                   score={duelStats?.wins || 0}
                   maxScore={duelStats?.totalDuels || 1}
@@ -521,11 +561,7 @@ function ProfileScreenContent() {
                   maxScoreFontFamily='SecondaryFont-Bold'
                   animated
                   showProgress={true}
-                  style={{
-                    shadowColor: Colors.gray[900],
-
-                    backgroundColor: contextColor,
-                  }}
+                  style={[styles.scoreDisplay, dynamicStyles.contextBackground]}
                 />
               </View>
             </Column>
@@ -534,32 +570,21 @@ function ProfileScreenContent() {
 
         <View>
           {loading ? (
-            <View
-              style={{
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: Spacing[8],
-              }}
-            >
+            <View style={styles.loadingContainer}>
               <ActivityIndicator size='large' color={contextColor} />
               <Text
-                style={{
-                  marginTop: Spacing[4],
-                  color: isDark ? Colors.white : Colors.white,
-                  fontFamily: 'SecondaryFont-Regular',
-                  fontSize: 16,
-                }}
+                style={[
+                  styles.loadingText,
+                  { color: isDark ? Colors.white : Colors.white },
+                ]}
               >
                 Profil verileri yükleniyor...
               </Text>
               <Text
-                style={{
-                  marginTop: Spacing[2],
-                  color: isDark ? Colors.gray[200] : Colors.gray[200],
-                  fontFamily: 'SecondaryFont-Regular',
-                  fontSize: 14,
-                  textAlign: 'center',
-                }}
+                style={[
+                  styles.loadingSubtext,
+                  { color: isDark ? Colors.gray[200] : Colors.gray[200] },
+                ]}
               >
                 Bu birkaç saniye sürebilir
               </Text>
@@ -569,23 +594,8 @@ function ProfileScreenContent() {
               {/* Quick Stats */}
               {duelStats && (
                 <SlideInElement direction='up' delay={200}>
-                  <Row
-                    style={{
-                      justifyContent: 'space-between',
-                      flexWrap: 'nowrap',
-                      marginBottom: Spacing[6],
-                    }}
-                  >
-                    <View
-                      style={{
-                        marginTop: Spacing[4],
-                        shadowColor: Colors.gray[900],
-                        shadowOffset: { width: 10, height: 20 },
-                        shadowOpacity: 0.8,
-                        shadowRadius: 10,
-                        elevation: 10,
-                      }}
-                    >
+                  <Row style={styles.statsRow}>
+                    <View style={[styles.statCard, OPTIMIZED_SHADOW]}>
                       <StatCard
                         icon='trophy'
                         title='Toplam Düello'
@@ -593,19 +603,10 @@ function ProfileScreenContent() {
                         color={Colors.white}
                         size='medium'
                         titleFontFamily='SecondaryFont-Bold'
-                        style={{ backgroundColor: contextColor }}
+                        style={dynamicStyles.contextBackground}
                       />
                     </View>
-                    <View
-                      style={{
-                        marginTop: Spacing[4],
-                        shadowColor: Colors.gray[900],
-                        shadowOffset: { width: 10, height: 20 },
-                        shadowOpacity: 0.8,
-                        shadowRadius: 10,
-                        elevation: 10,
-                      }}
-                    >
+                    <View style={[styles.statCard, OPTIMIZED_SHADOW]}>
                       <StatCard
                         icon='check-circle'
                         title='Kazanılan'
@@ -613,19 +614,10 @@ function ProfileScreenContent() {
                         color={Colors.white}
                         size='medium'
                         titleFontFamily='SecondaryFont-Bold'
-                        style={{ backgroundColor: contextColor }}
+                        style={dynamicStyles.contextBackground}
                       />
                     </View>
-                    <View
-                      style={{
-                        marginTop: Spacing[4],
-                        shadowColor: Colors.gray[900],
-                        shadowOffset: { width: 10, height: 20 },
-                        shadowOpacity: 0.8,
-                        shadowRadius: 10,
-                        elevation: 10,
-                      }}
-                    >
+                    <View style={[styles.statCard, OPTIMIZED_SHADOW]}>
                       <StatCard
                         icon='fire'
                         title='Kazanma Oranı'
@@ -633,7 +625,7 @@ function ProfileScreenContent() {
                         color={Colors.white}
                         size='medium'
                         titleFontFamily='SecondaryFont-Bold'
-                        style={{ backgroundColor: contextColor }}
+                        style={dynamicStyles.contextBackground}
                       />
                     </View>
                   </Row>
@@ -643,78 +635,39 @@ function ProfileScreenContent() {
               {/* Detailed Stats */}
               {duelStats && (
                 <SlideInElement direction='left' delay={400}>
-                  <View
-                    style={{
-                      marginTop: Spacing[4],
-                      shadowColor: Colors.gray[900],
-                      shadowOffset: { width: 10, height: 20 },
-                      shadowOpacity: 0.8,
-                      shadowRadius: 10,
-                      elevation: 10,
-                    }}
-                  >
+                  <View style={[styles.cardContainer, OPTIMIZED_SHADOW]}>
                     <PlayfulCard
                       titleFontFamily='PrimaryFont'
                       title='Detaylı İstatistikler'
                       variant='playful'
                       category={(preferredCourse as any)?.category}
-                      style={{
-                        marginBottom: Spacing[6],
-                        shadowColor: Colors.gray[900],
-                        shadowOffset: { width: 10, height: 20 },
-                        shadowOpacity: 0.8,
-                        shadowRadius: 10,
-                        elevation: 10,
-                        backgroundColor: contextColor,
-                      }}
+                      style={[
+                        styles.detailedStatsCard,
+                        OPTIMIZED_SHADOW,
+                        dynamicStyles.contextBackground,
+                      ]}
                       animated
                       floatingAnimation
                     >
-                      <Row style={{ flexWrap: 'wrap', gap: Spacing[3] }}>
-                        <View style={{ flex: 1, minWidth: '45%' }}>
-                          <Row
-                            style={{
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              marginBottom: Spacing[2],
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontFamily: 'SecondaryFont-Regular',
-                                color: Colors.white,
-                              }}
-                            >
-                              Kaybedilen:
-                            </Text>
+                      <Row style={styles.detailedStatsRow}>
+                        <View style={styles.detailedStatItem}>
+                          <Row style={styles.statItemRow}>
+                            <Text style={styles.statLabel}>Kaybedilen:</Text>
                             <AnimatedCounter
                               value={duelStats.losses}
                               fontFamily='SecondaryFont-Bold'
-                              style={{ color: Colors.white }}
+                              style={styles.statValue}
                               size='medium'
                             />
                           </Row>
                         </View>
-                        <View style={{ flex: 1, minWidth: '45%' }}>
-                          <Row
-                            style={{
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              marginBottom: Spacing[2],
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontFamily: 'SecondaryFont-Regular',
-                                color: Colors.white,
-                              }}
-                            >
-                              En Uzun Seri:
-                            </Text>
+                        <View style={styles.detailedStatItem}>
+                          <Row style={styles.statItemRow}>
+                            <Text style={styles.statLabel}>En Uzun Seri:</Text>
                             <AnimatedCounter
                               value={duelStats.longestLosingStreak}
                               fontFamily='SecondaryFont-Bold'
-                              style={{ color: Colors.white }}
+                              style={styles.statValue}
                               size='medium'
                             />
                           </Row>
@@ -727,69 +680,38 @@ function ProfileScreenContent() {
 
               {/* Achievements */}
               <SlideInElement direction='right' delay={600}>
-                <View
-                  style={{
-                    marginTop: Spacing[4],
-                    shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 10, height: 20 },
-                    shadowOpacity: 0.8,
-                    shadowRadius: 10,
-                    elevation: 10,
-                  }}
-                >
+                <View style={[styles.cardContainer, OPTIMIZED_SHADOW]}>
                   <PlayfulCard
                     title='Başarılar'
                     titleFontFamily='PrimaryFont'
                     variant='playful'
                     category={(preferredCourse as any)?.category}
-                    style={{
-                      marginBottom: Spacing[6],
-                      shadowColor: Colors.gray[900],
-                      shadowOffset: { width: 10, height: 20 },
-                      shadowOpacity: 0.8,
-                      shadowRadius: 10,
-                      elevation: 10,
-                      backgroundColor: contextColor,
-                    }}
+                    style={[
+                      styles.achievementsCard,
+                      OPTIMIZED_SHADOW,
+                      dynamicStyles.contextBackground,
+                    ]}
                     animated
                     floatingAnimation
                   >
                     {achievements.length > 0 ? (
                       <>
-                        <Row
-                          style={{
-                            flexWrap: 'wrap',
-                            gap: Spacing[2],
-                            marginBottom: Spacing[4],
-                          }}
-                        >
+                        <Row style={styles.achievementsGrid}>
                           {achievements.slice(0, 6).map((achievement) => (
                             <GlassCard
                               key={achievement.achievement_id}
-                              style={{
-                                width: '100%',
-                                padding: Spacing[3],
-                                minHeight: 50,
-                              }}
+                              style={styles.achievementCard}
                               shimmerEffect
                             >
-                              <View
-                                style={{
-                                  flexDirection: 'row',
-                                  alignItems: 'center',
-                                }}
-                              >
+                              <View style={styles.achievementContent}>
                                 <View
-                                  style={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 20,
-                                    backgroundColor:
-                                      getAchievementColor(achievement),
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    marginRight: Spacing[2],
-                                  }}
+                                  style={[
+                                    styles.achievementIcon,
+                                    {
+                                      backgroundColor:
+                                        getAchievementColor(achievement),
+                                    },
+                                  ]}
                                 >
                                   <FontAwesome
                                     name={
@@ -800,13 +722,14 @@ function ProfileScreenContent() {
                                   />
                                 </View>
                                 <Text
-                                  style={{
-                                    fontSize: 20,
-                                    flex: 1,
-                                    textAlign: 'center',
-                                    color: isDark ? Colors.white : Colors.white,
-                                    fontFamily: 'SecondaryFont-Bold',
-                                  }}
+                                  style={[
+                                    styles.achievementText,
+                                    {
+                                      color: isDark
+                                        ? Colors.white
+                                        : Colors.white,
+                                    },
+                                  ]}
                                   numberOfLines={1}
                                 >
                                   {achievement.name}
@@ -823,7 +746,7 @@ function ProfileScreenContent() {
                             router.push('/(tabs)/profile/achievements' as any)
                           }
                           variant='outline'
-                          style={{ flex: 1 }}
+                          style={styles.allAchievementsButton}
                           icon='trophy'
                           animated
                         />
@@ -841,14 +764,7 @@ function ProfileScreenContent() {
                           variant: 'secondary',
                         }}
                         buttonFontFamily='PrimaryFont'
-                        style={{
-                          backgroundColor: isDark ? Colors.white : Colors.white,
-                          shadowColor: Colors.gray[900],
-                          shadowOffset: { width: 10, height: 20 },
-                          shadowOpacity: 0.8,
-                          shadowRadius: 10,
-                          elevation: 10,
-                        }}
+                        style={[styles.emptyState, OPTIMIZED_SHADOW]}
                       />
                     )}
                   </PlayfulCard>
@@ -856,34 +772,21 @@ function ProfileScreenContent() {
               </SlideInElement>
 
               <SlideInElement direction='right' delay={800}>
-                <View
-                  style={{
-                    marginTop: Spacing[4],
-                    shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 10, height: 20 },
-                    shadowOpacity: 0.8,
-                    shadowRadius: 10,
-                    elevation: 10,
-                  }}
-                >
+                <View style={[styles.cardContainer, OPTIMIZED_SHADOW]}>
                   <PlayfulCard
                     title='Bildirimler'
                     titleFontFamily='PrimaryFont'
                     variant='playful'
                     category={(preferredCourse as any)?.category}
-                    style={{
-                      marginBottom: Spacing[6],
-                      shadowColor: Colors.gray[900],
-                      shadowOffset: { width: 10, height: 20 },
-                      shadowOpacity: 0.8,
-                      shadowRadius: 10,
-                      elevation: 10,
-                      backgroundColor: contextColor,
-                    }}
+                    style={[
+                      styles.notificationsCard,
+                      OPTIMIZED_SHADOW,
+                      dynamicStyles.contextBackground,
+                    ]}
                     animated
                     floatingAnimation
                   >
-                    <Column style={{ gap: Spacing[2] }}>
+                    <Column style={styles.buttonColumn}>
                       <PlayfulButton
                         title='Bildirimleri Gör'
                         onPress={() =>
@@ -900,34 +803,21 @@ function ProfileScreenContent() {
               </SlideInElement>
 
               <SlideInElement direction='right' delay={1000}>
-                <View
-                  style={{
-                    marginTop: Spacing[4],
-                    shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 10, height: 20 },
-                    shadowOpacity: 0.8,
-                    shadowRadius: 10,
-                    elevation: 10,
-                  }}
-                >
+                <View style={[styles.cardContainer, OPTIMIZED_SHADOW]}>
                   <PlayfulCard
                     title='Arkadaşlar'
                     titleFontFamily='PrimaryFont'
                     variant='playful'
                     category={(preferredCourse as any)?.category}
-                    style={{
-                      marginBottom: Spacing[6],
-                      shadowColor: Colors.gray[900],
-                      shadowOffset: { width: 10, height: 20 },
-                      shadowOpacity: 0.8,
-                      shadowRadius: 10,
-                      elevation: 10,
-                      backgroundColor: contextColor,
-                    }}
+                    style={[
+                      styles.friendsCard,
+                      OPTIMIZED_SHADOW,
+                      dynamicStyles.contextBackground,
+                    ]}
                     animated
                     floatingAnimation
                   >
-                    <Column style={{ gap: Spacing[2] }}>
+                    <Column style={styles.buttonColumn}>
                       <PlayfulButton
                         title='Arkadaşlarını Gör'
                         onPress={() =>
@@ -945,38 +835,25 @@ function ProfileScreenContent() {
 
               {/* Account Settings */}
               <SlideInElement direction='left' delay={1200}>
-                <View
-                  style={{
-                    marginTop: Spacing[4],
-                    shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 10, height: 20 },
-                    shadowOpacity: 0.8,
-                    shadowRadius: 10,
-                    elevation: 10,
-                  }}
-                >
+                <View style={[styles.cardContainer, OPTIMIZED_SHADOW]}>
                   <PlayfulCard
                     title='Hesap Ayarları'
                     variant='playful'
                     gradient='sky'
                     titleFontFamily='PrimaryFont'
                     category={(preferredCourse as any)?.category}
-                    style={{
-                      marginBottom: Spacing[6],
-                      shadowColor: Colors.gray[900],
-                      shadowOffset: { width: 10, height: 20 },
-                      shadowOpacity: 0.8,
-                      shadowRadius: 10,
-                      elevation: 10,
-                      backgroundColor: contextColor,
-                    }}
+                    style={[
+                      styles.settingsCard,
+                      OPTIMIZED_SHADOW,
+                      dynamicStyles.contextBackground,
+                    ]}
                     animated
                     floatingAnimation
                   >
-                    <Column style={{ gap: Spacing[2] }}>
+                    <Column style={styles.buttonColumn}>
                       <PlayfulButton
                         title='Profil Düzenle'
-                        onPress={handleShowCourseModal} // Changed to show course modal
+                        onPress={handleShowCourseModal}
                         variant='outline'
                         icon='user'
                         fontFamily='SecondaryFont-Bold'
@@ -1008,23 +885,20 @@ function ProfileScreenContent() {
               {/* App Info & Sign Out */}
               <SlideInElement direction='up' delay={1400}>
                 <GlassCard
-                  style={{
-                    marginBottom: Spacing[6],
-                    backgroundColor: `${contextColor}80`, // Semi-transparent context color
-                  }}
+                  style={[
+                    styles.appInfoCard,
+                    dynamicStyles.contextSemiTransparent,
+                  ]}
                 >
-                  <Column style={{ gap: Spacing[3] }}>
-                    <Row
-                      style={{
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
+                  <Column style={styles.buttonColumn}>
+                    <Row style={styles.versionRow}>
                       <Text
-                        style={{
-                          color: isDark ? Colors.gray[100] : Colors.gray[100],
-                          fontFamily: 'SecondaryFont-Regular',
-                        }}
+                        style={[
+                          styles.versionText,
+                          {
+                            color: isDark ? Colors.gray[100] : Colors.gray[100],
+                          },
+                        ]}
                       >
                         Versiyon: 1.0.0
                       </Text>
@@ -1033,14 +907,7 @@ function ProfileScreenContent() {
                         variant='success'
                         size='md'
                         fontFamily='SecondaryFont-Bold'
-                        style={{
-                          shadowColor: Colors.gray[900],
-                          shadowOffset: { width: 10, height: 20 },
-                          shadowOpacity: 0.8,
-                          shadowRadius: 10,
-                          elevation: 10,
-                          backgroundColor: Colors.vibrant.green,
-                        }}
+                        style={[styles.versionBadge, OPTIMIZED_SHADOW]}
                       />
                     </Row>
 
@@ -1053,14 +920,7 @@ function ProfileScreenContent() {
                       fontFamily='SecondaryFont-Bold'
                       animated
                       wiggleOnPress
-                      style={{
-                        shadowColor: Colors.gray[900],
-                        shadowOffset: { width: 10, height: 20 },
-                        shadowOpacity: 0.8,
-                        shadowRadius: 10,
-                        elevation: 10,
-                        backgroundColor: Colors.vibrant.coral,
-                      }}
+                      style={[styles.signOutButton, OPTIMIZED_SHADOW]}
                     />
                   </Column>
                 </GlassCard>
@@ -1071,7 +931,7 @@ function ProfileScreenContent() {
                 <Alert
                   type='warning'
                   message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
-                  style={{ marginTop: Spacing[4] }}
+                  style={styles.bottomAlert}
                 />
               )}
 
@@ -1081,28 +941,22 @@ function ProfileScreenContent() {
                 !duelStats &&
                 !error && (
                   <View
-                    style={{
-                      alignItems: 'center',
-                      padding: Spacing[6],
-                      backgroundColor: `${contextColor}20`, // Very light context color
-                      borderRadius: 12,
-                      marginTop: Spacing[4],
-                    }}
+                    style={[
+                      styles.retryContainer,
+                      dynamicStyles.contextVeryLight,
+                    ]}
                   >
                     <FontAwesome
                       name='wifi'
                       size={48}
                       color={contextColor}
-                      style={{ marginBottom: Spacing[3] }}
+                      style={styles.retryIcon}
                     />
                     <Text
-                      style={{
-                        color: isDark ? Colors.gray[600] : Colors.gray[600],
-                        fontFamily: 'SecondaryFont-Regular',
-                        textAlign: 'center',
-                        marginBottom: Spacing[4],
-                        fontSize: 16,
-                      }}
+                      style={[
+                        styles.retryText,
+                        { color: isDark ? Colors.gray[600] : Colors.gray[600] },
+                      ]}
                     >
                       Profil verileri yüklenemedi
                     </Text>
@@ -1113,9 +967,7 @@ function ProfileScreenContent() {
                       size='medium'
                       animated
                       icon='refresh'
-                      style={{
-                        backgroundColor: contextColor,
-                      }}
+                      style={dynamicStyles.contextBackground}
                     />
                   </View>
                 )}
@@ -1124,7 +976,7 @@ function ProfileScreenContent() {
         </View>
 
         {/* Bottom spacing to ensure content is fully visible */}
-        <View style={{ height: Spacing[8] }} />
+        <View style={styles.bottomSpacing} />
       </ScrollView>
 
       {/* Add Course Selection Modal */}
@@ -1136,6 +988,215 @@ function ProfileScreenContent() {
     </View>
   );
 }
+
+// StyleSheet for all static styles
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing[4],
+  },
+  errorContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing[4],
+  },
+  errorContent: {
+    alignItems: 'center',
+    maxWidth: 300,
+  },
+  errorIcon: {
+    marginBottom: Spacing[4],
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: Spacing[2],
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  errorAlert: {
+    marginBottom: Spacing[6],
+  },
+  errorButtons: {
+    width: '100%',
+    gap: Spacing[3],
+  },
+  retryButton: {
+    width: '100%',
+  },
+  loginButton: {
+    width: '100%',
+  },
+  headerContainer: {
+    marginBottom: Spacing[6],
+  },
+  headerColumn: {
+    alignItems: 'center',
+  },
+  avatar: {
+    marginBottom: Spacing[2],
+  },
+  username: {
+    color: Colors.gray[900],
+    marginBottom: Spacing[1],
+    fontSize: FontSizes['3xl'],
+    textAlign: 'center',
+    fontFamily: 'PrimaryFont',
+  },
+  email: {
+    color: Colors.gray[700],
+    opacity: 0.9,
+    textAlign: 'center',
+    fontFamily: 'PrimaryFont',
+  },
+  scoreContainer: {
+    marginTop: Spacing[4],
+  },
+  scoreDisplay: {
+    shadowColor: Colors.gray[900],
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing[8],
+  },
+  loadingText: {
+    marginTop: Spacing[4],
+    fontFamily: 'SecondaryFont-Regular',
+    fontSize: 16,
+  },
+  loadingSubtext: {
+    marginTop: Spacing[2],
+    fontFamily: 'SecondaryFont-Regular',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  statsRow: {
+    justifyContent: 'space-between',
+    flexWrap: 'nowrap',
+    marginBottom: Spacing[6],
+  },
+  statCard: {
+    marginTop: Spacing[4],
+  },
+  cardContainer: {
+    marginTop: Spacing[4],
+  },
+  detailedStatsCard: {
+    marginBottom: Spacing[6],
+  },
+  detailedStatsRow: {
+    flexWrap: 'wrap',
+    gap: Spacing[3],
+  },
+  detailedStatItem: {
+    flex: 1,
+    minWidth: '45%',
+  },
+  statItemRow: {
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing[2],
+  },
+  statLabel: {
+    fontFamily: 'SecondaryFont-Regular',
+    color: Colors.white,
+  },
+  statValue: {
+    color: Colors.white,
+  },
+  achievementsCard: {
+    marginBottom: Spacing[6],
+  },
+  achievementsGrid: {
+    flexWrap: 'wrap',
+    gap: Spacing[2],
+    marginBottom: Spacing[4],
+  },
+  achievementCard: {
+    width: '100%',
+    padding: Spacing[3],
+    minHeight: 50,
+  },
+  achievementContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  achievementIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing[2],
+  },
+  achievementText: {
+    fontSize: 20,
+    flex: 1,
+    textAlign: 'center',
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  allAchievementsButton: {
+    flex: 1,
+  },
+  emptyState: {
+    backgroundColor: Colors.white,
+  },
+  notificationsCard: {
+    marginBottom: Spacing[6],
+  },
+  friendsCard: {
+    marginBottom: Spacing[6],
+  },
+  settingsCard: {
+    marginBottom: Spacing[6],
+  },
+  buttonColumn: {
+    gap: Spacing[2],
+  },
+  appInfoCard: {
+    marginBottom: Spacing[6],
+  },
+  versionRow: {
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  versionText: {
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  versionBadge: {
+    backgroundColor: Colors.vibrant.green,
+  },
+  signOutButton: {
+    backgroundColor: Colors.vibrant.coral,
+  },
+  bottomAlert: {
+    marginTop: Spacing[4],
+  },
+  retryContainer: {
+    alignItems: 'center',
+    padding: Spacing[6],
+    borderRadius: 12,
+    marginTop: Spacing[4],
+  },
+  retryIcon: {
+    marginBottom: Spacing[3],
+  },
+  retryText: {
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'center',
+    marginBottom: Spacing[4],
+    fontSize: 16,
+  },
+  bottomSpacing: {
+    height: Spacing[8],
+  },
+});
 
 // Main component with context provider
 export default function ProfileScreen() {

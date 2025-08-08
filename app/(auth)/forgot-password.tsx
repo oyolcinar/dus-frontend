@@ -1,6 +1,10 @@
-// app/(auth)/forgot-password.tsx
-
-import React, { useState } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from 'react';
 import {
   View,
   Platform,
@@ -42,11 +46,40 @@ export default function ForgotPasswordScreen() {
   const [success, setSuccess] = useState(false);
   const colorScheme = useColorScheme();
   const router = useRouter();
+  const videoRef = useRef<Video>(null);
 
   const logoWhite = require('../../assets/images/logoWhite.jpg');
   const logoVideo = require('../../assets/videos/heyecanli.mp4');
 
-  const handleResetRequest = async () => {
+  // Memoize gradient colors calculation
+  const linearGradientColors = useMemo(() => {
+    const coralGradientColors = [
+      Colors.vibrant?.coral || '#FF7675',
+      Colors.vibrant?.peach || '#FDCB6E',
+    ];
+
+    return Array.isArray(coralGradientColors) && coralGradientColors.length >= 2
+      ? ([coralGradientColors[0], coralGradientColors[1]] as readonly [
+          string,
+          string,
+          ...string[],
+        ])
+      : ([
+          Colors.vibrant?.coral || '#FF7675',
+          Colors.vibrant?.peach || '#FDCB6E',
+        ] as readonly [string, string, ...string[]]);
+  }, []);
+
+  // Video cleanup
+  useEffect(() => {
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.pauseAsync();
+      }
+    };
+  }, []);
+
+  const handleResetRequest = useCallback(async () => {
     // Clear previous errors
     setError(null);
 
@@ -66,29 +99,14 @@ export default function ForgotPasswordScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [email]);
 
-  // Create coral gradient using vibrant coral colors
-  const coralGradientColors = [
-    Colors.vibrant?.coral || '#FF7675',
-    Colors.vibrant?.peach || '#FDCB6E',
-  ];
-
-  // Safely convert to the required tuple type
-  const linearGradientColors =
-    Array.isArray(coralGradientColors) && coralGradientColors.length >= 2
-      ? ([coralGradientColors[0], coralGradientColors[1]] as readonly [
-          string,
-          string,
-          ...string[],
-        ])
-      : ([
-          Colors.vibrant?.coral || '#FF7675',
-          Colors.vibrant?.peach || '#FDCB6E',
-        ] as readonly [string, string, ...string[]]);
+  const handleBackToLogin = useCallback(() => {
+    router.push('/(auth)/login');
+  }, [router]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.container}>
       <Stack.Screen
         options={{
           headerShown: false,
@@ -100,42 +118,32 @@ export default function ForgotPasswordScreen() {
         colors={linearGradientColors}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        style={styles.gradient}
       />
 
-      <SafeAreaView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
-          style={{ flex: 1 }}
+          style={styles.keyboardView}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <ScrollView
-            style={{ flex: 1, paddingHorizontal: Spacing[6] }}
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps='handled'
             showsVerticalScrollIndicator={false}
           >
             {/* Logo and Title */}
-            <View style={{ alignItems: 'center', marginVertical: Spacing[8] }}>
+            <View style={styles.logoContainer}>
               <PlayfulCard
                 variant='gradient'
-                style={{
-                  width: 128,
-                  height: 128,
-                  borderRadius: 64,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: Spacing[4],
-                }}
-                contentContainerStyle={{
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  alignContent: 'center',
-                }}
+                style={styles.logoCard}
+                contentContainerStyle={styles.logoCardContent}
                 animated={true}
                 floatingAnimation={true}
                 gradient='warning'
               >
                 <Video
+                  ref={videoRef}
                   source={logoVideo}
                   style={styles.logoVideo}
                   shouldPlay={true}
@@ -147,36 +155,9 @@ export default function ForgotPasswordScreen() {
                 />
               </PlayfulCard>
 
-              <Text
-                style={[
-                  Typography.h1,
-                  {
-                    color: Colors.white,
-                    textAlign: 'center',
-                    marginBottom: 4,
-                    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-                    textShadowOffset: { width: 0, height: 2 },
-                    textShadowRadius: 4,
-                  },
-                ]}
-              >
-                Şifre Sıfırla
-              </Text>
+              <Text style={styles.titleText}>Şifre Sıfırla</Text>
 
-              <Text
-                style={[
-                  Typography.bodyLarge,
-                  {
-                    color: Colors.white,
-                    textAlign: 'center',
-                    opacity: 0.9,
-                    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 2,
-                    paddingHorizontal: Spacing[4],
-                  },
-                ]}
-              >
+              <Text style={styles.subtitleText}>
                 Şifre sıfırlama bağlantısı almak için e-posta adresinizi girin
               </Text>
             </View>
@@ -189,7 +170,7 @@ export default function ForgotPasswordScreen() {
                 glowColor={Colors.vibrant?.orangeLight}
                 shimmerEffect={true}
               >
-                <View style={{ marginBottom: Spacing[4] }}>
+                <View style={styles.inputContainer}>
                   <Input
                     label='E-posta'
                     value={email}
@@ -199,38 +180,9 @@ export default function ForgotPasswordScreen() {
                     autoCapitalize='none'
                     disabled={isLoading}
                     leftIcon='envelope'
-                    containerStyle={{
-                      backgroundColor: Colors.white,
-                      borderRadius: BorderRadius.lg,
-                      borderWidth: 0,
-                      shadowColor: 'rgba(0, 0, 0, 0.1)',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 1,
-                      shadowRadius: 4,
-                      elevation: 3,
-                      minHeight: 50,
-                    }}
-                    labelStyle={[
-                      Typography.caption,
-                      {
-                        color: Colors.gray[700],
-                        fontFamily: FontFamilies.secondary.bold,
-                        marginBottom: Spacing[2],
-                      },
-                    ]}
-                    inputStyle={[
-                      Typography.body,
-                      {
-                        color: Colors.gray[800],
-                        // Custom font fixes for iOS
-                        ...(Platform.OS === 'ios' && {
-                          fontFamily: FontFamilies.primary.regular, // Use a more reliable font variant
-                          lineHeight: Typography.body.fontSize * 1.2, // Explicit line height
-                          paddingTop: 2, // Fine-tune vertical position
-                          paddingBottom: -3,
-                        }),
-                      },
-                    ]}
+                    containerStyle={styles.inputFieldContainer}
+                    labelStyle={styles.inputLabel}
+                    inputStyle={styles.inputField}
                   />
                 </View>
 
@@ -239,7 +191,7 @@ export default function ForgotPasswordScreen() {
                   <Alert
                     type='error'
                     message={error}
-                    style={{ marginBottom: Spacing[4] }}
+                    style={styles.errorAlert}
                   />
                 )}
 
@@ -254,29 +206,20 @@ export default function ForgotPasswordScreen() {
                   variant='vibrant'
                   fontFamily='SecondaryFont-Bold'
                   gradient='warning'
-                  textStyle={{ color: Colors.vibrant.purple }}
+                  textStyle={styles.resetButtonText}
                   size='medium'
                   loading={isLoading}
-                  style={{ width: '100%' }}
+                  style={styles.resetButton}
                   animated={true}
                   glowEffect={true}
                   wiggleOnPress={true}
                 />
 
-                <View style={{ marginTop: Spacing[4], alignItems: 'center' }}>
+                <View style={styles.backToLoginContainer}>
                   <TextLink
                     href='/(auth)/login'
                     label='Giriş Ekranına Dön'
-                    style={[
-                      Typography.body,
-                      {
-                        color: Colors.white,
-                        fontFamily: FontFamilies.secondary.bold,
-                        textShadowColor: 'rgba(0, 0, 0, 0.3)',
-                        textShadowOffset: { width: 0, height: 1 },
-                        textShadowRadius: 2,
-                      },
-                    ]}
+                    style={styles.backToLoginLink}
                   />
                 </View>
               </GlassCard>
@@ -290,19 +233,10 @@ export default function ForgotPasswordScreen() {
                 animated={true}
                 pulseEffect={true}
               >
-                <View
-                  style={{ alignItems: 'center', marginBottom: Spacing[4] }}
-                >
+                <View style={styles.successContainer}>
                   <PlayfulCard
                     variant='gradient'
-                    style={{
-                      width: 64,
-                      height: 64,
-                      borderRadius: 32,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: Spacing[3],
-                    }}
+                    style={styles.successIconCard}
                     animated={true}
                     pulseEffect={true}
                     gradient='success'
@@ -311,37 +245,26 @@ export default function ForgotPasswordScreen() {
                       name='check'
                       size={24}
                       color={Colors.white}
-                      style={{ textAlign: 'center' }}
+                      style={styles.checkIcon}
                     />
                   </PlayfulCard>
 
-                  <Text
-                    style={[
-                      Typography.h3,
-                      {
-                        color: Colors.neutral?.darkGray || Colors.gray[700],
-                        textAlign: 'center',
-                        marginBottom: Spacing[2],
-                      },
-                    ]}
-                  >
-                    Başarılı!
-                  </Text>
+                  <Text style={styles.successTitle}>Başarılı!</Text>
                 </View>
 
                 <Alert
                   type='success'
                   message='E-posta adresiniz sistemimizde kayıtlıysa, kısa süre içinde şifre sıfırlama bağlantısı alacaksınız. Lütfen gelen kutunuzu kontrol edin.'
-                  style={{ marginBottom: Spacing[4] }}
+                  style={styles.successAlert}
                 />
 
                 <PlayfulButton
                   title='Giriş Ekranına Dön'
-                  onPress={() => router.push('/(auth)/login')}
+                  onPress={handleBackToLogin}
                   variant='vibrant'
                   gradient='success'
                   size='medium'
-                  style={{ width: '100%', marginTop: Spacing[2] }}
+                  style={styles.successButton}
                   animated={true}
                   glowEffect={true}
                   wiggleOnPress={true}
@@ -350,49 +273,14 @@ export default function ForgotPasswordScreen() {
             )}
 
             {/* Additional Help Section */}
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'center',
-                alignItems: 'baseline',
-                marginTop: Spacing[6],
-                marginBottom: Spacing[4],
-              }}
-            >
-              <Text
-                style={[
-                  Typography.bodySmall,
-                  {
-                    color: Colors.white,
-                    opacity: 0.8,
-                    textAlign: 'center',
-                    includeFontPadding: false,
-                    textAlignVertical: 'center',
-                  },
-                ]}
-              >
-                Sorun mu yaşıyorsun?{' '}
-              </Text>
+            <View style={styles.helpContainer}>
+              <Text style={styles.helpText}>Sorun mu yaşıyorsun? </Text>
               <TextLink
                 href='/(auth)/login'
                 label='Destek Al'
-                style={[
-                  Typography.bodySmall,
-                  {
-                    color: Colors.vibrant.purple,
-                    fontFamily: FontFamilies.secondary.bold,
-                    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 2,
-                    includeFontPadding: false,
-                    textAlignVertical: 'center',
-                  },
-                ]}
+                style={styles.supportLink}
                 touchableProps={{
-                  style: {
-                    paddingVertical: 0,
-                    marginVertical: 0,
-                  },
+                  style: styles.supportTouchable,
                 }}
               />
             </View>
@@ -404,14 +292,178 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  logoImage: {
-    borderRadius: 48,
-    width: 96,
-    height: 96,
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: Spacing[6],
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginVertical: Spacing[8],
+  },
+  logoCard: {
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing[4],
+  },
+  logoCardContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignContent: 'center',
   },
   logoVideo: {
     width: 247,
     height: 247,
     borderRadius: 20,
+  },
+  titleText: {
+    ...Typography.h1,
+    color: Colors.white,
+    textAlign: 'center',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  subtitleText: {
+    ...Typography.bodyLarge,
+    color: Colors.white,
+    textAlign: 'center',
+    opacity: 0.9,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    paddingHorizontal: Spacing[4],
+  },
+  inputContainer: {
+    marginBottom: Spacing[4],
+  },
+  inputFieldContainer: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 0,
+    shadowColor: Colors.gray[900],
+    shadowOffset: { width: 2, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+    minHeight: 50,
+  },
+  inputLabel: {
+    ...Typography.caption,
+    color: Colors.gray[700],
+    fontFamily: FontFamilies.secondary.bold,
+    marginBottom: Spacing[2],
+  },
+  inputField: {
+    ...Typography.body,
+    color: Colors.gray[800],
+    // Custom font fixes for iOS
+    ...(Platform.OS === 'ios' && {
+      fontFamily: FontFamilies.primary.regular,
+      lineHeight: Typography.body.fontSize * 1.2,
+      paddingTop: 2,
+      paddingBottom: -3,
+    }),
+  },
+  errorAlert: {
+    marginBottom: Spacing[4],
+  },
+  resetButton: {
+    width: '100%',
+  },
+  resetButtonText: {
+    color: Colors.vibrant.purple,
+  },
+  backToLoginContainer: {
+    marginTop: Spacing[4],
+    alignItems: 'center',
+  },
+  backToLoginLink: {
+    ...Typography.body,
+    color: Colors.white,
+    fontFamily: FontFamilies.secondary.bold,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  successContainer: {
+    alignItems: 'center',
+    marginBottom: Spacing[4],
+  },
+  successIconCard: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing[3],
+  },
+  checkIcon: {
+    textAlign: 'center',
+  },
+  successTitle: {
+    ...Typography.h3,
+    color: Colors.neutral?.darkGray || Colors.gray[700],
+    textAlign: 'center',
+    marginBottom: Spacing[2],
+  },
+  successAlert: {
+    marginBottom: Spacing[4],
+  },
+  successButton: {
+    width: '100%',
+    marginTop: Spacing[2],
+  },
+  helpContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'baseline',
+    marginTop: Spacing[6],
+    marginBottom: Spacing[4],
+  },
+  helpText: {
+    ...Typography.bodySmall,
+    color: Colors.white,
+    opacity: 0.8,
+    textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  supportLink: {
+    ...Typography.bodySmall,
+    color: Colors.vibrant.purple,
+    fontFamily: FontFamilies.secondary.bold,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  supportTouchable: {
+    paddingVertical: 0,
+    marginVertical: 0,
   },
 });

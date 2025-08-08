@@ -1168,3 +1168,59 @@ export type AchievementActionType =
   | 'user_registered'; // User registration
 
 export type StudySessionCompletionData = CourseStudySessionData; // Alias for backward compatibility
+
+export interface AnalyticsData {
+  coursePerformance?: Array<{
+    courseId: number;
+    courseName: string;
+    averageScore: number;
+    totalQuestions: number;
+    correctAnswers: number;
+  }>;
+  totalQuestionsAnswered?: number;
+  overallAccuracy?: number;
+  studyTime?: number;
+  studySessions?: number;
+  averageSessionDuration?: number;
+}
+
+// Course category type (you may need to import this from PreferredCourseContext)
+export type CourseCategory =
+  | 'cerrahi'
+  | 'protetik'
+  | 'pedodonti'
+  | 'endodonti'
+  | 'ortodonti'
+  | 'radyoloji'
+  | 'restoratif'
+  | 'peridontoloji';
+
+// Extended course interface with progress and UI state
+export interface CourseWithProgress extends Course {
+  progress: UserCourseDetails | null;
+  iconName: string;
+  studySessions: StudySession[];
+  isSessionsExpanded: boolean;
+  category?: CourseCategory;
+}
+
+// Course editing details interface
+export interface EditingCourseDetails {
+  courseId?: number;
+  tekrarSayisi?: number;
+  konuKaynaklari?: string[];
+  soruBankasiKaynaklari?: string[];
+  difficulty_rating?: number;
+  notes?: string;
+  is_completed?: boolean;
+  completionPercentage?: number;
+}
+
+// Performance data aggregation interface
+export interface PerformanceData {
+  longestStreaks: LongestStreak[];
+  streaksSummary: StreaksSummary | null;
+  dailyProgress: DailyProgress[];
+  weeklyProgress: WeeklyProgress[];
+  topCourses: TopCourse[];
+}

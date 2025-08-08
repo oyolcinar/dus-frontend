@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import {
   View,
   Text,
@@ -44,9 +50,222 @@ import { Colors, Spacing, BorderRadius } from '../../../constants/theme';
 
 type FilterType = 'all' | 'study' | 'social' | 'system';
 
-const NotificationSettingsScreen: React.FC = () => {
+// Optimized shadow configuration
+const OPTIMIZED_SHADOW = {
+  shadowColor: Colors.gray[900],
+  shadowOffset: { width: 2, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 4,
+  elevation: 4,
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing[4],
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing[4],
+  },
+  loadingText: {
+    marginTop: Spacing[3],
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Regular',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  errorText: {
+    marginTop: Spacing[3],
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Regular',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  headerCard: {
+    marginBottom: Spacing[6],
+    backgroundColor: 'transparent',
+  },
+  headerRow: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerColumn: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontFamily: 'PrimaryFont',
+    color: Colors.gray[900],
+  },
+  headerSubtitle: {
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  deviceTokenText: {
+    marginTop: Spacing[2],
+    color: Colors.gray[700],
+    fontSize: 12,
+    fontFamily: 'SecondaryFont-Regular',
+    opacity: 0.8,
+  },
+  filterContainer: {
+    marginBottom: Spacing[6],
+  },
+  filterRow: {
+    marginBottom: Spacing[3],
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  filterButton: {
+    flex: 1,
+    marginHorizontal: Spacing[1],
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[2],
+    borderRadius: BorderRadius.button,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+    ...OPTIMIZED_SHADOW,
+  },
+  filterButtonActive: {
+    backgroundColor: Colors.vibrant.purple,
+  },
+  filterButtonInactive: {
+    backgroundColor: Colors.white,
+  },
+  filterText: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  filterTextActive: {
+    fontWeight: '600',
+    color: Colors.white,
+  },
+  filterTextInactive: {
+    fontWeight: '500',
+    color: Colors.gray[700],
+  },
+  quickActionsCard: {
+    marginBottom: Spacing[4],
+    ...OPTIMIZED_SHADOW,
+  },
+  quickActions: {
+    justifyContent: 'space-between',
+  },
+  quickActionsRow: {
+    justifyContent: 'space-between',
+    marginTop: Spacing[3],
+  },
+  quickActionButton: {
+    flex: 1,
+  },
+  retryButton: {
+    marginTop: Spacing[4],
+    ...OPTIMIZED_SHADOW,
+  },
+  settingCard: {
+    marginBottom: Spacing[4],
+    ...OPTIMIZED_SHADOW,
+  },
+  settingHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: Spacing[4],
+  },
+  settingHeaderContent: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  typeIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing[3],
+  },
+  settingColumn: {
+    flex: 1,
+  },
+  settingTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.gray[100],
+    marginBottom: Spacing[1],
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  settingDescription: {
+    fontSize: 13,
+    color: Colors.gray[300],
+    lineHeight: 18,
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  settingOptions: {
+    gap: Spacing[3],
+  },
+  settingRow: {
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing[2],
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray[100],
+  },
+  settingInfo: {
+    alignItems: 'center',
+    gap: Spacing[3],
+    flexDirection: 'row',
+  },
+  iconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.gray[100],
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  frequencyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing[3],
+    paddingHorizontal: Spacing[3],
+    backgroundColor: Colors.vibrant.coral,
+    borderRadius: BorderRadius.lg,
+    marginTop: Spacing[2],
+    ...OPTIMIZED_SHADOW,
+  },
+  frequencyInfo: {
+    alignItems: 'center',
+    gap: Spacing[2],
+    flexDirection: 'row',
+  },
+  frequencyText: {
+    fontSize: 14,
+    color: Colors.gray[700],
+    fontWeight: '500',
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  bottomSpacing: {
+    height: Spacing[8],
+  },
+});
+
+const NotificationSettingsScreen: React.FC = React.memo(() => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+
+  // Refs for cleanup
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // State
   const [preferences, setPreferences] = useState<NotificationPreferences[]>([]);
@@ -57,79 +276,105 @@ const NotificationSettingsScreen: React.FC = () => {
   const [deviceToken, setDeviceToken] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('all');
 
-  const notificationTypeNames: Record<NotificationType, string> = {
-    study_reminder: 'Çalışma Hatırlatıcıları',
-    achievement_unlock: 'Başarı Bildirimleri',
-    duel_invitation: 'Düello Davetleri',
-    duel_result: 'Düello Sonuçları',
-    friend_request: 'Arkadaşlık İstekleri',
-    friend_activity: 'Arkadaş Aktiviteleri',
-    content_update: 'İçerik Güncellemeleri',
-    streak_reminder: 'Seri Hatırlatıcıları',
-    plan_reminder: 'Plan Hatırlatıcıları',
-    coaching_note: 'Koçluk Notları',
-    motivational_message: 'Motivasyon Mesajları',
-    system_announcement: 'Sistem Duyuruları',
-    // ✅ NEW: Course-related notification types
-    course_reminder: 'Ders Hatırlatmaları',
-    course_completed: 'Ders Tamamlama Bildirimleri',
-    course_progress: 'Ders İlerleme Bildirimleri',
-    course_milestone: 'Ders Kilometre Taşı Bildirimleri',
-    course_study_session: 'Ders Çalışma Seansı Bildirimleri',
-  };
+  // Memoized constants
+  const notificationTypeNames: Record<NotificationType, string> = useMemo(
+    () => ({
+      study_reminder: 'Çalışma Hatırlatıcıları',
+      achievement_unlock: 'Başarı Bildirimleri',
+      duel_invitation: 'Düello Davetleri',
+      duel_result: 'Düello Sonuçları',
+      friend_request: 'Arkadaşlık İstekleri',
+      friend_activity: 'Arkadaş Aktiviteleri',
+      content_update: 'İçerik Güncellemeleri',
+      streak_reminder: 'Seri Hatırlatıcıları',
+      plan_reminder: 'Plan Hatırlatıcıları',
+      coaching_note: 'Koçluk Notları',
+      motivational_message: 'Motivasyon Mesajları',
+      system_announcement: 'Sistem Duyuruları',
+      course_reminder: 'Ders Hatırlatmaları',
+      course_completed: 'Ders Tamamlama Bildirimleri',
+      course_progress: 'Ders İlerleme Bildirimleri',
+      course_milestone: 'Ders Kilometre Taşı Bildirimleri',
+      course_study_session: 'Ders Çalışma Seansı Bildirimleri',
+    }),
+    [],
+  );
 
-  // Update the notificationTypeDescriptions object (around line 77)
-  const notificationTypeDescriptions: Record<NotificationType, string> = {
-    study_reminder: 'Günlük çalışma hedefleriniz için hatırlatıcılar',
-    achievement_unlock: 'Yeni başarılar kazandığınızda bildirimler',
-    duel_invitation: 'Size düello daveti geldiğinde bildirimler',
-    duel_result: 'Düello sonuçları hakkında bildirimler',
-    friend_request: 'Yeni arkadaşlık istekleri',
-    friend_activity: 'Arkadaşlarınızın aktiviteleri hakkında bildirimler',
-    content_update: 'Yeni içerik ve özellikler hakkında bildirimler',
-    streak_reminder: 'Çalışma serinizi sürdürmeniz için hatırlatıcılar',
-    plan_reminder: 'Çalışma planınızdaki görevler için hatırlatıcılar',
-    coaching_note: 'Kişiselleştirilmiş koçluk önerileri',
-    motivational_message: 'Motivasyon artırıcı mesajlar',
-    system_announcement: 'Önemli sistem duyuruları',
-    // ✅ NEW: Course-related notification descriptions
-    course_reminder: 'Ders çalışma zamanları için hatırlatıcılar',
-    course_completed: 'Derslerinizi tamamladığınızda bildirimler',
-    course_progress: 'Ders ilerleme durumunuz hakkında güncellemeler',
-    course_milestone: 'Önemli ders aşamalarını geçtiğinizde bildirimler',
-    course_study_session: 'Çalışma seanslarınız hakkında bildirimler',
-  };
+  const notificationTypeDescriptions: Record<NotificationType, string> =
+    useMemo(
+      () => ({
+        study_reminder: 'Günlük çalışma hedefleriniz için hatırlatıcılar',
+        achievement_unlock: 'Yeni başarılar kazandığınızda bildirimler',
+        duel_invitation: 'Size düello daveti geldiğinde bildirimler',
+        duel_result: 'Düello sonuçları hakkında bildirimler',
+        friend_request: 'Yeni arkadaşlık istekleri',
+        friend_activity: 'Arkadaşlarınızın aktiviteleri hakkında bildirimler',
+        content_update: 'Yeni içerik ve özellikler hakkında bildirimler',
+        streak_reminder: 'Çalışma serinizi sürdürmeniz için hatırlatıcılar',
+        plan_reminder: 'Çalışma planınızdaki görevler için hatırlatıcılar',
+        coaching_note: 'Kişiselleştirilmiş koçluk önerileri',
+        motivational_message: 'Motivasyon artırıcı mesajlar',
+        system_announcement: 'Önemli sistem duyuruları',
+        course_reminder: 'Ders çalışma zamanları için hatırlatıcılar',
+        course_completed: 'Derslerinizi tamamladığınızda bildirimler',
+        course_progress: 'Ders ilerleme durumunuz hakkında güncellemeler',
+        course_milestone: 'Önemli ders aşamalarını geçtiğinizde bildirimler',
+        course_study_session: 'Çalışma seanslarınız hakkında bildirimler',
+      }),
+      [],
+    );
 
   // Categorize notification types
-  const notificationCategories: Record<FilterType, NotificationType[]> = {
-    all: Object.keys(notificationTypeNames) as NotificationType[],
-    study: [
-      'study_reminder',
-      'streak_reminder',
-      'plan_reminder',
-      'coaching_note',
-      'course_reminder',
-      'course_completed',
-      'course_progress',
-      'course_milestone',
-      'course_study_session',
-    ],
-    social: [
-      'duel_invitation',
-      'duel_result',
-      'friend_request',
-      'friend_activity',
-    ],
-    system: [
-      'achievement_unlock',
-      'content_update',
-      'motivational_message',
-      'system_announcement',
-    ],
-  };
+  const notificationCategories: Record<FilterType, NotificationType[]> =
+    useMemo(
+      () => ({
+        all: Object.keys(notificationTypeNames) as NotificationType[],
+        study: [
+          'study_reminder',
+          'streak_reminder',
+          'plan_reminder',
+          'coaching_note',
+          'course_reminder',
+          'course_completed',
+          'course_progress',
+          'course_milestone',
+          'course_study_session',
+        ],
+        social: [
+          'duel_invitation',
+          'duel_result',
+          'friend_request',
+          'friend_activity',
+        ],
+        system: [
+          'achievement_unlock',
+          'content_update',
+          'motivational_message',
+          'system_announcement',
+        ],
+      }),
+      [notificationTypeNames],
+    );
 
-  // Load user preferences and setup push notifications
+  // Memoized color calculations
+  const colors = useMemo(
+    () => ({
+      loading: Colors.vibrant?.coral || Colors.primary.DEFAULT,
+      headerText: isDark ? Colors.gray[700] : Colors.gray[700],
+    }),
+    [isDark],
+  );
+
+  // Load user preferences and setup push notifications with cleanup
   const loadPreferences = useCallback(async () => {
+    if (!isMountedRef.current) return;
+
+    // Create new abort controller for this request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       console.log('🔄 Starting loadPreferences...');
       setError(null);
@@ -137,12 +382,18 @@ const NotificationSettingsScreen: React.FC = () => {
       // Load preferences from API
       console.log('📡 Calling getPreferences...');
       const userPreferences = await getPreferences();
+
+      if (!isMountedRef.current) return;
+
       console.log('✅ getPreferences completed:', userPreferences);
       setPreferences(userPreferences);
 
       // Setup push notifications using the service function
       console.log('📱 Calling setupPushNotifications from service...');
       const pushResult = await setupPushNotifications();
+
+      if (!isMountedRef.current) return;
+
       console.log('📱 setupPushNotifications result:', pushResult);
 
       if (pushResult.success && pushResult.token && !pushResult.isDevelopment) {
@@ -155,6 +406,7 @@ const NotificationSettingsScreen: React.FC = () => {
 
       console.log('✅ loadPreferences completed successfully');
     } catch (err: any) {
+      if (!isMountedRef.current) return;
       console.error('❌ loadPreferences error:', err);
       setError(`Ayarlar yüklenirken bir hata oluştu: ${err.message}`);
     }
@@ -162,16 +414,22 @@ const NotificationSettingsScreen: React.FC = () => {
 
   // Handle refresh
   const handleRefresh = useCallback(async () => {
+    if (!isMountedRef.current) return;
     setRefreshing(true);
     await loadPreferences();
-    setRefreshing(false);
+    if (isMountedRef.current) {
+      setRefreshing(false);
+    }
   }, [loadPreferences]);
 
   // Handle retry
   const handleRetry = useCallback(async () => {
+    if (!isMountedRef.current) return;
     setIsLoading(true);
     await loadPreferences();
-    setIsLoading(false);
+    if (isMountedRef.current) {
+      setIsLoading(false);
+    }
   }, [loadPreferences]);
 
   // Get preference for specific notification type
@@ -189,6 +447,8 @@ const NotificationSettingsScreen: React.FC = () => {
       setting: 'in_app_enabled' | 'push_enabled' | 'email_enabled',
       value: boolean,
     ) => {
+      if (!isMountedRef.current) return;
+
       try {
         setSaving(`${type}-${setting}`);
 
@@ -196,6 +456,8 @@ const NotificationSettingsScreen: React.FC = () => {
         const updatedPreference = await updatePreferences(type, {
           [setting]: value,
         });
+
+        if (!isMountedRef.current) return;
 
         // Update local state
         setPreferences((prev) => {
@@ -220,13 +482,16 @@ const NotificationSettingsScreen: React.FC = () => {
           );
         }
       } catch (err: any) {
+        if (!isMountedRef.current) return;
         console.error('Error updating preference:', err);
         Alert.alert(
           'Hata',
           'Ayar güncellenirken bir hata oluştu. Lütfen tekrar deneyin.',
         );
       } finally {
-        setSaving(null);
+        if (isMountedRef.current) {
+          setSaving(null);
+        }
       }
     },
     [preferences],
@@ -235,12 +500,16 @@ const NotificationSettingsScreen: React.FC = () => {
   // Handle frequency updates
   const handleFrequencyUpdate = useCallback(
     async (type: NotificationType, frequency: number) => {
+      if (!isMountedRef.current) return;
+
       try {
         setSaving(`${type}-frequency`);
 
         const updatedPreference = await updatePreferences(type, {
           frequency_hours: frequency,
         });
+
+        if (!isMountedRef.current) return;
 
         // Update local state
         setPreferences((prev) => {
@@ -256,10 +525,13 @@ const NotificationSettingsScreen: React.FC = () => {
           }
         });
       } catch (err: any) {
+        if (!isMountedRef.current) return;
         console.error('Error updating frequency:', err);
         Alert.alert('Hata', 'Sıklık ayarı güncellenirken bir hata oluştu.');
       } finally {
-        setSaving(null);
+        if (isMountedRef.current) {
+          setSaving(null);
+        }
       }
     },
     [],
@@ -324,6 +596,8 @@ const NotificationSettingsScreen: React.FC = () => {
   // Handle bulk actions (enable/disable all)
   const handleBulkAction = useCallback(
     async (enabled: boolean) => {
+      if (!isMountedRef.current) return;
+
       try {
         setSaving('bulk-action');
 
@@ -347,6 +621,8 @@ const NotificationSettingsScreen: React.FC = () => {
 
         await Promise.all(promises);
 
+        if (!isMountedRef.current) return;
+
         // Reload preferences to get updated state
         await loadPreferences();
 
@@ -358,278 +634,297 @@ const NotificationSettingsScreen: React.FC = () => {
           [{ text: 'Tamam' }],
         );
       } catch (error: any) {
+        if (!isMountedRef.current) return;
         console.error('Error updating bulk preferences:', error);
         Alert.alert('Hata', 'Toplu işlem sırasında bir hata oluştu.');
       } finally {
-        setSaving(null);
+        if (isMountedRef.current) {
+          setSaving(null);
+        }
       }
     },
-    [selectedFilter, notificationCategories, loadPreferences],
+    [
+      selectedFilter,
+      notificationCategories,
+      notificationTypeNames,
+      loadPreferences,
+    ],
   );
 
   // Get filtered notification types
-  const getFilteredNotificationTypes = () => {
+  const getFilteredNotificationTypes = useCallback(() => {
     return notificationCategories[selectedFilter];
-  };
+  }, [notificationCategories, selectedFilter]);
 
-  // Filter Button Component
-  const FilterButton = ({
-    filter,
-    title,
-  }: {
-    filter: FilterType;
-    title: string;
-  }) => (
-    <TouchableOpacity
-      style={{
-        flex: 1,
-        marginHorizontal: Spacing[1],
-        paddingVertical: Spacing[2],
-        paddingHorizontal: Spacing[2],
-        borderRadius: BorderRadius.button,
-        backgroundColor:
-          selectedFilter === filter
-            ? Colors.vibrant.purple
-            : isDark
-              ? Colors.white
-              : Colors.white,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 36,
-        shadowColor: Colors.gray[900],
-        shadowOffset: { width: 10, height: 20 },
-        shadowOpacity: 0.8,
-        shadowRadius: 10,
-        elevation: 10,
-      }}
-      onPress={() => setSelectedFilter(filter)}
-    >
-      <Text
-        style={{
-          fontSize: 12,
-          fontWeight: selectedFilter === filter ? '600' : '500',
-          color:
-            selectedFilter === filter
-              ? Colors.white
-              : isDark
-                ? Colors.gray[700]
-                : Colors.gray[700],
-          textAlign: 'center',
-          fontFamily: 'SecondaryFont-Regular',
-        }}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {title}
-      </Text>
-    </TouchableOpacity>
+  // Memoized Filter Button Component
+  const FilterButton = React.memo(
+    ({ filter, title }: { filter: FilterType; title: string }) => {
+      const isActive = selectedFilter === filter;
+
+      return (
+        <TouchableOpacity
+          style={[
+            styles.filterButton,
+            isActive ? styles.filterButtonActive : styles.filterButtonInactive,
+          ]}
+          onPress={() => setSelectedFilter(filter)}
+        >
+          <Text
+            style={[
+              styles.filterText,
+              isActive ? styles.filterTextActive : styles.filterTextInactive,
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
+            {title}
+          </Text>
+        </TouchableOpacity>
+      );
+    },
+  );
+
+  // Memoized Switch Track Colors
+  const switchTrackColors = useMemo(
+    () => ({
+      false: Colors.gray[300],
+      true: Colors.primary.light,
+    }),
+    [],
+  );
+
+  // Memoized icon background colors
+  const iconBackgroundColors = useMemo(
+    () => ({
+      smartphone: Colors.vibrant?.blue || Colors.primary.DEFAULT,
+      bell: Colors.vibrant?.orange || Colors.secondary.DEFAULT,
+      mail: Colors.vibrant?.green || Colors.success,
+      clock: Colors.vibrant?.purple || Colors.primary.dark,
+    }),
+    [],
   );
 
   // Render notification type settings
-  const renderNotificationTypeSettings = (
-    type: NotificationType,
-    index: number,
-  ) => {
-    const pref = getPreferenceForType(type);
-    const isLoadingThis = saving?.startsWith(type);
-    const icon = getNotificationIcon(type);
-    const color = getNotificationColor(type);
+  const renderNotificationTypeSettings = useCallback(
+    (type: NotificationType, index: number) => {
+      const pref = getPreferenceForType(type);
+      const isLoadingThis = saving?.startsWith(type);
+      const icon = getNotificationIcon(type);
+      const color = getNotificationColor(type);
 
-    return (
-      <SlideInElement key={type} delay={400 + index * 100}>
-        <PlayfulCard
-          style={styles.settingCard}
-          variant='elevated'
-          animated
-          floatingAnimation={index % 2 === 0}
-        >
-          <View style={styles.settingHeader}>
-            <Row style={{ flex: 1, alignItems: 'flex-start' }}>
-              <View
-                style={[styles.typeIconWrapper, { backgroundColor: color }]}
-              >
-                <Feather name={icon as any} size={20} color={Colors.white} />
-              </View>
-              <Column style={{ flex: 1 }}>
-                <Text style={styles.settingTitle}>
-                  {notificationTypeNames[type]}
-                </Text>
-                <Text style={styles.settingDescription}>
-                  {notificationTypeDescriptions[type]}
-                </Text>
-              </Column>
-            </Row>
-            {isLoadingThis && (
-              <ActivityIndicator size='small' color={Colors.primary.DEFAULT} />
-            )}
-          </View>
+      const frequencyText = useMemo(() => {
+        if (pref?.frequency_hours === 1) return 'Saatte bir';
+        if (pref?.frequency_hours === 24) return 'Günde bir';
+        if (pref?.frequency_hours === 168) return 'Haftada bir';
+        return `${pref?.frequency_hours || 24} saatte bir`;
+      }, [pref?.frequency_hours]);
 
-          <View style={styles.settingOptions}>
-            {/* In-App Notifications */}
-            <Row style={styles.settingRow}>
-              <Row style={styles.settingInfo}>
+      const showFrequencyButton =
+        pref?.in_app_enabled || pref?.push_enabled || pref?.email_enabled;
+
+      return (
+        <SlideInElement key={type} delay={400 + index * 100}>
+          <PlayfulCard
+            style={styles.settingCard}
+            variant='elevated'
+            animated
+            floatingAnimation={index % 2 === 0}
+          >
+            <View style={styles.settingHeader}>
+              <Row style={styles.settingHeaderContent}>
                 <View
-                  style={[
-                    styles.iconWrapper,
-                    {
-                      backgroundColor:
-                        Colors.vibrant?.blue || Colors.primary.DEFAULT,
-                    },
-                  ]}
+                  style={[styles.typeIconWrapper, { backgroundColor: color }]}
                 >
-                  <Feather name='smartphone' size={16} color={Colors.white} />
+                  <Feather name={icon as any} size={20} color={Colors.white} />
                 </View>
-                <Text style={styles.settingLabel}>Uygulama İçi</Text>
+                <Column style={styles.settingColumn}>
+                  <Text style={styles.settingTitle}>
+                    {notificationTypeNames[type]}
+                  </Text>
+                  <Text style={styles.settingDescription}>
+                    {notificationTypeDescriptions[type]}
+                  </Text>
+                </Column>
               </Row>
-              <Switch
-                value={pref?.in_app_enabled ?? true}
-                onValueChange={(value) =>
-                  handleToggle(type, 'in_app_enabled', value)
-                }
-                trackColor={{
-                  false: Colors.gray[300],
-                  true: Colors.primary.light,
-                }}
-                thumbColor={
-                  pref?.in_app_enabled
-                    ? Colors.primary.DEFAULT
-                    : Colors.gray[100]
-                }
-                disabled={isLoadingThis}
-              />
-            </Row>
+              {isLoadingThis && (
+                <ActivityIndicator
+                  size='small'
+                  color={Colors.primary.DEFAULT}
+                />
+              )}
+            </View>
 
-            {/* Push Notifications */}
-            <Row style={styles.settingRow}>
-              <Row style={styles.settingInfo}>
-                <View
-                  style={[
-                    styles.iconWrapper,
-                    {
-                      backgroundColor:
-                        Colors.vibrant?.orange || Colors.secondary.DEFAULT,
-                    },
-                  ]}
-                >
-                  <Feather name='bell' size={16} color={Colors.white} />
-                </View>
-                <Text style={styles.settingLabel}>Push Bildirimi</Text>
-              </Row>
-              <Switch
-                value={pref?.push_enabled ?? true}
-                onValueChange={(value) =>
-                  handleToggle(type, 'push_enabled', value)
-                }
-                trackColor={{
-                  false: Colors.gray[300],
-                  true: Colors.primary.light,
-                }}
-                thumbColor={
-                  pref?.push_enabled ? Colors.primary.DEFAULT : Colors.gray[100]
-                }
-                disabled={isLoadingThis}
-              />
-            </Row>
-
-            {/* Email Notifications */}
-            <Row style={styles.settingRow}>
-              <Row style={styles.settingInfo}>
-                <View
-                  style={[
-                    styles.iconWrapper,
-                    {
-                      backgroundColor: Colors.vibrant?.green || Colors.success,
-                    },
-                  ]}
-                >
-                  <Feather name='mail' size={16} color={Colors.white} />
-                </View>
-                <Text style={styles.settingLabel}>E-posta</Text>
-              </Row>
-              <Switch
-                value={pref?.email_enabled ?? false}
-                onValueChange={(value) =>
-                  handleToggle(type, 'email_enabled', value)
-                }
-                trackColor={{
-                  false: Colors.gray[300],
-                  true: Colors.primary.light,
-                }}
-                thumbColor={
-                  pref?.email_enabled
-                    ? Colors.primary.DEFAULT
-                    : Colors.gray[100]
-                }
-                disabled={isLoadingThis}
-              />
-            </Row>
-
-            {/* Frequency Setting */}
-            {(pref?.in_app_enabled ||
-              pref?.push_enabled ||
-              pref?.email_enabled) && (
-              <TouchableOpacity
-                style={styles.frequencyButton}
-                onPress={() => handleFrequencyChange(type)}
-                disabled={isLoadingThis}
-              >
+            <View style={styles.settingOptions}>
+              {/* In-App Notifications */}
+              <Row style={styles.settingRow}>
                 <Row style={styles.settingInfo}>
                   <View
                     style={[
                       styles.iconWrapper,
-                      {
-                        backgroundColor:
-                          Colors.vibrant?.purple || Colors.primary.dark,
-                      },
+                      { backgroundColor: iconBackgroundColors.smartphone },
                     ]}
                   >
-                    <Feather name='clock' size={16} color={Colors.white} />
+                    <Feather name='smartphone' size={16} color={Colors.white} />
                   </View>
-                  <Text style={styles.frequencyText}>Sıklık</Text>
+                  <Text style={styles.settingLabel}>Uygulama İçi</Text>
                 </Row>
-                <Row style={styles.frequencyInfo}>
-                  <Text style={styles.frequencyText}>
-                    {pref?.frequency_hours === 1
-                      ? 'Saatte bir'
-                      : pref?.frequency_hours === 24
-                        ? 'Günde bir'
-                        : pref?.frequency_hours === 168
-                          ? 'Haftada bir'
-                          : `${pref?.frequency_hours || 24} saatte bir`}
-                  </Text>
-                  <Feather
-                    name='chevron-right'
-                    size={16}
-                    color={Colors.gray[700]}
-                  />
-                </Row>
-              </TouchableOpacity>
-            )}
-          </View>
-        </PlayfulCard>
-      </SlideInElement>
-    );
-  };
+                <Switch
+                  value={pref?.in_app_enabled ?? true}
+                  onValueChange={(value) =>
+                    handleToggle(type, 'in_app_enabled', value)
+                  }
+                  trackColor={switchTrackColors}
+                  thumbColor={
+                    pref?.in_app_enabled
+                      ? Colors.primary.DEFAULT
+                      : Colors.gray[100]
+                  }
+                  disabled={isLoadingThis}
+                />
+              </Row>
 
-  // Load preferences on component mount
+              {/* Push Notifications */}
+              <Row style={styles.settingRow}>
+                <Row style={styles.settingInfo}>
+                  <View
+                    style={[
+                      styles.iconWrapper,
+                      { backgroundColor: iconBackgroundColors.bell },
+                    ]}
+                  >
+                    <Feather name='bell' size={16} color={Colors.white} />
+                  </View>
+                  <Text style={styles.settingLabel}>Push Bildirimi</Text>
+                </Row>
+                <Switch
+                  value={pref?.push_enabled ?? true}
+                  onValueChange={(value) =>
+                    handleToggle(type, 'push_enabled', value)
+                  }
+                  trackColor={switchTrackColors}
+                  thumbColor={
+                    pref?.push_enabled
+                      ? Colors.primary.DEFAULT
+                      : Colors.gray[100]
+                  }
+                  disabled={isLoadingThis}
+                />
+              </Row>
+
+              {/* Email Notifications */}
+              <Row style={styles.settingRow}>
+                <Row style={styles.settingInfo}>
+                  <View
+                    style={[
+                      styles.iconWrapper,
+                      { backgroundColor: iconBackgroundColors.mail },
+                    ]}
+                  >
+                    <Feather name='mail' size={16} color={Colors.white} />
+                  </View>
+                  <Text style={styles.settingLabel}>E-posta</Text>
+                </Row>
+                <Switch
+                  value={pref?.email_enabled ?? false}
+                  onValueChange={(value) =>
+                    handleToggle(type, 'email_enabled', value)
+                  }
+                  trackColor={switchTrackColors}
+                  thumbColor={
+                    pref?.email_enabled
+                      ? Colors.primary.DEFAULT
+                      : Colors.gray[100]
+                  }
+                  disabled={isLoadingThis}
+                />
+              </Row>
+
+              {/* Frequency Setting */}
+              {showFrequencyButton && (
+                <TouchableOpacity
+                  style={styles.frequencyButton}
+                  onPress={() => handleFrequencyChange(type)}
+                  disabled={isLoadingThis}
+                >
+                  <Row style={styles.settingInfo}>
+                    <View
+                      style={[
+                        styles.iconWrapper,
+                        { backgroundColor: iconBackgroundColors.clock },
+                      ]}
+                    >
+                      <Feather name='clock' size={16} color={Colors.white} />
+                    </View>
+                    <Text style={styles.frequencyText}>Sıklık</Text>
+                  </Row>
+                  <Row style={styles.frequencyInfo}>
+                    <Text style={styles.frequencyText}>{frequencyText}</Text>
+                    <Feather
+                      name='chevron-right'
+                      size={16}
+                      color={Colors.gray[700]}
+                    />
+                  </Row>
+                </TouchableOpacity>
+              )}
+            </View>
+          </PlayfulCard>
+        </SlideInElement>
+      );
+    },
+    [
+      getPreferenceForType,
+      saving,
+      notificationTypeNames,
+      notificationTypeDescriptions,
+      iconBackgroundColors,
+      switchTrackColors,
+      handleToggle,
+      handleFrequencyChange,
+    ],
+  );
+
+  // Load preferences on component mount with cleanup
   useEffect(() => {
+    let isCancelled = false;
+
     async function initialLoad() {
-      setIsLoading(true);
-      await loadPreferences();
-      setIsLoading(false);
+      if (!isCancelled && isMountedRef.current) {
+        setIsLoading(true);
+        await loadPreferences();
+        if (!isCancelled && isMountedRef.current) {
+          setIsLoading(false);
+        }
+      }
     }
 
     initialLoad();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [loadPreferences]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Memoized filtered notification types
+  const filteredNotificationTypes = useMemo(() => {
+    return getFilteredNotificationTypes();
+  }, [getFilteredNotificationTypes]);
 
   // Loading state
   if (isLoading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator
-          size='large'
-          color={Colors.vibrant?.coral || Colors.primary.DEFAULT}
-        />
+        <ActivityIndicator size='large' color={colors.loading} />
         <Text style={styles.loadingText}>Bildirim ayarları yükleniyor...</Text>
       </View>
     );
@@ -650,14 +945,7 @@ const NotificationSettingsScreen: React.FC = () => {
           onPress={handleRetry}
           variant='primary'
           size='medium'
-          style={{
-            marginTop: Spacing[4],
-            shadowColor: Colors.gray[900],
-            shadowOffset: { width: 10, height: 20 },
-            shadowOpacity: 0.8,
-            shadowRadius: 10,
-            elevation: 10,
-          }}
+          style={styles.retryButton}
         />
       </View>
     );
@@ -666,8 +954,8 @@ const NotificationSettingsScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: Spacing[4] }}
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -679,25 +967,19 @@ const NotificationSettingsScreen: React.FC = () => {
       >
         {/* Header Section */}
         <SlideInElement delay={0}>
-          <PlayfulCard
-            style={{ marginBottom: Spacing[6], backgroundColor: 'transparent' }}
-          >
-            <Row
-              style={{ alignItems: 'center', justifyContent: 'space-between' }}
-            >
-              <Column style={{ flex: 1 }}>
+          <PlayfulCard style={styles.headerCard}>
+            <Row style={styles.headerRow}>
+              <Column style={styles.headerColumn}>
                 <PlayfulTitle
                   level={1}
                   gradient='primary'
-                  style={{ fontFamily: 'PrimaryFont', color: Colors.gray[900] }}
+                  style={styles.headerTitle}
                 >
                   Bildirim Ayarları
                 </PlayfulTitle>
                 <Paragraph
-                  color={isDark ? Colors.gray[700] : Colors.gray[700]}
-                  style={{
-                    fontFamily: 'SecondaryFont-Regular',
-                  }}
+                  color={colors.headerText}
+                  style={styles.headerSubtitle}
                 >
                   Hangi bildirimleri almak istediğinizi seçin
                 </Paragraph>
@@ -713,14 +995,8 @@ const NotificationSettingsScreen: React.FC = () => {
 
         {/* Filter Buttons */}
         <SlideInElement delay={100}>
-          <View style={{ marginBottom: Spacing[6] }}>
-            <Row
-              style={{
-                marginBottom: Spacing[3],
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
+          <View style={styles.filterContainer}>
+            <Row style={styles.filterRow}>
               <FilterButton filter='all' title='Tümü' />
               <FilterButton filter='study' title='Çalışma' />
               <FilterButton filter='social' title='Sosyal' />
@@ -743,7 +1019,7 @@ const NotificationSettingsScreen: React.FC = () => {
                 title={selectedFilter === 'all' ? 'Tümünü Aç' : 'Seçilileri Aç'}
                 onPress={() => handleBulkAction(true)}
                 variant='outline'
-                style={{ flex: 1 }}
+                style={styles.quickActionButton}
                 icon='check'
                 animated
                 size='xs'
@@ -756,7 +1032,7 @@ const NotificationSettingsScreen: React.FC = () => {
                 }
                 onPress={() => handleBulkAction(false)}
                 variant='outline'
-                style={{ flex: 1 }}
+                style={styles.quickActionButton}
                 icon='close'
                 animated
                 size='xs'
@@ -764,14 +1040,12 @@ const NotificationSettingsScreen: React.FC = () => {
                 disabled={saving === 'bulk-action'}
               />
             </Row>
-            <Row
-              style={{ justifyContent: 'space-between', marginTop: Spacing[3] }}
-            >
+            <Row style={styles.quickActionsRow}>
               <PlayfulButton
                 title='Test Bildirimi'
                 onPress={handleTestNotification}
                 variant='outline'
-                style={{ flex: 1 }}
+                style={styles.quickActionButton}
                 icon='send'
                 animated
                 size='xs'
@@ -781,7 +1055,7 @@ const NotificationSettingsScreen: React.FC = () => {
                 title='Ayarları Yenile'
                 onPress={loadPreferences}
                 variant='outline'
-                style={{ flex: 1 }}
+                style={styles.quickActionButton}
                 icon='refresh'
                 animated
                 size='xs'
@@ -792,146 +1066,17 @@ const NotificationSettingsScreen: React.FC = () => {
         </SlideInElement>
 
         {/* Notification Types */}
-        {getFilteredNotificationTypes().map((type, index) =>
+        {filteredNotificationTypes.map((type, index) =>
           renderNotificationTypeSettings(type, index),
         )}
 
         {/* Bottom spacing */}
-        <View style={{ height: Spacing[8] }} />
+        <View style={styles.bottomSpacing} />
       </ScrollView>
     </View>
   );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    // backgroundColor: Colors.vibrant?.purpleDark || Colors.primary.dark,
-  },
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing[4],
-  },
-  loadingText: {
-    marginTop: Spacing[3],
-    color: Colors.white,
-    fontFamily: 'SecondaryFont-Regular',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  errorText: {
-    marginTop: Spacing[3],
-    color: Colors.white,
-    fontFamily: 'SecondaryFont-Regular',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  deviceTokenText: {
-    marginTop: Spacing[2],
-    color: Colors.gray[700],
-    fontSize: 12,
-    fontFamily: 'SecondaryFont-Regular',
-    opacity: 0.8,
-  },
-  quickActionsCard: {
-    marginBottom: Spacing[4],
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 10, height: 20 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  quickActions: {
-    justifyContent: 'space-between',
-  },
-  settingCard: {
-    marginBottom: Spacing[4],
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 10, height: 20 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  settingHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: Spacing[4],
-  },
-  typeIconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing[3],
-  },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.gray[100],
-    marginBottom: Spacing[1],
-    fontFamily: 'SecondaryFont-Bold',
-  },
-  settingDescription: {
-    fontSize: 13,
-    color: Colors.gray[300],
-    lineHeight: 18,
-    fontFamily: 'SecondaryFont-Regular',
-  },
-  settingOptions: {
-    gap: Spacing[3],
-  },
-  settingRow: {
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: Spacing[2],
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.gray[100],
-  },
-  settingInfo: {
-    alignItems: 'center',
-    gap: Spacing[3],
-  },
-  iconWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  settingLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.gray[100],
-    fontFamily: 'SecondaryFont-Regular',
-  },
-  frequencyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing[3],
-    paddingHorizontal: Spacing[3],
-    backgroundColor: Colors.vibrant.coral,
-    borderRadius: BorderRadius.lg,
-    marginTop: Spacing[2],
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 10, height: 20 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  frequencyInfo: {
-    alignItems: 'center',
-    gap: Spacing[2],
-  },
-  frequencyText: {
-    fontSize: 14,
-    color: Colors.gray[700],
-    fontWeight: '500',
-    fontFamily: 'SecondaryFont-Regular',
-  },
 });
+
+NotificationSettingsScreen.displayName = 'NotificationSettingsScreen';
 
 export default NotificationSettingsScreen;

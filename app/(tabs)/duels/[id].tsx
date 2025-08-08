@@ -1813,7 +1813,7 @@ export default function DuelRoomScreen() {
 
                 <View style={styles.nextQuestionContainer}>
                   <Paragraph style={styles.lightText}>
-                    Sonraki soru 3 saniye içinde...
+                    Sonraki soru 30 saniye içinde...
                   </Paragraph>
                 </View>
               </Column>

@@ -1,7 +1,6 @@
-// app/(tabs)/duels/new.tsx - Complete fix with auth + socket integration + context colors + consistent opponent styling
-
-import React, { useState, useEffect, useCallback } from 'react';
-import { Platform, ActionSheetIOS } from 'react-native';
+// app/(tabs)/duels/new.tsx - Optimized for performance
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Platform, ActionSheetIOS, StyleSheet } from 'react-native';
 import {
   View,
   Text,
@@ -52,26 +51,30 @@ import {
 } from '../../../src/api';
 import { ApiError } from '../../../src/api/apiClient';
 import { Test, Course } from '../../../src/types/models';
-
-// Import Bot type from botService
 import { Bot } from '../../../src/api/botService';
 import { globalStyles } from '../../../utils/styleUtils';
-
-// Import auth context
 import { useAuth } from '../../../context/AuthContext';
-
-// Import preferred course context
 import {
   usePreferredCourse,
   PreferredCourseProvider,
 } from '../../../context/PreferredCourseContext';
 
+// Performance optimized shadow configuration
+const OPTIMIZED_SHADOW = {
+  shadowColor: Colors.gray[900],
+  shadowOffset: { width: 2, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 4,
+  elevation: 4,
+};
+
 // Socket service imports - handle gracefully if not available
 let challengeBotViaSocket:
   | ((testId: number, difficulty: number) => Promise<void>)
   | undefined;
-let challengeBotWithCourse: // ADDED: Course-based bot challenge
-((courseId: number, difficulty: number) => Promise<void>) | undefined;
+let challengeBotWithCourse:
+  | ((courseId: number, difficulty: number) => Promise<void>)
+  | undefined;
 let onBotChallengeCreated:
   | ((callback: (data: { duel: any }) => void) => void)
   | undefined;
@@ -91,7 +94,7 @@ let connect: ((token?: string) => Promise<void>) | undefined;
 try {
   const socketService = require('../../../src/api/socketService');
   challengeBotViaSocket = socketService.challengeBot;
-  challengeBotWithCourse = socketService.challengeBotWithCourse; // ADDED
+  challengeBotWithCourse = socketService.challengeBotWithCourse;
   onBotChallengeCreated = socketService.onBotChallengeCreated;
   onBotChallengeError = socketService.onBotChallengeError;
   onAutoJoinDuel = socketService.onAutoJoinDuel;
@@ -106,30 +109,308 @@ try {
 type DuelHubTab = 'find' | 'friends' | 'leaderboard' | 'bots';
 type ChallengeStep = 'selectOpponent' | 'selectCourse' | 'confirm';
 
+// Memoized components for better performance
+const FilterButton = React.memo(
+  ({
+    filter,
+    title,
+    activeTab,
+    contextColor,
+    isDark,
+    onPress,
+  }: {
+    filter: DuelHubTab;
+    title: string;
+    activeTab: DuelHubTab;
+    contextColor: string;
+    isDark: boolean;
+    onPress: (filter: DuelHubTab) => void;
+  }) => {
+    const handlePress = useCallback(() => {
+      onPress(filter);
+    }, [filter, onPress]);
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.filterButton,
+          {
+            backgroundColor: activeTab === filter ? contextColor : Colors.white,
+          },
+        ]}
+        onPress={handlePress}
+      >
+        <Text
+          style={[
+            styles.filterButtonText,
+            {
+              fontWeight: activeTab === filter ? '600' : '500',
+              color:
+                activeTab === filter
+                  ? Colors.white
+                  : isDark
+                    ? Colors.gray[700]
+                    : Colors.gray[700],
+            },
+          ]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {title}
+        </Text>
+      </TouchableOpacity>
+    );
+  },
+);
+
+const BotListItem = React.memo(
+  ({
+    bot,
+    contextColor,
+    isConnectingSocket,
+    isAuthenticated,
+    onChallenge,
+  }: {
+    bot: Bot;
+    contextColor: string;
+    isConnectingSocket: boolean;
+    isAuthenticated: boolean;
+    onChallenge: (bot: Bot) => void;
+  }) => {
+    const difficultyInfo = useMemo(() => {
+      const getDifficultyLabel = (level: number): string => {
+        switch (level) {
+          case 1:
+            return 'Kolay';
+          case 2:
+            return 'Orta';
+          case 3:
+            return 'Zor';
+          case 4:
+            return 'Uzman';
+          case 5:
+            return 'Efsane';
+          default:
+            return 'Bilinmeyen';
+        }
+      };
+
+      const getDifficultyColor = (level: number): string => {
+        switch (level) {
+          case 1:
+            return Colors.vibrant.mint;
+          case 2:
+            return Colors.vibrant.yellow;
+          case 3:
+            return Colors.vibrant.orange;
+          case 4:
+            return Colors.vibrant.coral;
+          case 5:
+            return contextColor;
+          default:
+            return Colors.gray[500];
+        }
+      };
+
+      return {
+        label: getDifficultyLabel(bot.difficultyLevel),
+        color: getDifficultyColor(bot.difficultyLevel),
+      };
+    }, [bot.difficultyLevel, contextColor]);
+
+    const handlePress = useCallback(() => {
+      onChallenge(bot);
+    }, [bot, onChallenge]);
+
+    const buttonTitle = useMemo(() => {
+      if (isConnectingSocket) return 'Bağlanıyor...';
+      if (!isAuthenticated) return 'Giriş Gerekli';
+      return 'Meydan Oku';
+    }, [isConnectingSocket, isAuthenticated]);
+
+    return (
+      <View style={styles.listItemContainer}>
+        <PlayfulCard style={styles.botCard}>
+          <Row style={styles.listItemRow}>
+            <Row style={styles.listItemLeft}>
+              <Column style={styles.listItemInfo}>
+                <Text style={styles.botName}>{bot.botName}</Text>
+                <Text style={styles.botStats}>
+                  Doğruluk: {(bot.accuracyRate * 100).toFixed(0)}% • Süre:{' '}
+                  {(bot.avgResponseTime / 1000).toFixed(0)}s
+                </Text>
+                <Row style={styles.badgeRow}>
+                  <Badge
+                    text={difficultyInfo.label}
+                    variant='primary'
+                    style={[
+                      styles.difficultyBadge,
+                      { backgroundColor: difficultyInfo.color },
+                    ]}
+                    textStyle={styles.badgeText}
+                  />
+                </Row>
+              </Column>
+            </Row>
+            <Button
+              title={buttonTitle}
+              variant='primary'
+              size='small'
+              onPress={handlePress}
+              disabled={isConnectingSocket || !isAuthenticated}
+              style={[
+                styles.challengeButton,
+                {
+                  backgroundColor: !isAuthenticated
+                    ? Colors.gray[500]
+                    : difficultyInfo.color,
+                },
+              ]}
+              textStyle={styles.challengeButtonText}
+            />
+          </Row>
+        </PlayfulCard>
+      </View>
+    );
+  },
+);
+
+const StyledOpponentListItem = React.memo(
+  ({
+    opponent,
+    isAuthenticated,
+    onChallenge,
+  }: {
+    opponent: Opponent;
+    isAuthenticated: boolean;
+    onChallenge: (opponent: Opponent) => void;
+  }) => {
+    const handlePress = useCallback(() => {
+      onChallenge(opponent);
+    }, [opponent, onChallenge]);
+
+    const buttonTitle = useMemo(() => {
+      return !isAuthenticated ? 'Giriş Gerekli' : 'Meydan Oku';
+    }, [isAuthenticated]);
+
+    return (
+      <View style={styles.listItemContainer}>
+        <PlayfulCard style={styles.opponentCard}>
+          <Row style={styles.listItemRow}>
+            <Row style={styles.listItemLeft}>
+              <Column style={styles.listItemInfo}>
+                <Text style={styles.opponentName}>{opponent.username}</Text>
+                <Text style={styles.opponentStats}>
+                  Kazanma Oranı: {((opponent.winRate || 0) * 100).toFixed(0)}%
+                </Text>
+              </Column>
+            </Row>
+            <Button
+              title={buttonTitle}
+              variant='primary'
+              size='small'
+              onPress={handlePress}
+              disabled={!isAuthenticated}
+              style={[
+                styles.challengeButton,
+                {
+                  backgroundColor: !isAuthenticated
+                    ? Colors.gray[500]
+                    : Colors.vibrant.coral,
+                },
+              ]}
+              textStyle={styles.challengeButtonText}
+            />
+          </Row>
+        </PlayfulCard>
+      </View>
+    );
+  },
+);
+
+const UsernameSearch = React.memo(
+  ({
+    onChallenge,
+    contextColor,
+  }: {
+    onChallenge: (user: Opponent) => void;
+    contextColor: string;
+  }) => {
+    const [username, setUsername] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleSearch = useCallback(async () => {
+      if (!username.trim()) return;
+      setLoading(true);
+      setError(null);
+
+      try {
+        const opponent = await userService.searchUserByUsername(
+          username.trim(),
+        );
+        if (opponent) {
+          onChallenge(opponent);
+        } else {
+          setError(`'${username}' bulunamadı.`);
+        }
+      } catch (err) {
+        setError('Arama sırasında hata oluştu.');
+      } finally {
+        setLoading(false);
+      }
+    }, [username, onChallenge]);
+
+    return (
+      <Card style={styles.searchCard}>
+        <Input
+          placeholder='Kullanıcı adı ile ara'
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize='none'
+          disabled={loading}
+          inputStyle={styles.searchInput}
+        />
+        <Button
+          title='Ara ve Meydan Oku'
+          onPress={handleSearch}
+          loading={loading}
+          style={[styles.searchButton, { backgroundColor: contextColor }]}
+          textStyle={styles.searchButtonText}
+        />
+        {error && (
+          <Alert type='error' message={error} style={styles.searchError} />
+        )}
+      </Card>
+    );
+  },
+);
+
 // Main New Duel Screen Component (wrapped with context)
 function NewDuelScreenContent() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  // Auth context integration
   const {
     user: contextUser,
     isLoading: authLoading,
     isSessionValid,
   } = useAuth();
 
-  // Use the preferred course context
   const {
     preferredCourse,
     isLoading: courseLoading,
     getCourseColor,
   } = usePreferredCourse();
 
-  // Get the current context color
-  const contextColor =
-    (preferredCourse as any)?.category &&
-    getCourseColor((preferredCourse as any).category);
+  // Memoized context color to prevent unnecessary re-renders
+  const contextColor = useMemo(() => {
+    return (
+      (preferredCourse as any)?.category &&
+      getCourseColor((preferredCourse as any).category)
+    );
+  }, [preferredCourse, getCourseColor]);
 
   // Main state
   const [activeTab, setActiveTab] = useState<DuelHubTab>('find');
@@ -170,29 +451,67 @@ function NewDuelScreenContent() {
   const [isConnectingSocket, setIsConnectingSocket] = useState(false);
   const [socketError, setSocketError] = useState<string | null>(null);
 
+  // Memoized styles that depend on theme
+  const dynamicStyles = useMemo(
+    () =>
+      StyleSheet.create({
+        loadingText: {
+          marginTop: Spacing[3],
+          color: isDark ? Colors.white : Colors.white,
+          fontFamily: 'SecondaryFont-Regular',
+        },
+        authLoadingText: {
+          marginTop: Spacing[3],
+          color: Colors.white,
+          fontFamily: 'SecondaryFont-Regular',
+          textAlign: 'center',
+        },
+        headerTitle: {
+          fontFamily: 'PrimaryFont',
+          color: Colors.gray[900],
+        },
+        headerSubtitle: {
+          color: isDark ? Colors.gray[700] : Colors.gray[700],
+          fontFamily: 'SecondaryFont-Regular',
+        },
+        sectionTitle: {
+          color: isDark ? Colors.white : Colors.white,
+          marginTop: Spacing[6],
+          marginBottom: Spacing[2],
+          fontFamily: 'SecondaryFont-Bold',
+        },
+        emptyText: {
+          fontFamily: 'SecondaryFont-Regular',
+        },
+      }),
+    [isDark],
+  );
+
   // Enhanced auth + socket initialization
   useEffect(() => {
+    let isMounted = true;
+
     const checkAuthAndInitSocket = async () => {
       try {
+        if (!isMounted) return;
         setIsCheckingAuth(true);
 
-        // Wait for auth context to finish loading
         if (authLoading) {
           console.log('Auth context still loading, waiting...');
           return;
         }
 
-        // Check auth context state
         if (!contextUser || !isSessionValid) {
           console.log('User not authenticated via context');
-          setIsAuthenticated(false);
-          setAuthToken(null);
-          setSocketConnected(false);
-          setIsCheckingAuth(false);
+          if (isMounted) {
+            setIsAuthenticated(false);
+            setAuthToken(null);
+            setSocketConnected(false);
+            setIsCheckingAuth(false);
+          }
           return;
         }
 
-        // Double-check token exists in storage
         const [authStorageToken, userStorageToken] = await Promise.all([
           AsyncStorage.getItem('authToken'),
           AsyncStorage.getItem('userToken'),
@@ -200,69 +519,88 @@ function NewDuelScreenContent() {
 
         if (!authStorageToken && !userStorageToken) {
           console.log('No auth tokens found in storage');
-          setIsAuthenticated(false);
-          setAuthToken(null);
-          setSocketConnected(false);
-          setIsCheckingAuth(false);
+          if (isMounted) {
+            setIsAuthenticated(false);
+            setAuthToken(null);
+            setSocketConnected(false);
+            setIsCheckingAuth(false);
+          }
           return;
         }
 
-        // Use userToken as primary, but ensure authToken exists for socket
         const effectiveToken = authStorageToken || userStorageToken;
         if (userStorageToken && !authStorageToken) {
           await AsyncStorage.setItem('authToken', userStorageToken);
           console.log('Synced authToken for socket service');
         }
 
-        // User is authenticated
-        setAuthToken(effectiveToken);
-        setIsAuthenticated(true);
+        if (isMounted) {
+          setAuthToken(effectiveToken);
+          setIsAuthenticated(true);
+        }
 
         console.log('User authenticated, initializing socket connection...', {
           user: contextUser.username,
           hasToken: !!effectiveToken,
         });
 
-        // Now attempt socket initialization
         if (initializeSocket && isConnected) {
           try {
-            setIsConnectingSocket(true);
-            setSocketError(null);
+            if (isMounted) {
+              setIsConnectingSocket(true);
+              setSocketError(null);
+            }
             await initializeSocket();
-            setSocketConnected(isConnected());
+            if (isMounted) {
+              setSocketConnected(isConnected());
+            }
             console.log('Socket initialized successfully:', isConnected());
           } catch (error) {
             console.warn(
               'Failed to initialize socket (but user is authenticated):',
               error,
             );
-            setSocketConnected(false);
-            setSocketError(
-              error instanceof Error ? error.message : 'Connection failed',
-            );
+            if (isMounted) {
+              setSocketConnected(false);
+              setSocketError(
+                error instanceof Error ? error.message : 'Connection failed',
+              );
+            }
           } finally {
-            setIsConnectingSocket(false);
+            if (isMounted) {
+              setIsConnectingSocket(false);
+            }
           }
         } else {
           console.log('Socket service not available, will use HTTP fallback');
-          setSocketConnected(false);
+          if (isMounted) {
+            setSocketConnected(false);
+          }
         }
       } catch (error) {
         console.error('Error during auth check:', error);
-        setIsAuthenticated(false);
-        setAuthToken(null);
-        setSocketConnected(false);
-        setSocketError('Authentication check failed');
+        if (isMounted) {
+          setIsAuthenticated(false);
+          setAuthToken(null);
+          setSocketConnected(false);
+          setSocketError('Authentication check failed');
+        }
       } finally {
-        setIsCheckingAuth(false);
+        if (isMounted) {
+          setIsCheckingAuth(false);
+        }
       }
     };
 
     checkAuthAndInitSocket();
+
+    return () => {
+      isMounted = false;
+    };
   }, [contextUser, isSessionValid, authLoading]);
 
   // Reset challenge state function
-  const resetChallengeState = () => {
+  const resetChallengeState = useCallback(() => {
     setSelectedOpponent(null);
     setSelectedBot(null);
     setSelectedCourse(null);
@@ -271,19 +609,18 @@ function NewDuelScreenContent() {
     setShowWheelForCourse(false);
     setError(null);
     setIsChallenginBot(false);
-  };
+  }, []);
 
   // Handle modal close
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setModalVisible(false);
     resetChallengeState();
-  };
+  }, [resetChallengeState]);
 
   const fetchData = useCallback(async () => {
     try {
       setError(null);
 
-      // Fetch core data
       const [coursesData, recommendedData, friendsData, leaderboardData] =
         await Promise.all([
           courseService.getAllCourses(),
@@ -305,7 +642,7 @@ function NewDuelScreenContent() {
         friendsData.map((f: any) => ({
           id: f.friend_id,
           username: f.friend_username || 'Bilinmeyen Kullanıcı',
-          winRate: f.winRate || 0, // Add winRate if available, default to 0
+          winRate: f.winRate || 0,
         })),
       );
 
@@ -317,7 +654,6 @@ function NewDuelScreenContent() {
         })),
       );
 
-      // Fetch bots using botService
       try {
         const botsData = await botService.getAvailableBots();
         setBots(botsData || []);
@@ -344,15 +680,25 @@ function NewDuelScreenContent() {
   }, [fetchData]);
 
   useEffect(() => {
+    let isMounted = true;
+
     const initialFetch = async () => {
+      if (!isMounted) return;
+
       setIsLoading(true);
       await fetchData();
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     };
-    initialFetch();
-  }, [fetchData]);
 
-  // Socket event listeners for bot challenges (only if socket service is available)
+    initialFetch();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchData]);
+  // Socket event listeners for bot challenges
   useEffect(() => {
     if (
       !onBotChallengeCreated ||
@@ -371,7 +717,7 @@ function NewDuelScreenContent() {
       if (data.duel && data.duel.duel_id) {
         console.log('Navigating to duel:', data.duel.duel_id);
         router.push({
-          pathname: '/(tabs)/duels/[id]' as any, // Note the correct path format
+          pathname: '/(tabs)/duels/[id]' as any,
           params: { id: data.duel.duel_id.toString() },
         });
       }
@@ -402,62 +748,73 @@ function NewDuelScreenContent() {
         off('auto_join_duel', handleAutoJoinDuel);
       }
     };
-  }, [router]);
+  }, [router, resetChallengeState]);
 
-  // Challenge flow handlers
-  const handleOpenChallengeModal = (opponent: Opponent) => {
-    if (!isAuthenticated) {
-      setError('Meydan okumak için giriş yapmanız gerekiyor.');
-      return;
-    }
+  // Memoized challenge handlers
+  const handleOpenChallengeModal = useCallback(
+    (opponent: Opponent) => {
+      if (!isAuthenticated) {
+        setError('Meydan okumak için giriş yapmanız gerekiyor.');
+        return;
+      }
 
-    setSelectedOpponent(opponent);
-    setSelectedBot(null);
-    setSelectedCourse(null);
-    setIsBotChallenge(false);
-    setChallengeStep('selectCourse');
-    setShowWheelForCourse(false);
-    setModalVisible(true);
-  };
+      setSelectedOpponent(opponent);
+      setSelectedBot(null);
+      setSelectedCourse(null);
+      setIsBotChallenge(false);
+      setChallengeStep('selectCourse');
+      setShowWheelForCourse(false);
+      setModalVisible(true);
+    },
+    [isAuthenticated],
+  );
 
-  const handleOpenBotChallengeModal = (bot: Bot) => {
-    if (!isAuthenticated) {
-      setError('Bot meydan okumak için giriş yapmanız gerekiyor.');
-      return;
-    }
+  const handleOpenBotChallengeModal = useCallback(
+    (bot: Bot) => {
+      if (!isAuthenticated) {
+        setError('Bot meydan okumak için giriş yapmanız gerekiyor.');
+        return;
+      }
 
-    setSelectedBot(bot);
-    setSelectedOpponent(null);
-    setSelectedCourse(null);
-    setIsBotChallenge(true);
-    setChallengeStep('selectCourse');
-    setShowWheelForCourse(false);
-    setModalVisible(true);
-  };
+      setSelectedBot(bot);
+      setSelectedOpponent(null);
+      setSelectedCourse(null);
+      setIsBotChallenge(true);
+      setChallengeStep('selectCourse');
+      setShowWheelForCourse(false);
+      setModalVisible(true);
+    },
+    [isAuthenticated],
+  );
 
-  const handleCourseSpinComplete = (courseName: string, index: number) => {
-    const winningCourse = courses[index];
-    if (winningCourse) {
-      handleCourseSelected(winningCourse);
-    }
-    setShowWheelForCourse(false);
-  };
+  const handleCourseSpinComplete = useCallback(
+    (courseName: string, index: number) => {
+      const winningCourse = courses[index];
+      if (winningCourse) {
+        handleCourseSelected(winningCourse);
+      }
+      setShowWheelForCourse(false);
+    },
+    [courses],
+  );
 
-  const handleCourseSelected = async (course: Course) => {
+  const handleCourseSelected = useCallback(async (course: Course) => {
     setSelectedCourse(course);
     setError(null);
-
     setChallengeStep('confirm');
-  };
+  }, []);
 
-  // Enhanced challenge submit with proper auth checking
-  const handleChallengeSubmit = async () => {
+  // Memoized tab change handler
+  const handleTabChange = useCallback((tab: DuelHubTab) => {
+    setActiveTab(tab);
+  }, []);
+
+  const handleChallengeSubmit = useCallback(async () => {
     if (!selectedCourse) {
       setError('Ders seçilmedi.');
       return;
     }
 
-    // Enhanced auth check
     if (!isAuthenticated || !authToken || !contextUser || !isSessionValid) {
       setError(
         'Oturum süresi dolmuş. Lütfen uygulamayı yeniden başlatın veya tekrar giriş yapın.',
@@ -466,7 +823,6 @@ function NewDuelScreenContent() {
     }
 
     if (isBotChallenge && selectedBot) {
-      // Bot challenge logic with course support
       const currentToken = await AsyncStorage.getItem('authToken');
       if (!currentToken) {
         setError(
@@ -499,16 +855,14 @@ function NewDuelScreenContent() {
         if (shouldUseSocket) {
           console.log('Using socket-based bot challenge with course');
           try {
-            // UPDATED: Use the new course-based socket challenge
             await challengeBotWithCourse!(
               selectedCourse.course_id,
               selectedBot.difficultyLevel,
             );
             console.log('Socket course-based bot challenge sent successfully');
-            // Response will be handled by socket listeners
           } catch (socketError) {
             console.error('Socket challenge failed:', socketError);
-            throw socketError; // This will trigger the fallback
+            throw socketError;
           }
         } else {
           console.log(
@@ -519,9 +873,7 @@ function NewDuelScreenContent() {
       } catch (err) {
         console.log('Attempting HTTP fallback for bot challenge');
 
-        // HTTP API fallback with course support
         try {
-          // UPDATED: Use the new course-based bot service
           const response = await botService.challengeBotWithCourse(
             selectedCourse.course_id,
             selectedBot.difficultyLevel,
@@ -535,12 +887,11 @@ function NewDuelScreenContent() {
             setModalVisible(false);
             resetChallengeState();
 
-            // Navigate to duel room
             router.push({
               pathname: '/duels/[id]' as any,
               params: { id: response.duel.duel_id.toString() },
             });
-            return; // Success with HTTP fallback
+            return;
           } else {
             throw new Error(
               response.message || 'Bot meydan okuması başarısız oldu.',
@@ -549,7 +900,6 @@ function NewDuelScreenContent() {
         } catch (fallbackError) {
           console.error('HTTP fallback also failed:', fallbackError);
 
-          // Handle all errors
           if (fallbackError instanceof ApiError) {
             setError(
               fallbackError.message || 'Bot meydan okuması gönderilemedi.',
@@ -564,20 +914,17 @@ function NewDuelScreenContent() {
         setIsChallenginBot(false);
       }
     } else if (!isBotChallenge && selectedOpponent) {
-      // Regular user challenge with courseId (unchanged)
       setIsSubmittingChallenge(true);
       setError(null);
 
       try {
-        // Use the new challengeUserWithCourse function
         const response = await duelService.challengeUserWithCourse(
           selectedOpponent.id,
           selectedCourse.course_id,
-          5, // 5 questions
+          5,
         );
         const newDuel = response.duel;
         setModalVisible(false);
-
         resetChallengeState();
 
         router.push({
@@ -594,10 +941,21 @@ function NewDuelScreenContent() {
         setIsSubmittingChallenge(false);
       }
     }
-  };
+  }, [
+    selectedCourse,
+    isAuthenticated,
+    authToken,
+    contextUser,
+    isSessionValid,
+    isBotChallenge,
+    selectedBot,
+    selectedOpponent,
+    socketConnected,
+    resetChallengeState,
+    router,
+  ]);
 
-  // Enhanced retry socket connection
-  const retrySocketConnection = async () => {
+  const retrySocketConnection = useCallback(async () => {
     if (!connect || !isAuthenticated || !authToken) {
       console.log('Cannot retry socket - not authenticated');
       setSocketError('Not authenticated');
@@ -620,270 +978,14 @@ function NewDuelScreenContent() {
     } finally {
       setIsConnectingSocket(false);
     }
-  };
+  }, [connect, isAuthenticated, authToken]);
 
-  // Updated FilterButton with context color
-  const FilterButton = ({
-    filter,
-    title,
-  }: {
-    filter: DuelHubTab;
-    title: string;
-  }) => (
-    <TouchableOpacity
-      style={{
-        flex: 1,
-        marginHorizontal: Spacing[1],
-        paddingVertical: Spacing[2],
-        paddingHorizontal: Spacing[2],
-        borderRadius: BorderRadius.button,
-        backgroundColor:
-          activeTab === filter
-            ? contextColor // Use context color for active filter
-            : isDark
-              ? Colors.white
-              : Colors.white,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 36,
-        shadowColor: Colors.gray[900],
-        shadowOffset: { width: 10, height: 20 },
-        shadowOpacity: 0.8,
-        shadowRadius: 10,
-        elevation: 10,
-      }}
-      onPress={() => setActiveTab(filter)}
-    >
-      <Text
-        style={{
-          fontSize: 12,
-          fontWeight: activeTab === filter ? '600' : '500',
-          color:
-            activeTab === filter
-              ? Colors.white
-              : isDark
-                ? Colors.gray[700]
-                : Colors.gray[700],
-          textAlign: 'center',
-          fontFamily: 'SecondaryFont-Regular',
-        }}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {title}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  // Enhanced BotListItem with auth checking
-  const BotListItem = ({ bot }: { bot: Bot }) => {
-    const getDifficultyLabel = (level: number): string => {
-      switch (level) {
-        case 1:
-          return 'Kolay';
-        case 2:
-          return 'Orta';
-        case 3:
-          return 'Zor';
-        case 4:
-          return 'Uzman';
-        case 5:
-          return 'Efsane';
-        default:
-          return 'Bilinmeyen';
-      }
-    };
-
-    const getDifficultyColor = (level: number): string => {
-      switch (level) {
-        case 1:
-          return Colors.vibrant.mint;
-        case 2:
-          return Colors.vibrant.yellow;
-        case 3:
-          return Colors.vibrant.orange;
-        case 4:
-          return Colors.vibrant.coral;
-        case 5:
-          return contextColor; // Use context color for highest difficulty
-        default:
-          return Colors.gray[500];
-      }
-    };
-
-    return (
-      <View
-        style={{
-          shadowColor: Colors.gray[900],
-          shadowOffset: { width: 10, height: 20 },
-          shadowOpacity: 0.8,
-          shadowRadius: 10,
-          elevation: 10,
-        }}
-      >
-        <PlayfulCard
-          style={{
-            marginBottom: Spacing[3],
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            shadowColor: Colors.gray[900],
-            shadowOffset: { width: 10, height: 20 },
-            shadowOpacity: 0.8,
-            shadowRadius: 10,
-            elevation: 10,
-          }}
-        >
-          <Row
-            style={{ alignItems: 'center', justifyContent: 'space-between' }}
-          >
-            <Row style={{ alignItems: 'center', flex: 1 }}>
-              <Column style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 'bold',
-                    color: Colors.gray[800],
-                    fontFamily: 'SecondaryFont-Bold',
-                  }}
-                >
-                  {bot.botName}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: Colors.gray[600],
-                    fontFamily: 'SecondaryFont-Regular',
-                  }}
-                >
-                  Doğruluk: {(bot.accuracyRate * 100).toFixed(0)}% • Süre:{' '}
-                  {(bot.avgResponseTime / 1000).toFixed(0)}s
-                </Text>
-                <Row style={{ alignItems: 'center', marginTop: 4 }}>
-                  <Badge
-                    text={getDifficultyLabel(bot.difficultyLevel)}
-                    variant='primary'
-                    style={{
-                      backgroundColor: getDifficultyColor(bot.difficultyLevel),
-                      marginRight: Spacing[2],
-                    }}
-                    textStyle={{
-                      color: Colors.white,
-                      fontFamily: 'SecondaryFont-Bold',
-                    }}
-                  />
-                </Row>
-              </Column>
-            </Row>
-            <Button
-              title={
-                isConnectingSocket
-                  ? 'Bağlanıyor...'
-                  : !isAuthenticated
-                    ? 'Giriş Gerekli'
-                    : 'Meydan Oku'
-              }
-              variant='primary'
-              size='small'
-              onPress={() => handleOpenBotChallengeModal(bot)}
-              disabled={isConnectingSocket || !isAuthenticated}
-              style={{
-                backgroundColor: !isAuthenticated
-                  ? Colors.gray[500]
-                  : getDifficultyColor(bot.difficultyLevel),
-              }}
-              textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
-            />
-          </Row>
-        </PlayfulCard>
-      </View>
-    );
-  };
-
-  // NEW: Enhanced OpponentListItem with same styling as BotListItem
-  const StyledOpponentListItem = ({ opponent }: { opponent: Opponent }) => {
-    return (
-      <View
-        style={{
-          shadowColor: Colors.gray[900],
-          shadowOffset: { width: 10, height: 20 },
-          shadowOpacity: 0.8,
-          shadowRadius: 10,
-          elevation: 10,
-        }}
-      >
-        <PlayfulCard
-          style={{
-            marginBottom: Spacing[3],
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            shadowColor: Colors.gray[900],
-            shadowOffset: { width: 10, height: 20 },
-            shadowOpacity: 0.8,
-            shadowRadius: 10,
-            elevation: 10,
-          }}
-        >
-          <Row
-            style={{ alignItems: 'center', justifyContent: 'space-between' }}
-          >
-            <Row style={{ alignItems: 'center', flex: 1 }}>
-              <Column style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 'bold',
-                    color: Colors.gray[800],
-                    fontFamily: 'SecondaryFont-Bold',
-                  }}
-                >
-                  {opponent.username}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: Colors.gray[600],
-                    fontFamily: 'SecondaryFont-Regular',
-                  }}
-                >
-                  Kazanma Oranı: {((opponent.winRate || 0) * 100).toFixed(0)}%
-                </Text>
-              </Column>
-            </Row>
-            <Button
-              title={!isAuthenticated ? 'Giriş Gerekli' : 'Meydan Oku'}
-              variant='primary'
-              size='small'
-              onPress={() => handleOpenChallengeModal(opponent)}
-              disabled={!isAuthenticated}
-              style={{
-                backgroundColor: !isAuthenticated
-                  ? Colors.gray[500]
-                  : Colors.vibrant.coral, // Use vibrant.coral as requested
-              }}
-              textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
-            />
-          </Row>
-        </PlayfulCard>
-      </View>
-    );
-  };
-
-  const renderTabContent = () => {
+  const renderTabContent = useCallback(() => {
     if (isLoading) {
       return (
-        <View
-          style={{
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: Spacing[8],
-          }}
-        >
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size='large' color={contextColor} />
-          <Text
-            style={{
-              marginTop: Spacing[3],
-              color: isDark ? Colors.white : Colors.white,
-              fontFamily: 'SecondaryFont-Regular',
-            }}
-          >
+          <Text style={dynamicStyles.loadingText}>
             Düello verileri yükleniyor...
           </Text>
         </View>
@@ -905,12 +1007,7 @@ function NewDuelScreenContent() {
                 style={[
                   globalStyles.textLg,
                   globalStyles.fontSemibold,
-                  {
-                    color: isDark ? Colors.white : Colors.white,
-                    marginTop: Spacing[6],
-                    marginBottom: Spacing[2],
-                    fontFamily: 'SecondaryFont-Bold',
-                  },
+                  dynamicStyles.sectionTitle,
                 ]}
               >
                 Önerilen Rakipler
@@ -922,12 +1019,16 @@ function NewDuelScreenContent() {
                   key={`${activeTab}-rec-${user.id}`}
                   delay={200 + index * 100}
                 >
-                  <StyledOpponentListItem opponent={user} />
+                  <StyledOpponentListItem
+                    opponent={user}
+                    isAuthenticated={isAuthenticated}
+                    onChallenge={handleOpenChallengeModal}
+                  />
                 </SlideInElement>
               ))
             ) : (
               <SlideInElement delay={200} key={`${activeTab}-empty`}>
-                <Paragraph style={{ fontFamily: 'SecondaryFont-Regular' }}>
+                <Paragraph style={dynamicStyles.emptyText}>
                   Şu an için önerilen rakip bulunmuyor.
                 </Paragraph>
               </SlideInElement>
@@ -941,7 +1042,11 @@ function NewDuelScreenContent() {
               key={`${activeTab}-friend-${user.id}`}
               delay={index * 100}
             >
-              <StyledOpponentListItem opponent={user} />
+              <StyledOpponentListItem
+                opponent={user}
+                isAuthenticated={isAuthenticated}
+                onChallenge={handleOpenChallengeModal}
+              />
             </SlideInElement>
           ))
         ) : (
@@ -963,7 +1068,11 @@ function NewDuelScreenContent() {
               key={`${activeTab}-lead-${user.id}`}
               delay={index * 100}
             >
-              <StyledOpponentListItem opponent={user} />
+              <StyledOpponentListItem
+                opponent={user}
+                isAuthenticated={isAuthenticated}
+                onChallenge={handleOpenChallengeModal}
+              />
             </SlideInElement>
           ))
         ) : (
@@ -978,14 +1087,19 @@ function NewDuelScreenContent() {
       case 'bots':
         return bots.length > 0 ? (
           <>
-            {/* Show bots only if authenticated or checking auth */}
             {(isAuthenticated || isCheckingAuth) &&
               bots.map((bot, index) => (
                 <SlideInElement
                   key={`${activeTab}-bot-${bot.botId}`}
                   delay={100 + index * 100}
                 >
-                  <BotListItem bot={bot} />
+                  <BotListItem
+                    bot={bot}
+                    contextColor={contextColor}
+                    isConnectingSocket={isConnectingSocket}
+                    isAuthenticated={isAuthenticated}
+                    onChallenge={handleOpenBotChallengeModal}
+                  />
                 </SlideInElement>
               ))}
           </>
@@ -1001,79 +1115,71 @@ function NewDuelScreenContent() {
       default:
         return null;
     }
-  };
+  }, [
+    isLoading,
+    activeTab,
+    contextColor,
+    recommended,
+    friends,
+    leaderboard,
+    bots,
+    isAuthenticated,
+    isCheckingAuth,
+    isConnectingSocket,
+    handleOpenChallengeModal,
+    handleOpenBotChallengeModal,
+    dynamicStyles,
+  ]);
 
-  const renderChallengeModal = () => {
-    const getModalTitle = () => {
-      if (isBotChallenge && selectedBot) {
-        return `${selectedBot.botName} ile Düello`;
-      }
-      switch (challengeStep) {
-        case 'selectCourse':
-          return 'Ders Seçin';
-        case 'confirm':
-          return 'Meydan Okumayı Onayla';
-        default:
-          return 'Meydan Okuma';
-      }
-    };
+  const getModalTitle = useCallback(() => {
+    if (isBotChallenge && selectedBot) {
+      return `${selectedBot.botName} ile Düello`;
+    }
+    switch (challengeStep) {
+      case 'selectCourse':
+        return 'Ders Seçin';
+      case 'confirm':
+        return 'Meydan Okumayı Onayla';
+      default:
+        return 'Meydan Okuma';
+    }
+  }, [isBotChallenge, selectedBot, challengeStep]);
 
-    const getOpponentDisplayName = () => {
-      if (isBotChallenge && selectedBot) {
-        return selectedBot.botName;
-      }
-      return selectedOpponent?.username || 'Rakip';
-    };
+  const getOpponentDisplayName = useCallback(() => {
+    if (isBotChallenge && selectedBot) {
+      return selectedBot.botName;
+    }
+    return selectedOpponent?.username || 'Rakip';
+  }, [isBotChallenge, selectedBot, selectedOpponent]);
 
+  const renderChallengeModal = useCallback(() => {
     return (
       <Modal
         visible={modalVisible}
         onClose={handleCloseModal}
         title={getModalTitle()}
       >
-        <View
-          style={{
-            backgroundColor: contextColor, // Use context color for modal background
-            padding: Spacing[4],
-            minHeight: 300,
-          }}
-        >
+        <View style={[styles.modalContent, { backgroundColor: contextColor }]}>
           {/* Opponent Info */}
-          <View style={{ marginBottom: Spacing[4] }}>
-            <Text
-              style={{
-                fontSize: 16,
-                color: Colors.gray[100],
-                fontFamily: 'SecondaryFont-Bold',
-                textAlign: 'center',
-              }}
-            >
+          <View style={styles.opponentInfo}>
+            <Text style={styles.opponentTitle}>
               Rakip: {getOpponentDisplayName()}
             </Text>
             {isBotChallenge && selectedBot && (
               <>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: Colors.gray[300],
-                    fontFamily: 'SecondaryFont-Regular',
-                    textAlign: 'center',
-                    marginTop: 4,
-                  }}
-                >
+                <Text style={styles.botDetails}>
                   Zorluk: Seviye {selectedBot.difficultyLevel} • Doğruluk:{' '}
                   {(selectedBot.accuracyRate * 100).toFixed(0)}%
                 </Text>
                 <Text
-                  style={{
-                    fontSize: 10,
-                    color: socketConnected
-                      ? Colors.vibrant.mint
-                      : Colors.vibrant.yellow,
-                    fontFamily: 'SecondaryFont-Bold',
-                    textAlign: 'center',
-                    marginTop: 4,
-                  }}
+                  style={[
+                    styles.connectionStatus,
+                    {
+                      color: socketConnected
+                        ? Colors.vibrant.mint
+                        : Colors.vibrant.yellow,
+                    },
+                  ]}
                 >
                   {socketConnected
                     ? '⚡ Gerçek Zamanlı Mod'
@@ -1084,31 +1190,14 @@ function NewDuelScreenContent() {
           </View>
 
           {/* Course Selection Step */}
-
           {challengeStep === 'selectCourse' && (
             <>
-              <Text
-                style={{
-                  fontSize: 14,
-                  lineHeight: 20,
-                  color: Colors.gray[300],
-                  fontFamily: 'SecondaryFont-Regular',
-                  marginBottom: Spacing[4],
-                  textAlign: 'center',
-                }}
-              >
+              <Text style={styles.courseDescription}>
                 Bir ders seçin! Seçilen dersten 5 rastgele soru gelecek.
               </Text>
 
               {showWheelForCourse ? (
-                <View
-                  style={{
-                    alignItems: 'center',
-                    paddingVertical: Spacing[4],
-                    minHeight: 300,
-                    marginBottom: Spacing[4],
-                  }}
-                >
+                <View style={styles.wheelContainer}>
                   <SpinningWheel
                     items={courses.map((c) => c.nicknames || c.title)}
                     onSpinEnd={handleCourseSpinComplete}
@@ -1119,27 +1208,14 @@ function NewDuelScreenContent() {
                     fontFamily='PrimaryFont'
                     showWinnerModal={true}
                     winnerModalDuration={2000}
-                    onWinnerModalClose={() => {
-                      // Course selection happens in handleCourseSpinComplete
-                    }}
+                    onWinnerModalClose={() => {}}
                   />
                 </View>
               ) : (
-                <View style={{ marginBottom: Spacing[4] }}>
-                  {/* Course Selection Button for iOS */}
+                <View style={styles.courseSelectionContainer}>
                   {Platform.OS === 'ios' ? (
                     <TouchableOpacity
-                      style={{
-                        backgroundColor: Colors.white,
-                        borderColor: Colors.gray[300],
-                        borderWidth: 2,
-                        borderRadius: BorderRadius.md,
-                        paddingVertical: Spacing[3],
-                        paddingHorizontal: Spacing[3],
-                        marginBottom: Spacing[3],
-                        minHeight: 44,
-                        justifyContent: 'center',
-                      }}
+                      style={styles.iosCoursePicker}
                       onPress={() => {
                         const options = [
                           'İptal',
@@ -1164,27 +1240,12 @@ function NewDuelScreenContent() {
                         );
                       }}
                     >
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          color: selectedCourse
-                            ? Colors.gray[800]
-                            : Colors.gray[500],
-                          fontFamily: 'SecondaryFont-Regular',
-                        }}
-                      >
+                      <Text style={styles.iosPickerText}>
                         {selectedCourse
                           ? selectedCourse.title
                           : 'Bir Ders Seçin...'}
                       </Text>
-                      <View
-                        style={{
-                          position: 'absolute',
-                          right: Spacing[3],
-                          top: '50%',
-                          transform: [{ translateY: -6 }],
-                        }}
-                      >
+                      <View style={styles.iosPickerChevron}>
                         <FontAwesome
                           name='chevron-down'
                           size={12}
@@ -1193,7 +1254,6 @@ function NewDuelScreenContent() {
                       </View>
                     </TouchableOpacity>
                   ) : (
-                    // Keep the original Picker for Android
                     <Picker
                       items={courses.map((c) => ({
                         label: c.title,
@@ -1209,12 +1269,7 @@ function NewDuelScreenContent() {
                       placeholder='Bir Ders Seçin...'
                       enabled={true}
                       forceLight={true}
-                      style={{
-                        backgroundColor: Colors.white,
-                        borderColor: Colors.gray[300],
-                        borderWidth: 2,
-                        marginBottom: Spacing[3],
-                      }}
+                      style={styles.androidPicker}
                       fontFamily='SecondaryFont-Regular'
                       placeholderFontFamily='SecondaryFont-Regular'
                     />
@@ -1226,16 +1281,8 @@ function NewDuelScreenContent() {
                     variant='secondary'
                     icon='random'
                     disabled={false}
-                    style={{
-                      minHeight: 44,
-                      backgroundColor: Colors.vibrant.purple,
-                      borderRadius: BorderRadius.lg,
-                    }}
-                    textStyle={{
-                      fontFamily: 'SecondaryFont-Bold',
-                      fontSize: 16,
-                      color: Colors.white,
-                    }}
+                    style={styles.spinButton}
+                    textStyle={styles.spinButtonText}
                   />
                 </View>
               )}
@@ -1245,67 +1292,34 @@ function NewDuelScreenContent() {
           {/* Confirmation Step */}
           {challengeStep === 'confirm' && selectedCourse && (
             <>
-              <View style={{ marginBottom: Spacing[6] }}>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 'bold',
-                    color: Colors.gray[100],
-                    fontFamily: 'SecondaryFont-Bold',
-                    textAlign: 'center',
-                    marginBottom: Spacing[3],
-                  }}
-                >
+              <View style={styles.confirmationContainer}>
+                <Text style={styles.confirmationTitle}>
                   {isBotChallenge ? 'Bot Meydan Okuma' : 'Meydan Okuma'} Özeti
                 </Text>
 
-                <View
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.1)',
-                    padding: Spacing[3],
-                    borderRadius: BorderRadius.md,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: Colors.gray[200],
-                      fontFamily: 'SecondaryFont-Regular',
-                      marginBottom: Spacing[1],
-                    }}
-                  >
-                    <Text style={{ fontWeight: 'bold' }}>Rakip:</Text>{' '}
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryText}>
+                    <Text style={styles.summaryLabel}>Rakip:</Text>{' '}
                     {getOpponentDisplayName()}
                   </Text>
-                  <Text
-                    style={{
-                      color: Colors.gray[200],
-                      fontFamily: 'SecondaryFont-Regular',
-                      marginBottom: Spacing[1],
-                    }}
-                  >
-                    <Text style={{ fontWeight: 'bold' }}>Ders:</Text>{' '}
+                  <Text style={styles.summaryText}>
+                    <Text style={styles.summaryLabel}>Ders:</Text>{' '}
                     {selectedCourse.title}
                   </Text>
-                  <Text
-                    style={{
-                      color: Colors.gray[200],
-                      fontFamily: 'SecondaryFont-Regular',
-                      marginBottom: Spacing[1],
-                    }}
-                  >
-                    <Text style={{ fontWeight: 'bold' }}>Soru Sayısı:</Text> 5
+                  <Text style={styles.summaryText}>
+                    <Text style={styles.summaryLabel}>Soru Sayısı:</Text> 5
                     Rastgele Soru
                   </Text>
                   {isBotChallenge && (
                     <Text
-                      style={{
-                        color: socketConnected
-                          ? Colors.vibrant.mint
-                          : Colors.vibrant.yellow,
-                        fontFamily: 'SecondaryFont-Bold',
-                        fontSize: 12,
-                        marginTop: Spacing[1],
-                      }}
+                      style={[
+                        styles.summaryConnection,
+                        {
+                          color: socketConnected
+                            ? Colors.vibrant.mint
+                            : Colors.vibrant.yellow,
+                        },
+                      ]}
                     >
                       {socketConnected
                         ? '⚡ Gerçek zamanlı düello'
@@ -1320,17 +1334,8 @@ function NewDuelScreenContent() {
                 onPress={handleChallengeSubmit}
                 loading={isSubmittingChallenge || isChallenginBot}
                 disabled={isSubmittingChallenge || isChallenginBot}
-                style={{
-                  minHeight: 48,
-                  backgroundColor: Colors.vibrant.purple,
-                  borderRadius: BorderRadius.lg,
-                  marginBottom: Spacing[2],
-                }}
-                textStyle={{
-                  fontFamily: 'SecondaryFont-Bold',
-                  fontSize: 16,
-                  color: Colors.white,
-                }}
+                style={styles.submitButton}
+                textStyle={styles.submitButtonText}
               />
 
               <Button
@@ -1338,59 +1343,50 @@ function NewDuelScreenContent() {
                 onPress={() => setChallengeStep('selectCourse')}
                 variant='outline'
                 disabled={isSubmittingChallenge || isChallenginBot}
-                style={{
-                  borderColor: Colors.white,
-                }}
-                textStyle={{
-                  fontFamily: 'SecondaryFont-Regular',
-                  color: Colors.white,
-                }}
+                style={styles.backButton}
+                textStyle={styles.backButtonText}
               />
             </>
           )}
 
           {/* Error Display */}
           {error && (
-            <View style={{ marginTop: Spacing[3] }}>
-              <Alert
-                type='error'
-                message={error}
-                style={{
-                  backgroundColor: 'rgba(236, 28, 36, 0.1)',
-                  borderColor: Colors.error,
-                  borderWidth: 1,
-                  borderRadius: BorderRadius.md,
-                  margin: 0,
-                }}
-              />
+            <View style={styles.errorContainer}>
+              <Alert type='error' message={error} style={styles.errorAlert} />
             </View>
           )}
         </View>
       </Modal>
     );
-  };
+  }, [
+    modalVisible,
+    handleCloseModal,
+    getModalTitle,
+    contextColor,
+    getOpponentDisplayName,
+    isBotChallenge,
+    selectedBot,
+    socketConnected,
+    challengeStep,
+    showWheelForCourse,
+    courses,
+    handleCourseSpinComplete,
+    selectedCourse,
+    handleCourseSelected,
+    isSubmittingChallenge,
+    isChallenginBot,
+    handleChallengeSubmit,
+    error,
+  ]);
 
   // Show loading while checking auth
   if (isCheckingAuth || authLoading) {
     return (
       <Container
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: Spacing[4],
-          backgroundColor: contextColor,
-        }}
+        style={[styles.authLoadingContainer, { backgroundColor: contextColor }]}
       >
         <ActivityIndicator size='large' color={Colors.white} />
-        <Text
-          style={{
-            marginTop: Spacing[3],
-            color: Colors.white,
-            fontFamily: 'SecondaryFont-Regular',
-            textAlign: 'center',
-          }}
-        >
+        <Text style={dynamicStyles.authLoadingText}>
           Kimlik doğrulanıyor...
         </Text>
       </Container>
@@ -1400,41 +1396,31 @@ function NewDuelScreenContent() {
   if (error && !isLoading) {
     return (
       <Container
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: Spacing[4],
-          backgroundColor: contextColor,
-        }}
+        style={[styles.errorScreenContainer, { backgroundColor: contextColor }]}
       >
         <Alert
           type='error'
           title='Hata'
           message={error}
-          style={{ marginBottom: Spacing[4] }}
+          style={styles.errorScreenAlert}
         />
         <Button
           title='Yenile'
           variant='primary'
           onPress={handleRetry}
           icon='refresh'
-          style={{
-            backgroundColor: Colors.white,
-          }}
-          textStyle={{
-            color: contextColor,
-          }}
+          style={styles.retryButton}
+          textStyle={[styles.retryButtonText, { color: contextColor }]}
         />
       </Container>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.container}>
       <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: Spacing[4] }}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1446,26 +1432,17 @@ function NewDuelScreenContent() {
       >
         {/* Header Section */}
         <SlideInElement delay={0}>
-          <PlayfulCard
-            style={{ marginBottom: Spacing[6], backgroundColor: 'transparent' }}
-          >
-            <Row
-              style={{ alignItems: 'center', justifyContent: 'space-between' }}
-            >
-              <Column style={{ flex: 1 }}>
+          <PlayfulCard style={styles.headerCard}>
+            <Row style={styles.headerRow}>
+              <Column style={styles.headerColumn}>
                 <PlayfulTitle
                   level={1}
                   gradient='primary'
-                  style={{ fontFamily: 'PrimaryFont', color: Colors.gray[900] }}
+                  style={dynamicStyles.headerTitle}
                 >
                   Yeni Düello ⚔️
                 </PlayfulTitle>
-                <Paragraph
-                  color={isDark ? Colors.gray[700] : Colors.gray[700]}
-                  style={{
-                    fontFamily: 'SecondaryFont-Regular',
-                  }}
-                >
+                <Paragraph style={dynamicStyles.headerSubtitle}>
                   {isAuthenticated
                     ? 'Rakip seç ve meydan okumaya başla'
                     : 'Meydan okumak için giriş yapın'}
@@ -1477,18 +1454,42 @@ function NewDuelScreenContent() {
 
         {/* Filter Buttons */}
         <SlideInElement delay={100}>
-          <View style={{ marginBottom: Spacing[6] }}>
-            <Row
-              style={{
-                marginBottom: Spacing[3],
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <FilterButton filter='find' title='Rakip Bul' />
-              <FilterButton filter='friends' title='Arkadaşlar' />
-              {bots.length > 0 && <FilterButton filter='bots' title='Botlar' />}
-              <FilterButton filter='leaderboard' title='Liderlik' />
+          <View style={styles.filterContainer}>
+            <Row style={styles.filterRow}>
+              <FilterButton
+                filter='find'
+                title='Rakip Bul'
+                activeTab={activeTab}
+                contextColor={contextColor}
+                isDark={isDark}
+                onPress={handleTabChange}
+              />
+              <FilterButton
+                filter='friends'
+                title='Arkadaşlar'
+                activeTab={activeTab}
+                contextColor={contextColor}
+                isDark={isDark}
+                onPress={handleTabChange}
+              />
+              {bots.length > 0 && (
+                <FilterButton
+                  filter='bots'
+                  title='Botlar'
+                  activeTab={activeTab}
+                  contextColor={contextColor}
+                  isDark={isDark}
+                  onPress={handleTabChange}
+                />
+              )}
+              <FilterButton
+                filter='leaderboard'
+                title='Liderlik'
+                activeTab={activeTab}
+                contextColor={contextColor}
+                isDark={isDark}
+                onPress={handleTabChange}
+              />
             </Row>
           </View>
         </SlideInElement>
@@ -1497,18 +1498,7 @@ function NewDuelScreenContent() {
         <View>
           <FloatingElement>
             <GlassCard
-              style={[
-                {
-                  backgroundColor: contextColor, // Use context color instead of orangeLight
-                  marginBottom: Spacing[4],
-                  overflow: 'hidden',
-                  shadowColor: Colors.gray[900],
-                  shadowOffset: { width: 10, height: 20 },
-                  shadowOpacity: 0.8,
-                  shadowRadius: 10,
-                  elevation: 10,
-                },
-              ]}
+              style={[styles.tabContent, { backgroundColor: contextColor }]}
               animated
             >
               {renderTabContent()}
@@ -1521,12 +1511,12 @@ function NewDuelScreenContent() {
           <Alert
             type='warning'
             message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
-            style={{ marginTop: Spacing[4] }}
+            style={styles.bottomError}
           />
         )}
 
         {/* Bottom spacing to ensure content is fully visible */}
-        <View style={{ height: Spacing[8] }} />
+        <View style={styles.bottomSpacing} />
       </ScrollView>
 
       {/* Challenge Modal */}
@@ -1534,6 +1524,309 @@ function NewDuelScreenContent() {
     </View>
   );
 }
+
+// Styles
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing[4],
+  },
+  headerCard: {
+    marginBottom: Spacing[6],
+    backgroundColor: 'transparent',
+  },
+  headerRow: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerColumn: {
+    flex: 1,
+  },
+  filterContainer: {
+    marginBottom: Spacing[6],
+  },
+  filterRow: {
+    marginBottom: Spacing[3],
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  filterButton: {
+    flex: 1,
+    marginHorizontal: Spacing[1],
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[2],
+    borderRadius: BorderRadius.button,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+    ...OPTIMIZED_SHADOW,
+  },
+  filterButtonText: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  tabContent: {
+    marginBottom: Spacing[4],
+    overflow: 'hidden',
+    ...OPTIMIZED_SHADOW,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing[8],
+  },
+  listItemContainer: {
+    ...OPTIMIZED_SHADOW,
+  },
+  botCard: {
+    marginBottom: Spacing[3],
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    ...OPTIMIZED_SHADOW,
+  },
+  opponentCard: {
+    marginBottom: Spacing[3],
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    ...OPTIMIZED_SHADOW,
+  },
+  listItemRow: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  listItemLeft: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  listItemInfo: {
+    flex: 1,
+  },
+  botName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.gray[800],
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  botStats: {
+    fontSize: 12,
+    color: Colors.gray[600],
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  opponentName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.gray[800],
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  opponentStats: {
+    fontSize: 12,
+    color: Colors.gray[600],
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  badgeRow: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  difficultyBadge: {
+    marginRight: Spacing[2],
+  },
+  badgeText: {
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  challengeButton: {
+    // backgroundColor set dynamically
+  },
+  challengeButtonText: {
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  searchCard: {
+    marginTop: Spacing[4],
+    ...OPTIMIZED_SHADOW,
+  },
+  searchInput: {
+    fontFamily: 'PrimaryFont',
+  },
+  searchButton: {
+    marginTop: Spacing[2],
+    // backgroundColor set dynamically
+  },
+  searchButtonText: {
+    fontFamily: 'SecondaryFont-Bold',
+    color: Colors.white,
+  },
+  searchError: {
+    marginTop: Spacing[2],
+  },
+  modalContent: {
+    padding: Spacing[4],
+    minHeight: 300,
+  },
+  opponentInfo: {
+    marginBottom: Spacing[4],
+  },
+  opponentTitle: {
+    fontSize: 16,
+    color: Colors.gray[100],
+    fontFamily: 'SecondaryFont-Bold',
+    textAlign: 'center',
+  },
+  botDetails: {
+    fontSize: 12,
+    color: Colors.gray[300],
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  connectionStatus: {
+    fontSize: 10,
+    fontFamily: 'SecondaryFont-Bold',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  courseDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: Colors.gray[300],
+    fontFamily: 'SecondaryFont-Regular',
+    marginBottom: Spacing[4],
+    textAlign: 'center',
+  },
+  wheelContainer: {
+    alignItems: 'center',
+    paddingVertical: Spacing[4],
+    minHeight: 300,
+    marginBottom: Spacing[4],
+  },
+  courseSelectionContainer: {
+    marginBottom: Spacing[4],
+  },
+  iosCoursePicker: {
+    backgroundColor: Colors.white,
+    borderColor: Colors.gray[300],
+    borderWidth: 2,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing[3],
+    paddingHorizontal: Spacing[3],
+    marginBottom: Spacing[3],
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  iosPickerText: {
+    fontSize: 16,
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  iosPickerChevron: {
+    position: 'absolute',
+    right: Spacing[3],
+    top: '50%',
+    transform: [{ translateY: -6 }],
+  },
+  androidPicker: {
+    backgroundColor: Colors.white,
+    borderColor: Colors.gray[300],
+    borderWidth: 2,
+    marginBottom: Spacing[3],
+  },
+  spinButton: {
+    minHeight: 44,
+    backgroundColor: Colors.vibrant.purple,
+    borderRadius: BorderRadius.lg,
+  },
+  spinButtonText: {
+    fontFamily: 'SecondaryFont-Bold',
+    fontSize: 16,
+    color: Colors.white,
+  },
+  confirmationContainer: {
+    marginBottom: Spacing[6],
+  },
+  confirmationTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.gray[100],
+    fontFamily: 'SecondaryFont-Bold',
+    textAlign: 'center',
+    marginBottom: Spacing[3],
+  },
+  summaryCard: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: Spacing[3],
+    borderRadius: BorderRadius.md,
+  },
+  summaryText: {
+    color: Colors.gray[200],
+    fontFamily: 'SecondaryFont-Regular',
+    marginBottom: Spacing[1],
+  },
+  summaryLabel: {
+    fontWeight: 'bold',
+  },
+  summaryConnection: {
+    fontFamily: 'SecondaryFont-Bold',
+    fontSize: 12,
+    marginTop: Spacing[1],
+  },
+  submitButton: {
+    minHeight: 48,
+    backgroundColor: Colors.vibrant.purple,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing[2],
+  },
+  submitButtonText: {
+    fontFamily: 'SecondaryFont-Bold',
+    fontSize: 16,
+    color: Colors.white,
+  },
+  backButton: {
+    borderColor: Colors.white,
+  },
+  backButtonText: {
+    fontFamily: 'SecondaryFont-Regular',
+    color: Colors.white,
+  },
+  errorContainer: {
+    marginTop: Spacing[3],
+  },
+  errorAlert: {
+    backgroundColor: 'rgba(236, 28, 36, 0.1)',
+    borderColor: Colors.error,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    margin: 0,
+  },
+  authLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing[4],
+  },
+  errorScreenContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing[4],
+  },
+  errorScreenAlert: {
+    marginBottom: Spacing[4],
+  },
+  retryButton: {
+    backgroundColor: Colors.white,
+  },
+  retryButtonText: {
+    // color set dynamically
+  },
+  bottomError: {
+    marginTop: Spacing[4],
+  },
+  bottomSpacing: {
+    height: Spacing[8],
+  },
+});
 
 // Main component with context provider
 export default function NewDuelScreen() {
@@ -1543,72 +1836,3 @@ export default function NewDuelScreen() {
     </PreferredCourseProvider>
   );
 }
-
-const UsernameSearch = ({
-  onChallenge,
-  contextColor,
-}: {
-  onChallenge: (user: Opponent) => void;
-  contextColor: string;
-}) => {
-  const [username, setUsername] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSearch = async () => {
-    if (!username.trim()) return;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const opponent = await userService.searchUserByUsername(username.trim());
-      if (opponent) {
-        onChallenge(opponent);
-      } else {
-        setError(`'${username}' bulunamadı.`);
-      }
-    } catch (err) {
-      setError('Arama sırasında hata oluştu.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Card
-      style={{
-        marginTop: Spacing[4],
-        shadowColor: Colors.gray[900],
-        shadowOffset: { width: 10, height: 20 },
-        shadowOpacity: 0.8,
-        shadowRadius: 10,
-        elevation: 10,
-      }}
-    >
-      <Input
-        placeholder='Kullanıcı adı ile ara'
-        value={username}
-        onChangeText={setUsername}
-        autoCapitalize='none'
-        disabled={loading}
-        inputStyle={{ fontFamily: 'PrimaryFont' }}
-      />
-      <Button
-        title='Ara ve Meydan Oku'
-        onPress={handleSearch}
-        loading={loading}
-        style={{
-          marginTop: Spacing[2],
-          backgroundColor: contextColor, // Use context color
-        }}
-        textStyle={{
-          fontFamily: 'SecondaryFont-Bold',
-          color: Colors.white, // Ensure text is white for visibility
-        }}
-      />
-      {error && (
-        <Alert type='error' message={error} style={{ marginTop: Spacing[2] }} />
-      )}
-    </Card>
-  );
-};

@@ -30,7 +30,7 @@ import {
   Spacing,
   BorderRadius,
 } from '../../constants/theme';
-import { getKlinikCourses } from '../../src/api/studyService';
+import { getAllCourses } from '../../src/api/studyService'; // Updated import
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // Import Updates if using Expo
 import * as Updates from 'expo-updates';
@@ -71,12 +71,13 @@ const CourseSelectionModal: React.FC<CourseSelectionModalProps> = ({
   // Function to fetch courses directly
   const fetchCourses = async () => {
     try {
-      console.log('Fetching courses...');
+      console.log('Fetching clinical courses...');
       setLoading(true);
       setError(null);
 
-      const fetchedCourses = await getKlinikCourses();
-      console.log('Fetched courses:', fetchedCourses.length);
+      // Updated to use getAllCourses with 'klinik_dersler' parameter
+      const fetchedCourses = await getAllCourses('klinik_dersler');
+      console.log('Fetched clinical courses:', fetchedCourses.length);
 
       if (fetchedCourses.length === 0) {
         // If API returns empty, use fallback courses
@@ -93,7 +94,7 @@ const CourseSelectionModal: React.FC<CourseSelectionModalProps> = ({
         setCourses(mappedCourses);
       }
     } catch (err) {
-      console.error('Error fetching courses:', err);
+      console.error('Error fetching clinical courses:', err);
       setError('Dersleri yüklerken bir hata oluştu. Lütfen tekrar deneyin.');
       // Use fallback courses on error
       useFallbackCourses();

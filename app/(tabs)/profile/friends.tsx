@@ -8,6 +8,7 @@ import {
   RefreshControl,
   useColorScheme,
   Alert as RNAlert,
+  StyleSheet,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -57,6 +58,15 @@ interface UserSearchResult {
 
 type FriendTab = 'find' | 'friends' | 'pending';
 
+// Optimized shadow style
+const OPTIMIZED_SHADOW = {
+  shadowColor: Colors.gray[900],
+  shadowOffset: { width: 2, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 4,
+  elevation: 4,
+};
+
 // Main Friends Screen Component (wrapped with context)
 function FriendsScreenContent() {
   const router = useRouter();
@@ -86,6 +96,47 @@ function FriendsScreenContent() {
     [preferredCourse, getCourseColor],
   );
 
+  // Create dynamic styles based on context color - memoized
+  const dynamicStyles = useMemo(
+    () =>
+      StyleSheet.create({
+        contextBackground: {
+          backgroundColor: contextColor,
+        },
+        activeTabButton: {
+          backgroundColor: contextColor,
+        },
+        inactiveTabButton: {
+          backgroundColor: isDark ? Colors.white : Colors.white,
+        },
+        activeTabText: {
+          color: Colors.white,
+        },
+        inactiveTabText: {
+          color: isDark ? Colors.gray[700] : Colors.gray[700],
+        },
+        activeBadgeBackground: {
+          backgroundColor: Colors.white,
+        },
+        activeBadgeText: {
+          color: contextColor,
+        },
+        inactiveBadgeBackground: {
+          backgroundColor: contextColor,
+        },
+        inactiveBadgeText: {
+          color: Colors.white,
+        },
+        glassCardBackground: {
+          backgroundColor: contextColor,
+        },
+        searchButtonBackground: {
+          backgroundColor: contextColor,
+        },
+      }),
+    [contextColor, isDark],
+  );
+
   // Main state
   const [activeTab, setActiveTab] = useState<FriendTab>('find');
   const [isLoading, setIsLoading] = useState(true);
@@ -112,10 +163,13 @@ function FriendsScreenContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // Enhanced auth initialization (same pattern as duels/new)
+  // Enhanced auth initialization with cleanup
   useEffect(() => {
+    let isMounted = true;
+
     const checkAuth = async () => {
       try {
+        if (!isMounted) return;
         setIsCheckingAuth(true);
 
         if (authLoading) {
@@ -123,35 +177,52 @@ function FriendsScreenContent() {
         }
 
         if (!contextUser || !isSessionValid) {
-          setIsAuthenticated(false);
-          setIsCheckingAuth(false);
+          if (isMounted) {
+            setIsAuthenticated(false);
+            setIsCheckingAuth(false);
+          }
           return;
         }
 
         const authToken = await AsyncStorage.getItem('authToken');
         if (!authToken) {
-          setIsAuthenticated(false);
-          setIsCheckingAuth(false);
+          if (isMounted) {
+            setIsAuthenticated(false);
+            setIsCheckingAuth(false);
+          }
           return;
         }
 
-        setIsAuthenticated(true);
+        if (isMounted) {
+          setIsAuthenticated(true);
+        }
       } catch (error) {
         console.error('Error checking auth:', error);
-        setIsAuthenticated(false);
+        if (isMounted) {
+          setIsAuthenticated(false);
+        }
       } finally {
-        setIsCheckingAuth(false);
+        if (isMounted) {
+          setIsCheckingAuth(false);
+        }
       }
     };
 
     checkAuth();
+
+    return () => {
+      isMounted = false;
+    };
   }, [contextUser, isSessionValid, authLoading]);
 
-  // Fetch friends data - memoized with useCallback
+  // Fetch friends data with cleanup
   const fetchFriendsData = useCallback(async () => {
+    let isMounted = true;
+
     if (!isAuthenticated) return;
 
     try {
+      if (!isMounted) return;
       setError(null);
 
       const [friendsData, pendingData] = await Promise.all([
@@ -159,40 +230,69 @@ function FriendsScreenContent() {
         friendService.getPendingRequests(),
       ]);
 
-      setFriends(friendsData || []);
-      setPendingRequests(pendingData || []);
+      if (isMounted) {
+        setFriends(friendsData || []);
+        setPendingRequests(pendingData || []);
+      }
     } catch (e) {
-      setError('Arkadaş verileri yüklenirken bir hata oluştu.');
+      if (isMounted) {
+        setError('Arkadaş verileri yüklenirken bir hata oluştu.');
+      }
       console.error('Error fetching friends data:', e);
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [isAuthenticated]);
 
-  // Initial data fetch
+  // Initial data fetch with cleanup
   useEffect(() => {
+    let isMounted = true;
+
     const initialFetch = async () => {
+      if (!isMounted) return;
       setIsLoading(true);
       await fetchFriendsData();
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     };
 
     if (isAuthenticated) {
       initialFetch();
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [fetchFriendsData, isAuthenticated]);
 
-  // Handle refresh - memoized
+  // Handle refresh with cleanup
   const handleRefresh = useCallback(async () => {
+    let isMounted = true;
+
+    if (!isMounted) return;
     setRefreshing(true);
     await fetchFriendsData();
-    setRefreshing(false);
+    if (isMounted) {
+      setRefreshing(false);
+    }
+
+    return () => {
+      isMounted = false;
+    };
   }, [fetchFriendsData]);
 
-  // Simple search function
-  const handleSearch = async () => {
+  // Simple search function with cleanup
+  const handleSearch = useCallback(async () => {
+    let isMounted = true;
+
     if (!searchQuery.trim() || !isAuthenticated) {
       return;
     }
 
+    if (!isMounted) return;
     setIsSearching(true);
     setSearchError(null);
     setSuccessMessage(null);
@@ -201,6 +301,8 @@ function FriendsScreenContent() {
 
     try {
       const user = await userService.searchUserByUsername(searchQuery.trim());
+
+      if (!isMounted) return;
 
       if (user) {
         setSearchResults([
@@ -215,18 +317,29 @@ function FriendsScreenContent() {
         setSearchError(`'${searchQuery}' kullanıcısı bulunamadı.`);
       }
     } catch (err) {
-      setSearchError('Arama sırasında hata oluştu.');
+      if (isMounted) {
+        setSearchError('Arama sırasında hata oluştu.');
+      }
       console.error('Search error:', err);
     } finally {
-      setIsSearching(false);
+      if (isMounted) {
+        setIsSearching(false);
+      }
     }
-  };
 
-  // Send friend request - fixed API call
+    return () => {
+      isMounted = false;
+    };
+  }, [searchQuery, isAuthenticated]);
+
+  // Send friend request with cleanup
   const handleSendFriendRequest = useCallback(
     async (userId: number, username: string) => {
+      let isMounted = true;
+
       if (!isAuthenticated) return;
 
+      if (!isMounted) return;
       setLoadingActions((prev) => ({ ...prev, [userId]: true }));
       setSearchError(null);
       setSuccessMessage(null);
@@ -234,30 +347,44 @@ function FriendsScreenContent() {
 
       try {
         await friendService.sendFriendRequest(userId);
-        setSearchResults((prev) => prev.filter((user) => user.id !== userId));
-        setSearchError(null);
-        setSuccessMessage(
-          `${username} kullanıcısına arkadaşlık isteği gönderildi.`,
-        );
+
+        if (isMounted) {
+          setSearchResults((prev) => prev.filter((user) => user.id !== userId));
+          setSearchError(null);
+          setSuccessMessage(
+            `${username} kullanıcısına arkadaşlık isteği gönderildi.`,
+          );
+        }
         await fetchFriendsData();
       } catch (err) {
-        if (err instanceof ApiError) {
-          setSearchError(err.message);
-        } else {
-          setSearchError('Arkadaşlık isteği gönderilemedi.');
+        if (isMounted) {
+          if (err instanceof ApiError) {
+            setSearchError(err.message);
+          } else {
+            setSearchError('Arkadaşlık isteği gönderilemedi.');
+          }
         }
       } finally {
-        setLoadingActions((prev) => ({ ...prev, [userId]: false }));
+        if (isMounted) {
+          setLoadingActions((prev) => ({ ...prev, [userId]: false }));
+        }
       }
+
+      return () => {
+        isMounted = false;
+      };
     },
     [isAuthenticated, fetchFriendsData],
   );
 
-  // Accept friend request - memoized
+  // Accept friend request with cleanup
   const handleAcceptRequest = useCallback(
     async (friendId: number, username: string) => {
+      let isMounted = true;
+
       if (!isAuthenticated) return;
 
+      if (!isMounted) return;
       setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
       setError(null);
       setSuccessMessage(null);
@@ -265,25 +392,39 @@ function FriendsScreenContent() {
       try {
         await friendService.acceptRequest(friendId);
         await fetchFriendsData();
-        setSuccessMessage(`${username} ile artık arkadaşsınız!`);
+
+        if (isMounted) {
+          setSuccessMessage(`${username} ile artık arkadaşsınız!`);
+        }
       } catch (err) {
-        if (err instanceof ApiError) {
-          setError(err.message);
-        } else {
-          setError('İstek kabul edilemedi.');
+        if (isMounted) {
+          if (err instanceof ApiError) {
+            setError(err.message);
+          } else {
+            setError('İstek kabul edilemedi.');
+          }
         }
       } finally {
-        setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
+        if (isMounted) {
+          setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
+        }
       }
+
+      return () => {
+        isMounted = false;
+      };
     },
     [isAuthenticated, fetchFriendsData],
   );
 
-  // Reject friend request - memoized
+  // Reject friend request with cleanup
   const handleRejectRequest = useCallback(
     async (friendId: number, username: string) => {
+      let isMounted = true;
+
       if (!isAuthenticated) return;
 
+      if (!isMounted) return;
       setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
       setError(null);
       setSuccessMessage(null);
@@ -291,21 +432,32 @@ function FriendsScreenContent() {
       try {
         await friendService.rejectRequest(friendId);
         await fetchFriendsData();
-        setSuccessMessage(`${username} kullanıcısının isteği reddedildi.`);
+
+        if (isMounted) {
+          setSuccessMessage(`${username} kullanıcısının isteği reddedildi.`);
+        }
       } catch (err) {
-        if (err instanceof ApiError) {
-          setError(err.message);
-        } else {
-          setError('İstek reddedilemedi.');
+        if (isMounted) {
+          if (err instanceof ApiError) {
+            setError(err.message);
+          } else {
+            setError('İstek reddedilemedi.');
+          }
         }
       } finally {
-        setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
+        if (isMounted) {
+          setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
+        }
       }
+
+      return () => {
+        isMounted = false;
+      };
     },
     [isAuthenticated, fetchFriendsData],
   );
 
-  // Remove friend - memoized
+  // Remove friend with cleanup
   const handleRemoveFriend = useCallback(
     async (friendId: number, username: string) => {
       if (!isAuthenticated) return;
@@ -319,23 +471,37 @@ function FriendsScreenContent() {
             text: 'Sonlandır',
             style: 'destructive',
             onPress: async () => {
+              let isMounted = true;
+
+              if (!isMounted) return;
               setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
 
               try {
                 await friendService.removeFriend(friendId);
                 await fetchFriendsData();
-                setSuccessMessage(
-                  `${username} ile arkadaşlığınız sonlandırıldı.`,
-                );
+
+                if (isMounted) {
+                  setSuccessMessage(
+                    `${username} ile arkadaşlığınız sonlandırıldı.`,
+                  );
+                }
               } catch (err) {
-                if (err instanceof ApiError) {
-                  setError(err.message);
-                } else {
-                  setError('Arkadaşlık sonlandırılamadı.');
+                if (isMounted) {
+                  if (err instanceof ApiError) {
+                    setError(err.message);
+                  } else {
+                    setError('Arkadaşlık sonlandırılamadı.');
+                  }
                 }
               } finally {
-                setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
+                if (isMounted) {
+                  setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
+                }
               }
+
+              return () => {
+                isMounted = false;
+              };
             },
           },
         ],
@@ -356,43 +522,24 @@ function FriendsScreenContent() {
       count?: number;
     }) => (
       <TouchableOpacity
-        style={{
-          flex: 1,
-          marginHorizontal: Spacing[1],
-          paddingVertical: Spacing[2],
-          paddingHorizontal: Spacing[2],
-          borderRadius: BorderRadius.button,
-          backgroundColor:
-            activeTab === filter
-              ? contextColor
-              : isDark
-                ? Colors.white
-                : Colors.white,
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 36,
-          shadowColor: Colors.gray[900],
-          shadowOffset: { width: 10, height: 20 },
-          shadowOpacity: 0.8,
-          shadowRadius: 10,
-          elevation: 10,
-        }}
+        style={[
+          styles.filterButton,
+          activeTab === filter
+            ? dynamicStyles.activeTabButton
+            : dynamicStyles.inactiveTabButton,
+          OPTIMIZED_SHADOW,
+        ]}
         onPress={() => setActiveTab(filter)}
       >
-        <Row style={{ alignItems: 'center' }}>
+        <Row style={styles.filterButtonRow}>
           <Text
-            style={{
-              fontSize: 12,
-              fontWeight: activeTab === filter ? '600' : '500',
-              color:
-                activeTab === filter
-                  ? Colors.white
-                  : isDark
-                    ? Colors.gray[700]
-                    : Colors.gray[700],
-              textAlign: 'center',
-              fontFamily: 'SecondaryFont-Regular',
-            }}
+            style={[
+              styles.filterButtonText,
+              activeTab === filter
+                ? dynamicStyles.activeTabText
+                : dynamicStyles.inactiveTabText,
+              { fontWeight: activeTab === filter ? '600' : '500' },
+            ]}
             numberOfLines={1}
             adjustsFontSizeToFit
           >
@@ -402,16 +549,18 @@ function FriendsScreenContent() {
             <Badge
               text={count.toString()}
               variant='primary'
-              style={{
-                backgroundColor:
-                  activeTab === filter ? Colors.white : contextColor,
-                marginLeft: Spacing[1],
-              }}
-              textStyle={{
-                color: activeTab === filter ? contextColor : Colors.white,
-                fontSize: 10,
-                fontFamily: 'SecondaryFont-Bold',
-              }}
+              style={[
+                styles.filterBadge,
+                activeTab === filter
+                  ? dynamicStyles.activeBadgeBackground
+                  : dynamicStyles.inactiveBadgeBackground,
+              ]}
+              textStyle={[
+                styles.filterBadgeText,
+                activeTab === filter
+                  ? dynamicStyles.activeBadgeText
+                  : dynamicStyles.inactiveBadgeText,
+              ]}
             />
           )}
         </Row>
@@ -422,37 +571,12 @@ function FriendsScreenContent() {
   // Search result item - memoized component
   const SearchResultItem = React.memo(
     ({ user }: { user: UserSearchResult }) => (
-      <PlayfulCard
-        style={{
-          marginBottom: Spacing[3],
-          backgroundColor: 'rgba(255,255,255,0.95)',
-          shadowColor: Colors.gray[900],
-          shadowOffset: { width: 10, height: 20 },
-          shadowOpacity: 0.8,
-          shadowRadius: 10,
-          elevation: 10,
-        }}
-      >
-        <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <Row style={{ alignItems: 'center', flex: 1 }}>
-            <Column style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: 'bold',
-                  color: Colors.gray[800],
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
-              >
-                {user.username}
-              </Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: Colors.gray[600],
-                  fontFamily: 'SecondaryFont-Regular',
-                }}
-              >
+      <PlayfulCard style={[styles.searchResultCard, OPTIMIZED_SHADOW]}>
+        <Row style={styles.searchResultRow}>
+          <Row style={styles.searchResultInfo}>
+            <Column style={styles.searchResultColumn}>
+              <Text style={styles.searchResultUsername}>{user.username}</Text>
+              <Text style={styles.searchResultWinRate}>
                 Kazanma Oranı: {((user.winRate || 0) * 100).toFixed(0)}%
               </Text>
             </Column>
@@ -464,10 +588,8 @@ function FriendsScreenContent() {
             onPress={() => handleSendFriendRequest(user.id, user.username)}
             disabled={loadingActions[user.id]}
             loading={loadingActions[user.id]}
-            style={{
-              backgroundColor: contextColor,
-            }}
-            textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
+            style={dynamicStyles.contextBackground}
+            textStyle={styles.buttonText}
           />
         </Row>
       </PlayfulCard>
@@ -476,43 +598,20 @@ function FriendsScreenContent() {
 
   // Friend item - memoized component
   const FriendItem = React.memo(({ friend }: { friend: Friend }) => (
-    <PlayfulCard
-      style={{
-        marginBottom: Spacing[3],
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        shadowColor: Colors.gray[900],
-        shadowOffset: { width: 10, height: 20 },
-        shadowOpacity: 0.8,
-        shadowRadius: 10,
-        elevation: 10,
-      }}
-    >
-      <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-        <Row style={{ alignItems: 'center', flex: 1 }}>
-          <Column style={{ flex: 1 }}>
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: 'bold',
-                color: Colors.gray[800],
-                fontFamily: 'SecondaryFont-Bold',
-              }}
-            >
+    <PlayfulCard style={[styles.friendCard, OPTIMIZED_SHADOW]}>
+      <Row style={styles.friendRow}>
+        <Row style={styles.friendInfo}>
+          <Column style={styles.friendColumn}>
+            <Text style={styles.friendUsername}>
               {friend.friend_username || `Kullanıcı #${friend.friend_id}`}
             </Text>
-            <Text
-              style={{
-                fontSize: 12,
-                color: Colors.gray[600],
-                fontFamily: 'SecondaryFont-Regular',
-              }}
-            >
+            <Text style={styles.friendDate}>
               Arkadaş olundu:{' '}
               {new Date(friend.created_at).toLocaleDateString('tr-TR')}
             </Text>
           </Column>
         </Row>
-        <Row style={{ alignItems: 'center' }}>
+        <Row style={styles.friendActions}>
           <Button
             title='Düello'
             variant='primary'
@@ -523,11 +622,8 @@ function FriendsScreenContent() {
                 params: { preselectedFriend: friend.friend_id.toString() },
               });
             }}
-            style={{
-              backgroundColor: Colors.vibrant.coral,
-              marginRight: Spacing[2],
-            }}
-            textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
+            style={styles.duelButton}
+            textStyle={styles.buttonText}
           />
           <Button
             title={loadingActions[friend.friend_id] ? '...' : 'Kaldır'}
@@ -540,15 +636,8 @@ function FriendsScreenContent() {
               )
             }
             disabled={loadingActions[friend.friend_id]}
-            style={{
-              borderColor: Colors.error,
-              paddingHorizontal: Spacing[2],
-            }}
-            textStyle={{
-              color: Colors.error,
-              fontFamily: 'SecondaryFont-Regular',
-              fontSize: 12,
-            }}
+            style={styles.removeButton}
+            textStyle={styles.removeButtonText}
           />
         </Row>
       </Row>
@@ -558,43 +647,20 @@ function FriendsScreenContent() {
   // Pending request item - memoized component
   const PendingRequestItem = React.memo(
     ({ request }: { request: FriendRequest }) => (
-      <PlayfulCard
-        style={{
-          marginBottom: Spacing[3],
-          backgroundColor: 'rgba(255,255,255,0.95)',
-          shadowColor: Colors.gray[900],
-          shadowOffset: { width: 10, height: 20 },
-          shadowOpacity: 0.8,
-          shadowRadius: 10,
-          elevation: 10,
-        }}
-      >
-        <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <Row style={{ alignItems: 'center', flex: 1 }}>
-            <Column style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: 'bold',
-                  color: Colors.gray[800],
-                  fontFamily: 'SecondaryFont-Bold',
-                }}
-              >
+      <PlayfulCard style={[styles.pendingCard, OPTIMIZED_SHADOW]}>
+        <Row style={styles.pendingRow}>
+          <Row style={styles.pendingInfo}>
+            <Column style={styles.pendingColumn}>
+              <Text style={styles.pendingUsername}>
                 Kullanıcı #{request.user_id}
               </Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: Colors.gray[600],
-                  fontFamily: 'SecondaryFont-Regular',
-                }}
-              >
+              <Text style={styles.pendingDate}>
                 İstek tarihi:{' '}
                 {new Date(request.created_at).toLocaleDateString('tr-TR')}
               </Text>
             </Column>
           </Row>
-          <Row style={{ alignItems: 'center' }}>
+          <Row style={styles.pendingActions}>
             <Button
               title={loadingActions[request.user_id] ? '...' : 'Kabul Et'}
               variant='primary'
@@ -606,11 +672,8 @@ function FriendsScreenContent() {
                 )
               }
               disabled={loadingActions[request.user_id]}
-              style={{
-                backgroundColor: Colors.vibrant.mint,
-                marginRight: Spacing[2],
-              }}
-              textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
+              style={styles.acceptButton}
+              textStyle={styles.buttonText}
             />
             <Button
               title={loadingActions[request.user_id] ? '...' : 'Reddet'}
@@ -623,15 +686,8 @@ function FriendsScreenContent() {
                 )
               }
               disabled={loadingActions[request.user_id]}
-              style={{
-                borderColor: Colors.error,
-                paddingHorizontal: Spacing[2],
-              }}
-              textStyle={{
-                color: Colors.error,
-                fontFamily: 'SecondaryFont-Regular',
-                fontSize: 12,
-              }}
+              style={styles.rejectButton}
+              textStyle={styles.rejectButtonText}
             />
           </Row>
         </Row>
@@ -643,23 +699,9 @@ function FriendsScreenContent() {
   const renderTabContent = useMemo(() => {
     if (isLoading) {
       return (
-        <View
-          style={{
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: Spacing[8],
-          }}
-        >
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size='large' color={contextColor} />
-          <Text
-            style={{
-              marginTop: Spacing[3],
-              color: Colors.white,
-              fontFamily: 'SecondaryFont-Regular',
-            }}
-          >
-            Arkadaş verileri yükleniyor...
-          </Text>
+          <Text style={styles.loadingText}>Arkadaş verileri yükleniyor...</Text>
         </View>
       );
     }
@@ -670,34 +712,31 @@ function FriendsScreenContent() {
           <>
             {/* CLEAN SIMPLE SEARCH INPUT */}
             <SlideInElement delay={0}>
-              <Card style={{ marginBottom: Spacing[4] }}>
+              <Card style={styles.searchCard}>
                 <Input
                   placeholder='Kullanıcı adı ile ara'
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   autoCapitalize='none'
                   disabled={isSearching}
-                  inputStyle={{ fontFamily: 'PrimaryFont' }}
+                  inputStyle={styles.searchInput}
                 />
                 <Button
                   title={isSearching ? 'Aranıyor...' : 'Ara'}
                   onPress={handleSearch}
                   loading={isSearching}
                   disabled={!searchQuery.trim() || isSearching}
-                  style={{
-                    marginTop: Spacing[2],
-                    backgroundColor: contextColor,
-                  }}
-                  textStyle={{
-                    fontFamily: 'SecondaryFont-Bold',
-                    color: Colors.white,
-                  }}
+                  style={[
+                    styles.searchButton,
+                    dynamicStyles.searchButtonBackground,
+                  ]}
+                  textStyle={styles.searchButtonText}
                 />
                 {searchError && (
                   <Alert
                     type='error'
                     message={searchError}
-                    style={{ marginTop: Spacing[2] }}
+                    style={styles.searchAlert}
                     dismissible={true}
                     onDismiss={() => setSearchError(null)}
                   />
@@ -708,17 +747,7 @@ function FriendsScreenContent() {
             {searchResults.length > 0 && (
               <>
                 <SlideInElement delay={100}>
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 'bold',
-                      color: Colors.white,
-                      marginBottom: Spacing[3],
-                      fontFamily: 'SecondaryFont-Bold',
-                    }}
-                  >
-                    Arama Sonuçları
-                  </Text>
+                  <Text style={styles.searchResultsTitle}>Arama Sonuçları</Text>
                 </SlideInElement>
                 {searchResults.map((user, index) => (
                   <SlideInElement key={user.id} delay={200 + index * 100}>
@@ -778,31 +807,17 @@ function FriendsScreenContent() {
     searchQuery,
     isSearching,
     searchError,
+    dynamicStyles,
   ]);
 
   // Show loading while checking auth
   if (isCheckingAuth || authLoading) {
     return (
       <Container
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: Spacing[4],
-          backgroundColor: contextColor,
-        }}
+        style={[styles.authLoadingContainer, dynamicStyles.contextBackground]}
       >
         <ActivityIndicator size='large' color={Colors.white} />
-        <Text
-          style={{
-            marginTop: Spacing[3],
-            color: Colors.white,
-            fontFamily: 'SecondaryFont-Regular',
-            textAlign: 'center',
-          }}
-        >
-          Kimlik doğrulanıyor...
-        </Text>
+        <Text style={styles.authLoadingText}>Kimlik doğrulanıyor...</Text>
       </Container>
     );
   }
@@ -811,13 +826,7 @@ function FriendsScreenContent() {
   if (!isAuthenticated) {
     return (
       <Container
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: Spacing[4],
-          backgroundColor: contextColor,
-        }}
+        style={[styles.authRequiredContainer, dynamicStyles.contextBackground]}
       >
         <EmptyState
           icon='lock'
@@ -829,17 +838,17 @@ function FriendsScreenContent() {
         <Button
           title='Giriş Yap'
           onPress={() => router.push('/auth/login' as any)}
-          style={{ marginTop: Spacing[4] }}
+          style={styles.loginButton}
         />
       </Container>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.container}>
       <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: Spacing[4] }}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -851,25 +860,19 @@ function FriendsScreenContent() {
       >
         {/* Header Section */}
         <SlideInElement delay={0}>
-          <PlayfulCard
-            style={{ marginBottom: Spacing[6], backgroundColor: 'transparent' }}
-          >
-            <Row
-              style={{ alignItems: 'center', justifyContent: 'space-between' }}
-            >
-              <Column style={{ flex: 1 }}>
+          <PlayfulCard style={styles.headerCard}>
+            <Row style={styles.headerRow}>
+              <Column style={styles.headerColumn}>
                 <PlayfulTitle
                   level={1}
                   gradient='primary'
-                  style={{ fontFamily: 'PrimaryFont', color: Colors.gray[900] }}
+                  style={styles.headerTitle}
                 >
                   Arkadaşlar 👥
                 </PlayfulTitle>
                 <Paragraph
                   color={Colors.gray[700]}
-                  style={{
-                    fontFamily: 'SecondaryFont-Regular',
-                  }}
+                  style={styles.headerSubtitle}
                 >
                   Arkadaş ekleyin, istekleri yönetin ve düello yapın
                 </Paragraph>
@@ -880,14 +883,8 @@ function FriendsScreenContent() {
 
         {/* Filter Buttons */}
         <SlideInElement delay={100}>
-          <View style={{ marginBottom: Spacing[6] }}>
-            <Row
-              style={{
-                marginBottom: Spacing[3],
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
+          <View style={styles.filtersContainer}>
+            <Row style={styles.filtersRow}>
               <FilterButton filter='find' title='Arkadaş Bul' />
               <FilterButton
                 filter='friends'
@@ -908,16 +905,9 @@ function FriendsScreenContent() {
           <FloatingElement>
             <GlassCard
               style={[
-                {
-                  backgroundColor: contextColor,
-                  marginBottom: Spacing[4],
-                  overflow: 'hidden',
-                  shadowColor: Colors.gray[900],
-                  shadowOffset: { width: 10, height: 20 },
-                  shadowOpacity: 0.8,
-                  shadowRadius: 10,
-                  elevation: 10,
-                },
+                styles.contentCard,
+                dynamicStyles.glassCardBackground,
+                OPTIMIZED_SHADOW,
               ]}
               animated
             >
@@ -931,7 +921,7 @@ function FriendsScreenContent() {
           <Alert
             type='success'
             message={successMessage}
-            style={{ marginTop: Spacing[4] }}
+            style={styles.successAlert}
             dismissible={true}
             onDismiss={() => setSuccessMessage(null)}
           />
@@ -942,18 +932,262 @@ function FriendsScreenContent() {
           <Alert
             type='error'
             message={error}
-            style={{ marginTop: Spacing[4] }}
+            style={styles.errorAlert}
             dismissible={true}
             onDismiss={() => setError(null)}
           />
         )}
 
         {/* Bottom spacing */}
-        <View style={{ height: Spacing[8] }} />
+        <View style={styles.bottomSpacing} />
       </ScrollView>
     </View>
   );
 }
+
+// StyleSheet for all static styles
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing[4],
+  },
+  authLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing[4],
+  },
+  authLoadingText: {
+    marginTop: Spacing[3],
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'center',
+  },
+  authRequiredContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing[4],
+  },
+  loginButton: {
+    marginTop: Spacing[4],
+  },
+  headerCard: {
+    marginBottom: Spacing[6],
+    backgroundColor: 'transparent',
+  },
+  headerRow: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerColumn: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontFamily: 'PrimaryFont',
+    color: Colors.gray[900],
+  },
+  headerSubtitle: {
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  filtersContainer: {
+    marginBottom: Spacing[6],
+  },
+  filtersRow: {
+    marginBottom: Spacing[3],
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  filterButton: {
+    flex: 1,
+    marginHorizontal: Spacing[1],
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[2],
+    borderRadius: BorderRadius.button,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+  },
+  filterButtonRow: {
+    alignItems: 'center',
+  },
+  filterButtonText: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  filterBadge: {
+    marginLeft: Spacing[1],
+  },
+  filterBadgeText: {
+    fontSize: 10,
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing[8],
+  },
+  loadingText: {
+    marginTop: Spacing[3],
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  searchCard: {
+    marginBottom: Spacing[4],
+  },
+  searchInput: {
+    fontFamily: 'PrimaryFont',
+  },
+  searchButton: {
+    marginTop: Spacing[2],
+  },
+  searchButtonText: {
+    fontFamily: 'SecondaryFont-Bold',
+    color: Colors.white,
+  },
+  searchAlert: {
+    marginTop: Spacing[2],
+  },
+  searchResultsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.white,
+    marginBottom: Spacing[3],
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  searchResultCard: {
+    marginBottom: Spacing[3],
+    backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  searchResultRow: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  searchResultInfo: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  searchResultColumn: {
+    flex: 1,
+  },
+  searchResultUsername: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.gray[800],
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  searchResultWinRate: {
+    fontSize: 12,
+    color: Colors.gray[600],
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  friendCard: {
+    marginBottom: Spacing[3],
+    backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  friendRow: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  friendInfo: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  friendColumn: {
+    flex: 1,
+  },
+  friendUsername: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.gray[800],
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  friendDate: {
+    fontSize: 12,
+    color: Colors.gray[600],
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  friendActions: {
+    alignItems: 'center',
+  },
+  duelButton: {
+    backgroundColor: Colors.vibrant.coral,
+    marginRight: Spacing[2],
+  },
+  removeButton: {
+    borderColor: Colors.error,
+    paddingHorizontal: Spacing[2],
+  },
+  removeButtonText: {
+    color: Colors.error,
+    fontFamily: 'SecondaryFont-Regular',
+    fontSize: 12,
+  },
+  pendingCard: {
+    marginBottom: Spacing[3],
+    backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  pendingRow: {
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pendingInfo: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  pendingColumn: {
+    flex: 1,
+  },
+  pendingUsername: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.gray[800],
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  pendingDate: {
+    fontSize: 12,
+    color: Colors.gray[600],
+    fontFamily: 'SecondaryFont-Regular',
+  },
+  pendingActions: {
+    alignItems: 'center',
+  },
+  acceptButton: {
+    backgroundColor: Colors.vibrant.mint,
+    marginRight: Spacing[2],
+  },
+  rejectButton: {
+    borderColor: Colors.error,
+    paddingHorizontal: Spacing[2],
+  },
+  rejectButtonText: {
+    color: Colors.error,
+    fontFamily: 'SecondaryFont-Regular',
+    fontSize: 12,
+  },
+  buttonText: {
+    fontFamily: 'SecondaryFont-Bold',
+  },
+  contentCard: {
+    marginBottom: Spacing[4],
+    overflow: 'hidden',
+  },
+  successAlert: {
+    marginTop: Spacing[4],
+  },
+  errorAlert: {
+    marginTop: Spacing[4],
+  },
+  bottomSpacing: {
+    height: Spacing[8],
+  },
+});
 
 // Main component with context provider
 export default function FriendsScreen() {
