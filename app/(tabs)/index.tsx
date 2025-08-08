@@ -146,6 +146,21 @@ const ensureSafeNumber = (
   return Math.round(value);
 };
 
+/**
+ * HomeScreen Component
+ *
+ * ✅ FULLY DECOUPLED Course Selection Logic:
+ * - preferredCourse: User's saved preference (COSMETIC ONLY) - set in CourseSelectionModal, persists across sessions
+ * - selectedCourse: Currently displayed course for UI/analytics ONLY - changes when user swipes courses (VIEWING ONLY)
+ * - StudyChronometer: Manages its own active session state COMPLETELY INDEPENDENTLY
+ *
+ * ✅ ZERO COUPLING:
+ * - Switching selectedCourse NEVER affects chronometer or preferredCourse
+ * - preferredCourse is ONLY used for initial selectedCourse and is PURELY COSMETIC
+ * - Chronometer tracks its own active session regardless of what course is selected for viewing
+ * - NO MORE FUCKING CONFLICTS when switching courses for viewing!
+ */
+
 // Main Home Screen Component (wrapped with context)
 function HomeScreenContent() {
   const colorScheme = useColorScheme();
@@ -170,6 +185,7 @@ function HomeScreenContent() {
 
   // Course-based states
   const [courses, setCourses] = useState<CourseWithProgress[]>([]);
+  // ✅ FIXED: selectedCourse is ONLY for UI display/analytics - NEVER affects chronometer
   const [selectedCourse, setSelectedCourse] =
     useState<CourseWithProgress | null>(null);
   const [coursesLoading, setCoursesLoading] = useState(false);
@@ -217,24 +233,36 @@ function HomeScreenContent() {
     loadUserData();
   }, []);
 
-  // Check if we should show the course selection modal
+  // Check if we should show the course selection modal (preferredCourse is COSMETIC)
   useEffect(() => {
     if (!courseLoading && !preferredCourse && !loading) {
       setShowCourseModal(true);
     }
   }, [preferredCourse, courseLoading, loading]);
 
-  // Set selected course when preferred course changes
+  // ✅ FIXED: Set initial selectedCourse from preferredCourse (ONE-TIME ONLY, NO ONGOING SYNC)
   useEffect(() => {
-    if (preferredCourse && courses.length > 0) {
+    if (preferredCourse && courses.length > 0 && !selectedCourse) {
+      console.log(
+        '✅ Setting INITIAL selectedCourse from preferredCourse (ONE-TIME ONLY):',
+        preferredCourse.course_id,
+      );
       const preferredCourseWithProgress = courses.find(
         (c) => c.course_id === preferredCourse.course_id,
       );
       if (preferredCourseWithProgress) {
         setSelectedCourse(preferredCourseWithProgress);
+      } else {
+        // If preferred course not found, select first course
+        console.log('✅ Preferred course not found, selecting first available');
+        setSelectedCourse(courses[0] || null);
       }
+    } else if (!selectedCourse && courses.length > 0 && !preferredCourse) {
+      // If no preferred course and no selected course, select first one
+      console.log('✅ No preferred course, selecting first from courses list');
+      setSelectedCourse(courses[0]);
     }
-  }, [preferredCourse, courses]);
+  }, [preferredCourse, courses]); // This only runs when these change initially
 
   // Fetch performance data function
   const fetchPerformanceData = useCallback(async () => {
@@ -290,9 +318,11 @@ function HomeScreenContent() {
   const fetchCoursesWithData = useCallback(async () => {
     try {
       setCoursesLoading(true);
+      console.log('Fetching courses with data...');
 
       // Get all courses
       const allCourses = await courseService.getAllCourses();
+      console.log('Loaded courses:', allCourses.length);
 
       // Fetch progress and sessions for each course
       const coursesWithData: CourseWithProgress[] = await Promise.all(
@@ -384,23 +414,14 @@ function HomeScreenContent() {
         return bStudyTime - aStudyTime;
       });
 
+      console.log('Courses with data loaded:', coursesWithData.length);
       setCourses(coursesWithData);
-
-      // Set initial selected course
-      if (coursesWithData.length > 0 && !selectedCourse) {
-        const preferred = preferredCourse
-          ? coursesWithData.find(
-              (c) => c.course_id === preferredCourse.course_id,
-            )
-          : coursesWithData[0];
-        setSelectedCourse(preferred || coursesWithData[0]);
-      }
     } catch (error) {
       console.error('Error fetching courses with data:', error);
     } finally {
       setCoursesLoading(false);
     }
-  }, [preferredCourse, selectedCourse, getCourseCategory]);
+  }, [getCourseCategory]);
 
   // Fetch general analytics and statistics
   const fetchAnalyticsData = useCallback(async () => {
@@ -436,8 +457,13 @@ function HomeScreenContent() {
     fetchPerformanceData,
   ]);
 
-  // Handle course selection from swipe
+  // ✅ FIXED: Handle course selection ONLY for viewing/analytics (ZERO chronometer impact)
   const handleCourseSelect = useCallback((course: CourseWithProgress) => {
+    console.log(
+      '✅ Course selected for VIEWING ONLY (ZERO impact on chronometer):',
+      course.course_id,
+      course.title,
+    );
     setSelectedCourse(course);
   }, []);
 
@@ -495,10 +521,10 @@ function HomeScreenContent() {
       setEditingCourseId(null);
       setEditingDetails({});
 
-      RNAlert.alert('Başarılı', 'Kurs detayları güncellendi!');
+      RNAlert.alert('Başarılı', 'Ders detayları güncellendi!');
     } catch (error) {
       console.error('Error updating course details:', error);
-      RNAlert.alert('Hata', 'Kurs detayları güncellenirken bir hata oluştu.');
+      RNAlert.alert('Hata', 'Ders detayları güncellenirken bir hata oluştu.');
     } finally {
       setUpdatingCourse(null);
     }
@@ -769,7 +795,7 @@ function HomeScreenContent() {
               textAlign: 'center',
             }}
           >
-            Bu kurs için henüz detay bilgisi yok.
+            Bu ders için henüz detay bilgisi yok.
           </Text>
         </View>
       );
@@ -788,7 +814,7 @@ function HomeScreenContent() {
                   fontFamily: 'SecondaryFont-Bold',
                 }}
               >
-                Kurs Detayları:
+                Ders Detayları:
               </Text>
               <View
                 style={{
@@ -952,7 +978,7 @@ function HomeScreenContent() {
                 fontFamily: 'SecondaryFont-Bold',
               }}
             >
-              Kurs Detaylarını Düzenle
+              Ders Detaylarını Düzenle
             </Text>
             <View
               style={{
@@ -1092,10 +1118,7 @@ function HomeScreenContent() {
               label='Notlar:'
               value={editingDetails.notes || ''}
               onChangeText={(text) =>
-                setEditingDetails((prev) => ({
-                  ...prev,
-                  notes: text,
-                }))
+                setEditingDetails((prev) => ({ ...prev, notes: text }))
               }
               labelStyle={{
                 fontFamily: 'SecondaryFont-Bold',
@@ -1119,7 +1142,7 @@ function HomeScreenContent() {
                 }))
               }
               labelStyle={{ fontFamily: 'SecondaryFont-Bold' }}
-              label='Kurs tamamlandı'
+              label='Ders tamamlandı'
               style={{ marginBottom: Spacing[4] }}
             />
 
@@ -1160,7 +1183,7 @@ function HomeScreenContent() {
             : `Çalışma Seansı #${session.sessionId}`
         }
         variant='outlined'
-        category={selectedCourse?.category as any}
+        category={preferredCourse?.category as any}
         style={{
           marginBottom: Spacing[3],
           shadowColor: Colors.gray[900],
@@ -1629,7 +1652,7 @@ function HomeScreenContent() {
                 )}
               </View>
 
-              {/* En Çok Zaman Harcanan Kurs */}
+              {/* En Çok Zaman Harcanan Ders */}
               <View>
                 <Text
                   style={{
@@ -1639,7 +1662,7 @@ function HomeScreenContent() {
                     fontFamily: 'SecondaryFont-Bold',
                   }}
                 >
-                  🎯 En Çok Zaman Harcanan Kurs
+                  🎯 En Çok Zaman Harcanan Ders
                 </Text>
 
                 {topCourse ? (
@@ -1788,7 +1811,7 @@ function HomeScreenContent() {
                   <EmptyState
                     icon='trophy'
                     title='Veri bulunamadı'
-                    message='Henüz kurs bazında çalışma verisi bulunmuyor.'
+                    message='Henüz ders bazında çalışma verisi bulunmuyor.'
                     style={{
                       backgroundColor: isDark ? Colors.white : Colors.white,
                       padding: Spacing[4],
@@ -1960,7 +1983,7 @@ function HomeScreenContent() {
     setShowCourseModal(false);
   };
 
-  // Handle course selection
+  // Handle course selection from modal
   const handleCourseSelected = () => {
     setShowCourseModal(false);
   };
@@ -2036,18 +2059,8 @@ function HomeScreenContent() {
       >
         {/* Header */}
         <SlideInElement direction='down' delay={0}>
-          <View
-            style={{
-              flexDirection: 'column',
-              marginBottom: Spacing[6],
-            }}
-          >
-            <View
-              style={{
-                alignItems: 'flex-end',
-                marginBottom: Spacing[3],
-              }}
-            >
+          <View style={{ flexDirection: 'column', marginBottom: Spacing[6] }}>
+            <View style={{ alignItems: 'flex-end', marginBottom: Spacing[3] }}>
               <Text
                 style={{
                   fontSize: 18,
@@ -2141,18 +2154,15 @@ function HomeScreenContent() {
               />
             </View>
 
-            {preferredCourse && (
+            {/* ✅ FULLY DECOUPLED StudyChronometer - ZERO coupling with course selection */}
+            {selectedCourse && (
               <StudyChronometer
-                selectedCourse={
-                  preferredCourse
-                    ? {
-                        course_id: preferredCourse.course_id,
-                        title: preferredCourse.title,
-                        description: preferredCourse.description,
-                        category: preferredCourse.category,
-                      }
-                    : null
-                }
+                selectedCourse={{
+                  course_id: selectedCourse.course_id,
+                  title: selectedCourse.title,
+                  description: selectedCourse.description,
+                  category: selectedCourse.category,
+                }}
                 category={preferredCourse?.category as any}
                 variant='elevated'
                 style={{
@@ -2165,19 +2175,16 @@ function HomeScreenContent() {
                   elevation: 10,
                 }}
                 maxWidth='100%'
-                onCourseChange={(courseId, courseTitle) => {
-                  console.log('Course changed:', courseId, courseTitle);
-                }}
                 onSessionStart={(sessionId, courseId) => {
                   console.log(
-                    'Study session started:',
+                    '✅ Study session started:',
                     sessionId,
                     'for course:',
                     courseId,
                   );
                 }}
                 onSessionEnd={(sessionData) => {
-                  console.log('Study session ended:', sessionData);
+                  console.log('✅ Study session ended:', sessionData);
                   fetchPerformanceData();
                   fetchCoursesWithData();
                 }}
@@ -2227,7 +2234,7 @@ function HomeScreenContent() {
                 }}
               >
                 <PlayfulCard
-                  title='Kurs Çalışmaları'
+                  title='Çalışmaya Devam Et'
                   style={{
                     marginBottom: Spacing[6],
                     shadowColor: Colors.gray[900],
@@ -2247,7 +2254,7 @@ function HomeScreenContent() {
                 >
                   {courses.length > 0 ? (
                     <View>
-                      {/* Course Selection Tabs */}
+                      {/* ✅ Course Selection Tabs - ZERO impact on chronometer */}
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -2262,7 +2269,7 @@ function HomeScreenContent() {
                             onPress={() => handleCourseSelect(course)}
                             style={{
                               backgroundColor:
-                                selectedCourse?.course_id === course.course_id
+                                preferredCourse?.course_id === course.course_id
                                   ? course.category
                                     ? getCourseColor(course.category)
                                     : Colors.vibrant.blue
@@ -2302,7 +2309,7 @@ function HomeScreenContent() {
                         ))}
                       </ScrollView>
 
-                      {/* Selected Course Content */}
+                      {/* Selected Course Content - VIEWING ONLY */}
                       {selectedCourse && (
                         <View>
                           <Text
@@ -2348,7 +2355,7 @@ function HomeScreenContent() {
                               <PlayfulCard
                                 title='Yeni Çalışma Seansı Başlat'
                                 variant='outlined'
-                                category={selectedCourse.category as any}
+                                category={preferredCourse?.category as any}
                                 style={{
                                   marginBottom: Spacing[3],
                                   backgroundColor: Colors.gray[100],
@@ -2364,9 +2371,9 @@ function HomeScreenContent() {
                                     name='play-circle'
                                     size={48}
                                     color={
-                                      selectedCourse.category
+                                      preferredCourse?.category
                                         ? getCourseColor(
-                                            selectedCourse.category,
+                                            preferredCourse?.category,
                                           )
                                         : Colors.vibrant.blue
                                     }
@@ -2379,7 +2386,7 @@ function HomeScreenContent() {
                                       textAlign: 'center',
                                     }}
                                   >
-                                    Bu kurs için aktif bir çalışma seansı yok.
+                                    Bu ders için aktif bir çalışma seansı yok.
                                     Yukarıdaki kronometre ile yeni bir seans
                                     başlatabilirsiniz.
                                   </Text>
@@ -2414,7 +2421,7 @@ function HomeScreenContent() {
                               <EmptyState
                                 icon='history'
                                 title='Henüz tamamlanmış seans yok'
-                                message='Bu kurs için tamamlanmış çalışma seansı bulunmuyor.'
+                                message='Bu ders için tamamlanmış çalışma seansı bulunmuyor.'
                                 style={{
                                   backgroundColor: Colors.white,
                                   padding: Spacing[4],
@@ -2491,7 +2498,7 @@ function HomeScreenContent() {
                                 fontFamily: 'SecondaryFont-Bold',
                               }}
                             >
-                              ⚙️ Kurs Detayları
+                              ⚙️ Ders Detayları
                             </Text>
                             {renderCourseDetailsForm(selectedCourse)}
                           </View>
@@ -2515,19 +2522,14 @@ function HomeScreenContent() {
                           fontFamily: 'SecondaryFont-Regular',
                         }}
                       >
-                        Kurslar yükleniyor...
+                        Derslar yükleniyor...
                       </Text>
                     </View>
                   ) : (
                     <EmptyState
                       icon='book'
-                      title='Henüz kurs yok'
-                      message='Kurslar sekmesinden ilk kursunuzu seçin ve çalışmaya başlayın.'
-                      actionButton={{
-                        title: 'Kurslara Git',
-                        onPress: () => router.push('/courses' as any),
-                        variant: 'primary',
-                      }}
+                      title='Henüz ders yok'
+                      message='Dersler sekmesinden ilk dersinizi seçin ve çalışmaya başlayın.'
                       buttonFontFamily='PrimaryFont'
                       style={{
                         backgroundColor: isDark ? Colors.white : Colors.white,

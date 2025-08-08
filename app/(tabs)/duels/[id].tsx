@@ -15,6 +15,7 @@ import {
   TextStyle,
   ScrollView,
   Platform,
+  StyleProp,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -180,6 +181,8 @@ interface Question {
   id: number;
   text: string;
   options: Record<string, string>;
+  correctAnswer?: string;
+  explanation?: string;
 }
 
 interface RoundResult {
@@ -188,6 +191,7 @@ interface RoundResult {
     text: string;
     options: Record<string, string>;
     correctAnswer: string;
+    explanation?: string;
   };
   answers: Array<{
     userId: number;
@@ -950,6 +954,18 @@ export default function DuelRoomScreen() {
     setPhase('results');
     setRoundResult(data);
 
+    if (currentQuestion) {
+      setCurrentQuestion((prev) =>
+        prev
+          ? {
+              ...prev,
+              correctAnswer: data.question.correctAnswer,
+              explanation: data.question.explanation,
+            }
+          : null,
+      );
+    }
+
     // Track the answered question for analytics
     if (currentQuestion) {
       const userAnswer = data.answers.find(
@@ -1377,7 +1393,7 @@ export default function DuelRoomScreen() {
     </View>
   );
 
-  // ✅ ENHANCED: Question render with 60s timer display and server sync indicators
+  // ✅ FIXED: Enhanced option styling logic - only show results in results phase
   const renderQuestion = () => {
     console.log('renderQuestion called, currentQuestion:', currentQuestion);
     console.log('phase:', phase);
@@ -1419,7 +1435,7 @@ export default function DuelRoomScreen() {
         >
           {renderDuelInfoHeader()}
 
-          {/* ✅ ENHANCED: Question Header with 60s timer display */}
+          {/* Question Header with 60s timer display */}
           <View style={styles.questionHeaderContainer}>
             <Row style={styles.questionHeader}>
               <Column>
@@ -1439,7 +1455,7 @@ export default function DuelRoomScreen() {
                   style={[
                     styles.timer,
                     timeLeft <= 10 && styles.timerDanger,
-                    !isTimerSynced && styles.timerUnsynced, // ✅ NEW: Different style when not synced
+                    !isTimerSynced && styles.timerUnsynced,
                   ]}
                 >
                   {timeLeft}s {isTimerSynced ? '🟢' : '🔄'}
@@ -1486,28 +1502,71 @@ export default function DuelRoomScreen() {
               <Text style={styles.questionText}>{currentQuestion.text}</Text>
 
               <View style={styles.optionsContainer}>
-                {Object.entries(currentQuestion.options).map(([key, value]) => (
-                  <TouchableOpacity
-                    key={key}
-                    style={[
-                      styles.optionButton,
-                      selectedAnswer === key && styles.selectedOption,
-                      hasAnswered && styles.disabledOption,
-                    ]}
-                    onPress={() => handleAnswerSelect(key)}
-                    disabled={hasAnswered}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
+                {Object.entries(currentQuestion.options).map(([key, value]) => {
+                  // ✅ ENHANCED: Show correct/wrong styling after user answers
+                  const isSelected = selectedAnswer === key;
+                  const isCorrect = currentQuestion.correctAnswer === key;
+                  const showResultsInQuestion =
+                    hasAnswered && currentQuestion.correctAnswer; // ✅ NEW
+
+                  let optionStyle: StyleProp<ViewStyle> = styles.optionButton;
+                  let optionTextStyle: StyleProp<TextStyle> = styles.optionText;
+
+                  if (showResultsInQuestion) {
+                    // ✅ NEW: Show correct/wrong styling after answering
+                    if (isCorrect) {
+                      optionStyle = [styles.optionButton, styles.correctOption];
+                      optionTextStyle = [
                         styles.optionText,
-                        selectedAnswer === key && styles.selectedOptionText,
-                      ]}
+                        styles.correctOptionText,
+                      ];
+                    } else if (isSelected) {
+                      optionStyle = [
+                        styles.optionButton,
+                        styles.wrongSelectedOption,
+                      ];
+                      optionTextStyle = [
+                        styles.optionText,
+                        styles.wrongSelectedOptionText,
+                      ];
+                    }
+                  } else if (isSelected) {
+                    // Normal selection state during answering
+                    optionStyle = [styles.optionButton, styles.selectedOption];
+                    optionTextStyle = [
+                      styles.optionText,
+                      styles.selectedOptionText,
+                    ];
+                  }
+
+                  // Disable options after answering
+                  if (hasAnswered) {
+                    optionStyle = Array.isArray(optionStyle)
+                      ? [...optionStyle, styles.disabledOption]
+                      : [optionStyle, styles.disabledOption];
+                  }
+
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={optionStyle}
+                      onPress={() => handleAnswerSelect(key)}
+                      disabled={hasAnswered}
+                      activeOpacity={0.8}
                     >
-                      {key}) {value}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text style={optionTextStyle}>
+                        {key}) {value}
+                        {/* ✅ NEW: Show indicators after answering */}
+                        {showResultsInQuestion && isCorrect && ' ✓'}
+                        {showResultsInQuestion &&
+                          isSelected &&
+                          !isCorrect &&
+                          ' ✗'}
+                        {showResultsInQuestion && isSelected && ' (Seçiminiz)'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           </View>
@@ -1530,6 +1589,28 @@ export default function DuelRoomScreen() {
             </View>
           )}
 
+          {hasAnswered && currentQuestion.correctAnswer && (
+            <View style={styles.questionResultsContainer}>
+              <View style={styles.correctAnswerContainer}>
+                <Text style={styles.correctAnswer}>
+                  Doğru Cevap: {currentQuestion.correctAnswer}){' '}
+                  {currentQuestion.options?.[currentQuestion.correctAnswer] ||
+                    'N/A'}
+                </Text>
+              </View>
+
+              {/* Explanation if available */}
+              {currentQuestion.explanation && (
+                <View style={styles.explanationContainer}>
+                  <Text style={styles.explanationTitle}>💡 Açıklama</Text>
+                  <Text style={styles.explanationText}>
+                    {currentQuestion.explanation}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
           {/* Bottom spacing for scroll */}
           <View style={styles.bottomSpacing} />
         </ScrollView>
@@ -1537,6 +1618,7 @@ export default function DuelRoomScreen() {
     );
   };
 
+  // ✅ FIXED: Results rendering with proper answer highlighting and explanations
   const renderResults = () => {
     if (!roundResult || !roundResult.question) {
       return null;
@@ -1562,120 +1644,172 @@ export default function DuelRoomScreen() {
                   {questionIndex + 1}. Tur Sonuçları
                 </PlayfulTitle>
 
-                {/* FIXED: Proper container for round results */}
-                {roundResult && (
-                  <View style={styles.roundResultContent}>
-                    <View style={styles.correctAnswerContainer}>
-                      <Text style={styles.correctAnswer}>
-                        Doğru Cevap: {roundResult.question?.correctAnswer}){' '}
-                        {roundResult.question?.options?.[
-                          roundResult.question?.correctAnswer
-                        ] || 'N/A'}
-                      </Text>
-                    </View>
+                {/* Question Display with Answer Highlighting */}
+                <View style={styles.questionResultsContainer}>
+                  <Text style={styles.questionResultsText}>
+                    {roundResult.question.text}
+                  </Text>
 
-                    <View style={styles.resultRowContainer}>
-                      <Row style={styles.resultRow}>
-                        {roundResult.answers?.map((answer, idx) => {
-                          if (!answer) return null;
+                  {/* Options with correct/wrong highlighting */}
+                  <View style={styles.resultsOptionsContainer}>
+                    {Object.entries(roundResult.question.options).map(
+                      ([key, value]) => {
+                        const isCorrect =
+                          roundResult.question.correctAnswer === key;
+                        const isUserSelected =
+                          userAnswer?.selectedAnswer === key;
 
-                          const isUser = answer.userId === userData?.userId;
-                          const displayName = isUser
-                            ? userData.username
-                            : opponentInfo?.username || 'Rakip';
+                        let optionStyle: StyleProp<ViewStyle> =
+                          styles.resultOptionButton;
+                        let optionTextStyle: StyleProp<TextStyle> =
+                          styles.resultOptionText;
 
-                          return (
-                            <View
-                              key={idx}
-                              style={styles.playerResultContainer}
-                            >
-                              <Column style={styles.playerResult}>
-                                <Text style={styles.playerName}>
-                                  {displayName}
-                                  {!isUser && opponentInfo?.isBot && ' 🤖'}
-                                </Text>
-                                <Badge
-                                  text={
-                                    answer.isCorrect ? 'Doğru ✓' : 'Yanlış ✗'
-                                  }
-                                  variant={
-                                    answer.isCorrect ? 'success' : 'error'
-                                  }
-                                  style={styles.resultBadge}
-                                  fontFamily='SecondaryFont-Bold'
-                                />
-                                <Text style={styles.timeText}>
-                                  {Math.floor((answer.timeTaken / 1000) * 10) /
-                                    10}
-                                  s
-                                </Text>
-                              </Column>
-                            </View>
-                          );
-                        })}
-                      </Row>
-                    </View>
+                        if (isCorrect) {
+                          // Always highlight correct answer in green
+                          optionStyle = [
+                            styles.resultOptionButton,
+                            styles.correctResultOption,
+                          ];
+                          optionTextStyle = [
+                            styles.resultOptionText,
+                            styles.correctResultOptionText,
+                          ];
+                        } else if (isUserSelected) {
+                          // Highlight user's wrong selection in red
+                          optionStyle = [
+                            styles.resultOptionButton,
+                            styles.wrongResultOption,
+                          ];
+                          optionTextStyle = [
+                            styles.resultOptionText,
+                            styles.wrongResultOptionText,
+                          ];
+                        }
 
-                    {/* NEW: Question Report Section - Only show if user got it wrong */}
-
-                    <View style={styles.reportQuestionContainer}>
-                      <Text style={styles.reportQuestionTitle}>
-                        Soruyla ilgili bir sorun mu var?
-                      </Text>
-                      <Text style={styles.reportQuestionDescription}>
-                        Yanlış cevap, yazım hatası veya belirsizlik varsa bize
-                        bildirin
-                      </Text>
-                      <TouchableOpacity
-                        style={styles.reportButton}
-                        onPress={() => setShowReportModal(true)}
-                        activeOpacity={0.8}
-                      >
-                        <FontAwesome
-                          name='flag'
-                          size={16}
-                          color={Colors.white}
-                          style={{ marginRight: Spacing[2] }}
-                        />
-                        <Text style={styles.reportButtonText}>
-                          Soruyu Bildir
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.currentScoreContainer}>
-                      <Row style={styles.currentScore}>
-                        <Column
-                          style={{
-                            alignItems: 'center' as const,
-                            minWidth: 80,
-                          }}
-                        >
-                          <AnimatedCounter
-                            value={userScore}
-                            style={{ color: Colors.vibrant.mint }}
-                          />
-                          <Text style={styles.scoreLabel}>Puanınız</Text>
-                        </Column>
-                        <Text style={styles.scoreVs}>-</Text>
-                        <Column
-                          style={{
-                            alignItems: 'center' as const,
-                            minWidth: 80,
-                          }}
-                        >
-                          <AnimatedCounter
-                            value={opponentScore}
-                            style={{ color: Colors.vibrant.coral }}
-                          />
-                          <Text style={styles.scoreLabel}>
-                            {opponentInfo?.isBot ? 'Bot' : 'Rakip'}
-                          </Text>
-                        </Column>
-                      </Row>
-                    </View>
+                        return (
+                          <View key={key} style={optionStyle}>
+                            <Text style={optionTextStyle}>
+                              {key}) {value}
+                              {isCorrect && ' ✓'}
+                              {isUserSelected && !isCorrect && ' ✗'}
+                              {isUserSelected && ' (Seçiminiz)'}
+                            </Text>
+                          </View>
+                        );
+                      },
+                    )}
                   </View>
-                )}
+
+                  {/* Correct Answer Display */}
+                  <View style={styles.correctAnswerContainer}>
+                    <Text style={styles.correctAnswer}>
+                      Doğru Cevap: {roundResult.question.correctAnswer}){' '}
+                      {roundResult.question.options?.[
+                        roundResult.question.correctAnswer
+                      ] || 'N/A'}
+                    </Text>
+                  </View>
+
+                  {/* Explanation if available */}
+                  {roundResult.question.explanation && (
+                    <View style={styles.explanationContainer}>
+                      <Text style={styles.explanationTitle}>💡 Açıklama</Text>
+                      <Text style={styles.explanationText}>
+                        {roundResult.question.explanation}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Player Results */}
+                <View style={styles.resultRowContainer}>
+                  <Row style={styles.resultRow}>
+                    {roundResult.answers?.map((answer, idx) => {
+                      if (!answer) return null;
+
+                      const isUser = answer.userId === userData?.userId;
+                      const displayName = isUser
+                        ? userData.username
+                        : opponentInfo?.username || 'Rakip';
+
+                      return (
+                        <View key={idx} style={styles.playerResultContainer}>
+                          <Column style={styles.playerResult}>
+                            <Text style={styles.playerName}>
+                              {displayName}
+                              {!isUser && opponentInfo?.isBot && ' 🤖'}
+                            </Text>
+                            <Badge
+                              text={answer.isCorrect ? 'Doğru ✓' : 'Yanlış ✗'}
+                              variant={answer.isCorrect ? 'success' : 'error'}
+                              style={styles.resultBadge}
+                              fontFamily='SecondaryFont-Bold'
+                            />
+                            <Text style={styles.timeText}>
+                              {Math.floor((answer.timeTaken / 1000) * 10) / 10}s
+                            </Text>
+                            {answer.selectedAnswer && (
+                              <Text style={styles.selectedAnswerText}>
+                                Seçim: {answer.selectedAnswer}
+                              </Text>
+                            )}
+                          </Column>
+                        </View>
+                      );
+                    })}
+                  </Row>
+                </View>
+
+                {/* Current Score */}
+                <View style={styles.currentScoreContainer}>
+                  <Row style={styles.currentScore}>
+                    <Column
+                      style={{ alignItems: 'center' as const, minWidth: 80 }}
+                    >
+                      <AnimatedCounter
+                        value={userScore}
+                        style={{ color: Colors.vibrant.mint }}
+                      />
+                      <Text style={styles.scoreLabel}>Puanınız</Text>
+                    </Column>
+                    <Text style={styles.scoreVs}>-</Text>
+                    <Column
+                      style={{ alignItems: 'center' as const, minWidth: 80 }}
+                    >
+                      <AnimatedCounter
+                        value={opponentScore}
+                        style={{ color: Colors.vibrant.coral }}
+                      />
+                      <Text style={styles.scoreLabel}>
+                        {opponentInfo?.isBot ? 'Bot' : 'Rakip'}
+                      </Text>
+                    </Column>
+                  </Row>
+                </View>
+
+                {/* Question Report Section */}
+                <View style={styles.reportQuestionContainer}>
+                  <Text style={styles.reportQuestionTitle}>
+                    Soruyla ilgili bir sorun mu var?
+                  </Text>
+                  <Text style={styles.reportQuestionDescription}>
+                    Yanlış cevap, yazım hatası veya belirsizlik varsa bize
+                    bildirin
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.reportButton}
+                    onPress={() => setShowReportModal(true)}
+                    activeOpacity={0.8}
+                  >
+                    <FontAwesome
+                      name='flag'
+                      size={16}
+                      color={Colors.white}
+                      style={{ marginRight: Spacing[2] }}
+                    />
+                    <Text style={styles.reportButtonText}>Soruyu Bildir</Text>
+                  </TouchableOpacity>
+                </View>
 
                 <View style={styles.nextQuestionContainer}>
                   <Paragraph style={styles.lightText}>
@@ -1685,7 +1819,8 @@ export default function DuelRoomScreen() {
               </Column>
             </PlayfulCard>
           </View>
-          {/* NEW: Question Report Modal */}
+
+          {/* Question Report Modal */}
           {currentQuestion && (
             <QuestionReportModal
               isVisible={showReportModal}
@@ -1702,6 +1837,7 @@ export default function DuelRoomScreen() {
       </View>
     );
   };
+
   const renderFinal = () => {
     const botInfo = getBotDisplayInfo();
 
@@ -2689,5 +2825,133 @@ const styles = {
     fontSize: 13,
     fontWeight: '600' as const,
     fontFamily: 'SecondaryFont-Bold',
+  } as TextStyle,
+  correctOption: {
+    backgroundColor: Colors.vibrant.mint || '#10b981',
+    borderColor: '#059669',
+    borderWidth: 3,
+  } as ViewStyle,
+
+  correctOptionText: {
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Bold',
+    fontWeight: '700' as const,
+  } as TextStyle,
+
+  // Wrong selected answer highlighting (red)
+  wrongSelectedOption: {
+    backgroundColor: Colors.vibrant.coral || '#f87171',
+    borderColor: '#dc2626',
+    borderWidth: 3,
+  } as ViewStyle,
+
+  wrongSelectedOptionText: {
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Bold',
+    fontWeight: '700' as const,
+  } as TextStyle,
+
+  questionResultsContainer: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: BorderRadius['3xl'],
+    padding: Spacing[4],
+    marginBottom: Spacing[4],
+  } as ViewStyle,
+
+  questionResultsText: {
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+    color: Colors.white,
+    textAlign: 'left' as const,
+    marginBottom: Spacing[4],
+    fontFamily: 'SecondaryFont-Bold',
+    lineHeight: 24,
+  } as TextStyle,
+
+  // Results options container
+  resultsOptionsContainer: {
+    gap: Spacing[2],
+    width: '100%',
+    marginBottom: Spacing[3],
+  } as ViewStyle,
+
+  // Result option buttons
+  resultOptionButton: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[3],
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  } as ViewStyle,
+
+  correctResultOption: {
+    backgroundColor: 'rgba(16, 185, 129, 0.3)', // Green tint
+    borderColor: Colors.vibrant.mint || '#10b981',
+    borderWidth: 3,
+  } as ViewStyle,
+
+  wrongResultOption: {
+    backgroundColor: 'rgba(248, 113, 113, 0.3)', // Red tint
+    borderColor: Colors.vibrant.coral || '#f87171',
+    borderWidth: 3,
+  } as ViewStyle,
+
+  // Result option text
+  resultOptionText: {
+    fontSize: 14,
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'left' as const,
+    lineHeight: 20,
+  } as TextStyle,
+
+  correctResultOptionText: {
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Bold',
+    fontWeight: '700' as const,
+  } as TextStyle,
+
+  wrongResultOptionText: {
+    color: Colors.white,
+    fontFamily: 'SecondaryFont-Bold',
+    fontWeight: '700' as const,
+  } as TextStyle,
+
+  // Explanation container (already exists but adding for completeness)
+  explanationContainer: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)', // Blue tint
+    borderRadius: BorderRadius['3xl'],
+    padding: Spacing[4],
+    marginTop: Spacing[3],
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+    width: '100%',
+  } as ViewStyle,
+
+  explanationTitle: {
+    fontSize: 16,
+    fontWeight: 'bold' as const,
+    color: Colors.vibrant.blue || '#3b82f6',
+    textAlign: 'center' as const,
+    marginBottom: Spacing[3],
+    fontFamily: 'SecondaryFont-Bold',
+  } as TextStyle,
+
+  explanationText: {
+    fontSize: 14,
+    color: Colors.white,
+    textAlign: 'left' as const,
+    lineHeight: 22,
+    fontFamily: 'SecondaryFont-Regular',
+  } as TextStyle,
+
+  // Selected answer display in results
+  selectedAnswerText: {
+    fontSize: 11,
+    color: Colors.gray?.[400] || '#9ca3af',
+    fontFamily: 'SecondaryFont-Regular',
+    marginTop: 4,
+    textAlign: 'center' as const,
   } as TextStyle,
 };

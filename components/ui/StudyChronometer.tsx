@@ -99,7 +99,7 @@ interface Course {
 
 // Component props interface
 export interface StudyChronometerProps {
-  selectedCourse: Course | null;
+  selectedCourse: Course | null; // This is ONLY for UI display, NOT for session management
   category?: keyof typeof CATEGORY_COLORS;
   variant?:
     | 'default'
@@ -112,7 +112,6 @@ export interface StudyChronometerProps {
   onSessionStart?: (sessionId: number, courseId: number) => void;
   onSessionEnd?: (sessionData: any) => void;
   onTimeUpdate?: (timeInSeconds: number) => void;
-  onCourseChange?: (courseId: number, courseTitle: string) => void;
   style?: StyleProp<ViewStyle>;
   disabled?: boolean;
   autoStart?: boolean;
@@ -122,13 +121,12 @@ export interface StudyChronometerProps {
 }
 
 const StudyChronometer: React.FC<StudyChronometerProps> = ({
-  selectedCourse,
+  selectedCourse, // ONLY used for UI display
   category,
   variant = 'default',
   onSessionStart,
   onSessionEnd,
   onTimeUpdate,
-  onCourseChange,
   style,
   disabled = false,
   autoStart = false,
@@ -145,6 +143,14 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
   const [currentTime, setCurrentTime] = useState(new Date());
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // FIXED: Separate active session state - this is INDEPENDENT of selectedCourse
+  const [activeSession, setActiveSession] = useState<{
+    sessionId: number;
+    courseId: number;
+    courseTitle: string;
+    startTime: Date;
+  } | null>(null);
 
   // Break time tracking
   const [currentBreakStartTime, setCurrentBreakStartTime] =
@@ -198,20 +204,17 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     }
   }, [currentTime, timerState, calculateElapsedTime, onTimeUpdate]);
 
-  // Check for existing active session when selected course changes
+  // FIXED: Check for existing session on mount ONLY - not when selectedCourse changes
   useEffect(() => {
-    if (selectedCourse) {
-      checkExistingSession();
-      onCourseChange?.(selectedCourse.course_id, selectedCourse.title);
-    }
-  }, [selectedCourse?.course_id]);
+    checkExistingSession();
+  }, []); // Empty dependency array - only run on mount
 
   // Auto-start if requested
   useEffect(() => {
     if (autoStart && timerState === 'idle' && !sessionId && selectedCourse) {
       handleStartTimer();
     }
-  }, [autoStart, timerState, sessionId, selectedCourse]);
+  }, [autoStart]); // Only depend on autoStart, not selectedCourse
 
   // Handle app state changes
   useEffect(() => {
@@ -222,36 +225,39 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     return () => subscription?.remove();
   }, []);
 
-  // Check for existing active session
+  // FIXED: Check for existing active session - independent of selectedCourse
   const checkExistingSession = async () => {
-    if (!selectedCourse) return;
-
     try {
       setTimerState('loading');
-      console.log(
-        'Checking for existing session for course:',
-        selectedCourse.course_id,
-      );
+      console.log('Checking for any existing active session...');
 
-      const activeSession = await getActiveStudySession();
-      console.log('Active session response:', activeSession);
+      const activeSessionData = await getActiveStudySession();
+      console.log('Active session response:', activeSessionData);
 
-      if (
-        activeSession?.sessionId &&
-        activeSession.courseId === selectedCourse.course_id
-      ) {
-        console.log('Found active session:', activeSession);
+      if (activeSessionData?.sessionId) {
+        console.log('Found active session:', activeSessionData);
 
-        setSessionId(activeSession.sessionId);
-        setSessionStartTime(new Date(activeSession.startTime));
+        // Set up the chronometer state
+        setSessionId(activeSessionData.sessionId);
+        setSessionStartTime(new Date(activeSessionData.startTime));
         setPausedDuration(0);
         setPauseStartTime(null);
-        setTotalBreakTimeSeconds(activeSession.breakDurationSeconds || 0);
+        setTotalBreakTimeSeconds(activeSessionData.breakDurationSeconds || 0);
         setTimerState('running');
 
-        console.log('Resumed existing session:', activeSession.sessionId);
+        // Store active session info
+        setActiveSession({
+          sessionId: activeSessionData.sessionId,
+          courseId: activeSessionData.courseId,
+          courseTitle:
+            activeSessionData.courseTitle ||
+            `Course ${activeSessionData.courseId}`,
+          startTime: new Date(activeSessionData.startTime),
+        });
+
+        console.log('Resumed existing session:', activeSessionData.sessionId);
       } else {
-        console.log('No active session found for this course');
+        console.log('No active session found');
         setTimerState('idle');
         resetSessionState();
       }
@@ -270,6 +276,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     setPauseStartTime(null);
     setCurrentBreakStartTime(null);
     setTotalBreakTimeSeconds(0);
+    setActiveSession(null);
   };
 
   // Handle app state changes - improved logic
@@ -300,9 +307,43 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     appStateRef.current = nextAppState;
   };
 
-  // Handle start timer
+  // FIXED: Handle start timer - check for conflicts HERE, not in effects
   const handleStartTimer = async () => {
     if (disabled || timerState === 'loading' || !selectedCourse) return;
+
+    // Check if there's an active session for a different course
+    if (activeSession && activeSession.courseId !== selectedCourse.course_id) {
+      Alert.alert(
+        'Aktif Seans Var',
+        `"${activeSession.courseTitle}" kursu için aktif bir çalışma seansınız var. Bu seansı sonlandırıp "${selectedCourse.title}" için yeni seans başlatmak istiyor musunuz?`,
+        [
+          {
+            text: 'İptal',
+            style: 'cancel',
+          },
+          {
+            text: 'Seansı Sonlandır',
+            style: 'destructive',
+            onPress: () => {
+              // End current session and start new one
+              confirmStopTimer(() => {
+                // After stopping, start new session
+                startNewSession();
+              });
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    // No conflict or same course, start session
+    await startNewSession();
+  };
+
+  // Start new session
+  const startNewSession = async () => {
+    if (!selectedCourse) return;
 
     try {
       setTimerState('loading');
@@ -326,6 +367,14 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
       setCurrentBreakStartTime(null);
       setTotalBreakTimeSeconds(0);
       setTimerState('running');
+
+      // Store active session info
+      setActiveSession({
+        sessionId: response.session.sessionId,
+        courseId: selectedCourse.course_id,
+        courseTitle: selectedCourse.title,
+        startTime,
+      });
 
       onSessionStart?.(response.session.sessionId, selectedCourse.course_id);
       console.log('Timer started successfully');
@@ -369,25 +418,24 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
     if (!sessionId || timerState === 'loading') return;
 
     const elapsed = calculateElapsedTime();
-    const currentBreakTime = calculateCurrentBreakTime();
     const formattedTime = formatTime(elapsed);
 
     Alert.alert(
-      'End Study Session',
-      `You've studied for ${formattedTime}. End this session?`,
+      'Çalışma Seansını Bitir',
+      `${formattedTime} süre çalıştınız. Bu seansı sonlandırmak istiyor musunuz?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'İptal', style: 'cancel' },
         {
-          text: 'End Session',
+          text: 'Seansı Bitir',
           style: 'destructive',
-          onPress: confirmStopTimer,
+          onPress: () => confirmStopTimer(),
         },
       ],
     );
   };
 
   // Confirm stop timer
-  const confirmStopTimer = async () => {
+  const confirmStopTimer = async (onComplete?: () => void) => {
     if (!sessionId) return;
 
     try {
@@ -419,6 +467,9 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
 
       onSessionEnd?.(response.session);
       console.log('Timer stopped successfully');
+
+      // Call completion callback if provided
+      onComplete?.();
     } catch (error: any) {
       console.error('Error ending study session:', error);
       setError(error.message || 'Failed to end study session');
@@ -475,29 +526,36 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
         .toString()
         .padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
-    return `${minutes.toString().padStart(2, '0')}:${secs
-      .toString()
-      .padStart(2, '0')}`;
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Get status display
   const getStatusDisplay = () => {
+    // FIXED: Check if chronometer is tracking different course than what's selected for viewing
+    const isTrackingDifferentCourse =
+      activeSession !== null &&
+      selectedCourse?.course_id !== activeSession.courseId;
+
     switch (timerState) {
       case 'idle':
         return {
-          text: 'Hazır',
+          text: isTrackingDifferentCourse ? 'Başka kurs aktif' : 'Hazır',
           icon: 'play' as const,
-          color: variantStyles.iconColor,
+          color: isTrackingDifferentCourse
+            ? '#FF9800'
+            : variantStyles.iconColor,
         };
       case 'running':
         return {
-          text: 'Çalışıyor...',
+          text: isTrackingDifferentCourse
+            ? 'Başka kurs çalışıyor'
+            : 'Çalışıyor...',
           icon: 'pause' as const,
           color: '#4CAF50',
         };
       case 'paused':
         return {
-          text: 'Mola',
+          text: isTrackingDifferentCourse ? 'Başka kurs molada' : 'Mola',
           icon: 'play' as const,
           color: '#FF9800',
         };
@@ -516,19 +574,16 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
   const currentBreakTime = calculateCurrentBreakTime();
   const totalBreakDisplay = totalBreakTimeSeconds + currentBreakTime;
 
+  // Check if tracking different course
+  const isTrackingDifferentCourse =
+    activeSession !== null &&
+    selectedCourse?.course_id !== activeSession.courseId;
+
   // Main render function
   const renderContent = () => (
     <View style={[styles.container, { maxWidth: maxWidth as DimensionValue }]}>
-      {/* Header */}
+      {/* Course Display Header */}
       <View style={styles.header}>
-        <Text
-          style={[styles.courseTitle, { color: Colors.gray[700] }]}
-          numberOfLines={1}
-        >
-          {selectedCourse?.title || 'Kurs seçilmedi'}
-        </Text>
-
-        {/* Course Display */}
         <View style={styles.courseDisplay}>
           <View style={styles.courseDisplayContent}>
             <FontAwesome
@@ -541,18 +596,30 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
               style={[
                 styles.selectedCourseText,
                 { color: variantStyles.textColor },
+                isTrackingDifferentCourse ? { opacity: 0.7 } : undefined,
               ]}
-              numberOfLines={1}
+              numberOfLines={2}
             >
               {selectedCourse ? selectedCourse.title : 'Kurs seçin'}
             </Text>
           </View>
+          {isTrackingDifferentCourse && activeSession && (
+            <Text style={[styles.warningText, { color: '#FF9800' }]}>
+              ⚠️ Aktif seans: {activeSession.courseTitle}
+            </Text>
+          )}
         </View>
       </View>
 
       {/* Timer Display */}
       <View style={styles.timerSection}>
-        <Text style={[styles.timeDisplay, { color: variantStyles.textColor }]}>
+        <Text
+          style={[
+            styles.timeDisplay,
+            { color: variantStyles.textColor },
+            isTrackingDifferentCourse ? { opacity: 0.7 } : undefined,
+          ]}
+        >
           {formatTime(elapsedTime)}
         </Text>
 
@@ -562,6 +629,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
             style={[
               styles.breakTimeDisplay,
               { color: variantStyles.textColor },
+              isTrackingDifferentCourse ? { opacity: 0.7 } : undefined,
             ]}
           >
             ☕ Mola: {formatTime(totalBreakDisplay)}
@@ -616,7 +684,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
           >
             <FontAwesome name='play' size={16} color={Colors.gray[900]} />
             <Text style={[styles.buttonText, { color: Colors.gray[900] }]}>
-              Başlat
+              {isTrackingDifferentCourse ? 'Farklı Kurs Başlat' : 'Başlat'}
             </Text>
           </TouchableOpacity>
         ) : (
@@ -624,10 +692,13 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
             <TouchableOpacity
               style={[
                 styles.controlButton,
-                { borderColor: variantStyles.iconColor },
+                {
+                  borderColor: variantStyles.iconColor,
+                  opacity: isTrackingDifferentCourse ? 0.5 : 1,
+                },
               ]}
               onPress={handlePauseTimer}
-              disabled={timerState === 'loading'}
+              disabled={timerState === 'loading' || isTrackingDifferentCourse}
               testID={`${testID}-pause-button`}
             >
               <FontAwesome
@@ -639,10 +710,13 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
             <TouchableOpacity
               style={[
                 styles.controlButton,
-                { borderColor: variantStyles.iconColor },
+                {
+                  borderColor: variantStyles.iconColor,
+                  opacity: isTrackingDifferentCourse ? 0.5 : 1,
+                },
               ]}
               onPress={handleStopTimer}
-              disabled={timerState === 'loading'}
+              disabled={timerState === 'loading' || isTrackingDifferentCourse}
               testID={`${testID}-stop-button`}
             >
               <FontAwesome
@@ -668,7 +742,7 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
               }
             }}
           >
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>Tekrar Dene</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -710,11 +784,6 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: Spacing[3],
   },
-  courseTitle: {
-    fontSize: FontSizes.sm,
-    fontFamily: 'SecondaryFont-Bold',
-    marginBottom: Spacing[2],
-  },
   courseDisplay: {
     marginBottom: Spacing[1],
   },
@@ -733,6 +802,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: FontSizes.sm,
     fontFamily: 'SecondaryFont-Regular',
+  },
+  warningText: {
+    fontSize: FontSizes.xs,
+    fontFamily: 'SecondaryFont-Regular',
+    textAlign: 'center',
+    marginTop: Spacing[1],
   },
   // Timer Section
   timerSection: {

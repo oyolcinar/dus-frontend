@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -77,11 +77,14 @@ function FriendsScreenContent() {
     getCourseColor,
   } = usePreferredCourse();
 
-  // Get the current context color
-  const contextColor =
-    ((preferredCourse as any)?.category &&
-      getCourseColor((preferredCourse as any).category)) ||
-    VIBRANT_COLORS.purple;
+  // Memoize the context color to prevent unnecessary re-renders
+  const contextColor = useMemo(
+    () =>
+      ((preferredCourse as any)?.category &&
+        getCourseColor((preferredCourse as any).category)) ||
+      VIBRANT_COLORS.purple,
+    [preferredCourse, getCourseColor],
+  );
 
   // Main state
   const [activeTab, setActiveTab] = useState<FriendTab>('find');
@@ -144,7 +147,7 @@ function FriendsScreenContent() {
     checkAuth();
   }, [contextUser, isSessionValid, authLoading]);
 
-  // Fetch friends data
+  // Fetch friends data - memoized with useCallback
   const fetchFriendsData = useCallback(async () => {
     if (!isAuthenticated) return;
 
@@ -177,16 +180,18 @@ function FriendsScreenContent() {
     }
   }, [fetchFriendsData, isAuthenticated]);
 
-  // Handle refresh
+  // Handle refresh - memoized
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchFriendsData();
     setRefreshing(false);
   }, [fetchFriendsData]);
 
-  // Search users function
+  // Simple search function
   const handleSearch = async () => {
-    if (!searchQuery.trim() || !isAuthenticated) return;
+    if (!searchQuery.trim() || !isAuthenticated) {
+      return;
+    }
 
     setIsSearching(true);
     setSearchError(null);
@@ -195,7 +200,6 @@ function FriendsScreenContent() {
     setSearchResults([]);
 
     try {
-      // Use the userService to search by username
       const user = await userService.searchUserByUsername(searchQuery.trim());
 
       if (user) {
@@ -204,7 +208,7 @@ function FriendsScreenContent() {
             id: user.id,
             username: user.username,
             email: user.email,
-            winRate: 0, // User type doesn't have winRate, so default to 0
+            winRate: 0,
           },
         ]);
       } else {
@@ -218,260 +222,260 @@ function FriendsScreenContent() {
     }
   };
 
-  // Send friend request
-  const handleSendFriendRequest = async (userId: number, username: string) => {
-    if (!isAuthenticated) return;
+  // Send friend request - fixed API call
+  const handleSendFriendRequest = useCallback(
+    async (userId: number, username: string) => {
+      if (!isAuthenticated) return;
 
-    setLoadingActions((prev) => ({ ...prev, [userId]: true }));
-    setSearchError(null);
-    setSuccessMessage(null);
-    setError(null);
-
-    try {
-      await friendService.sendFriendRequest(userId);
-
-      // Remove from search results after sending request
-      setSearchResults((prev) => prev.filter((user) => user.id !== userId));
-
-      // Show success message
+      setLoadingActions((prev) => ({ ...prev, [userId]: true }));
       setSearchError(null);
-      setSuccessMessage(
-        `${username} kullanıcısına arkadaşlık isteği gönderildi.`,
-      );
+      setSuccessMessage(null);
+      setError(null);
 
-      // Refresh data to update any counts
-      await fetchFriendsData();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setSearchError(err.message);
-      } else {
-        setSearchError('Arkadaşlık isteği gönderilemedi.');
+      try {
+        await friendService.sendFriendRequest(userId);
+        setSearchResults((prev) => prev.filter((user) => user.id !== userId));
+        setSearchError(null);
+        setSuccessMessage(
+          `${username} kullanıcısına arkadaşlık isteği gönderildi.`,
+        );
+        await fetchFriendsData();
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setSearchError(err.message);
+        } else {
+          setSearchError('Arkadaşlık isteği gönderilemedi.');
+        }
+      } finally {
+        setLoadingActions((prev) => ({ ...prev, [userId]: false }));
       }
-    } finally {
-      setLoadingActions((prev) => ({ ...prev, [userId]: false }));
-    }
-  };
-
-  // Accept friend request
-  const handleAcceptRequest = async (friendId: number, username: string) => {
-    if (!isAuthenticated) return;
-
-    setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
-    setError(null);
-    setSuccessMessage(null);
-
-    try {
-      await friendService.acceptRequest(friendId);
-
-      // Refresh data to update lists
-      await fetchFriendsData();
-
-      setSuccessMessage(`${username} ile artık arkadaşsınız!`);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('İstek kabul edilemedi.');
-      }
-    } finally {
-      setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
-    }
-  };
-
-  // Reject friend request
-  const handleRejectRequest = async (friendId: number, username: string) => {
-    if (!isAuthenticated) return;
-
-    setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
-    setError(null);
-    setSuccessMessage(null);
-
-    try {
-      await friendService.rejectRequest(friendId);
-
-      // Refresh data to update lists
-      await fetchFriendsData();
-
-      setSuccessMessage(`${username} kullanıcısının isteği reddedildi.`);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('İstek reddedilemedi.');
-      }
-    } finally {
-      setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
-    }
-  };
-
-  // Remove friend
-  const handleRemoveFriend = async (friendId: number, username: string) => {
-    if (!isAuthenticated) return;
-
-    // Show confirmation dialog
-    RNAlert.alert(
-      'Arkadaşlığı Sonlandır',
-      `${username} ile arkadaşlığınızı sonlandırmak istediğinizden emin misiniz?`,
-      [
-        { text: 'İptal', style: 'cancel' },
-        {
-          text: 'Sonlandır',
-          style: 'destructive',
-          onPress: async () => {
-            setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
-
-            try {
-              await friendService.removeFriend(friendId);
-
-              // Refresh data to update lists
-              await fetchFriendsData();
-
-              setSuccessMessage(
-                `${username} ile arkadaşlığınız sonlandırıldı.`,
-              );
-            } catch (err) {
-              if (err instanceof ApiError) {
-                setError(err.message);
-              } else {
-                setError('Arkadaşlık sonlandırılamadı.');
-              }
-            } finally {
-              setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  // Filter buttons with context color
-  const FilterButton = ({
-    filter,
-    title,
-    count,
-  }: {
-    filter: FriendTab;
-    title: string;
-    count?: number;
-  }) => (
-    <TouchableOpacity
-      style={{
-        flex: 1,
-        marginHorizontal: Spacing[1],
-        paddingVertical: Spacing[2],
-        paddingHorizontal: Spacing[2],
-        borderRadius: BorderRadius.button,
-        backgroundColor:
-          activeTab === filter
-            ? contextColor
-            : isDark
-            ? Colors.white
-            : Colors.white,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 36,
-        shadowColor: Colors.gray[900],
-        shadowOffset: { width: 10, height: 20 },
-        shadowOpacity: 0.8,
-        shadowRadius: 10,
-        elevation: 10,
-      }}
-      onPress={() => setActiveTab(filter)}
-    >
-      <Row style={{ alignItems: 'center' }}>
-        <Text
-          style={{
-            fontSize: 12,
-            fontWeight: activeTab === filter ? '600' : '500',
-            color:
-              activeTab === filter
-                ? Colors.white
-                : isDark
-                ? Colors.gray[700]
-                : Colors.gray[700],
-            textAlign: 'center',
-            fontFamily: 'SecondaryFont-Regular',
-          }}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {title}
-        </Text>
-        {count !== undefined && count > 0 && (
-          <Badge
-            text={count.toString()}
-            variant='primary'
-            style={{
-              backgroundColor:
-                activeTab === filter ? Colors.white : contextColor,
-              marginLeft: Spacing[1],
-            }}
-            textStyle={{
-              color: activeTab === filter ? contextColor : Colors.white,
-              fontSize: 10,
-              fontFamily: 'SecondaryFont-Bold',
-            }}
-          />
-        )}
-      </Row>
-    </TouchableOpacity>
+    },
+    [isAuthenticated, fetchFriendsData],
   );
 
-  // Search result item
-  const SearchResultItem = ({ user }: { user: UserSearchResult }) => (
-    <PlayfulCard
-      style={{
-        marginBottom: Spacing[3],
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        shadowColor: Colors.gray[900],
-        shadowOffset: { width: 10, height: 20 },
-        shadowOpacity: 0.8,
-        shadowRadius: 10,
-        elevation: 10,
-      }}
-    >
-      <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-        <Row style={{ alignItems: 'center', flex: 1 }}>
-          <Column style={{ flex: 1 }}>
-            <Text
+  // Accept friend request - memoized
+  const handleAcceptRequest = useCallback(
+    async (friendId: number, username: string) => {
+      if (!isAuthenticated) return;
+
+      setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
+      setError(null);
+      setSuccessMessage(null);
+
+      try {
+        await friendService.acceptRequest(friendId);
+        await fetchFriendsData();
+        setSuccessMessage(`${username} ile artık arkadaşsınız!`);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setError(err.message);
+        } else {
+          setError('İstek kabul edilemedi.');
+        }
+      } finally {
+        setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
+      }
+    },
+    [isAuthenticated, fetchFriendsData],
+  );
+
+  // Reject friend request - memoized
+  const handleRejectRequest = useCallback(
+    async (friendId: number, username: string) => {
+      if (!isAuthenticated) return;
+
+      setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
+      setError(null);
+      setSuccessMessage(null);
+
+      try {
+        await friendService.rejectRequest(friendId);
+        await fetchFriendsData();
+        setSuccessMessage(`${username} kullanıcısının isteği reddedildi.`);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setError(err.message);
+        } else {
+          setError('İstek reddedilemedi.');
+        }
+      } finally {
+        setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
+      }
+    },
+    [isAuthenticated, fetchFriendsData],
+  );
+
+  // Remove friend - memoized
+  const handleRemoveFriend = useCallback(
+    async (friendId: number, username: string) => {
+      if (!isAuthenticated) return;
+
+      RNAlert.alert(
+        'Arkadaşlığı Sonlandır',
+        `${username} ile arkadaşlığınızı sonlandırmak istediğinizden emin misiniz?`,
+        [
+          { text: 'İptal', style: 'cancel' },
+          {
+            text: 'Sonlandır',
+            style: 'destructive',
+            onPress: async () => {
+              setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
+
+              try {
+                await friendService.removeFriend(friendId);
+                await fetchFriendsData();
+                setSuccessMessage(
+                  `${username} ile arkadaşlığınız sonlandırıldı.`,
+                );
+              } catch (err) {
+                if (err instanceof ApiError) {
+                  setError(err.message);
+                } else {
+                  setError('Arkadaşlık sonlandırılamadı.');
+                }
+              } finally {
+                setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
+              }
+            },
+          },
+        ],
+      );
+    },
+    [isAuthenticated, fetchFriendsData],
+  );
+
+  // Filter buttons with context color - memoized component
+  const FilterButton = React.memo(
+    ({
+      filter,
+      title,
+      count,
+    }: {
+      filter: FriendTab;
+      title: string;
+      count?: number;
+    }) => (
+      <TouchableOpacity
+        style={{
+          flex: 1,
+          marginHorizontal: Spacing[1],
+          paddingVertical: Spacing[2],
+          paddingHorizontal: Spacing[2],
+          borderRadius: BorderRadius.button,
+          backgroundColor:
+            activeTab === filter
+              ? contextColor
+              : isDark
+                ? Colors.white
+                : Colors.white,
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 36,
+          shadowColor: Colors.gray[900],
+          shadowOffset: { width: 10, height: 20 },
+          shadowOpacity: 0.8,
+          shadowRadius: 10,
+          elevation: 10,
+        }}
+        onPress={() => setActiveTab(filter)}
+      >
+        <Row style={{ alignItems: 'center' }}>
+          <Text
+            style={{
+              fontSize: 12,
+              fontWeight: activeTab === filter ? '600' : '500',
+              color:
+                activeTab === filter
+                  ? Colors.white
+                  : isDark
+                    ? Colors.gray[700]
+                    : Colors.gray[700],
+              textAlign: 'center',
+              fontFamily: 'SecondaryFont-Regular',
+            }}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
+            {title}
+          </Text>
+          {count !== undefined && count > 0 && (
+            <Badge
+              text={count.toString()}
+              variant='primary'
               style={{
-                fontSize: 16,
-                fontWeight: 'bold',
-                color: Colors.gray[800],
+                backgroundColor:
+                  activeTab === filter ? Colors.white : contextColor,
+                marginLeft: Spacing[1],
+              }}
+              textStyle={{
+                color: activeTab === filter ? contextColor : Colors.white,
+                fontSize: 10,
                 fontFamily: 'SecondaryFont-Bold',
               }}
-            >
-              {user.username}
-            </Text>
-            <Text
-              style={{
-                fontSize: 12,
-                color: Colors.gray[600],
-                fontFamily: 'SecondaryFont-Regular',
-              }}
-            >
-              Kazanma Oranı: {((user.winRate || 0) * 100).toFixed(0)}%
-            </Text>
-          </Column>
+            />
+          )}
         </Row>
-        <Button
-          title={loadingActions[user.id] ? 'Gönderiliyor...' : 'İstek Gönder'}
-          variant='primary'
-          size='small'
-          onPress={() => handleSendFriendRequest(user.id, user.username)}
-          disabled={loadingActions[user.id]}
-          loading={loadingActions[user.id]}
-          style={{
-            backgroundColor: contextColor,
-          }}
-          textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
-        />
-      </Row>
-    </PlayfulCard>
+      </TouchableOpacity>
+    ),
   );
 
-  // Friend item
-  const FriendItem = ({ friend }: { friend: Friend }) => (
+  // Search result item - memoized component
+  const SearchResultItem = React.memo(
+    ({ user }: { user: UserSearchResult }) => (
+      <PlayfulCard
+        style={{
+          marginBottom: Spacing[3],
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          shadowColor: Colors.gray[900],
+          shadowOffset: { width: 10, height: 20 },
+          shadowOpacity: 0.8,
+          shadowRadius: 10,
+          elevation: 10,
+        }}
+      >
+        <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+          <Row style={{ alignItems: 'center', flex: 1 }}>
+            <Column style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: 'bold',
+                  color: Colors.gray[800],
+                  fontFamily: 'SecondaryFont-Bold',
+                }}
+              >
+                {user.username}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: Colors.gray[600],
+                  fontFamily: 'SecondaryFont-Regular',
+                }}
+              >
+                Kazanma Oranı: {((user.winRate || 0) * 100).toFixed(0)}%
+              </Text>
+            </Column>
+          </Row>
+          <Button
+            title={loadingActions[user.id] ? 'Gönderiliyor...' : 'İstek Gönder'}
+            variant='primary'
+            size='small'
+            onPress={() => handleSendFriendRequest(user.id, user.username)}
+            disabled={loadingActions[user.id]}
+            loading={loadingActions[user.id]}
+            style={{
+              backgroundColor: contextColor,
+            }}
+            textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
+          />
+        </Row>
+      </PlayfulCard>
+    ),
+  );
+
+  // Friend item - memoized component
+  const FriendItem = React.memo(({ friend }: { friend: Friend }) => (
     <PlayfulCard
       style={{
         marginBottom: Spacing[3],
@@ -514,7 +518,6 @@ function FriendsScreenContent() {
             variant='primary'
             size='small'
             onPress={() => {
-              // Navigate to duel creation with pre-selected friend
               router.push({
                 pathname: '/(tabs)/duels/new' as any,
                 params: { preselectedFriend: friend.friend_id.toString() },
@@ -550,131 +553,94 @@ function FriendsScreenContent() {
         </Row>
       </Row>
     </PlayfulCard>
-  );
+  ));
 
-  // Pending request item
-  const PendingRequestItem = ({ request }: { request: FriendRequest }) => (
-    <PlayfulCard
-      style={{
-        marginBottom: Spacing[3],
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        shadowColor: Colors.gray[900],
-        shadowOffset: { width: 10, height: 20 },
-        shadowOpacity: 0.8,
-        shadowRadius: 10,
-        elevation: 10,
-      }}
-    >
-      <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-        <Row style={{ alignItems: 'center', flex: 1 }}>
-          <Column style={{ flex: 1 }}>
-            <Text
+  // Pending request item - memoized component
+  const PendingRequestItem = React.memo(
+    ({ request }: { request: FriendRequest }) => (
+      <PlayfulCard
+        style={{
+          marginBottom: Spacing[3],
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          shadowColor: Colors.gray[900],
+          shadowOffset: { width: 10, height: 20 },
+          shadowOpacity: 0.8,
+          shadowRadius: 10,
+          elevation: 10,
+        }}
+      >
+        <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+          <Row style={{ alignItems: 'center', flex: 1 }}>
+            <Column style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: 'bold',
+                  color: Colors.gray[800],
+                  fontFamily: 'SecondaryFont-Bold',
+                }}
+              >
+                Kullanıcı #{request.user_id}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: Colors.gray[600],
+                  fontFamily: 'SecondaryFont-Regular',
+                }}
+              >
+                İstek tarihi:{' '}
+                {new Date(request.created_at).toLocaleDateString('tr-TR')}
+              </Text>
+            </Column>
+          </Row>
+          <Row style={{ alignItems: 'center' }}>
+            <Button
+              title={loadingActions[request.user_id] ? '...' : 'Kabul Et'}
+              variant='primary'
+              size='small'
+              onPress={() =>
+                handleAcceptRequest(
+                  request.user_id,
+                  `Kullanıcı #${request.user_id}`,
+                )
+              }
+              disabled={loadingActions[request.user_id]}
               style={{
-                fontSize: 16,
-                fontWeight: 'bold',
-                color: Colors.gray[800],
-                fontFamily: 'SecondaryFont-Bold',
+                backgroundColor: Colors.vibrant.mint,
+                marginRight: Spacing[2],
               }}
-            >
-              Kullanıcı #{request.user_id}
-            </Text>
-            <Text
+              textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
+            />
+            <Button
+              title={loadingActions[request.user_id] ? '...' : 'Reddet'}
+              variant='outline'
+              size='small'
+              onPress={() =>
+                handleRejectRequest(
+                  request.user_id,
+                  `Kullanıcı #${request.user_id}`,
+                )
+              }
+              disabled={loadingActions[request.user_id]}
               style={{
-                fontSize: 12,
-                color: Colors.gray[600],
+                borderColor: Colors.error,
+                paddingHorizontal: Spacing[2],
+              }}
+              textStyle={{
+                color: Colors.error,
                 fontFamily: 'SecondaryFont-Regular',
+                fontSize: 12,
               }}
-            >
-              İstek tarihi:{' '}
-              {new Date(request.created_at).toLocaleDateString('tr-TR')}
-            </Text>
-          </Column>
+            />
+          </Row>
         </Row>
-        <Row style={{ alignItems: 'center' }}>
-          <Button
-            title={loadingActions[request.user_id] ? '...' : 'Kabul Et'}
-            variant='primary'
-            size='small'
-            onPress={() =>
-              handleAcceptRequest(
-                request.user_id,
-                `Kullanıcı #${request.user_id}`,
-              )
-            }
-            disabled={loadingActions[request.user_id]}
-            style={{
-              backgroundColor: Colors.vibrant.mint,
-              marginRight: Spacing[2],
-            }}
-            textStyle={{ fontFamily: 'SecondaryFont-Bold' }}
-          />
-          <Button
-            title={loadingActions[request.user_id] ? '...' : 'Reddet'}
-            variant='outline'
-            size='small'
-            onPress={() =>
-              handleRejectRequest(
-                request.user_id,
-                `Kullanıcı #${request.user_id}`,
-              )
-            }
-            disabled={loadingActions[request.user_id]}
-            style={{
-              borderColor: Colors.error,
-              paddingHorizontal: Spacing[2],
-            }}
-            textStyle={{
-              color: Colors.error,
-              fontFamily: 'SecondaryFont-Regular',
-              fontSize: 12,
-            }}
-          />
-        </Row>
-      </Row>
-    </PlayfulCard>
+      </PlayfulCard>
+    ),
   );
 
-  // Search section
-  const SearchSection = () => (
-    <SlideInElement delay={0}>
-      <Card style={{ marginBottom: Spacing[4] }}>
-        <Input
-          placeholder='Kullanıcı adı ile ara'
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          autoCapitalize='none'
-          disabled={isSearching}
-          inputStyle={{ fontFamily: 'PrimaryFont' }}
-        />
-        <Button
-          title={isSearching ? 'Aranıyor...' : 'Ara'}
-          onPress={handleSearch}
-          loading={isSearching}
-          disabled={!searchQuery.trim() || isSearching}
-          style={{
-            marginTop: Spacing[2],
-            backgroundColor: contextColor,
-          }}
-          textStyle={{
-            fontFamily: 'SecondaryFont-Bold',
-            color: Colors.white,
-          }}
-        />
-        {searchError && (
-          <Alert
-            type='error'
-            message={searchError}
-            style={{ marginTop: Spacing[2] }}
-            dismissible={true}
-            onDismiss={() => setSearchError(null)}
-          />
-        )}
-      </Card>
-    </SlideInElement>
-  );
-
-  // Render tab content
-  const renderTabContent = () => {
+  // Render tab content - memoized
+  const renderTabContent = useMemo(() => {
     if (isLoading) {
       return (
         <View
@@ -702,7 +668,43 @@ function FriendsScreenContent() {
       case 'find':
         return (
           <>
-            <SearchSection />
+            {/* CLEAN SIMPLE SEARCH INPUT */}
+            <SlideInElement delay={0}>
+              <Card style={{ marginBottom: Spacing[4] }}>
+                <Input
+                  placeholder='Kullanıcı adı ile ara'
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCapitalize='none'
+                  disabled={isSearching}
+                  inputStyle={{ fontFamily: 'PrimaryFont' }}
+                />
+                <Button
+                  title={isSearching ? 'Aranıyor...' : 'Ara'}
+                  onPress={handleSearch}
+                  loading={isSearching}
+                  disabled={!searchQuery.trim() || isSearching}
+                  style={{
+                    marginTop: Spacing[2],
+                    backgroundColor: contextColor,
+                  }}
+                  textStyle={{
+                    fontFamily: 'SecondaryFont-Bold',
+                    color: Colors.white,
+                  }}
+                />
+                {searchError && (
+                  <Alert
+                    type='error'
+                    message={searchError}
+                    style={{ marginTop: Spacing[2] }}
+                    dismissible={true}
+                    onDismiss={() => setSearchError(null)}
+                  />
+                )}
+              </Card>
+            </SlideInElement>
+
             {searchResults.length > 0 && (
               <>
                 <SlideInElement delay={100}>
@@ -766,7 +768,17 @@ function FriendsScreenContent() {
       default:
         return null;
     }
-  };
+  }, [
+    activeTab,
+    isLoading,
+    searchResults,
+    friends,
+    pendingRequests,
+    contextColor,
+    searchQuery,
+    isSearching,
+    searchError,
+  ]);
 
   // Show loading while checking auth
   if (isCheckingAuth || authLoading) {
@@ -909,7 +921,7 @@ function FriendsScreenContent() {
               ]}
               animated
             >
-              {renderTabContent()}
+              {renderTabContent}
             </GlassCard>
           </FloatingElement>
         </View>
