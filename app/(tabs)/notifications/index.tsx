@@ -1,3 +1,5 @@
+// app/(tabs)/notifications/index.tsx - Updated with new store architecture
+
 import React, {
   useState,
   useCallback,
@@ -15,12 +17,15 @@ import {
   Alert,
   ActivityIndicator,
   useColorScheme,
-  ScrollView,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useNotifications } from '../../../context/NotificationContext';
+import {
+  useNotifications,
+  usePreferredCourse,
+  useAuth,
+} from '../../../stores/appStore';
 import { useNotificationNavigation } from '../../../src/hooks/useNotificationNavigation';
 import { NotificationItem } from '../../../components/ui';
 import { Notification } from '../../../src/types/models';
@@ -39,18 +44,10 @@ import {
   NotificationBadge,
 } from '../../../components/ui';
 import { Colors, Spacing, BorderRadius } from '../../../constants/theme';
-import {
-  usePreferredCourse,
-  PreferredCourseProvider,
-} from '../../../context/PreferredCourseContext';
 
 // Optimized shadow configuration
 const OPTIMIZED_SHADOW = {
-  // shadowColor: Colors.gray[900],
-  // shadowOffset: { width: 2, height: 4 },
-  // shadowOpacity: 0.3,
-  // shadowRadius: 4,
-  // elevation: 4,
+  // Remove shadows for better performance if needed
 };
 
 // Use the theme constants correctly
@@ -195,6 +192,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing[4],
+    backgroundColor: '#A29BFE',
   },
   errorTitle: {
     fontSize: 18,
@@ -229,28 +227,24 @@ const styles = StyleSheet.create({
   },
 });
 
-// Main Notifications Screen Component (wrapped with context)
-const NotificationsScreenContent = React.memo(() => {
+// Main Notifications Screen Component
+const NotificationsScreen = React.memo(() => {
+  // 🚀 NEW: Use store hooks instead of context
   const {
     notifications,
     unreadCount,
     isLoading,
-    error,
     loadNotifications,
-    loadMoreNotifications,
     markAsRead,
     markAllAsRead,
-    deleteNotification,
-    clearError,
+    refreshNotifications,
   } = useNotifications();
 
-  const { navigateFromNotification } = useNotificationNavigation();
+  const { preferredCourse, getCourseColor } = usePreferredCourse();
 
-  const {
-    preferredCourse,
-    isLoading: courseLoading,
-    getCourseColor,
-  } = usePreferredCourse();
+  const { isAuthenticated } = useAuth();
+
+  const { navigateFromNotification } = useNotificationNavigation();
 
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -261,6 +255,7 @@ const NotificationsScreenContent = React.memo(() => {
 
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [error, setError] = useState<string | null>(null);
 
   // Memoized context color
   const contextColor = useMemo(() => {
@@ -274,7 +269,7 @@ const NotificationsScreenContent = React.memo(() => {
   const colors = useMemo(
     () => ({
       headerText: isDark ? Colors.gray[700] : Colors.gray[700],
-      context: contextColor,
+      context: contextColor || Colors.primary.DEFAULT,
     }),
     [isDark, contextColor],
   );
@@ -289,17 +284,27 @@ const NotificationsScreenContent = React.memo(() => {
     });
   }, [notifications, filter]);
 
+  // 🚀 SIMPLIFIED: Refresh using store's refresh function
   const onRefresh = useCallback(async () => {
     if (!isMountedRef.current) return;
     setRefreshing(true);
     try {
-      await loadNotifications(true);
+      await refreshNotifications();
+      setError(null);
+    } catch (err) {
+      if (isMountedRef.current) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Bildirimler yüklenirken hata oluştu',
+        );
+      }
     } finally {
       if (isMountedRef.current) {
         setRefreshing(false);
       }
     }
-  }, [loadNotifications]);
+  }, [refreshNotifications]);
 
   const handleNotificationPress = useCallback(
     (notification: Notification) => {
@@ -308,6 +313,7 @@ const NotificationsScreenContent = React.memo(() => {
     [navigateFromNotification],
   );
 
+  // 🚀 SIMPLIFIED: Mark all as read using store function
   const handleMarkAllAsRead = useCallback(() => {
     if (unreadCount === 0) return;
 
@@ -321,7 +327,11 @@ const NotificationsScreenContent = React.memo(() => {
         },
         {
           text: 'Evet',
-          onPress: markAllAsRead,
+          onPress: () => {
+            markAllAsRead().catch((err) => {
+              setError('Bildirimler işaretlenirken hata oluştu');
+            });
+          },
         },
       ],
     );
@@ -335,9 +345,53 @@ const NotificationsScreenContent = React.memo(() => {
     setFilter(filterType);
   }, []);
 
+  // 🚀 SIMPLIFIED: Retry using store function
   const handleRetryLoad = useCallback(() => {
-    loadNotifications(true);
+    setError(null);
+    loadNotifications().catch((err) => {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Bildirimler yüklenirken hata oluştu',
+      );
+    });
   }, [loadNotifications]);
+
+  // 🚀 SIMPLIFIED: Handle notification actions with store functions
+  const handleMarkAsRead = useCallback(
+    async (notificationId: number) => {
+      try {
+        await markAsRead(notificationId);
+      } catch (err) {
+        setError('Bildirim işaretlenirken hata oluştu');
+      }
+    },
+    [markAsRead],
+  );
+
+  // 🚀 NEW: Handle delete notification (if available in store)
+  const handleDeleteNotification = useCallback(
+    async (notificationId: number) => {
+      // Since the store doesn't have delete functionality, we'll show a message
+      Alert.alert(
+        'Bildirim Sil',
+        'Bildirim silme özelliği henüz mevcut değil.',
+        [{ text: 'Tamam' }],
+      );
+    },
+    [],
+  );
+
+  // Load more notifications (placeholder - the store would need to support pagination)
+  const loadMoreNotifications = useCallback(() => {
+    // Store would need to implement pagination
+    console.log('Load more notifications requested');
+  }, []);
+
+  // Clear error function
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
   // Memoized Filter Button Component
   const FilterButton = React.memo(
@@ -392,11 +446,11 @@ const NotificationsScreenContent = React.memo(() => {
       <NotificationItem
         notification={item}
         onPress={handleNotificationPress}
-        onMarkAsRead={markAsRead}
-        onDelete={deleteNotification}
+        onMarkAsRead={handleMarkAsRead}
+        onDelete={handleDeleteNotification}
       />
     ),
-    [handleNotificationPress, markAsRead, deleteNotification],
+    [handleNotificationPress, handleMarkAsRead, handleDeleteNotification],
   );
 
   const renderFooter = useCallback(() => {
@@ -546,19 +600,6 @@ const NotificationsScreenContent = React.memo(() => {
     );
   }, [isLoading, filter, handleNavigateToSettings]);
 
-  // Clear error on mount with cleanup
-  useEffect(() => {
-    let isCancelled = false;
-
-    if (error && !isCancelled && isMountedRef.current) {
-      clearError();
-    }
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [error, clearError]);
-
   // Show error alert if there's an error with cleanup
   useEffect(() => {
     let isCancelled = false;
@@ -576,6 +617,19 @@ const NotificationsScreenContent = React.memo(() => {
       isCancelled = true;
     };
   }, [error, clearError]);
+
+  // Initial load effect
+  useEffect(() => {
+    if (isAuthenticated && notifications.length === 0 && !isLoading) {
+      loadNotifications().catch((err) => {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Bildirimler yüklenirken hata oluştu',
+        );
+      });
+    }
+  }, [isAuthenticated, notifications.length, isLoading, loadNotifications]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -597,7 +651,36 @@ const NotificationsScreenContent = React.memo(() => {
     [],
   );
 
-  if (error && !isLoading) {
+  // 🚀 NEW: Check authentication
+  if (!isAuthenticated) {
+    return (
+      <GestureHandlerRootView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Feather
+            name='lock'
+            size={64}
+            color={Colors.white}
+            style={styles.errorIcon}
+          />
+          <Text style={styles.errorTitle}>Giriş Gerekli</Text>
+          <Text style={styles.errorMessage}>
+            Bildirimlerinizi görmek için giriş yapmanız gerekiyor.
+          </Text>
+          <PlayfulButton
+            title='Giriş Yap'
+            onPress={() => router.replace('/(auth)/login')}
+            variant='primary'
+            animated
+            icon='key'
+            size='medium'
+            style={styles.errorButton}
+          />
+        </View>
+      </GestureHandlerRootView>
+    );
+  }
+
+  if (error && !isLoading && notifications.length === 0) {
     return (
       <GestureHandlerRootView style={styles.container}>
         <View style={styles.container}>
@@ -667,17 +750,6 @@ const NotificationsScreenContent = React.memo(() => {
         </SlideInElement>
       </View>
     </GestureHandlerRootView>
-  );
-});
-
-NotificationsScreenContent.displayName = 'NotificationsScreenContent';
-
-// Main component with context provider
-const NotificationsScreen: React.FC = React.memo(() => {
-  return (
-    <PreferredCourseProvider>
-      <NotificationsScreenContent />
-    </PreferredCourseProvider>
   );
 });
 

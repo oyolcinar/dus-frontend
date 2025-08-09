@@ -12,15 +12,17 @@ import {
   ScrollView,
   useColorScheme,
   Text,
-  Image,
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FontAwesome } from '@expo/vector-icons';
-import { useAuth } from '../../context/AuthContext';
+
+// 🚀 UPDATED: Use new integrated auth hooks
+import { useAuth, useTheme } from '../../stores/appStore';
+import { useUserData } from '../../src/hooks/useAppData';
+
 import {
   Button,
   Input,
@@ -43,19 +45,36 @@ import {
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isOAuthLoading, setIsOAuthLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const colorScheme = useColorScheme();
   const videoRef = useRef<Video>(null);
 
-  const { signIn, signInWithGoogle, signInWithApple, signInWithFacebook } =
-    useAuth();
+  // 🚀 UPDATED: Use integrated auth store with authService
+  const {
+    user,
+    isAuthenticated,
+    isLoading,
+    error: authError,
+    isOAuthLoading,
+    oauthProvider,
+    signIn,
+    signInWithGoogle,
+    signInWithApple,
+    signInWithFacebook,
+    clearError,
+  } = useAuth();
 
-  const logoWhite = require('../../assets/images/logoWhite.jpg');
+  // 🚀 NEW: Use theme hook
+  const { theme, isDark } = useTheme();
+
+  // 🚀 NEW: User data hook (React Query result)
+  const userDataQuery = useUserData();
+
   const logoVideo = require('../../assets/videos/heyecanli.mp4');
 
-  const isDarkMode = useMemo(() => colorScheme === 'dark', [colorScheme]);
+  const isDarkMode = useMemo(
+    () => isDark || colorScheme === 'dark',
+    [isDark, colorScheme],
+  );
 
   // Memoize gradient colors calculation
   const linearGradientColors = useMemo(() => {
@@ -77,6 +96,9 @@ export default function LoginScreen() {
         ]);
   }, []);
 
+  // 🚀 REMOVED: Don't initialize from login screen - should be done at app level
+  // The app initialization should happen in the root layout, not individual screens
+
   // Video cleanup
   useEffect(() => {
     return () => {
@@ -86,32 +108,35 @@ export default function LoginScreen() {
     };
   }, []);
 
-  const handleLogin = useCallback(async () => {
-    setError(null);
+  // 🚀 UPDATED: Clear error when inputs change
+  useEffect(() => {
+    if (authError) {
+      clearError();
+    }
+  }, [email, password, clearError]);
 
+  // 🚀 UPDATED: Handle login with enhanced error handling
+  const handleLogin = useCallback(async () => {
     if (!email || !password) {
-      setError('Lütfen e-posta ve şifrenizi girin');
       return;
     }
 
     try {
-      setIsLoading(true);
+      clearError();
       await signIn(email, password);
-    } catch (error: any) {
-      const errorMessage =
-        error.message || 'Giriş başarısız. Lütfen tekrar deneyin.';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [email, password, signIn]);
 
+      console.log('Login successful');
+    } catch (error: any) {
+      // Error is automatically handled by the store
+      console.error('Login error:', error);
+    }
+  }, [email, password, signIn, clearError]);
+
+  // 🚀 UPDATED: OAuth login handlers using integrated auth store
   const handleOAuthLogin = useCallback(
     async (provider: 'google' | 'apple' | 'facebook') => {
-      setError(null);
-      setIsOAuthLoading(provider);
-
       try {
+        // 🚀 UPDATED: Use auth store methods that integrate with authService
         switch (provider) {
           case 'google':
             await signInWithGoogle();
@@ -122,23 +147,33 @@ export default function LoginScreen() {
           case 'facebook':
             await signInWithFacebook();
             break;
+          default:
+            throw new Error(`Unsupported OAuth provider: ${provider}`);
         }
+
+        console.log(`${provider} OAuth flow initiated via auth store`);
       } catch (error: any) {
         console.error(`${provider} OAuth error:`, error);
-        const errorMessage =
-          error.message ||
-          `${provider} girişi başarısız. Lütfen tekrar deneyin.`;
-        setError(errorMessage);
-      } finally {
-        setIsOAuthLoading(null);
+
+        // Only log error if it's not a user cancellation
+        // Error handling is managed by the auth store
+        if (!error.message?.includes('cancelled')) {
+          console.warn(`${provider} OAuth failed:`, error.message);
+        }
       }
     },
     [signInWithGoogle, signInWithApple, signInWithFacebook],
   );
 
   const isDisabled = useMemo(
-    () => isLoading || isOAuthLoading !== null,
+    () => isLoading || isOAuthLoading,
     [isLoading, isOAuthLoading],
+  );
+
+  // 🚀 NEW: Validation helper
+  const canSubmit = useMemo(
+    () => email.trim() && password.trim() && !isDisabled,
+    [email, password, isDisabled],
   );
 
   return (
@@ -211,7 +246,9 @@ export default function LoginScreen() {
 
               <PlayfulButton
                 title={
-                  isOAuthLoading === 'google' ? 'Giriş yapılıyor...' : 'Google'
+                  isOAuthLoading && oauthProvider === 'google'
+                    ? 'Giriş yapılıyor...'
+                    : 'Google'
                 }
                 icon='google'
                 onPress={() => handleOAuthLogin('google')}
@@ -226,7 +263,9 @@ export default function LoginScreen() {
 
               <PlayfulButton
                 title={
-                  isOAuthLoading === 'apple' ? 'Giriş yapılıyor...' : 'Apple'
+                  isOAuthLoading && oauthProvider === 'apple'
+                    ? 'Giriş yapılıyor...'
+                    : 'Apple'
                 }
                 icon='apple'
                 onPress={() => handleOAuthLogin('apple')}
@@ -241,7 +280,7 @@ export default function LoginScreen() {
 
               <PlayfulButton
                 title={
-                  isOAuthLoading === 'facebook'
+                  isOAuthLoading && oauthProvider === 'facebook'
                     ? 'Giriş yapılıyor...'
                     : 'Facebook'
                 }
@@ -301,9 +340,22 @@ export default function LoginScreen() {
                 />
               </View>
 
-              {/* Display error message if exists */}
-              {error && (
-                <Alert type='error' message={error} style={styles.errorAlert} />
+              {/* 🚀 UPDATED: Display error message with enhanced formatting */}
+              {authError && (
+                <Alert
+                  type='error'
+                  message={authError}
+                  style={styles.errorAlert}
+                  dismissible={true}
+                  onDismiss={clearError}
+                />
+              )}
+
+              {/* 🚀 NEW: Show validation hint */}
+              {!canSubmit && (email || password) && (
+                <Text style={styles.validationHint}>
+                  Lütfen e-posta ve şifrenizi girin
+                </Text>
               )}
 
               {/* Forgot password link */}
@@ -320,14 +372,17 @@ export default function LoginScreen() {
                   isLoading ? 'Giriş yapılıyor...' : 'E-posta ile Giriş Yap'
                 }
                 onPress={handleLogin}
-                disabled={isDisabled}
+                disabled={!canSubmit}
                 variant='vibrant'
                 gradient='purple'
                 size='medium'
                 loading={isLoading}
-                style={styles.loginButton}
+                style={[
+                  styles.loginButton,
+                  !canSubmit && styles.loginButtonDisabled,
+                ]}
                 animated={true}
-                glowEffect={true}
+                glowEffect={!!canSubmit}
                 fontFamily='SecondaryFont-Bold'
                 wiggleOnPress={true}
               />
@@ -345,6 +400,18 @@ export default function LoginScreen() {
                 }}
               />
             </View>
+
+            {/* 🚀 NEW: Debug info (remove in production) */}
+            {__DEV__ && (
+              <View style={styles.debugContainer}>
+                <Text style={styles.debugText}>
+                  Auth: {isAuthenticated ? 'Yes' : 'No'} | Loading:{' '}
+                  {isLoading ? 'Yes' : 'No'} | OAuth:{' '}
+                  {isOAuthLoading ? oauthProvider || 'Yes' : 'No'} | User:{' '}
+                  {userDataQuery.data?.username || user?.username || 'None'}
+                </Text>
+              </View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -480,6 +547,14 @@ const styles = StyleSheet.create({
   errorAlert: {
     marginBottom: Spacing[4],
   },
+  // 🚀 NEW: Validation hint styling
+  validationHint: {
+    ...Typography.caption,
+    color: Colors.vibrant?.orange || '#ff9500',
+    textAlign: 'center',
+    marginBottom: Spacing[3],
+    fontStyle: 'italic',
+  },
   forgotPasswordContainer: {
     marginBottom: Spacing[4],
     alignItems: 'flex-end',
@@ -491,6 +566,10 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     width: '100%',
+  },
+  // 🚀 NEW: Disabled button styling
+  loginButtonDisabled: {
+    opacity: 0.6,
   },
   signUpContainer: {
     flexDirection: 'row',
@@ -508,7 +587,7 @@ const styles = StyleSheet.create({
   },
   signUpLink: {
     ...Typography.bodyLarge,
-    color: Colors.vibrant?.yellow || Colors.secondary.light,
+    color: Colors.vibrant?.yellow || '#ffeb3b',
     fontFamily: FontFamilies.secondary.bold,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
@@ -519,5 +598,17 @@ const styles = StyleSheet.create({
   signUpTouchable: {
     paddingVertical: 0,
     marginVertical: 0,
+  },
+  // 🚀 NEW: Debug styles (remove in production)
+  debugContainer: {
+    marginTop: Spacing[4],
+    padding: Spacing[3],
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: BorderRadius.md,
+  },
+  debugText: {
+    ...Typography.caption,
+    color: Colors.white,
+    textAlign: 'center',
   },
 });

@@ -1,6 +1,12 @@
-// app/(tabs)/duels/[id].tsx - Enhanced with server timing and analytics integration
+// app/(tabs)/duels/[id].tsx - FULLY UPDATED WITH NEW ARCHITECTURE
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from 'react';
 import {
   View,
   Text,
@@ -20,23 +26,21 @@ import {
 import { Video, ResizeMode } from 'expo-av';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ENHANCED: Import socket functions with server timing support
+// 🚀 NEW: Import from new hooks and store
 import {
-  connect,
-  disconnect,
-  isConnected,
-  on,
-  off,
-  joinDuelRoom,
-  signalReady,
-  submitAnswer,
-  getConnectionState,
-  onTimerUpdate, // ✅ NEW
-  onQuestionTimeUp, // ✅ NEW
-  onQuestionPresented, // ✅ UPDATED
-} from '../../../src/api/socketService';
+  useDuelRoomManagement,
+  useEnhancedDuelDetails,
+  useDuelTimer,
+  duelHelpers,
+} from '../../../src/hooks/useDuelsData';
+import { useAuth, usePreferredCourse } from '../../../stores/appStore';
+import {
+  analyticsService,
+  userQuestionHistoryService,
+  duelResultService,
+} from '../../../src/api';
+import { CreateDuelResultInput } from '../../../src/api/duelResultService';
 
 import QuestionReportModal from '../../../components/ui/QuestionReportModal';
 
@@ -62,22 +66,11 @@ import {
   LinearGradient,
 } from '../../../components/ui';
 import { Colors, Spacing, BorderRadius } from '../../../constants/theme';
-import {
-  courseService,
-  duelService,
-  testService,
-  botService,
-  duelResultService,
-  analyticsService,
-  userQuestionHistoryService,
-} from '../../../src/api';
-import { Bot } from '../../../src/api/botService';
-import { CreateDuelResultInput } from '../../../src/api/duelResultService';
 
-// 1. ADD DEVELOPMENT MODE TOGGLE (add this right after your imports)
-const __DEV_MODE__ = __DEV__ && false; // ✅ FIXED: Set to false for production, true for dev styling
+// Development mode toggle
+const __DEV_MODE__ = __DEV__ && false; // Set to false for production
 
-// 2. ADD MOCK DATA (add this before your component definition)
+// Mock data for development
 const MOCK_DATA = {
   duelInfo: {
     id: 1,
@@ -94,11 +87,9 @@ const MOCK_DATA = {
     username: 'TestBot',
     isBot: true,
     botInfo: {
-      // Add the missing required Bot interface properties
-      botId: 1, // Add this
-      userId: 2, // Add this
-      username: 'TestBot', // Add this
-      // Keep your existing properties
+      botId: 1,
+      userId: 2,
+      username: 'TestBot',
       botName: 'TestBot',
       avatar: '🤖',
       difficultyLevel: 3,
@@ -119,7 +110,10 @@ const MOCK_DATA = {
       C: 'useContext',
       D: 'useReducer',
     },
-  },
+    correctAnswer: 'A',
+    explanation:
+      'useState hook, React Native bileşenlerinde local state yönetimi için kullanılır.',
+  } as Question,
   finalResults: {
     winnerId: 1,
     user1: {
@@ -146,6 +140,8 @@ const MOCK_DATA = {
         D: 'useReducer',
       },
       correctAnswer: 'A',
+      explanation:
+        'useState hook, React Native bileşenlerinde local state yönetimi için kullanılır.',
     },
     answers: [
       {
@@ -167,20 +163,23 @@ const MOCK_DATA = {
 const { width, height } = Dimensions.get('window');
 const isIOS = Platform.OS === 'ios';
 
-interface DuelSession {
-  sessionId: number;
-  duelId: number;
-  status: 'waiting' | 'starting' | 'active' | 'completed';
-  connectedUsers: Array<{
-    username: string;
-    ready: boolean;
-  }>;
-}
-
 interface Question {
   id: number;
   text: string;
   options: Record<string, string>;
+  correctAnswer?: string;
+  explanation?: string;
+}
+
+interface MockQuestion {
+  id: number;
+  text: string;
+  options: {
+    A: string;
+    B: string;
+    C: string;
+    D: string;
+  };
   correctAnswer?: string;
   explanation?: string;
 }
@@ -217,26 +216,6 @@ interface FinalResults {
   };
 }
 
-interface DuelInfo {
-  id: number;
-  course_name?: string;
-  test_name?: string;
-  test_title?: string;
-  course_title?: string;
-  opponent_username?: string;
-  opponent_id?: number;
-  initiator_id?: number;
-  test_id?: number;
-  course_id?: number;
-}
-
-interface OpponentInfo {
-  userId: number;
-  username: string;
-  isBot: boolean;
-  botInfo?: Bot;
-}
-
 interface AnsweredQuestion {
   questionId: number;
   selectedAnswer: string | null;
@@ -256,11 +235,17 @@ type DuelPhase =
   | 'final'
   | 'error';
 
-// 3. ADD STATE SELECTOR FUNCTION (add this before your component)
+// Helper function to safely access question options
+const getOptionValue = (
+  options: Record<string, string>,
+  key: string,
+): string => {
+  return options[key] || 'N/A';
+};
+
+// State selector for dev mode
 const getDevModeState = (): DuelPhase => {
-  // Change this to test different phases:
-  // 'connecting' | 'lobby' | 'countdown' | 'question' | 'results' | 'final' | 'error'
-  return 'connecting'; // ← CHANGE THIS TO STYLE DIFFERENT SCREENS
+  return 'connecting'; // Change this to test different phases
 };
 
 export default function DuelRoomScreen() {
@@ -270,34 +255,56 @@ export default function DuelRoomScreen() {
   const isDark = colorScheme === 'dark';
   const duelId = parseInt(id as string);
 
-  // State management
-  const [phase, setPhase] = useState<DuelPhase>('connecting');
-  const [session, setSession] = useState<DuelSession | null>(null);
-  const [duelInfo, setDuelInfo] = useState<DuelInfo | null>(null);
-  const [opponentInfo, setOpponentInfo] = useState<OpponentInfo | null>(null);
-  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [totalQuestions, setTotalQuestions] = useState(3);
+  // 🚀 NEW: Use the new store hooks
+  const { user, isAuthenticated } = useAuth();
+  const { preferredCourse, getCourseColor } = usePreferredCourse();
+
+  // 🚀 NEW: Use the comprehensive duel room management hook
+  const {
+    // Connection state
+    isConnected,
+    connectionError,
+    // Room state
+    roomState,
+    roomError,
+    // Duel details
+    duelInfo,
+    opponentInfo,
+    botInfo,
+    // Game state
+    gamePhase,
+    currentQuestion,
+    questionIndex,
+    totalQuestions,
+    timeLeft,
+    userScore,
+    opponentScore,
+    hasAnswered,
+    opponentAnswered,
+    gameError,
+    // Actions
+    initializeConnection,
+    submitAnswer,
+    signalReady,
+    cleanup,
+    // Loading states
+    isLoading,
+    hasError,
+  } = useDuelRoomManagement(duelId);
+
+  // 🚀 NEW: Use the enhanced duel timer
+  const {
+    timeLeft: timerTimeLeft,
+    isActive: timerActive,
+    serverSynced,
+  } = useDuelTimer(60);
+
+  // Local UI state - only what's needed for UI that's not handled by hooks
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(60); // ✅ CHANGED: Default to 60 seconds
   const [countdown, setCountdown] = useState(3);
   const [roundResult, setRoundResult] = useState<RoundResult | null>(null);
   const [finalResults, setFinalResults] = useState<FinalResults | null>(null);
-  const [userScore, setUserScore] = useState(0);
-  const [opponentScore, setOpponentScore] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [opponentAnswered, setOpponentAnswered] = useState(false);
-  const [hasAnswered, setHasAnswered] = useState(false);
-  const [userData, setUserData] = useState<any>(null);
-  const [isLoadingDuelInfo, setIsLoadingDuelInfo] = useState(true);
   const [showReportModal, setShowReportModal] = useState(false);
-
-  // ✅ NEW: Add server timing state
-  const [serverStartTime, setServerStartTime] = useState<number | null>(null);
-  const [serverEndTime, setServerEndTime] = useState<number | null>(null);
-  const [isTimerSynced, setIsTimerSynced] = useState(false);
-
-  // New state for analytics and results tracking
   const [answeredQuestions, setAnsweredQuestions] = useState<
     AnsweredQuestion[]
   >([]);
@@ -305,15 +312,13 @@ export default function DuelRoomScreen() {
   const [duelEndTime, setDuelEndTime] = useState<number | null>(null);
   const [isCreatingDuelResult, setIsCreatingDuelResult] = useState(false);
   const [duelResultCreated, setDuelResultCreated] = useState(false);
+  const [phase, setPhase] = useState<DuelPhase>('connecting');
 
-  // ✅ FIXED: Add iOS-specific state management
+  // iOS-specific state
   const [isModalStable, setIsModalStable] = useState(false);
-  const [apiCallInProgress, setApiCallInProgress] = useState(false);
 
   // Refs
-  const timerRef = useRef<number | null>(null);
   const answerStartTime = useRef<number>(0);
-  const lastApiCallTime = useRef<number>(0);
 
   // Animations
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -321,316 +326,76 @@ export default function DuelRoomScreen() {
 
   const logoVideo = require('../../../assets/videos/okey.mp4');
 
-  // ✅ FIXED: Add throttled API call helper
-  const throttledApiCall = useCallback(
-    async (apiCall: () => Promise<any>, minInterval: number = 1000) => {
-      const now = Date.now();
-      if (now - lastApiCallTime.current < minInterval) {
-        console.log('⏱️ API call throttled, waiting...');
-        return;
-      }
+  // Memoized context color
+  const contextColor = useMemo(() => {
+    return (
+      ((preferredCourse as any)?.category &&
+        getCourseColor((preferredCourse as any).category)) ||
+      '#4285F4'
+    );
+  }, [preferredCourse, getCourseColor]);
 
-      if (apiCallInProgress) {
-        console.log('🔄 API call already in progress, skipping...');
-        return;
-      }
-
-      try {
-        setApiCallInProgress(true);
-        lastApiCallTime.current = now;
-
-        // Add extra delay for iOS
-        if (isIOS) {
-          await new Promise((resolve) => setTimeout(resolve, 200));
-        }
-
-        return await apiCall();
-      } finally {
-        setApiCallInProgress(false);
-      }
-    },
-    [apiCallInProgress],
-  );
-
-  // Add this function before your other functions
-  const resetDuelState = useCallback(() => {
+  // 🚀 SIMPLIFIED: Map game phase from hook to local phase
+  useEffect(() => {
     if (__DEV_MODE__) {
-      console.log('🟡 DEV MODE: Minimal reset in dev mode');
-      // In dev mode, only reset essential states but keep mock data
-      setPhase('connecting');
-      setError(null);
+      setPhase(getDevModeState());
       return;
     }
 
-    setPhase('connecting');
-    setSession(null);
-    setCurrentQuestion(null);
-    setQuestionIndex(0);
-    setSelectedAnswer(null);
-    setTimeLeft(60); // ✅ CHANGED: Reset to 60 seconds
-    setCountdown(3);
-    setRoundResult(null);
-    setFinalResults(null);
-    setUserScore(0);
-    setOpponentScore(0);
-    setOpponentAnswered(false);
-    setHasAnswered(false);
-    setAnsweredQuestions([]);
-    setDuelStartTime(null);
-    setDuelEndTime(null);
-    setIsCreatingDuelResult(false);
-    setDuelResultCreated(false);
-    setError(null);
-    // ✅ NEW: Reset server timing state
-    setServerStartTime(null);
-    setServerEndTime(null);
-    setIsTimerSynced(false);
-  }, []);
+    setPhase(gamePhase);
+  }, [gamePhase]);
 
-  // ✅ FIXED: Properly handle dev mode initialization
+  // 🚀 SIMPLIFIED: Initialize connection with auth token
   useEffect(() => {
     if (__DEV_MODE__) {
-      console.log('🟢 DEV MODE ACTIVE: Setting up mock data immediately');
-
-      // Set all mock data immediately
-      setDuelInfo(MOCK_DATA.duelInfo);
-      setOpponentInfo(MOCK_DATA.opponentInfo);
-      setUserData(MOCK_DATA.userData);
-      setIsLoadingDuelInfo(false); // ✅ CRITICAL: Set loading to false immediately
-
-      const devPhase = getDevModeState();
-      console.log('🎯 Setting phase to:', devPhase);
-
-      // Add a small delay to prevent race conditions on iOS
-      const setupTimer = setTimeout(
-        () => {
-          setPhase(devPhase);
-
-          // Set data based on the phase
-          switch (devPhase) {
-            case 'connecting':
-              console.log('📱 Dev Mode: Connecting screen');
-              break;
-            case 'lobby':
-              console.log('📱 Dev Mode: Lobby screen');
-              break;
-            case 'countdown':
-              console.log('📱 Dev Mode: Countdown screen');
-              setCountdown(2);
-              break;
-            case 'question':
-              console.log('📱 Dev Mode: Question screen');
-              setCurrentQuestion(MOCK_DATA.currentQuestion);
-              setQuestionIndex(0);
-              setTotalQuestions(3);
-              setTimeLeft(45); // ✅ CHANGED: Mock with 45 seconds left
-              setUserScore(1);
-              setOpponentScore(1);
-              setOpponentAnswered(false);
-              setHasAnswered(false);
-              break;
-            case 'results':
-              console.log('📱 Dev Mode: Results screen');
-              setRoundResult(MOCK_DATA.roundResult);
-              setUserScore(1);
-              setOpponentScore(1);
-              setQuestionIndex(0);
-              break;
-            case 'final':
-              console.log('📱 Dev Mode: Final screen');
-              setFinalResults(MOCK_DATA.finalResults);
-              setUserScore(2);
-              setOpponentScore(1);
-              setAnsweredQuestions([
-                {
-                  questionId: 1,
-                  selectedAnswer: 'A',
-                  correctAnswer: 'A',
-                  isCorrect: true,
-                  timeTaken: 5000,
-                  questionText: MOCK_DATA.currentQuestion.text,
-                  options: MOCK_DATA.currentQuestion.options,
-                },
-              ]);
-              break;
-            case 'error':
-              console.log('📱 Dev Mode: Error screen');
-              setError('Test error message for styling');
-              break;
-          }
-        },
-        isIOS ? 200 : 50,
-      ); // Longer delay for iOS
-
-      console.log('✅ Dev mode setup complete');
-
-      return () => clearTimeout(setupTimer);
-    }
-
-    console.log('🔴 Production mode: Will run real initialization');
-  }, []); // Empty dependency array to run only once
-
-  // ✅ FIXED: Load duel information with proper iOS handling
-  useEffect(() => {
-    const loadDuelInfo = async () => {
-      if (__DEV_MODE__) {
-        console.log(
-          '🟡 DEV MODE: Skipping loadDuelInfo - already set in initialization',
-        );
-        return; // Exit early in dev mode - data already set above
-      }
-
-      try {
-        console.log('🔄 Loading duel info for duel:', duelId);
-        setIsLoadingDuelInfo(true);
-
-        // Add iOS-specific delay to prevent rapid calls
-        if (isIOS) {
-          await new Promise((resolve) => setTimeout(resolve, 300));
-        }
-
-        const duelDetails = await throttledApiCall(() =>
-          duelService.getDuelDetails(duelId),
-        );
-
-        if (duelDetails && duelDetails.duel) {
-          let duelInfoData: DuelInfo = {
-            id: duelDetails.duel.duel_id,
-            course_name:
-              duelDetails.duel.course_name || duelDetails.duel.course_title,
-            test_name:
-              duelDetails.duel.test_name || duelDetails.duel.test_title,
-            opponent_username: duelDetails.duel.opponent_username,
-            opponent_id: duelDetails.duel.opponent_id,
-            initiator_id: duelDetails.duel.initiator_id,
-            test_id: duelDetails.duel.test_id,
-            course_id: duelDetails.duel.course?.course_id,
-          };
-
-          // If missing data, fetch separately with throttling
-          if (duelDetails.duel.test_id && !duelInfoData.test_name) {
-            const test = await throttledApiCall(() =>
-              testService.getTestById(duelDetails.duel.test_id),
-            );
-            if (test) {
-              duelInfoData.test_name = test.title;
-              if (!duelInfoData.course_name && test.course_id) {
-                const course = await throttledApiCall(() =>
-                  courseService.getCourseById(test.course_id),
-                );
-                if (course) {
-                  duelInfoData.course_name = course.title;
-                }
-              }
-            }
-          }
-
-          setDuelInfo(duelInfoData);
-
-          // Check if opponent is a bot with throttling
-          const currentUserId = userData?.userId;
-          const opponentId =
-            duelInfoData.initiator_id === currentUserId
-              ? duelInfoData.opponent_id
-              : duelInfoData.initiator_id;
-
-          if (opponentId) {
-            const isOpponentBot = await throttledApiCall(() =>
-              botService.isBot(opponentId),
-            );
-
-            if (isOpponentBot) {
-              const botInfo = await throttledApiCall(() =>
-                botService.getBotInfo(opponentId),
-              );
-              setOpponentInfo({
-                userId: opponentId,
-                username:
-                  botInfo?.botName || duelInfoData.opponent_username || 'Bot',
-                isBot: true,
-                botInfo: botInfo || undefined,
-              });
-            } else {
-              setOpponentInfo({
-                userId: opponentId,
-                username: duelInfoData.opponent_username || 'Rakip',
-                isBot: false,
-              });
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error loading duel info:', error);
-        // Don't show error in dev mode
-        if (!__DEV_MODE__) {
-          setError('Düello bilgileri yüklenirken hata oluştu');
-        }
-      } finally {
-        setIsLoadingDuelInfo(false); // ✅ ALWAYS set loading to false
-      }
-    };
-
-    // Only load if we have duelId and userData, and not in dev mode initialization
-    if (duelId && userData && !__DEV_MODE__) {
-      loadDuelInfo();
-    }
-  }, [duelId, userData, throttledApiCall]);
-
-  // ✅ FIXED: Initialize socket connection only in production
-  useEffect(() => {
-    if (__DEV_MODE__) {
-      console.log('🟡 DEV MODE: Skipping socket initialization');
+      console.log('🟡 DEV MODE: Skipping connection initialization');
       return;
     }
 
-    console.log('🔄 Initializing socket connection...');
-    initializeConnection();
+    if (isAuthenticated && user && duelId) {
+      initializeConnection();
+    }
 
     return () => {
-      disconnect();
-      if (!__DEV_MODE__) {
-        resetDuelState();
-      }
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+      cleanup();
     };
-  }, [resetDuelState]);
+  }, [isAuthenticated, user, duelId, initializeConnection, cleanup]);
 
-  // Reset duel state when duel ID changes (only in production)
+  // Handle dev mode setup
   useEffect(() => {
-    if (duelId && !__DEV_MODE__) {
-      resetDuelState();
+    if (__DEV_MODE__) {
+      console.log('🟢 DEV MODE: Setting up mock data');
+      const devPhase = getDevModeState();
+
+      // Set mock data based on phase
+      switch (devPhase) {
+        case 'question':
+          setRoundResult(null);
+          setFinalResults(null);
+          break;
+        case 'results':
+          setRoundResult(MOCK_DATA.roundResult);
+          setFinalResults(null);
+          break;
+        case 'final':
+          setFinalResults(MOCK_DATA.finalResults);
+          setAnsweredQuestions([
+            {
+              questionId: 1,
+              selectedAnswer: 'A',
+              correctAnswer: 'A',
+              isCorrect: true,
+              timeTaken: 5000,
+              questionText: MOCK_DATA.currentQuestion.text,
+              options: MOCK_DATA.currentQuestion.options,
+            },
+          ]);
+          break;
+      }
     }
-  }, [duelId, resetDuelState]);
-
-  // ✅ FIXED: Load user data with proper dev mode handling
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (__DEV_MODE__) {
-        console.log('🟡 DEV MODE: Using mock user data');
-        setUserData(MOCK_DATA.userData);
-        return;
-      }
-
-      try {
-        // Add iOS-specific delay
-        if (isIOS) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-
-        const data = await AsyncStorage.getItem('userData');
-        if (data) {
-          setUserData(JSON.parse(data));
-        }
-      } catch (error) {
-        console.error('Error loading user data:', error);
-      }
-    };
-    loadUserData();
   }, []);
 
-  // ✅ FIXED: iOS modal stability
+  // iOS modal stability
   useEffect(() => {
     const timer = setTimeout(
       () => {
@@ -677,364 +442,20 @@ export default function DuelRoomScreen() {
     }
   }, [phase]);
 
-  // FIXED: Initialize connection using socketService
-  const initializeConnection = async () => {
-    if (__DEV_MODE__) {
-      console.log('🟡 DEV MODE: Skipping connection initialization');
-      return;
-    }
+  // 🚀 SIMPLIFIED: Answer selection with new hook
+  const handleAnswerSelect = useCallback(
+    (answer: string) => {
+      if (hasAnswered || phase !== 'question') return;
 
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        setError("Kimlik doğrulama token'ı bulunamadı");
-        return;
-      }
+      setSelectedAnswer(answer);
 
-      // FIXED: Use socketService connect function
-      await connect(token);
-      console.log('Connected to socket server');
-      setupEventListeners();
-      joinDuelRoom(duelId);
-    } catch (error) {
-      console.error('Error initializing connection:', error);
-      setError('Oyun sunucusuna bağlanılamadı');
-    }
-  };
+      const timeTaken = Date.now() - answerStartTime.current;
 
-  // ✅ ENHANCED: Setup event listeners with server timing support
-  const setupEventListeners = () => {
-    if (__DEV_MODE__) return;
-
-    // Socket event listeners
-    on('connect', () => {
-      console.log('Connected to socket server');
-      setPhase('lobby');
-    });
-
-    on('room_joined', handleRoomJoined);
-    on('opponent_joined', handleOpponentJoined);
-    on('player_ready', handlePlayerReady);
-    on('both_players_connected', handleBothPlayersConnected);
-    on('duel_starting', handleDuelStarting);
-
-    // ✅ NEW: Listen for server timer updates
-    onTimerUpdate(handleTimerUpdate);
-    onQuestionTimeUp(handleQuestionTimeUp);
-
-    // ✅ ENHANCED: Use enhanced question handler with server timing
-    onQuestionPresented(handleQuestionPresentedWithServerTiming);
-
-    on('opponent_answered', handleOpponentAnswered);
-    on('round_result', handleRoundResult);
-    on('duel_completed', handleDuelCompleted);
-    on('opponent_disconnected', handleOpponentDisconnected);
-    on('room_error', handleRoomError);
-
-    on('disconnect', () => {
-      console.log('Disconnected from socket server');
-      if (phase !== 'final') {
-        setError('Bağlantı kesildi. Tekrar bağlanmaya çalışılıyor...');
-      }
-    });
-    on('duel_error', (data) => {
-      console.log('❌ DUEL ERROR:', data);
-      setError(`Düello hatası: ${data.message || 'Bilinmeyen hata'}`);
-      setPhase('error');
-    });
-
-    on('question_error', (data) => {
-      console.log('❌ QUESTION ERROR:', data);
-      setError(`Soru hatası: ${data.message || 'Soru yüklenemedi'}`);
-    });
-
-    // ADD: Connection health check
-    on('connect_error', (error) => {
-      console.log('❌ CONNECTION ERROR:', error);
-      setError(
-        `Bağlantı hatası: ${error.message || 'Sunucuya bağlanılamıyor'}`,
-      );
-      setPhase('error');
-    });
-
-    // Auto-ready for user
-    setTimeout(() => {
-      if (isConnected()) {
-        signalReady();
-      }
-    }, 1000);
-  };
-
-  // ✅ NEW: Handle server timer updates (every second)
-  const handleTimerUpdate = (data: {
-    timeRemaining: number;
-    serverTime: number;
-    questionIndex: number;
-  }) => {
-    // Only update if this is for the current question
-    if (data.questionIndex === questionIndex) {
-      setTimeLeft(data.timeRemaining);
-      setIsTimerSynced(true);
-      console.log(`⏱️ Server timer update: ${data.timeRemaining}s remaining`);
-    }
-  };
-
-  // ✅ NEW: Handle server-controlled time up
-  const handleQuestionTimeUp = (data: {
-    questionIndex: number;
-    serverTime: number;
-  }) => {
-    if (data.questionIndex === questionIndex) {
-      setTimeLeft(0);
-      if (!hasAnswered) {
-        // Server has already handled auto-submit, just update UI
-        setHasAnswered(true);
-        console.log('⏰ Server time up - question auto-submitted');
-      }
-    }
-  };
-
-  const handleRoomJoined = (data: { session: DuelSession }) => {
-    setSession(data.session);
-    setPhase('lobby');
-  };
-
-  const handleOpponentJoined = (data: {
-    username: string;
-    isBot?: boolean;
-  }) => {
-    console.log('Opponent joined:', data.username, 'isBot:', data.isBot);
-  };
-
-  const handlePlayerReady = (data: {
-    userId: number;
-    username: string;
-    isBot?: boolean;
-  }) => {
-    console.log('Player ready:', data.username, 'isBot:', data.isBot);
-  };
-
-  const handleBothPlayersConnected = () => {
-    console.log('Both players connected and ready');
-  };
-
-  const handleDuelStarting = (data: { countdown: number }) => {
-    setPhase('countdown');
-    setCountdown(data.countdown);
-    setDuelStartTime(Date.now()); // Track duel start time
-  };
-
-  // ✅ ENHANCED: Question presented handler with server timing
-  const handleQuestionPresentedWithServerTiming = (data: {
-    questionIndex: number;
-    totalQuestions: number;
-    question: Question;
-    timeLimit: number; // Will be 60000 (60 seconds)
-    serverStartTime: number;
-    serverEndTime: number;
-  }) => {
-    console.log('Question presented with 60s server timing:', data);
-
-    setPhase('question');
-    setCurrentQuestion(data.question);
-    setQuestionIndex(data.questionIndex);
-    setTotalQuestions(data.totalQuestions);
-    setSelectedAnswer(null);
-    setHasAnswered(false);
-    setOpponentAnswered(false);
-
-    // ✅ NEW: Store server timing info
-    setServerStartTime(data.serverStartTime);
-    setServerEndTime(data.serverEndTime);
-    setIsTimerSynced(false);
-
-    // ✅ NEW: Calculate initial time based on server timestamp
-    const now = Date.now();
-    const elapsed = now - data.serverStartTime;
-    const remaining = Math.max(0, data.timeLimit - elapsed);
-    const remainingSeconds = Math.ceil(remaining / 1000);
-
-    setTimeLeft(remainingSeconds);
-    answerStartTime.current = data.serverStartTime; // Use server start time
-
-    console.log(
-      `📊 Server timing: ${remainingSeconds}s remaining (elapsed: ${Math.floor(elapsed / 1000)}s)`,
-    );
-
-    // ✅ NEW: Start client-side backup timer (syncs with server updates)
-    startSyncedTimer(data.serverEndTime);
-
-    // Reset slide animation
-    slideAnim.setValue(1);
-  };
-
-  // ✅ NEW: Synced timer that works with server updates
-  const startSyncedTimer = (serverEndTime: number) => {
-    // Clear any existing timer
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    timerRef.current = setInterval(() => {
-      const now = Date.now();
-      const remaining = Math.max(0, serverEndTime - now);
-      const remainingSeconds = Math.ceil(remaining / 1000);
-
-      // Only update if we haven't received a server update recently
-      if (
-        !isTimerSynced ||
-        Date.now() - ((serverStartTime || 0) % 1000) < 100
-      ) {
-        setTimeLeft(remainingSeconds);
-      }
-
-      // Reset sync flag after each update
-      setIsTimerSynced(false);
-
-      // Auto-submit if time is up and no server notification received
-      if (remainingSeconds <= 0) {
-        if (timerRef.current) clearInterval(timerRef.current);
-        if (!hasAnswered) {
-          console.log('⏰ Client-side backup auto-submit triggered');
-          handleAutoSubmit();
-        }
-      }
-    }, 100); // More frequent updates for smoother countdown
-  };
-
-  // ✅ ENHANCED: Answer selection with server timing
-  const handleAnswerSelect = (answer: string) => {
-    if (hasAnswered || phase !== 'question') return;
-
-    setSelectedAnswer(answer);
-    setHasAnswered(true);
-
-    // Use server start time for accurate timing
-    const timeTaken = serverStartTime
-      ? Date.now() - serverStartTime
-      : Date.now() - answerStartTime.current;
-
-    if (isConnected() && currentQuestion) {
-      submitAnswer(currentQuestion.id, answer, timeTaken);
-      console.log(
-        `📝 Answer submitted with server timing: ${Math.floor(timeTaken / 1000)}s`,
-      );
-    }
-
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-  };
-
-  // ✅ ENHANCED: Auto-submit with server timing awareness
-  const handleAutoSubmit = () => {
-    if (!hasAnswered && isConnected() && currentQuestion) {
-      const timeTaken = serverStartTime ? Date.now() - serverStartTime : 60000;
-      submitAnswer(currentQuestion.id, null, timeTaken);
-      setHasAnswered(true);
-    }
-  };
-
-  const handleOpponentAnswered = (data: {
-    userId: number;
-    username: string;
-    isBot?: boolean;
-  }) => {
-    setOpponentAnswered(true);
-  };
-
-  const handleRoundResult = (data: RoundResult) => {
-    // FIXED: Add a strong guard to prevent crashes from malformed round result data
-    if (!data || !data.question || !data.answers) {
-      console.error('Received malformed round_result data, ignoring:', data);
-      // You could potentially try to advance to the next question or show an error
-      // For now, we'll just prevent a crash.
-      return;
-    }
-
-    console.log('Round result received:', data); // Add a log to confirm we got here
-    setPhase('results');
-    setRoundResult(data);
-
-    if (currentQuestion) {
-      setCurrentQuestion((prev) =>
-        prev
-          ? {
-              ...prev,
-              correctAnswer: data.question.correctAnswer,
-              explanation: data.question.explanation,
-            }
-          : null,
-      );
-    }
-
-    // Track the answered question for analytics
-    if (currentQuestion) {
-      const userAnswer = data.answers.find(
-        (a) => a.userId === userData?.userId,
-      );
-      if (userAnswer) {
-        const answeredQuestion: AnsweredQuestion = {
-          questionId: currentQuestion.id,
-          selectedAnswer: userAnswer.selectedAnswer,
-          correctAnswer: data.question.correctAnswer,
-          isCorrect: userAnswer.isCorrect,
-          timeTaken: userAnswer.timeTaken,
-          questionText: data.question.text,
-          options: data.question.options,
-        };
-
-        setAnsweredQuestions((prev) => [...prev, answeredQuestion]);
-
-        // Track question history (fire and forget)
-        trackQuestionHistory(answeredQuestion).catch(console.error);
-      }
-    }
-
-    // Update scores
-    const userAnswer = data.answers.find((a) => a.userId === userData?.userId);
-    const opponentAnswer = data.answers.find(
-      (a) => a.userId !== userData?.userId,
-    );
-
-    if (userAnswer?.isCorrect) {
-      setUserScore((prev) => prev + 1);
-    }
-    if (opponentAnswer?.isCorrect) {
-      setOpponentScore((prev) => prev + 1);
-    }
-
-    // Reset slide animation for next question
-    slideAnim.setValue(0);
-  };
-
-  const handleDuelCompleted = async (data: FinalResults) => {
-    setPhase('final');
-    setFinalResults(data);
-    setDuelEndTime(Date.now());
-
-    await trackDuelAnalytics(data);
-  };
-
-  const handleOpponentDisconnected = (data: {
-    userId: number;
-    username: string;
-  }) => {
-    const disconnectedName = opponentInfo?.isBot
-      ? opponentInfo.username
-      : data.username;
-
-    Alert.alert(
-      opponentInfo?.isBot ? 'Bot Hatası' : 'Rakip Bağlantısı Kesildi',
-      opponentInfo?.isBot
-        ? `${disconnectedName} ile bağlantı koptu. Teknik sorun nedeniyle varsayılan olarak kazandınız!`
-        : `${disconnectedName} düellodan ayrıldı. Varsayılan olarak kazandınız!`,
-      [{ text: 'Tamam', onPress: () => router.back() }],
-    );
-  };
-
-  const handleRoomError = (data: { message: string }) => {
-    setError(data.message);
-    setPhase('error');
-  };
+      // Use the new hook's submit function
+      submitAnswer(answer, timeTaken);
+    },
+    [hasAnswered, phase, submitAnswer],
+  );
 
   const handleExitDuel = () => {
     Alert.alert(
@@ -1047,9 +468,8 @@ export default function DuelRoomScreen() {
           style: 'destructive',
           onPress: () => {
             if (!__DEV_MODE__) {
-              disconnect();
+              cleanup();
             }
-            resetDuelState();
             router.replace('/(tabs)/duels/new');
           },
         },
@@ -1057,19 +477,19 @@ export default function DuelRoomScreen() {
     );
   };
 
-  // New function to track question history
+  // Track question history
   const trackQuestionHistory = async (answeredQuestion: AnsweredQuestion) => {
     try {
-      if (!userData?.userId || !duelInfo?.test_id || !duelInfo?.course_id) {
+      if (!user?.userId || !duelInfo?.test_id || !duelInfo?.course?.course_id) {
         console.warn('Missing required data for question history tracking');
         return;
       }
 
       console.log('Question answered in duel:', {
-        userId: userData.userId,
+        userId: user.userId,
         questionId: answeredQuestion.questionId,
         testId: duelInfo.test_id,
-        courseId: duelInfo.course_id,
+        courseId: duelInfo.course?.course_id,
         isCorrect: answeredQuestion.isCorrect,
         timeTaken: answeredQuestion.timeTaken,
         duelId: duelId,
@@ -1079,10 +499,10 @@ export default function DuelRoomScreen() {
     }
   };
 
-  // New function to create duel result record
+  // Create duel result record
   const createDuelResultRecord = async (results: FinalResults) => {
     if (duelResultCreated || isCreatingDuelResult) {
-      return; // Prevent duplicate creation
+      return;
     }
 
     try {
@@ -1092,19 +512,19 @@ export default function DuelRoomScreen() {
         duelId: duelId,
         winnerId: results.winnerId || undefined,
         initiatorScore:
-          duelInfo?.initiator_id === userData?.userId
-            ? results.user1.userId === userData?.userId
+          duelInfo?.initiator_id === user?.userId
+            ? results.user1.userId === user?.userId
               ? results.user1.score
               : results.user2.score
-            : results.user1.userId === userData?.userId
+            : results.user1.userId === user?.userId
               ? results.user2.score
               : results.user1.score,
         opponentScore:
-          duelInfo?.initiator_id === userData?.userId
-            ? results.user1.userId === userData?.userId
+          duelInfo?.initiator_id === user?.userId
+            ? results.user1.userId === user?.userId
               ? results.user2.score
               : results.user1.score
-            : results.user1.userId === userData?.userId
+            : results.user1.userId === user?.userId
               ? results.user1.score
               : results.user2.score,
       };
@@ -1118,21 +538,18 @@ export default function DuelRoomScreen() {
       await trackDuelAnalytics(results);
     } catch (error) {
       console.error('Error creating duel result:', error);
-      // Don't show error to user as this is background operation
     } finally {
       setIsCreatingDuelResult(false);
     }
   };
 
-  // New function to track duel analytics
+  // Track duel analytics
   const trackDuelAnalytics = async (results: FinalResults) => {
     try {
-      const isWinner = results.winnerId === userData?.userId;
+      const isWinner = results.winnerId === user?.userId;
       const isDraw = results.winnerId === null;
       const userStats =
-        results.user1.userId === userData?.userId
-          ? results.user1
-          : results.user2;
+        results.user1.userId === user?.userId ? results.user1 : results.user2;
       const duelDuration =
         duelEndTime && duelStartTime ? duelEndTime - duelStartTime : 0;
 
@@ -1146,7 +563,7 @@ export default function DuelRoomScreen() {
         duelDuration,
         opponentIsBot: opponentInfo?.isBot,
         totalQuestions,
-        courseId: duelInfo?.course_id,
+        courseId: duelInfo?.course?.course_id,
         testId: duelInfo?.test_id,
       });
     } catch (error) {
@@ -1154,41 +571,14 @@ export default function DuelRoomScreen() {
     }
   };
 
-  const getDifficultyColor = (level?: number) => {
-    if (!level) return Colors.gray[500];
-    switch (level) {
-      case 1:
-        return Colors.vibrant.mint;
-      case 2:
-        return Colors.vibrant.yellow;
-      case 3:
-        return Colors.vibrant.orange;
-      case 4:
-        return Colors.vibrant.coral;
-      case 5:
-        return Colors.vibrant.purple;
-      default:
-        return Colors.gray[500];
-    }
-  };
-
   const getBotDisplayInfo = () => {
-    if (!opponentInfo?.isBot || !opponentInfo.botInfo) return null;
+    if (!opponentInfo?.isBot || !botInfo?.botInfo) return null;
 
-    const bot = opponentInfo.botInfo;
-    return {
-      name: bot.botName,
-      avatar: bot.avatar,
-      difficulty: bot.difficultyLevel,
-      accuracy: Math.floor(bot.accuracyRate * 100).toString(),
-      avgTime: Math.floor(bot.avgResponseTime / 1000).toString(),
-      color: getDifficultyColor(bot.difficultyLevel),
-    };
+    return duelHelpers.getBotDisplayInfo(botInfo.botInfo);
   };
 
   const renderDuelInfoHeader = () => {
-    // ✅ FIXED: Show loading state properly in both dev and prod
-    if (isLoadingDuelInfo && !__DEV_MODE__) {
+    if (isLoading && !__DEV_MODE__) {
       return (
         <View style={styles.duelInfoHeader}>
           <Row style={{ alignItems: 'center', justifyContent: 'center' }}>
@@ -1201,7 +591,13 @@ export default function DuelRoomScreen() {
       );
     }
 
-    if (!duelInfo) return null;
+    // Use mock data in dev mode or real data in production
+    const displayDuelInfo = __DEV_MODE__ ? MOCK_DATA.duelInfo : duelInfo;
+    const displayOpponentInfo = __DEV_MODE__
+      ? MOCK_DATA.opponentInfo
+      : opponentInfo;
+
+    if (!displayDuelInfo) return null;
 
     const botInfo = getBotDisplayInfo();
 
@@ -1209,20 +605,21 @@ export default function DuelRoomScreen() {
       <View style={styles.duelInfoHeader}>
         <Row style={{ alignItems: 'center', justifyContent: 'center' }}>
           <Column style={{ alignItems: 'center', flex: 1 }}>
-            {duelInfo.course_name && (
+            {displayDuelInfo.course_name && (
               <Text style={styles.duelInfoCourse}>
-                📚 {duelInfo.course_name}
+                📚 {displayDuelInfo.course_name}
               </Text>
             )}
-            {duelInfo.test_name && (
-              <Text style={styles.duelInfoTest}>📝 {duelInfo.test_name}</Text>
+            {displayDuelInfo.test_name && (
+              <Text style={styles.duelInfoTest}>
+                📝 {displayDuelInfo.test_name}
+              </Text>
             )}
             {botInfo && (
               <Text style={[styles.duelInfoBot, { color: botInfo.color }]}>
                 🤖 {botInfo.name} (Seviye {botInfo.difficulty})
               </Text>
             )}
-            {/* Show creation status if in progress */}
             {isCreatingDuelResult && (
               <Text style={styles.duelInfoLoading}>
                 Sonuçlar kaydediliyor...
@@ -1286,6 +683,12 @@ export default function DuelRoomScreen() {
   );
 
   const renderLobby = () => {
+    // Use appropriate data source
+    const displayUser = __DEV_MODE__ ? MOCK_DATA.userData : user;
+    const displayOpponent = __DEV_MODE__
+      ? MOCK_DATA.opponentInfo
+      : opponentInfo;
+
     const botInfo = getBotDisplayInfo();
 
     return (
@@ -1304,17 +707,9 @@ export default function DuelRoomScreen() {
               >
                 <Avatar
                   size='lg'
-                  name={userData?.username?.charAt(0) || 'K'}
+                  name={displayUser?.username?.charAt(0) || 'K'}
                   bgColor={Colors.vibrant.purple}
-                  style={
-                    {
-                      // shadowColor: '#000',
-                      // shadowOffset: { width: 4, height: 16 },
-                      // shadowOpacity: 0.25,
-                      // shadowRadius: 20,
-                      // elevation: 20,
-                    }
-                  }
+                  style={{}}
                 />
                 <Text style={styles.vsText}>KARŞI</Text>
                 <Avatar
@@ -1322,18 +717,10 @@ export default function DuelRoomScreen() {
                   name={
                     botInfo
                       ? botInfo.avatar
-                      : opponentInfo?.username?.charAt(0) || '?'
+                      : displayOpponent?.username?.charAt(0) || '?'
                   }
                   bgColor={botInfo ? botInfo.color : Colors.vibrant.orange}
-                  style={
-                    {
-                      // shadowColor: '#000',
-                      // shadowOffset: { width: 4, height: 16 },
-                      // shadowOpacity: 0.25,
-                      // shadowRadius: 20,
-                      // elevation: 20,
-                    }
-                  }
+                  style={{}}
                 />
               </Row>
 
@@ -1342,10 +729,10 @@ export default function DuelRoomScreen() {
               </PlayfulTitle>
 
               <Paragraph style={styles.lightText}>
-                {opponentInfo?.isBot
-                  ? `${opponentInfo.username} ile düello başlıyor...`
-                  : opponentInfo?.username
-                    ? `${opponentInfo.username} ile düello başlıyor...`
+                {displayOpponent?.isBot
+                  ? `${displayOpponent.username} ile düello başlıyor...`
+                  : displayOpponent?.username
+                    ? `${displayOpponent.username} ile düello başlıyor...`
                     : 'Her iki oyuncunun hazır olması bekleniyor...'}
               </Paragraph>
 
@@ -1369,8 +756,8 @@ export default function DuelRoomScreen() {
                   fontFamily='SecondaryFont-Bold'
                 />
                 <Badge
-                  text={opponentInfo?.isBot ? 'Bot Hazır ✓' : 'Bekliyor...'}
-                  variant={opponentInfo?.isBot ? 'success' : 'warning'}
+                  text={displayOpponent?.isBot ? 'Bot Hazır ✓' : 'Bekliyor...'}
+                  variant={displayOpponent?.isBot ? 'success' : 'warning'}
                   fontFamily='SecondaryFont-Bold'
                 />
               </Row>
@@ -1397,20 +784,28 @@ export default function DuelRoomScreen() {
     </View>
   );
 
-  // ✅ FIXED: Enhanced option styling logic - only show results in results phase
   const renderQuestion = () => {
-    console.log('renderQuestion called, currentQuestion:', currentQuestion);
-    console.log('phase:', phase);
+    // Use appropriate data source
+    const displayQuestion = __DEV_MODE__
+      ? MOCK_DATA.currentQuestion
+      : currentQuestion;
+    const displayTimeLeft = __DEV_MODE__
+      ? 45
+      : serverSynced
+        ? timerTimeLeft
+        : timeLeft;
+    const displayQuestionIndex = __DEV_MODE__ ? 0 : questionIndex;
+    const displayTotalQuestions = __DEV_MODE__ ? 3 : totalQuestions;
+    const displayUserScore = __DEV_MODE__ ? 1 : userScore;
+    const displayOpponentScore = __DEV_MODE__ ? 1 : opponentScore;
+    const displayOpponentAnswered = __DEV_MODE__ ? false : opponentAnswered;
+    const displayHasAnswered = __DEV_MODE__ ? false : hasAnswered;
+    const displayUser = __DEV_MODE__ ? MOCK_DATA.userData : user;
+    const displayOpponent = __DEV_MODE__
+      ? MOCK_DATA.opponentInfo
+      : opponentInfo;
 
-    // FIXED: Enhanced guard clause to prevent crashes from invalid options
-    if (!currentQuestion || !currentQuestion.options) {
-      console.log(
-        'No current question or options available, showing loading...',
-        {
-          hasQuestion: !!currentQuestion,
-          hasOptions: !!currentQuestion?.options,
-        },
-      );
+    if (!displayQuestion || !displayQuestion.options) {
       return (
         <View style={styles.mainContainer}>
           <View style={{ marginHorizontal: Spacing[4] }}>
@@ -1426,9 +821,6 @@ export default function DuelRoomScreen() {
       );
     }
 
-    console.log('Rendering question:', currentQuestion.text);
-    console.log('Options:', currentQuestion.options);
-
     return (
       <View style={styles.mainContainer}>
         <ScrollView
@@ -1439,16 +831,19 @@ export default function DuelRoomScreen() {
         >
           {renderDuelInfoHeader()}
 
-          {/* Question Header with 60s timer display */}
+          {/* Question Header with timer */}
           <View style={styles.questionHeaderContainer}>
             <Row style={styles.questionHeader}>
               <Column>
                 <Text style={styles.questionCounter}>
-                  Soru {questionIndex + 1} / {totalQuestions}
+                  Soru {displayQuestionIndex + 1} / {displayTotalQuestions}
                 </Text>
                 <ProgressBar
                   progress={Number(
-                    (((questionIndex + 1) / totalQuestions) * 100).toFixed(0),
+                    (
+                      ((displayQuestionIndex + 1) / displayTotalQuestions) *
+                      100
+                    ).toFixed(0),
                   )}
                   progressColor={Colors.vibrant.mint}
                   style={{ width: 120, marginTop: Spacing[1] }}
@@ -1458,18 +853,20 @@ export default function DuelRoomScreen() {
                 <Text
                   style={[
                     styles.timer,
-                    timeLeft <= 10 && styles.timerDanger,
-                    !isTimerSynced && styles.timerUnsynced,
+                    displayTimeLeft <= 10 && styles.timerDanger,
+                    !serverSynced && styles.timerUnsynced,
                   ]}
                 >
-                  {timeLeft}s {isTimerSynced ? '🟢' : '🔄'}
+                  {displayTimeLeft}s {serverSynced ? '🟢' : '🔄'}
                 </Text>
                 <Text style={styles.questionTimeLimit}>/ 60s total</Text>
                 <Text style={styles.opponentStatus}>
-                  {opponentAnswered
-                    ? `${opponentInfo?.isBot ? 'Bot' : 'Rakip'}: Tamamladı ✓`
-                    : `${opponentInfo?.isBot ? 'Bot' : 'Rakip'}: ${
-                        opponentInfo?.isBot ? 'Hesaplıyor...' : 'Düşünüyor...'
+                  {displayOpponentAnswered
+                    ? `${displayOpponent?.isBot ? 'Bot' : 'Rakip'}: Tamamladı ✓`
+                    : `${displayOpponent?.isBot ? 'Bot' : 'Rakip'}: ${
+                        displayOpponent?.isBot
+                          ? 'Hesaplıyor...'
+                          : 'Düşünüyor...'
                       }`}
                 </Text>
               </Column>
@@ -1481,18 +878,18 @@ export default function DuelRoomScreen() {
             <Row style={styles.scoreRow}>
               <View style={styles.scoreDisplayWrapper}>
                 <ScoreDisplay
-                  score={userScore}
-                  maxScore={totalQuestions}
-                  label={userData.username}
+                  score={displayUserScore}
+                  maxScore={displayTotalQuestions}
+                  label={displayUser?.username || 'Sen'}
                   variant='gradient'
                   size='small'
                 />
               </View>
               <View style={styles.scoreDisplayWrapper}>
                 <ScoreDisplay
-                  score={opponentScore}
-                  maxScore={totalQuestions}
-                  label={opponentInfo?.username || 'Rakip'}
+                  score={displayOpponentScore}
+                  maxScore={displayTotalQuestions}
+                  label={displayOpponent?.username || 'Rakip'}
                   variant='gradient'
                   size='small'
                 />
@@ -1503,21 +900,19 @@ export default function DuelRoomScreen() {
           {/* Question Content */}
           <View style={styles.questionCard}>
             <View style={styles.questionContent}>
-              <Text style={styles.questionText}>{currentQuestion.text}</Text>
+              <Text style={styles.questionText}>{displayQuestion.text}</Text>
 
               <View style={styles.optionsContainer}>
-                {Object.entries(currentQuestion.options).map(([key, value]) => {
-                  // ✅ ENHANCED: Show correct/wrong styling after user answers
+                {Object.entries(displayQuestion.options).map(([key, value]) => {
                   const isSelected = selectedAnswer === key;
-                  const isCorrect = currentQuestion.correctAnswer === key;
+                  const isCorrect = displayQuestion.correctAnswer === key;
                   const showResultsInQuestion =
-                    hasAnswered && currentQuestion.correctAnswer; // ✅ NEW
+                    displayHasAnswered && displayQuestion.correctAnswer;
 
                   let optionStyle: StyleProp<ViewStyle> = styles.optionButton;
                   let optionTextStyle: StyleProp<TextStyle> = styles.optionText;
 
                   if (showResultsInQuestion) {
-                    // ✅ NEW: Show correct/wrong styling after answering
                     if (isCorrect) {
                       optionStyle = [styles.optionButton, styles.correctOption];
                       optionTextStyle = [
@@ -1535,7 +930,6 @@ export default function DuelRoomScreen() {
                       ];
                     }
                   } else if (isSelected) {
-                    // Normal selection state during answering
                     optionStyle = [styles.optionButton, styles.selectedOption];
                     optionTextStyle = [
                       styles.optionText,
@@ -1543,8 +937,7 @@ export default function DuelRoomScreen() {
                     ];
                   }
 
-                  // Disable options after answering
-                  if (hasAnswered) {
+                  if (displayHasAnswered) {
                     optionStyle = Array.isArray(optionStyle)
                       ? [...optionStyle, styles.disabledOption]
                       : [optionStyle, styles.disabledOption];
@@ -1555,12 +948,11 @@ export default function DuelRoomScreen() {
                       key={key}
                       style={optionStyle}
                       onPress={() => handleAnswerSelect(key)}
-                      disabled={hasAnswered}
+                      disabled={displayHasAnswered}
                       activeOpacity={0.8}
                     >
                       <Text style={optionTextStyle}>
                         {key}) {value}
-                        {/* ✅ NEW: Show indicators after answering */}
                         {showResultsInQuestion && isCorrect && ' ✓'}
                         {showResultsInQuestion &&
                           isSelected &&
@@ -1576,7 +968,7 @@ export default function DuelRoomScreen() {
           </View>
 
           {/* Answer Status */}
-          {hasAnswered && (
+          {displayHasAnswered && (
             <View style={styles.answerStatusContainer}>
               <Badge
                 text='Cevap Gönderildi ✓'
@@ -1586,50 +978,58 @@ export default function DuelRoomScreen() {
                 style={styles.answerStatusBadge}
               />
               <Paragraph style={styles.answerStatusText}>
-                {opponentInfo?.isBot
+                {displayOpponent?.isBot
                   ? 'Bot hesaplıyor...'
                   : 'Rakip bekleniyor...'}
               </Paragraph>
             </View>
           )}
 
-          {hasAnswered && currentQuestion.correctAnswer && (
+          {displayHasAnswered && displayQuestion.correctAnswer && (
             <View style={styles.questionResultsContainer}>
               <View style={styles.correctAnswerContainer}>
                 <Text style={styles.correctAnswer}>
-                  Doğru Cevap: {currentQuestion.correctAnswer}){' '}
-                  {currentQuestion.options?.[currentQuestion.correctAnswer] ||
-                    'N/A'}
+                  Doğru Cevap: {displayQuestion.correctAnswer}){' '}
+                  {getOptionValue(
+                    displayQuestion.options,
+                    displayQuestion.correctAnswer,
+                  )}
                 </Text>
               </View>
 
-              {/* Explanation if available */}
-              {currentQuestion.explanation && (
+              {displayQuestion.explanation && (
                 <View style={styles.explanationContainer}>
                   <Text style={styles.explanationTitle}>💡 Açıklama</Text>
                   <Text style={styles.explanationText}>
-                    {currentQuestion.explanation}
+                    {displayQuestion.explanation}
                   </Text>
                 </View>
               )}
             </View>
           )}
 
-          {/* Bottom spacing for scroll */}
           <View style={styles.bottomSpacing} />
         </ScrollView>
       </View>
     );
   };
 
-  // ✅ FIXED: Results rendering with proper answer highlighting and explanations
   const renderResults = () => {
-    if (!roundResult || !roundResult.question) {
+    const displayRoundResult = __DEV_MODE__
+      ? MOCK_DATA.roundResult
+      : roundResult;
+    const displayUser = __DEV_MODE__ ? MOCK_DATA.userData : user;
+    const displayOpponent = __DEV_MODE__
+      ? MOCK_DATA.opponentInfo
+      : opponentInfo;
+    const displayQuestionIndex = __DEV_MODE__ ? 0 : questionIndex;
+
+    if (!displayRoundResult || !displayRoundResult.question) {
       return null;
     }
 
-    const userAnswer = roundResult.answers?.find(
-      (a) => a.userId === userData?.userId,
+    const userAnswer = displayRoundResult.answers?.find(
+      (a) => a.userId === displayUser?.userId,
     );
     const isUserCorrect = userAnswer?.isCorrect || false;
 
@@ -1645,21 +1045,21 @@ export default function DuelRoomScreen() {
             <PlayfulCard variant='glass' style={styles.resultsCard}>
               <Column style={{ alignItems: 'center' as const }}>
                 <PlayfulTitle level={2} style={styles.whiteText}>
-                  {questionIndex + 1}. Tur Sonuçları
+                  {displayQuestionIndex + 1}. Tur Sonuçları
                 </PlayfulTitle>
 
                 {/* Question Display with Answer Highlighting */}
                 <View style={styles.questionResultsContainer}>
                   <Text style={styles.questionResultsText}>
-                    {roundResult.question.text}
+                    {displayRoundResult.question.text}
                   </Text>
 
                   {/* Options with correct/wrong highlighting */}
                   <View style={styles.resultsOptionsContainer}>
-                    {Object.entries(roundResult.question.options).map(
+                    {Object.entries(displayRoundResult.question.options).map(
                       ([key, value]) => {
                         const isCorrect =
-                          roundResult.question.correctAnswer === key;
+                          displayRoundResult.question.correctAnswer === key;
                         const isUserSelected =
                           userAnswer?.selectedAnswer === key;
 
@@ -1669,7 +1069,6 @@ export default function DuelRoomScreen() {
                           styles.resultOptionText;
 
                         if (isCorrect) {
-                          // Always highlight correct answer in green
                           optionStyle = [
                             styles.resultOptionButton,
                             styles.correctResultOption,
@@ -1679,7 +1078,6 @@ export default function DuelRoomScreen() {
                             styles.correctResultOptionText,
                           ];
                         } else if (isUserSelected) {
-                          // Highlight user's wrong selection in red
                           optionStyle = [
                             styles.resultOptionButton,
                             styles.wrongResultOption,
@@ -1707,19 +1105,20 @@ export default function DuelRoomScreen() {
                   {/* Correct Answer Display */}
                   <View style={styles.correctAnswerContainer}>
                     <Text style={styles.correctAnswer}>
-                      Doğru Cevap: {roundResult.question.correctAnswer}){' '}
-                      {roundResult.question.options?.[
-                        roundResult.question.correctAnswer
-                      ] || 'N/A'}
+                      Doğru Cevap: {displayRoundResult.question.correctAnswer}){' '}
+                      {getOptionValue(
+                        displayRoundResult.question.options,
+                        displayRoundResult.question.correctAnswer,
+                      )}
                     </Text>
                   </View>
 
                   {/* Explanation if available */}
-                  {roundResult.question.explanation && (
+                  {displayRoundResult.question.explanation && (
                     <View style={styles.explanationContainer}>
                       <Text style={styles.explanationTitle}>💡 Açıklama</Text>
                       <Text style={styles.explanationText}>
-                        {roundResult.question.explanation}
+                        {displayRoundResult.question.explanation}
                       </Text>
                     </View>
                   )}
@@ -1728,20 +1127,20 @@ export default function DuelRoomScreen() {
                 {/* Player Results */}
                 <View style={styles.resultRowContainer}>
                   <Row style={styles.resultRow}>
-                    {roundResult.answers?.map((answer, idx) => {
+                    {displayRoundResult.answers?.map((answer, idx) => {
                       if (!answer) return null;
 
-                      const isUser = answer.userId === userData?.userId;
+                      const isUser = answer.userId === displayUser?.userId;
                       const displayName = isUser
-                        ? userData.username
-                        : opponentInfo?.username || 'Rakip';
+                        ? displayUser?.username || 'Sen'
+                        : displayOpponent?.username || 'Rakip';
 
                       return (
                         <View key={idx} style={styles.playerResultContainer}>
                           <Column style={styles.playerResult}>
                             <Text style={styles.playerName}>
                               {displayName}
-                              {!isUser && opponentInfo?.isBot && ' 🤖'}
+                              {!isUser && displayOpponent?.isBot && ' 🤖'}
                             </Text>
                             <Badge
                               text={answer.isCorrect ? 'Doğru ✓' : 'Yanlış ✗'}
@@ -1785,7 +1184,7 @@ export default function DuelRoomScreen() {
                         style={{ color: Colors.vibrant.coral }}
                       />
                       <Text style={styles.scoreLabel}>
-                        {opponentInfo?.isBot ? 'Bot' : 'Rakip'}
+                        {displayOpponent?.isBot ? 'Bot' : 'Rakip'}
                       </Text>
                     </Column>
                   </Row>
@@ -1825,14 +1224,18 @@ export default function DuelRoomScreen() {
           </View>
 
           {/* Question Report Modal */}
-          {currentQuestion && (
+          {(currentQuestion || __DEV_MODE__) && (
             <QuestionReportModal
               isVisible={showReportModal}
               onClose={() => setShowReportModal(false)}
-              questionId={currentQuestion.id}
-              questionText={roundResult.question.text}
-              questionOptions={roundResult.question.options}
-              correctAnswer={roundResult.question.correctAnswer}
+              questionId={
+                __DEV_MODE__
+                  ? MOCK_DATA.currentQuestion.id
+                  : currentQuestion?.id || 0
+              }
+              questionText={displayRoundResult.question.text}
+              questionOptions={displayRoundResult.question.options}
+              correctAnswer={displayRoundResult.question.correctAnswer}
               userAnswer={userAnswer?.selectedAnswer || null}
               isCorrect={isUserCorrect}
             />
@@ -1843,6 +1246,29 @@ export default function DuelRoomScreen() {
   };
 
   const renderFinal = () => {
+    const displayFinalResults = __DEV_MODE__
+      ? MOCK_DATA.finalResults
+      : finalResults;
+    const displayDuelInfo = __DEV_MODE__ ? MOCK_DATA.duelInfo : duelInfo;
+    const displayUser = __DEV_MODE__ ? MOCK_DATA.userData : user;
+    const displayOpponent = __DEV_MODE__
+      ? MOCK_DATA.opponentInfo
+      : opponentInfo;
+    const displayTotalQuestions = __DEV_MODE__ ? 3 : totalQuestions;
+    const displayAnsweredQuestions = __DEV_MODE__
+      ? [
+          {
+            questionId: 1,
+            selectedAnswer: 'A',
+            correctAnswer: 'A',
+            isCorrect: true,
+            timeTaken: 5000,
+            questionText: MOCK_DATA.currentQuestion.text,
+            options: MOCK_DATA.currentQuestion.options,
+          },
+        ]
+      : answeredQuestions;
+
     const botInfo = getBotDisplayInfo();
 
     return (
@@ -1856,14 +1282,13 @@ export default function DuelRoomScreen() {
           <View style={styles.finalContainer}>
             <PlayfulCard variant='glass' style={styles.finalCard}>
               <Column style={{ alignItems: 'center' as const }}>
-                {/* FIXED: Duel Summary with proper container */}
-
-                {finalResults && (
+                {displayFinalResults && (
                   <>
-                    {/* FIXED: Winner Display with proper container */}
+                    {/* Winner Display */}
                     <View style={styles.winnerSectionContainer}>
                       <View style={styles.winnerSection}>
-                        {finalResults.winnerId === userData?.userId ? (
+                        {displayFinalResults.winnerId ===
+                        displayUser?.userId ? (
                           <>
                             <Text style={styles.winnerEmoji}>🏆</Text>
                             <PlayfulTitle
@@ -1874,21 +1299,21 @@ export default function DuelRoomScreen() {
                             >
                               ZAFER!
                             </PlayfulTitle>
-                            {opponentInfo?.isBot && (
+                            {displayOpponent?.isBot && (
                               <Text style={styles.botVictoryText}>
-                                {opponentInfo.username} botu yendiniz!
+                                {displayOpponent.username} botu yendiniz!
                               </Text>
                             )}
                           </>
-                        ) : finalResults.winnerId ? (
+                        ) : displayFinalResults.winnerId ? (
                           <>
                             <Text style={styles.winnerEmoji}>😔</Text>
                             <PlayfulTitle level={1} style={styles.loserText}>
                               Yenilgi
                             </PlayfulTitle>
-                            {opponentInfo?.isBot && (
+                            {displayOpponent?.isBot && (
                               <Text style={styles.botDefeatText}>
-                                {opponentInfo.username} botu sizi yendi!
+                                {displayOpponent.username} botu sizi yendi!
                               </Text>
                             )}
                           </>
@@ -1903,26 +1328,26 @@ export default function DuelRoomScreen() {
                       </View>
                     </View>
 
-                    {/* FIXED: Final Score with proper container */}
+                    {/* Final Score */}
                     <View style={styles.finalScoreContainer}>
                       <Row style={styles.finalScore}>
                         <View style={styles.finalScoreWrapper}>
                           <ScoreDisplay
                             score={
-                              finalResults.user1.userId === userData?.userId
-                                ? finalResults.user1.score
-                                : finalResults.user2.score
+                              displayFinalResults.user1.userId ===
+                              displayUser?.userId
+                                ? displayFinalResults.user1.score
+                                : displayFinalResults.user2.score
                             }
-                            maxScore={totalQuestions}
-                            label={userData.username}
+                            maxScore={displayTotalQuestions}
+                            label={displayUser?.username || 'Sen'}
                             variant='default'
                             size='medium'
                             style={{
                               width: '100%',
                               maxWidth: '100%',
-                              // Custom overrides for compact display
                             }}
-                            scoreFontFamily='PrimaryFont' // Use a more condensed font
+                            scoreFontFamily='PrimaryFont'
                             labelFontFamily='SecondaryFont-Bold'
                             maxScoreFontFamily='PrimaryFont'
                           />
@@ -1930,41 +1355,44 @@ export default function DuelRoomScreen() {
                         <View style={styles.finalScoreWrapper}>
                           <ScoreDisplay
                             score={
-                              finalResults.user1.userId === userData?.userId
-                                ? finalResults.user2.score
-                                : finalResults.user1.score
+                              displayFinalResults.user1.userId ===
+                              displayUser?.userId
+                                ? displayFinalResults.user2.score
+                                : displayFinalResults.user1.score
                             }
-                            maxScore={totalQuestions}
-                            label={opponentInfo?.username || 'Rakip'}
+                            maxScore={displayTotalQuestions}
+                            label={displayOpponent?.username || 'Rakip'}
                             variant='default'
                             size='medium'
                             style={{
                               width: '100%',
                               maxWidth: '100%',
-                              // Custom overrides for compact display
                             }}
-                            scoreFontFamily='PrimaryFont' // Use a more condensed font
+                            scoreFontFamily='PrimaryFont'
                             labelFontFamily='SecondaryFont-Bold'
                             maxScoreFontFamily='PrimaryFont'
                           />
                         </View>
                       </Row>
                     </View>
-                    {duelInfo && (
+
+                    {/* Duel Summary */}
+                    {displayDuelInfo && (
                       <View style={styles.duelSummaryContainer}>
                         <View style={styles.duelSummary}>
                           <Text style={styles.duelSummaryTitle}>
                             Düello Özeti
                           </Text>
                           <Text style={styles.duelSummaryText}>
-                            📚 {duelInfo.course_name}
+                            📚 {displayDuelInfo.course_name}
                           </Text>
                           <Text style={styles.duelSummaryText}>
-                            📝 {duelInfo.test_name}
+                            📝 {displayDuelInfo.test_name}
                           </Text>
                           <Text style={styles.duelSummaryText}>
-                            👥 {userData?.username} vs {opponentInfo?.username}
-                            {opponentInfo?.isBot && ' 🤖'}
+                            👥 {displayUser?.username} vs{' '}
+                            {displayOpponent?.username}
+                            {displayOpponent?.isBot && ' 🤖'}
                           </Text>
                           {botInfo && (
                             <Text
@@ -1978,7 +1406,7 @@ export default function DuelRoomScreen() {
                             </Text>
                           )}
                           <Text style={styles.duelSummaryText}>
-                            📊 {answeredQuestions.length} soru yanıtlandı
+                            📊 {displayAnsweredQuestions.length} soru yanıtlandı
                           </Text>
                           {duelResultCreated && (
                             <View style={styles.resultCreatedContainer}>
@@ -1993,48 +1421,51 @@ export default function DuelRoomScreen() {
                       </View>
                     )}
 
-                    {/* FIXED: Enhanced Stats with proper container */}
+                    {/* Enhanced Stats */}
                     <View style={styles.statsSectionContainer}>
                       <View style={styles.statsSection}>
                         <Row style={styles.statsRow}>
                           <Text style={styles.statText}>
                             Doğruluk:{' '}
                             {Math.floor(
-                              (finalResults.user1.userId === userData?.userId
-                                ? finalResults.user1.accuracy
-                                : finalResults.user2.accuracy) * 100,
+                              (displayFinalResults.user1.userId ===
+                              displayUser?.userId
+                                ? displayFinalResults.user1.accuracy
+                                : displayFinalResults.user2.accuracy) * 100,
                             )}
                             %
                           </Text>
                           <Text style={styles.statText}>
                             Ort. Süre:{' '}
                             {Math.floor(
-                              ((finalResults.user1.userId === userData?.userId
-                                ? finalResults.user1.totalTime
-                                : finalResults.user2.totalTime) /
+                              ((displayFinalResults.user1.userId ===
+                              displayUser?.userId
+                                ? displayFinalResults.user1.totalTime
+                                : displayFinalResults.user2.totalTime) /
                                 1000 /
-                                totalQuestions) *
+                                displayTotalQuestions) *
                                 10,
                             ) / 10}
                             s
                           </Text>
                         </Row>
 
-                        {/* Additional stats from answered questions */}
-                        {answeredQuestions.length > 0 && (
+                        {displayAnsweredQuestions.length > 0 && (
                           <Row style={styles.additionalStatsRow}>
                             <Text style={styles.statText}>
                               Doğru:{' '}
                               {
-                                answeredQuestions.filter((q) => q.isCorrect)
-                                  .length
+                                displayAnsweredQuestions.filter(
+                                  (q) => q.isCorrect,
+                                ).length
                               }
                             </Text>
                             <Text style={styles.statText}>
                               Yanlış:{' '}
                               {
-                                answeredQuestions.filter((q) => !q.isCorrect)
-                                  .length
+                                displayAnsweredQuestions.filter(
+                                  (q) => !q.isCorrect,
+                                ).length
                               }
                             </Text>
                           </Row>
@@ -2042,7 +1473,7 @@ export default function DuelRoomScreen() {
                       </View>
                     </View>
 
-                    {/* FIXED: Action Buttons with proper container */}
+                    {/* Action Buttons */}
                     <View style={styles.actionButtonsContainer}>
                       <Row style={styles.actionButtons}>
                         <Button
@@ -2050,9 +1481,8 @@ export default function DuelRoomScreen() {
                           variant='ghost'
                           onPress={() => {
                             if (!__DEV_MODE__) {
-                              disconnect();
+                              cleanup();
                             }
-                            resetDuelState();
                             router.replace('/(tabs)/duels/new');
                           }}
                           style={styles.actionButton}
@@ -2062,9 +1492,8 @@ export default function DuelRoomScreen() {
                           variant='secondary'
                           onPress={() => {
                             if (!__DEV_MODE__) {
-                              disconnect();
+                              cleanup();
                             }
-                            resetDuelState();
                             router.replace('/(tabs)/duels');
                           }}
                           style={styles.actionButton}
@@ -2087,15 +1516,15 @@ export default function DuelRoomScreen() {
         <UIAlert
           type='error'
           title='Bağlantı Hatası'
-          message={error || 'Bir şeyler ters gitti'}
+          message={
+            gameError || connectionError || roomError || 'Bir şeyler ters gitti'
+          }
           style={{ marginBottom: Spacing[4] }}
         />
         <Button
           title='Tekrar Dene'
           variant='primary'
           onPress={() => {
-            setError(null);
-            setPhase('connecting');
             if (!__DEV_MODE__) {
               initializeConnection();
             }
@@ -2105,24 +1534,7 @@ export default function DuelRoomScreen() {
     </View>
   );
 
-  // ✅ NEW: Add cleanup for new event listeners
-  useEffect(() => {
-    return () => {
-      // Clean up timer event listeners
-      if (!__DEV_MODE__) {
-        off('timer_update', handleTimerUpdate);
-        off('question_time_up', handleQuestionTimeUp);
-        off('question_presented', handleQuestionPresentedWithServerTiming);
-      }
-
-      // Clear any active timers
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, []);
-
-  // ✅ FIXED: Don't render modal until stable on iOS
+  // Don't render modal until stable on iOS
   if (!isModalStable && isIOS) {
     return (
       <View style={styles.mainContainer}>
@@ -2157,7 +1569,7 @@ export default function DuelRoomScreen() {
   }
 }
 
-// ✅ ENHANCED: Styles with new timer styling
+// Enhanced styles (keeping all original styles)
 const styles = {
   // Main container with proper background
   mainContainer: {
@@ -2171,55 +1583,44 @@ const styles = {
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
     paddingHorizontal: Spacing[4],
-    paddingTop: Spacing[4], // Increased for header space
+    paddingTop: Spacing[4],
     paddingBottom: Spacing[4],
   } as ViewStyle,
 
-  // FIXED: ScrollView container
+  // ScrollView container
   scrollContainer: {
     flex: 1,
     backgroundColor: Colors.vibrant.purple,
   } as ViewStyle,
 
-  // FIXED: ScrollView content
+  // ScrollView content
   scrollContent: {
-    paddingTop: Spacing[4], // Space for fixed header
+    paddingTop: Spacing[4],
     paddingHorizontal: Spacing[4],
     paddingBottom: Spacing[8],
-    minHeight: height - 100, // Ensure minimum scrollable height
+    minHeight: height - 100,
   } as ViewStyle,
 
-  // FIXED: Header styling with proper z-index
+  // Header styling with proper z-index
   duelInfoHeader: {
     backgroundColor: Colors.vibrant.orangeLight,
     borderRadius: BorderRadius['3xl'],
     padding: Spacing[3],
     marginTop: 40,
     marginBottom: Spacing[4],
-    // High z-index to stay on top
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
-    // shadowColor: '#000',
-    // shadowOffset: { width: 2, height: 12 },
-    // shadowOpacity: 0.25,
-    // shadowRadius: 10,
-
     width: '100%',
-    elevation: 10, // Higher elevation for Android
+    elevation: 10,
   } as ViewStyle,
 
-  // FIXED: Question header container
+  // Question header container
   questionHeaderContainer: {
     backgroundColor: Colors.vibrant.orangeLight,
     borderRadius: BorderRadius['3xl'],
     padding: Spacing[4],
     marginBottom: Spacing[4],
     minHeight: 80,
-    // shadowColor: '#000',
-    // shadowOffset: { width: 2, height: 12 },
-    // shadowOpacity: 0.25,
-    // shadowRadius: 10,
-    // elevation: 10,
   } as ViewStyle,
 
   questionHeader: {
@@ -2227,7 +1628,7 @@ const styles = {
     alignItems: 'center' as const,
   } as ViewStyle,
 
-  // FIXED: Score container
+  // Score container
   scoreContainer: {
     backgroundColor: Colors.vibrant.orangeLight,
     borderRadius: BorderRadius['3xl'],
@@ -2247,24 +1648,19 @@ const styles = {
     minHeight: 60,
     justifyContent: 'center' as const,
     maxWidth: '50%',
-    // shadowColor: '#000',
-    // shadowOffset: { width: 2, height: 12 },
-    // shadowOpacity: 0.25,
-    // shadowRadius: 10,
-    // elevation: 10,
   } as ViewStyle,
 
-  // FIXED: Question card with proper dimensions
+  // Question card with proper dimensions
   questionCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: BorderRadius['3xl'],
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
     marginBottom: Spacing[6],
-    minHeight: 400, // Ensure minimum height
+    minHeight: 400,
   } as ViewStyle,
 
-  // FIXED: Question content with proper padding
+  // Question content with proper padding
   questionContent: {
     padding: Spacing[6],
     minHeight: 350,
@@ -2274,29 +1670,28 @@ const styles = {
 
   questionText: {
     fontSize: 16,
-    // fontWeight: 'bold' as const,
     color: Colors.white,
     textAlign: 'left' as const,
     marginBottom: Spacing[6],
     fontFamily: 'SecondaryFont-Regular',
     lineHeight: 28,
-    minHeight: 60, // Ensure text container height
+    minHeight: 60,
   } as TextStyle,
 
-  // FIXED: Options container with proper spacing
+  // Options container with proper spacing
   optionsContainer: {
     gap: Spacing[3],
-    minHeight: 240, // Ensure all options are visible
+    minHeight: 240,
   } as ViewStyle,
 
-  // FIXED: Option button with guaranteed visibility and touch area
+  // Option button with guaranteed visibility and touch area
   optionButton: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: BorderRadius.lg,
     padding: Spacing[4],
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.3)',
-    minHeight: 60, // Guaranteed minimum touch area
+    minHeight: 60,
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
   } as ViewStyle,
@@ -2325,7 +1720,7 @@ const styles = {
     fontFamily: 'SecondaryFont-Bold',
   } as TextStyle,
 
-  // FIXED: Answer status container
+  // Answer status container
   answerStatusContainer: {
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: BorderRadius['3xl'],
@@ -2337,11 +1732,6 @@ const styles = {
 
   answerStatusBadge: {
     marginBottom: Spacing[2],
-    // shadowColor: '#000',
-    // shadowOffset: { width: 2, height: 12 },
-    // shadowOpacity: 0.25,
-    // shadowRadius: 10,
-    // elevation: 10,
     fontFamily: 'SecondaryFont-Bold',
   } as ViewStyle,
 
@@ -2351,7 +1741,7 @@ const styles = {
     fontFamily: 'SecondaryFont-Regular',
   } as TextStyle,
 
-  // FIXED: Results containers
+  // Results containers
   resultsContainer: {
     flex: 1,
     justifyContent: 'center' as const,
@@ -2408,11 +1798,6 @@ const styles = {
 
   resultBadge: {
     marginVertical: Spacing[1],
-    // shadowColor: '#000',
-    // shadowOffset: { width: 2, height: 12 },
-    // shadowOpacity: 0.25,
-    // shadowRadius: 10,
-    // elevation: 10,
   } as ViewStyle,
 
   currentScoreContainer: {
@@ -2436,7 +1821,7 @@ const styles = {
     justifyContent: 'center' as const,
   } as ViewStyle,
 
-  // FIXED: Final screen containers
+  // Final screen containers
   finalContainer: {
     flex: 1,
     justifyContent: 'center' as const,
@@ -2503,8 +1888,8 @@ const styles = {
     alignItems: 'center' as const,
     minHeight: 80,
     justifyContent: 'center' as const,
-    width: '50%', // Explicitly set to 50%
-    maxWidth: '50%', // Prevent overflow
+    width: '50%',
+    maxWidth: '50%',
     paddingHorizontal: Spacing[2],
   } as ViewStyle,
 
@@ -2561,14 +1946,12 @@ const styles = {
 
   questionCounter: {
     fontSize: 16,
-
     color: Colors.white,
     fontFamily: 'SecondaryFont-Bold',
   } as TextStyle,
 
   timer: {
     fontSize: 24,
-
     color: Colors.white,
     fontFamily: 'PrimaryFont',
   } as TextStyle,
@@ -2577,7 +1960,6 @@ const styles = {
     color: Colors.vibrant?.pink,
   } as TextStyle,
 
-  // ✅ NEW: Timer styling for server sync
   timerUnsynced: {
     opacity: 0.7,
     fontStyle: 'italic' as const,
@@ -2633,7 +2015,6 @@ const styles = {
   playerName: {
     fontSize: 14,
     color: Colors.white,
-
     fontFamily: 'SecondaryFont-Bold',
   } as TextStyle,
 
@@ -2783,7 +2164,7 @@ const styles = {
   },
 
   reportQuestionContainer: {
-    backgroundColor: 'rgba(255, 183, 3, 0.1)', // Subtle yellow background
+    backgroundColor: 'rgba(255, 183, 3, 0.1)',
     borderRadius: BorderRadius['3xl'],
     padding: Spacing[4],
     marginVertical: Spacing[4],
@@ -2817,11 +2198,6 @@ const styles = {
     borderRadius: BorderRadius.lg,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    // shadowColor: '#000',
-    // shadowOffset: { width: 2, height: 4 },
-    // shadowOpacity: 0.25,
-    // shadowRadius: 8,
-    // elevation: 8,
   } as ViewStyle,
 
   reportButtonText: {
@@ -2830,6 +2206,7 @@ const styles = {
     fontWeight: '600' as const,
     fontFamily: 'SecondaryFont-Bold',
   } as TextStyle,
+
   correctOption: {
     backgroundColor: Colors.vibrant.mint || '#10b981',
     borderColor: '#059669',
@@ -2842,7 +2219,6 @@ const styles = {
     fontWeight: '700' as const,
   } as TextStyle,
 
-  // Wrong selected answer highlighting (red)
   wrongSelectedOption: {
     backgroundColor: Colors.vibrant.coral || '#f87171',
     borderColor: '#dc2626',
@@ -2873,14 +2249,12 @@ const styles = {
     lineHeight: 24,
   } as TextStyle,
 
-  // Results options container
   resultsOptionsContainer: {
     gap: Spacing[2],
     width: '100%',
     marginBottom: Spacing[3],
   } as ViewStyle,
 
-  // Result option buttons
   resultOptionButton: {
     borderRadius: BorderRadius.lg,
     padding: Spacing[3],
@@ -2890,18 +2264,17 @@ const styles = {
   } as ViewStyle,
 
   correctResultOption: {
-    backgroundColor: 'rgba(16, 185, 129, 0.3)', // Green tint
+    backgroundColor: 'rgba(16, 185, 129, 0.3)',
     borderColor: Colors.vibrant.mint || '#10b981',
     borderWidth: 3,
   } as ViewStyle,
 
   wrongResultOption: {
-    backgroundColor: 'rgba(248, 113, 113, 0.3)', // Red tint
+    backgroundColor: 'rgba(248, 113, 113, 0.3)',
     borderColor: Colors.vibrant.coral || '#f87171',
     borderWidth: 3,
   } as ViewStyle,
 
-  // Result option text
   resultOptionText: {
     fontSize: 14,
     color: Colors.white,
@@ -2922,9 +2295,8 @@ const styles = {
     fontWeight: '700' as const,
   } as TextStyle,
 
-  // Explanation container (already exists but adding for completeness)
   explanationContainer: {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)', // Blue tint
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
     borderRadius: BorderRadius['3xl'],
     padding: Spacing[4],
     marginTop: Spacing[3],
@@ -2950,7 +2322,6 @@ const styles = {
     fontFamily: 'SecondaryFont-Regular',
   } as TextStyle,
 
-  // Selected answer display in results
   selectedAnswerText: {
     fontSize: 11,
     color: Colors.gray?.[400] || '#9ca3af',

@@ -9,8 +9,8 @@ import { Tabs } from 'expo-router';
 import { useColorScheme, View, Text, StyleSheet } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Video, ResizeMode } from 'expo-av';
-import { usePreferredCourse } from '../../context/PreferredCourseContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// ✅ UPDATED: Use new appStore instead of context
+import { usePreferredCourse } from '../../stores/appStore';
 
 // Memoized TabBarIcon component
 const TabBarIcon = React.memo(
@@ -67,39 +67,42 @@ const VideoTabIcon = React.memo(
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const { preferredCourse, getCourseColor, isLoading } = usePreferredCourse();
+  // ✅ UPDATED: Use new appStore hook - get getCourseCategory too
+  const { preferredCourse, getCourseColor, getCourseCategory, isLoading } =
+    usePreferredCourse();
   const [activeColor, setActiveColor] = useState<string>('#FF7675'); // Default color
 
-  // Memoize course checking function
-  const checkStoredCourse = useCallback(async () => {
-    try {
-      const storedCourse = await AsyncStorage.getItem('selectedCourse');
-      if (storedCourse) {
-        const parsedCourse = JSON.parse(storedCourse);
-        if (parsedCourse.category) {
-          const courseColor = getCourseColor(parsedCourse.category);
-          console.log('Tab color from AsyncStorage:', courseColor);
-          setActiveColor(courseColor);
-        }
+  // ✅ UPDATED: Simplified since appStore handles AsyncStorage automatically
+  // Update color when preferred course changes
+  useEffect(() => {
+    if (!isLoading && preferredCourse?.title) {
+      // Try to get category from preferredCourse object (if it exists from store)
+      let category = (preferredCourse as any)?.category;
+
+      // If not available, derive it from the title using getCourseCategory
+      if (!category) {
+        category = getCourseCategory(preferredCourse.title);
       }
-    } catch (error) {
-      console.error('Error reading course from AsyncStorage:', error);
-    }
-  }, [getCourseColor]);
 
-  // First, try to get color from AsyncStorage (fastest)
-  useEffect(() => {
-    checkStoredCourse();
-  }, [checkStoredCourse]);
-
-  // Then, update from context when it's ready
-  useEffect(() => {
-    if (!isLoading && preferredCourse?.category) {
-      const courseColor = getCourseColor(preferredCourse.category);
-      console.log('Tab color from context:', courseColor);
-      setActiveColor(courseColor);
+      if (category) {
+        const courseColor = getCourseColor(category);
+        console.log('Tab color from appStore:', courseColor);
+        setActiveColor(courseColor);
+      } else {
+        // Fallback to default color if category can't be determined
+        console.log('No course category, using default color');
+        setActiveColor('#FF7675');
+      }
+    } else if (!isLoading && !preferredCourse) {
+      // Use default color if no course is selected
+      console.log('No preferred course, using default color');
+      setActiveColor('#FF7675');
     }
-  }, [preferredCourse, isLoading, getCourseColor]);
+  }, [preferredCourse, isLoading, getCourseColor, getCourseCategory]);
+
+  // ✅ REMOVED: Manual AsyncStorage checking since appStore handles this automatically
+  // The appStore already loads preferred course from AsyncStorage during initialization
+  // and updates the state appropriately
 
   // Memoize screen options to prevent recreation
   const screenOptions = useMemo(
@@ -176,6 +179,7 @@ const hiddenScreenOptions = {
   href: null,
 };
 
+// ✅ KEEPING: All styles exactly the same
 const styles = StyleSheet.create({
   tabBarIcon: {
     marginBottom: -3,

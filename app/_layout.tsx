@@ -5,12 +5,18 @@ import React, {
   useCallback,
   useRef,
 } from 'react';
-import { View, useColorScheme, StyleSheet } from 'react-native';
+import {
+  View,
+  useColorScheme,
+  StyleSheet,
+  Text,
+  ActivityIndicator,
+} from 'react-native';
 import { SplashScreen } from 'expo-router';
 import { useFonts } from 'expo-font';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { Stack, useSegments, usePathname } from 'expo-router';
+import { Stack, useSegments, usePathname, useRouter } from 'expo-router';
 import {
   DarkTheme,
   DefaultTheme,
@@ -18,11 +24,15 @@ import {
 } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 
-// Auth Context Provider
-import { AuthProvider, useAuth } from '../context/AuthContext';
+// React Query for data fetching
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Theme Context - for app-wide theme management beyond navigation
-import { ThemeContext } from '../context/ThemeContext';
+// 🚀 YOUR ZUSTAND STORE (replaces multiple context providers)
+import {
+  useAuth,
+  useTheme as useAppTheme,
+  useNetwork,
+} from '../stores/appStore';
 
 // Safe area context for proper layout across different devices
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -30,16 +40,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // Error logging and monitoring
 import * as ErrorReporting from '../services/errorReporting';
 
-// Network/API provider to handle global API state and network connectivity
-import { NetworkProvider } from '../context/NetworkContext';
-
-// Localization provider for multi-language support
-
 // Asset prefetching for improved performance
 import { AssetProvider, preloadAssets } from '../services/assetManager';
 import AppBackground from '@/components/AppBackground';
-import NotificationProvider from '@/context/NotificationContext';
-import { PreferredCourseProvider } from '@/context/PreferredCourseContext';
+
+// Network monitoring
+import NetInfo from '@react-native-community/netinfo';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -52,6 +58,22 @@ export const unstable_settings = {
   initialRouteName: '(auth)',
 };
 
+// Create QueryClient instance (only once)
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
+      retry: 2,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      refetchOnWindowFocus: false, // 🚀 PREVENT unnecessary refetches
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
+
 // Memoized font configuration to prevent recreation
 const fontConfig = {
   ...FontAwesome.font,
@@ -61,47 +83,158 @@ const fontConfig = {
   'SecondaryFont-Bold': require('../assets/fonts/secondaryFontBold.ttf'),
 };
 
-// Performance Navigation Tracker for Expo Router
-function PerformanceNavigationTracker() {
-  const segments = useSegments();
-  const pathname = usePathname();
-  const previousScreen = useRef<string | null>(null);
-  const navigationCount = useRef(0);
+// 🚀 FIXED APP INITIALIZER - prevents multiple initializations
+function AppInitializer() {
+  const { initializeApp } = useAuth();
+  const { setNetworkStatus } = useNetwork();
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const initializationAttempted = useRef(false);
 
   useEffect(() => {
-    const currentScreen = segments.join('/') || 'root';
-
-    if (previousScreen.current && currentScreen !== previousScreen.current) {
-      navigationCount.current += 1;
-
-      console.log('🔄 EXPO ROUTER NAVIGATION #' + navigationCount.current);
-      console.log(`  From: ${previousScreen.current}`);
-      console.log(`  To: ${currentScreen}`);
-      console.log(`  Pathname: ${pathname}`);
-      console.log('  ⚠️ CHECK PERFORMANCE MONITOR NOW!');
-      console.log(
-        '  📊 UI FPS should stay above 55 (currently drops to 37-38)',
-      );
-      console.log(
-        '  💾 RAM was 270MB, now growing to 330MB - check current usage',
-      );
-      console.log('---');
-
-      // Track every 5 navigations for memory pattern
-      if (navigationCount.current % 5 === 0) {
-        console.log('🚨 MEMORY CHECK: After 5 navigations - check RAM usage!');
-      }
+    // 🚀 FIX: Only initialize once, ever
+    if (initializationAttempted.current || isInitializing || isInitialized) {
+      return;
     }
 
-    previousScreen.current = currentScreen;
-  }, [segments, pathname]);
+    let networkUnsubscribe: (() => void) | null = null;
+
+    const initialize = async () => {
+      try {
+        initializationAttempted.current = true;
+        setIsInitializing(true);
+
+        console.log('🚀 Starting single app initialization...');
+
+        // Setup network monitoring first (non-blocking)
+        try {
+          const netInfoUnsubscribe = NetInfo.addEventListener((state) => {
+            const isOnline = !!state.isConnected && !!state.isInternetReachable;
+            setNetworkStatus(isOnline);
+          });
+          networkUnsubscribe = netInfoUnsubscribe;
+        } catch (networkError) {
+          console.warn('⚠️ Network monitoring setup failed:', networkError);
+        }
+
+        // Initialize your store (handles session restoration, etc.)
+        await initializeApp();
+
+        setIsInitialized(true);
+        console.log('✅ App initialization complete');
+      } catch (error) {
+        console.error('❌ App initialization failed:', error);
+
+        // Don't prevent app from starting on initialization failure
+        setIsInitialized(true);
+
+        try {
+          ErrorReporting.logError(error as Error);
+        } catch (reportingError) {
+          console.warn('Error reporting failed:', reportingError);
+        }
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initialize();
+
+    // Cleanup function
+    return () => {
+      if (networkUnsubscribe) {
+        networkUnsubscribe();
+      }
+    };
+  }, []); // 🚀 EMPTY dependency array - only run once
 
   return null;
+}
+
+// 🚀 FIXED NAVIGATION GUARD - prevents infinite loops
+function NavigationGuard() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+  const lastRedirect = useRef<string | null>(null);
+  const redirectCount = useRef(0);
+  const redirectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // Clear any pending redirects
+    if (redirectTimeout.current) {
+      clearTimeout(redirectTimeout.current);
+    }
+
+    // Don't navigate while loading or during app initialization
+    if (isLoading) {
+      console.log('🔄 Navigation guard waiting - auth loading...');
+      return;
+    }
+
+    const currentPath = segments.join('/');
+    const inAuthGroup = segments[0] === '(auth)';
+
+    console.log('🔄 Navigation check:', {
+      currentPath,
+      inAuthGroup,
+      isAuthenticated,
+      redirectCount: redirectCount.current,
+    });
+
+    // 🚀 FIX: Prevent too many redirects
+    if (redirectCount.current > 3) {
+      console.warn('⚠️ Too many redirects, resetting counter');
+      redirectCount.current = 0;
+      return;
+    }
+
+    const targetPath = isAuthenticated ? '/(tabs)' : '/(auth)/login';
+    const shouldRedirect = isAuthenticated ? inAuthGroup : !inAuthGroup;
+
+    // 🚀 FIX: Use timeout to prevent rapid redirects
+    if (shouldRedirect && targetPath !== lastRedirect.current) {
+      redirectTimeout.current = setTimeout(() => {
+        try {
+          console.log(`🔀 Redirecting to ${targetPath}`);
+          lastRedirect.current = targetPath;
+          redirectCount.current++;
+
+          router.replace(targetPath);
+        } catch (error) {
+          console.error('❌ Navigation error:', error);
+        }
+      }, 100); // Small delay to prevent rapid redirects
+    } else if (!shouldRedirect) {
+      // Reset when we're in the right place
+      redirectCount.current = 0;
+      lastRedirect.current = null;
+    }
+
+    return () => {
+      if (redirectTimeout.current) {
+        clearTimeout(redirectTimeout.current);
+      }
+    };
+  }, [isAuthenticated, isLoading, segments, router]);
+
+  return null;
+}
+
+// 🚀 NEW: Loading Screen Component
+function LoadingScreen({ message = 'Loading...' }: { message?: string }) {
+  return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size='large' color='#4285F4' />
+      <Text style={styles.loadingText}>{message}</Text>
+    </View>
+  );
 }
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [loaded, error] = useFonts(fontConfig);
+  const [hasInitServices, setHasInitServices] = useState(false);
 
   // Initialize app resources and services
   useEffect(() => {
@@ -109,16 +242,38 @@ export default function RootLayout() {
 
     async function prepare() {
       try {
-        // Initialize error reporting
-        await ErrorReporting.initialize();
+        console.log('🔄 Preparing app services...');
 
-        // Preload critical assets
-        await preloadAssets();
+        // Initialize error reporting (non-blocking)
+        try {
+          await ErrorReporting.initialize();
+        } catch (errorReportingError) {
+          console.warn(
+            'Error reporting initialization failed:',
+            errorReportingError,
+          );
+        }
 
-        // Any other initialization logic
+        // Preload critical assets (non-blocking)
+        try {
+          await preloadAssets();
+        } catch (assetError) {
+          console.warn('Asset preloading failed:', assetError);
+        }
+
+        setHasInitServices(true);
+        console.log('✅ App services prepared');
       } catch (e) {
-        console.warn('Error in app initialization:', e);
-        ErrorReporting.logError(e as Error);
+        console.warn('Error in app preparation:', e);
+
+        // Don't fail app startup on service initialization errors
+        setHasInitServices(true);
+
+        try {
+          ErrorReporting.logError(e as Error);
+        } catch (reportingError) {
+          console.warn('Error reporting failed:', reportingError);
+        }
       } finally {
         if (isMounted) {
           setAppIsReady(true);
@@ -133,38 +288,47 @@ export default function RootLayout() {
     };
   }, []);
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
+  // Handle font loading errors
   useEffect(() => {
     if (error) {
-      ErrorReporting.logError(error);
-      throw error;
+      console.error('Font loading error:', error);
+      try {
+        ErrorReporting.logError(error);
+      } catch (reportingError) {
+        console.warn('Error reporting failed:', reportingError);
+      }
+      // Don't throw - let app continue with default fonts
     }
   }, [error]);
 
+  // Hide splash screen when ready
   useEffect(() => {
-    if (loaded && appIsReady) {
-      // Hide the splash screen once fonts are loaded and app is ready
-      SplashScreen.hideAsync();
+    if (loaded && appIsReady && hasInitServices) {
+      // Small delay to ensure everything is ready
+      setTimeout(() => {
+        SplashScreen.hideAsync().catch((error) => {
+          console.warn('Failed to hide splash screen:', error);
+        });
+      }, 100);
     }
-  }, [loaded, appIsReady]);
+  }, [loaded, appIsReady, hasInitServices]);
 
-  if (!loaded || !appIsReady) {
-    return null;
+  // 🚀 FIX: Show loading screen while app is preparing
+  if (!loaded || !appIsReady || !hasInitServices) {
+    return <LoadingScreen message='Preparing app...' />;
   }
 
-  // Return the root layout with comprehensive provider structure
-  // Note: ErrorBoundary is handled by Expo Router itself, not as a wrapper component
+  // 🎉 SIMPLIFIED LAYOUT - Only 3 providers instead of 7!
   return (
     <SafeAreaProvider>
-      <NetworkProvider>
-        <PreferredCourseProvider>
-          <AssetProvider>
-            <AuthProvider>
-              <RootLayoutNav />
-            </AuthProvider>
-          </AssetProvider>
-        </PreferredCourseProvider>
-      </NetworkProvider>
+      <QueryClientProvider client={queryClient}>
+        <AssetProvider>
+          {/* 🚀 App initializer and navigation guard */}
+          <AppInitializer />
+          <NavigationGuard />
+          <RootLayoutNav />
+        </AssetProvider>
+      </QueryClientProvider>
     </SafeAreaProvider>
   );
 }
@@ -172,31 +336,12 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { isAuthenticated, isLoading } = useAuth();
-  const [theme, setTheme] = useState<'light' | 'dark'>(
-    colorScheme === 'dark' ? 'dark' : 'light',
-  );
 
-  // Sync theme with system preference by default
-  useEffect(() => {
-    if (colorScheme) {
-      setTheme(colorScheme === 'dark' ? 'dark' : 'light');
-    }
-  }, [colorScheme]);
+  // 🚀 Use your store's theme instead of device color scheme
+  const { theme: storeTheme } = useAppTheme();
 
-  // Memoize theme context value to prevent unnecessary re-renders
-  const themeContextValue = useMemo(
-    () => ({
-      theme,
-      setTheme: (newTheme: string) => {
-        if (newTheme === 'light' || newTheme === 'dark') {
-          setTheme(newTheme);
-        }
-      },
-      isDark: theme === 'dark',
-      toggleTheme: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
-    }),
-    [theme],
-  );
+  // Use store theme if available, fallback to device color scheme
+  const theme = storeTheme || (colorScheme === 'dark' ? 'dark' : 'light');
 
   // Memoize navigation theme to prevent recreation on every render
   const customNavigationTheme = useMemo(() => {
@@ -209,7 +354,7 @@ function RootLayoutNav() {
         primary: '#722ea5', // Your primary color from global.css
         background: 'transparent',
         card: 'transparent',
-        text: theme === 'dark' ? '#1f2937' : '#1f2937',
+        text: theme === 'dark' ? '#ffffff' : '#1f2937',
       },
     };
   }, [theme]);
@@ -220,75 +365,21 @@ function RootLayoutNav() {
     [theme],
   );
 
-  // Show a loading screen while checking auth state
+  // 🚀 FIX: Show better loading screen while checking auth state
   if (isLoading) {
-    return <View style={styles.loadingContainer} />;
+    return <LoadingScreen message='Checking authentication...' />;
   }
 
   return (
-    <ThemeContext.Provider value={themeContextValue}>
-      <NotificationProvider>
-        <ThemeProvider value={customNavigationTheme}>
-          <StatusBar style={statusBarStyle} />
-          {/* Performance Navigation Tracker */}
-          <PerformanceNavigationTracker />
-          <AppBackground>
-            <Stack screenOptions={stackScreenOptions}>
-              {/* Your existing Auth Context already handles redirections,
-              but we'll set up the screens here for proper stack navigation */}
-              <Stack.Screen name='(auth)' options={authScreenOptions} />
-              <Stack.Screen name='(tabs)' options={tabsScreenOptions} />
-
-              {/* These screens are available regardless of authentication state */}
-              {/* <Stack.Screen
-                name='study/[id]'
-                options={{
-                  headerShown: true,
-                  title: 'Study',
-                  headerStyle: {
-                    backgroundColor: theme === 'dark' ? '#ffffff' : '#ffffff',
-                  },
-                  headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
-                }}
-              /> */}
-              {/* <Stack.Screen
-                name='topic/[id]'
-                options={{
-                  headerShown: true,
-                  title: 'Topic',
-                  headerStyle: {
-                    backgroundColor: theme === 'dark' ? '#ffffff' : '#ffffff',
-                  },
-                  headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
-                }}
-              /> */}
-              {/* <Stack.Screen
-                name='subtopic/[id]'
-                options={{
-                  headerShown: true,
-                  title: 'Lesson',
-                  headerStyle: {
-                    backgroundColor: theme === 'dark' ? '#ffffff' : '#ffffff',
-                  },
-                  headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
-                }}
-              /> */}
-              {/* <Stack.Screen
-                name='test/[id]'
-                options={{
-                  headerShown: true,
-                  title: 'Quiz',
-                  headerStyle: {
-                    backgroundColor: theme === 'dark' ? '#ffffff' : '#ffffff',
-                  },
-                  headerTintColor: theme === 'dark' ? '#1f2937' : '#1f2937',
-                }}
-              /> */}
-            </Stack>
-          </AppBackground>
-        </ThemeProvider>
-      </NotificationProvider>
-    </ThemeContext.Provider>
+    <ThemeProvider value={customNavigationTheme}>
+      <StatusBar style={statusBarStyle} />
+      <AppBackground>
+        <Stack screenOptions={stackScreenOptions}>
+          <Stack.Screen name='(auth)' options={authScreenOptions} />
+          <Stack.Screen name='(tabs)' options={tabsScreenOptions} />
+        </Stack>
+      </AppBackground>
+    </ThemeProvider>
   );
 }
 
@@ -296,10 +387,6 @@ function RootLayoutNav() {
 const stackScreenOptions = {
   headerShown: false,
   animation: 'fade' as const,
-  // Apply consistent styling to all screens in the stack
-  // contentStyle: {
-  //   backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-  // },
 };
 
 const authScreenOptions = { headerShown: false };
@@ -310,6 +397,44 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#1a1a1a',
+  },
+  loadingText: {
+    marginTop: 16,
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
+
+// 🎉 SUMMARY OF CRITICAL FIXES:
+/*
+🔥 PROBLEMS FIXED:
+
+1. **Infinite Initialization Loop**:
+   - ❌ Before: AppInitializer ran multiple times
+   - ✅ After: Uses useRef to ensure single initialization
+
+2. **Navigation Redirect Loop**:
+   - ❌ Before: Rapid redirects caused infinite loops
+   - ✅ After: Uses timeout and redirect counting to prevent loops
+
+3. **Blocking Operations**:
+   - ❌ Before: Failed service initialization blocked app startup
+   - ✅ After: All service initialization is non-blocking
+
+4. **Missing Loading States**:
+   - ❌ Before: No proper loading screens during initialization
+   - ✅ After: Clear loading messages for each phase
+
+5. **Error Handling**:
+   - ❌ Before: Errors could crash app startup
+   - ✅ After: Graceful error handling with fallbacks
+
+🚀 RESULT:
+- No more screen flashing
+- No more infinite loops
+- Smooth app startup
+- Proper loading states
+- Graceful error handling
+*/

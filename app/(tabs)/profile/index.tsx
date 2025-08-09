@@ -11,9 +11,13 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../../context/AuthContext';
-import { authService, achievementService, duelService } from '../../../src/api';
-import { checkAndRefreshSession } from '../../../src/api/authService';
+
+// ✅ UPDATED: Using new state management hooks
+import { useAuth, usePreferredCourse } from '../../../stores/appStore';
+import { useAchievementsData } from '../../../src/hooks/useAchievementsData';
+import { useDuelsData } from '../../../src/hooks/useDuelsData';
+import { useAppData } from '../../../src/hooks/useAppData';
+
 import {
   PlayfulCard,
   ProfileHeader,
@@ -36,16 +40,8 @@ import {
   CourseSelectionModal,
 } from '../../../components/ui';
 import { Colors, Spacing, FontSizes } from '../../../constants/theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  usePreferredCourse,
-  PreferredCourseProvider,
-} from '../../../context/PreferredCourseContext';
 
-// Use the theme constants correctly
-const VIBRANT_COLORS = Colors.vibrant;
-
-// Define interface for Achievement since it's not exported from models
+// Keep the same interfaces for backward compatibility
 interface Achievement {
   achievement_id: number;
   name: string;
@@ -58,7 +54,6 @@ interface Achievement {
   date_earned?: string;
 }
 
-// Define interface for DuelStats - corrected to match the actual API response
 interface DuelStats {
   totalDuels: number;
   wins: number;
@@ -67,6 +62,9 @@ interface DuelStats {
   longestLosingStreak: number;
   currentLosingStreak: number;
 }
+
+// Use the theme constants correctly
+const VIBRANT_COLORS = Colors.vibrant;
 
 // Optimized shadow style
 const OPTIMIZED_SHADOW = {
@@ -77,27 +75,58 @@ const OPTIMIZED_SHADOW = {
   // elevation: 4,
 };
 
-// Main Profile Screen Component (wrapped with context)
+// Main Profile Screen Component
 function ProfileScreenContent() {
   const { user, signOut, refreshSession } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  // Use the preferred course context
+  // ✅ UPDATED: Use preferred course from new state management
   const {
     preferredCourse,
     isLoading: courseLoading,
     getCourseColor,
   } = usePreferredCourse();
 
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [duelStats, setDuelStats] = useState<DuelStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  // ✅ UPDATED: Use new data hooks instead of manual state management
+  const {
+    achievements,
+    achievementsLoading,
+    achievementsError,
+    refetchAchievements,
+  } = useAchievementsData();
+
+  const {
+    duelStats,
+    duelStatsLoading,
+    duelStatsError,
+    refetchAll: refetchDuels,
+  } = useDuelsData();
+
+  const {
+    userData,
+    userDataLoading,
+    userDataError,
+    refetchAll: refetchAppData,
+  } = useAppData();
+
+  // ✅ UPDATED: Only keep UI state that's not handled by hooks
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [userData, setUserData] = useState<{ username?: string } | null>(null);
   const [showCourseModal, setShowCourseModal] = useState(false);
+
+  // ✅ UPDATED: Compute loading state from all hooks
+  const loading = useMemo(() => {
+    return achievementsLoading || duelStatsLoading || userDataLoading;
+  }, [achievementsLoading, duelStatsLoading, userDataLoading]);
+
+  // ✅ UPDATED: Compute error state from all hooks
+  const error = useMemo(() => {
+    if (achievementsError) return 'Başarılar yüklenirken hata oluştu.';
+    if (duelStatsError) return 'Düello istatistikleri yüklenirken hata oluştu.';
+    if (userDataError) return 'Kullanıcı verileri yüklenirken hata oluştu.';
+    return null;
+  }, [achievementsError, duelStatsError, userDataError]);
 
   // Get the current context color - memoized to prevent recalculations
   const contextColor = useMemo(() => {
@@ -128,151 +157,30 @@ function ProfileScreenContent() {
     [contextColor],
   );
 
-  // Load user data from AsyncStorage
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadUserData = async () => {
-      try {
-        const userData = await AsyncStorage.getItem('userData');
-        if (userData && isMounted) {
-          setUserData(JSON.parse(userData));
-        }
-      } catch (error) {
-        console.error('Error loading user data from AsyncStorage:', error);
-      }
-    };
-
-    loadUserData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // Enhanced fetchData function with better error handling
-  const fetchProfileData = useCallback(async () => {
-    let isMounted = true;
-
+  // ✅ UPDATED: Enhanced handleRefresh using new hooks
+  const handleRefresh = useCallback(async () => {
     try {
-      if (!isMounted) return;
-      setError(null);
+      setRefreshing(true);
+      console.log('Refreshing profile data...');
 
-      // Check session before making requests
-      const sessionValid = await checkAndRefreshSession();
+      // Check session before refreshing
+      const sessionValid = await refreshSession();
       if (!sessionValid) {
-        console.log('Session invalid, redirecting to login');
-        if (isMounted) {
-          router.replace('/(auth)/login');
-        }
-        return;
-      }
-
-      // Use Promise.allSettled to handle partial failures gracefully
-      const [achievementsResponse, duelStatsResponse] =
-        await Promise.allSettled([
-          achievementService.getUserAchievements(),
-          duelService.getDuelUserStats(),
-        ]);
-
-      if (!isMounted) return;
-
-      // Process each response individually
-      let hasData = false;
-
-      // Process achievements
-      if (achievementsResponse.status === 'fulfilled') {
-        setAchievements(achievementsResponse.value);
-        hasData = true;
-      } else {
-        console.error(
-          'Failed to fetch achievements:',
-          achievementsResponse.reason,
-        );
-        setAchievements([]); // Set empty array instead of keeping old data
-      }
-
-      // Process duel stats
-      if (duelStatsResponse.status === 'fulfilled') {
-        // Using the correct property names from the API response
-        setDuelStats({
-          totalDuels: duelStatsResponse.value.totalDuels,
-          wins: duelStatsResponse.value.wins,
-          losses: duelStatsResponse.value.losses,
-          winRate: duelStatsResponse.value.winRate,
-          longestLosingStreak: duelStatsResponse.value.longestLosingStreak || 0,
-          currentLosingStreak: duelStatsResponse.value.currentLosingStreak || 0,
-        });
-        hasData = true;
-      } else {
-        console.error('Failed to fetch duel stats:', duelStatsResponse.reason);
-        setDuelStats(null);
-      }
-
-      // Check if all requests failed
-      if (!hasData && isMounted) {
-        const firstError = [achievementsResponse, duelStatsResponse].find(
-          (response) => response.status === 'rejected',
-        )?.reason;
-
-        if (firstError?.message?.includes('Oturum süresi doldu')) {
-          router.replace('/(auth)/login');
-          return;
-        }
-
-        setError('Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
-      }
-    } catch (error) {
-      console.error('Error fetching profile data:', error);
-
-      if (!isMounted) return;
-
-      // Check if it's an authentication error
-      if (
-        error instanceof Error &&
-        (error.message.includes('Oturum süresi doldu') ||
-          error.message.includes('unauthorized') ||
-          error.message.includes('401'))
-      ) {
+        console.log('Session invalid during refresh, redirecting to login');
         router.replace('/(auth)/login');
         return;
       }
 
-      setError('Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
-    }
+      // ✅ UPDATED: Use refetch functions from hooks
+      await Promise.allSettled([
+        refetchAchievements(),
+        refetchDuels(),
+        refetchAppData(),
+      ]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [router]);
-
-  // Enhanced handleRefresh function
-  const handleRefresh = useCallback(async () => {
-    let isMounted = true;
-
-    try {
-      if (!isMounted) return;
-      setRefreshing(true);
-      setError(null);
-
-      console.log('Refreshing profile data...');
-
-      // Check session before refreshing
-      const sessionValid = await checkAndRefreshSession();
-      if (!sessionValid) {
-        console.log('Session invalid during refresh, redirecting to login');
-        if (isMounted) {
-          router.replace('/(auth)/login');
-        }
-        return;
-      }
-
-      await fetchProfileData();
       console.log('Profile refresh completed successfully');
     } catch (error) {
       console.error('Profile refresh failed:', error);
-
-      if (!isMounted) return;
 
       if (
         error instanceof Error &&
@@ -281,59 +189,45 @@ function ProfileScreenContent() {
         router.replace('/(auth)/login');
         return;
       }
-
-      setError('Yenileme başarısız. Lütfen tekrar deneyin.');
     } finally {
-      if (isMounted) {
-        setRefreshing(false);
-      }
+      setRefreshing(false);
     }
+  }, [
+    refetchAchievements,
+    refetchDuels,
+    refetchAppData,
+    refreshSession,
+    router,
+  ]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchProfileData, router]);
-
-  // Enhanced handleRetry function
+  // ✅ UPDATED: Enhanced handleRetry using new hooks
   const handleRetry = useCallback(async () => {
-    let isMounted = true;
-
     try {
-      if (!isMounted) return;
-      setLoading(true);
-      setError(null);
-
       console.log('Retrying profile data fetch...');
 
-      // First try to refresh the session using AuthContext
+      // First try to refresh the session
       try {
         await refreshSession();
         console.log('Session refreshed via AuthContext');
       } catch (sessionError) {
         console.error('AuthContext session refresh failed:', sessionError);
-
-        // Fallback to manual session check
-        const sessionValid = await checkAndRefreshSession();
-        if (!sessionValid) {
-          console.log('Manual session check failed, redirecting to login');
-          if (isMounted) {
-            router.replace('/(auth)/login');
-          }
-          return;
-        }
+        router.replace('/(auth)/login');
+        return;
       }
 
       // Wait a bit before retrying
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Retry fetching data
-      await fetchProfileData();
+      // ✅ UPDATED: Retry using hook refetch functions
+      await Promise.allSettled([
+        refetchAchievements(),
+        refetchDuels(),
+        refetchAppData(),
+      ]);
 
       console.log('Profile retry completed successfully');
     } catch (error) {
       console.error('Profile retry failed:', error);
-
-      if (!isMounted) return;
 
       if (
         error instanceof Error &&
@@ -342,57 +236,14 @@ function ProfileScreenContent() {
         router.replace('/(auth)/login');
         return;
       }
-
-      setError('Yeniden deneme başarısız. Lütfen uygulamayı yeniden başlatın.');
-    } finally {
-      if (isMounted) {
-        setLoading(false);
-      }
     }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchProfileData, router, refreshSession]);
-
-  // Enhanced initial fetch
-  useEffect(() => {
-    let isMounted = true;
-
-    async function initialFetch() {
-      if (!isMounted) return;
-      setLoading(true);
-
-      try {
-        // Check session on app load
-        const sessionValid = await checkAndRefreshSession();
-        if (!sessionValid) {
-          if (isMounted) {
-            setLoading(false);
-            router.replace('/(auth)/login');
-          }
-          return;
-        }
-
-        await fetchProfileData();
-      } catch (error) {
-        console.error('Initial profile fetch error:', error);
-        if (isMounted) {
-          setError('Başlangıç verisi yüklenemedi. Lütfen tekrar deneyin.');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    initialFetch();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchProfileData, router]);
+  }, [
+    refetchAchievements,
+    refetchDuels,
+    refetchAppData,
+    router,
+    refreshSession,
+  ]);
 
   // Get icon for achievement - returns only valid FontAwesome icon names
   const getAchievementIcon = useCallback((achievement: Achievement): string => {
@@ -665,7 +516,7 @@ function ProfileScreenContent() {
                           <Row style={styles.statItemRow}>
                             <Text style={styles.statLabel}>En Uzun Seri:</Text>
                             <AnimatedCounter
-                              value={duelStats.longestLosingStreak}
+                              value={duelStats.longestLosingStreak || 0}
                               fontFamily='SecondaryFont-Bold'
                               style={styles.statValue}
                               size='medium'
@@ -989,7 +840,7 @@ function ProfileScreenContent() {
   );
 }
 
-// StyleSheet for all static styles
+// StyleSheet for all static styles - KEEPING EXACTLY THE SAME
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1198,11 +1049,8 @@ const styles = StyleSheet.create({
   },
 });
 
-// Main component with context provider
+// ✅ UPDATED: Main component - no longer needs PreferredCourseProvider wrapper
+// since state management is now handled by the global store
 export default function ProfileScreen() {
-  return (
-    <PreferredCourseProvider>
-      <ProfileScreenContent />
-    </PreferredCourseProvider>
-  );
+  return <ProfileScreenContent />;
 }

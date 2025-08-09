@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Container,
   SlideInElement,
@@ -35,18 +34,13 @@ import {
   BorderRadius,
   VIBRANT_COLORS,
 } from '../../../components/ui';
-import { friendService, userService } from '../../../src/api';
+import { userService } from '../../../src/api';
 import { ApiError } from '../../../src/api/apiClient';
 import { Friend, FriendRequest, User } from '../../../src/types/models';
 
-// Import auth context
-import { useAuth } from '../../../context/AuthContext';
-
-// Import preferred course context for styling
-import {
-  usePreferredCourse,
-  PreferredCourseProvider,
-} from '../../../context/PreferredCourseContext';
+// 🚀 NEW: Import the enhanced hooks
+import { useFriendsData } from '../../../src/hooks/useFriendsData';
+import { useAuth, usePreferredCourse } from '../../../stores/appStore';
 
 // User search result interface
 interface UserSearchResult {
@@ -73,19 +67,57 @@ function FriendsScreenContent() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  // Auth context integration
+  // 🚀 NEW: Use the global store hooks instead of context
   const {
     user: contextUser,
     isLoading: authLoading,
-    isSessionValid,
+    isAuthenticated: isSessionValid,
   } = useAuth();
 
-  // Use the preferred course context for consistent styling
   const {
     preferredCourse,
     isLoading: courseLoading,
     getCourseColor,
   } = usePreferredCourse();
+
+  // 🚀 NEW: Use the optimized friends data hook
+  const {
+    // Friends data
+    friends,
+    friendsLoading,
+    friendsError,
+
+    // Pending requests data
+    pendingRequests,
+    pendingRequestsLoading,
+    pendingRequestsError,
+
+    // Actions
+    sendFriendRequest,
+    acceptRequest,
+    rejectRequest,
+    removeFriend,
+
+    // Loading states for actions
+    isSendingRequest,
+    isAcceptingRequest,
+    isRejectingRequest,
+    isRemovingFriend,
+
+    // Error states for actions
+    sendRequestError,
+    acceptRequestError,
+    rejectRequestError,
+    removeFriendError,
+
+    // Overall state
+    isLoading: friendsDataLoading,
+    hasError: friendsDataHasError,
+    errorMessages,
+
+    // Utility functions
+    refetchAll,
+  } = useFriendsData();
 
   // Memoize the context color to prevent unnecessary re-renders
   const contextColor = useMemo(
@@ -139,12 +171,7 @@ function FriendsScreenContent() {
 
   // Main state
   const [activeTab, setActiveTab] = useState<FriendTab>('find');
-  const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  // Data state
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,15 +211,6 @@ function FriendsScreenContent() {
           return;
         }
 
-        const authToken = await AsyncStorage.getItem('authToken');
-        if (!authToken) {
-          if (isMounted) {
-            setIsAuthenticated(false);
-            setIsCheckingAuth(false);
-          }
-          return;
-        }
-
         if (isMounted) {
           setIsAuthenticated(true);
         }
@@ -215,74 +233,17 @@ function FriendsScreenContent() {
     };
   }, [contextUser, isSessionValid, authLoading]);
 
-  // Fetch friends data with cleanup
-  const fetchFriendsData = useCallback(async () => {
-    let isMounted = true;
-
-    if (!isAuthenticated) return;
-
-    try {
-      if (!isMounted) return;
-      setError(null);
-
-      const [friendsData, pendingData] = await Promise.all([
-        friendService.getUserFriends(),
-        friendService.getPendingRequests(),
-      ]);
-
-      if (isMounted) {
-        setFriends(friendsData || []);
-        setPendingRequests(pendingData || []);
-      }
-    } catch (e) {
-      if (isMounted) {
-        setError('Arkadaş verileri yüklenirken bir hata oluştu.');
-      }
-      console.error('Error fetching friends data:', e);
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthenticated]);
-
-  // Initial data fetch with cleanup
-  useEffect(() => {
-    let isMounted = true;
-
-    const initialFetch = async () => {
-      if (!isMounted) return;
-      setIsLoading(true);
-      await fetchFriendsData();
-      if (isMounted) {
-        setIsLoading(false);
-      }
-    };
-
-    if (isAuthenticated) {
-      initialFetch();
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchFriendsData, isAuthenticated]);
-
-  // Handle refresh with cleanup
+  // Handle refresh with the new refetch function
   const handleRefresh = useCallback(async () => {
-    let isMounted = true;
-
-    if (!isMounted) return;
     setRefreshing(true);
-    await fetchFriendsData();
-    if (isMounted) {
+    try {
+      await refetchAll();
+    } catch (error) {
+      console.error('Error refreshing friends data:', error);
+    } finally {
       setRefreshing(false);
     }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchFriendsData]);
+  }, [refetchAll]);
 
   // Simple search function with cleanup
   const handleSearch = useCallback(async () => {
@@ -332,132 +293,88 @@ function FriendsScreenContent() {
     };
   }, [searchQuery, isAuthenticated]);
 
-  // Send friend request with cleanup
+  // 🚀 UPDATED: Send friend request using the new hook
   const handleSendFriendRequest = useCallback(
     async (userId: number, username: string) => {
-      let isMounted = true;
-
       if (!isAuthenticated) return;
 
-      if (!isMounted) return;
       setLoadingActions((prev) => ({ ...prev, [userId]: true }));
       setSearchError(null);
       setSuccessMessage(null);
       setError(null);
 
       try {
-        await friendService.sendFriendRequest(userId);
+        await sendFriendRequest(userId);
 
-        if (isMounted) {
-          setSearchResults((prev) => prev.filter((user) => user.id !== userId));
-          setSearchError(null);
-          setSuccessMessage(
-            `${username} kullanıcısına arkadaşlık isteği gönderildi.`,
-          );
-        }
-        await fetchFriendsData();
+        setSearchResults((prev) => prev.filter((user) => user.id !== userId));
+        setSearchError(null);
+        setSuccessMessage(
+          `${username} kullanıcısına arkadaşlık isteği gönderildi.`,
+        );
       } catch (err) {
-        if (isMounted) {
-          if (err instanceof ApiError) {
-            setSearchError(err.message);
-          } else {
-            setSearchError('Arkadaşlık isteği gönderilemedi.');
-          }
+        if (err instanceof ApiError) {
+          setSearchError(err.message);
+        } else {
+          setSearchError('Arkadaşlık isteği gönderilemedi.');
         }
       } finally {
-        if (isMounted) {
-          setLoadingActions((prev) => ({ ...prev, [userId]: false }));
-        }
+        setLoadingActions((prev) => ({ ...prev, [userId]: false }));
       }
-
-      return () => {
-        isMounted = false;
-      };
     },
-    [isAuthenticated, fetchFriendsData],
+    [isAuthenticated, sendFriendRequest],
   );
 
-  // Accept friend request with cleanup
+  // 🚀 UPDATED: Accept friend request using the new hook
   const handleAcceptRequest = useCallback(
     async (friendId: number, username: string) => {
-      let isMounted = true;
-
       if (!isAuthenticated) return;
 
-      if (!isMounted) return;
       setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
       setError(null);
       setSuccessMessage(null);
 
       try {
-        await friendService.acceptRequest(friendId);
-        await fetchFriendsData();
-
-        if (isMounted) {
-          setSuccessMessage(`${username} ile artık arkadaşsınız!`);
-        }
+        await acceptRequest(friendId);
+        setSuccessMessage(`${username} ile artık arkadaşsınız!`);
       } catch (err) {
-        if (isMounted) {
-          if (err instanceof ApiError) {
-            setError(err.message);
-          } else {
-            setError('İstek kabul edilemedi.');
-          }
+        if (err instanceof ApiError) {
+          setError(err.message);
+        } else {
+          setError('İstek kabul edilemedi.');
         }
       } finally {
-        if (isMounted) {
-          setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
-        }
+        setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
       }
-
-      return () => {
-        isMounted = false;
-      };
     },
-    [isAuthenticated, fetchFriendsData],
+    [isAuthenticated, acceptRequest],
   );
 
-  // Reject friend request with cleanup
+  // 🚀 UPDATED: Reject friend request using the new hook
   const handleRejectRequest = useCallback(
     async (friendId: number, username: string) => {
-      let isMounted = true;
-
       if (!isAuthenticated) return;
 
-      if (!isMounted) return;
       setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
       setError(null);
       setSuccessMessage(null);
 
       try {
-        await friendService.rejectRequest(friendId);
-        await fetchFriendsData();
-
-        if (isMounted) {
-          setSuccessMessage(`${username} kullanıcısının isteği reddedildi.`);
-        }
+        await rejectRequest(friendId);
+        setSuccessMessage(`${username} kullanıcısının isteği reddedildi.`);
       } catch (err) {
-        if (isMounted) {
-          if (err instanceof ApiError) {
-            setError(err.message);
-          } else {
-            setError('İstek reddedilemedi.');
-          }
+        if (err instanceof ApiError) {
+          setError(err.message);
+        } else {
+          setError('İstek reddedilemedi.');
         }
       } finally {
-        if (isMounted) {
-          setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
-        }
+        setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
       }
-
-      return () => {
-        isMounted = false;
-      };
     },
-    [isAuthenticated, fetchFriendsData],
+    [isAuthenticated, rejectRequest],
   );
 
-  // Remove friend with cleanup
+  // 🚀 UPDATED: Remove friend using the new hook
   const handleRemoveFriend = useCallback(
     async (friendId: number, username: string) => {
       if (!isAuthenticated) return;
@@ -471,44 +388,71 @@ function FriendsScreenContent() {
             text: 'Sonlandır',
             style: 'destructive',
             onPress: async () => {
-              let isMounted = true;
-
-              if (!isMounted) return;
               setLoadingActions((prev) => ({ ...prev, [friendId]: true }));
 
               try {
-                await friendService.removeFriend(friendId);
-                await fetchFriendsData();
-
-                if (isMounted) {
-                  setSuccessMessage(
-                    `${username} ile arkadaşlığınız sonlandırıldı.`,
-                  );
-                }
+                await removeFriend(friendId);
+                setSuccessMessage(
+                  `${username} ile arkadaşlığınız sonlandırıldı.`,
+                );
               } catch (err) {
-                if (isMounted) {
-                  if (err instanceof ApiError) {
-                    setError(err.message);
-                  } else {
-                    setError('Arkadaşlık sonlandırılamadı.');
-                  }
+                if (err instanceof ApiError) {
+                  setError(err.message);
+                } else {
+                  setError('Arkadaşlık sonlandırılamadı.');
                 }
               } finally {
-                if (isMounted) {
-                  setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
-                }
+                setLoadingActions((prev) => ({ ...prev, [friendId]: false }));
               }
-
-              return () => {
-                isMounted = false;
-              };
             },
           },
         ],
       );
     },
-    [isAuthenticated, fetchFriendsData],
+    [isAuthenticated, removeFriend],
   );
+
+  // Update loading actions based on hook states
+  useEffect(() => {
+    setLoadingActions((prev) => {
+      const newState = { ...prev };
+
+      // Add loading states from hooks
+      if (isSendingRequest) {
+        // Would need the specific userId being processed
+        // For now, we'll rely on local state
+      }
+
+      return newState;
+    });
+  }, [
+    isSendingRequest,
+    isAcceptingRequest,
+    isRejectingRequest,
+    isRemovingFriend,
+  ]);
+
+  // Update error states from hooks
+  useEffect(() => {
+    if (sendRequestError) {
+      setError(sendRequestError.message || 'Arkadaşlık isteği gönderilemedi.');
+    } else if (acceptRequestError) {
+      setError(acceptRequestError.message || 'İstek kabul edilemedi.');
+    } else if (rejectRequestError) {
+      setError(rejectRequestError.message || 'İstek reddedilemedi.');
+    } else if (removeFriendError) {
+      setError(removeFriendError.message || 'Arkadaşlık sonlandırılamadı.');
+    } else if (friendsDataHasError && errorMessages.length > 0) {
+      setError(errorMessages.join(', '));
+    }
+  }, [
+    sendRequestError,
+    acceptRequestError,
+    rejectRequestError,
+    removeFriendError,
+    friendsDataHasError,
+    errorMessages,
+  ]);
 
   // Filter buttons with context color - memoized component
   const FilterButton = React.memo(
@@ -695,8 +639,11 @@ function FriendsScreenContent() {
     ),
   );
 
-  // Render tab content - memoized
+  // 🚀 UPDATED: Render tab content using hook data
   const renderTabContent = useMemo(() => {
+    const isLoading =
+      friendsDataLoading || friendsLoading || pendingRequestsLoading;
+
     if (isLoading) {
       return (
         <View style={styles.loadingContainer}>
@@ -799,7 +746,9 @@ function FriendsScreenContent() {
     }
   }, [
     activeTab,
-    isLoading,
+    friendsDataLoading,
+    friendsLoading,
+    pendingRequestsLoading,
     searchResults,
     friends,
     pendingRequests,
@@ -945,7 +894,7 @@ function FriendsScreenContent() {
   );
 }
 
-// StyleSheet for all static styles
+// StyleSheet for all static styles (keeping exactly the same)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1189,11 +1138,9 @@ const styles = StyleSheet.create({
   },
 });
 
-// Main component with context provider
+// Main component export (keeping the exact same structure)
 export default function FriendsScreen() {
-  return (
-    <PreferredCourseProvider>
-      <FriendsScreenContent />
-    </PreferredCourseProvider>
-  );
+  // 🚀 NOTE: Since we're using the global store now, we don't need the PreferredCourseProvider wrapper
+  // The usePreferredCourse hook accesses the global store directly
+  return <FriendsScreenContent />;
 }

@@ -1,4 +1,4 @@
-// app/(tabs)/duels.tsx
+// app/(tabs)/duels.tsx - UPDATED WITH NEW ARCHITECTURE
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Text,
@@ -12,19 +12,13 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../../context/AuthContext';
-import { duelService } from '../../../src/api';
-import {
-  getUserDuelStats,
-  UserDuelStatsPayload,
-} from '../../../src/api/duelResultService';
-import { checkAndRefreshSession } from '../../../src/api/authService';
+import { useDuelsData } from '../../../src/hooks/useDuelsData';
+import { useAuth, usePreferredCourse } from '../../../stores/appStore';
 import { Duel } from '../../../src/types/models';
 import {
   PlayfulCard,
   PlayfulButton,
   EmptyState,
-  Avatar,
   Badge,
   Container,
   Title,
@@ -33,17 +27,11 @@ import {
   Row,
   Column,
   StatCard,
-  AnimatedCounter,
   ScoreDisplay,
   SlideInElement,
   PlayfulTitle,
 } from '../../../components/ui';
 import { Colors, Spacing, FontSizes } from '../../../constants/theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  usePreferredCourse,
-  PreferredCourseProvider,
-} from '../../../context/PreferredCourseContext';
 
 // Performance optimized shadow configuration
 const OPTIMIZED_SHADOW = {
@@ -199,11 +187,11 @@ const DuelCard = React.memo(
 const StatsSection = React.memo(
   ({
     activeDuels,
-    userStats,
+    duelStats,
     contextColor,
   }: {
     activeDuels: Duel[];
-    userStats: UserDuelStatsPayload | null;
+    duelStats: any;
     contextColor: string;
   }) => {
     const pendingCount = useMemo(
@@ -224,7 +212,7 @@ const StatsSection = React.memo(
         <StatCard
           icon='fire'
           title='Kazanılan'
-          value={(userStats?.wins || 0).toString()}
+          value={(duelStats?.wins || 0).toString()}
           color={Colors.white}
           titleFontFamily='SecondaryFont-Bold'
           style={[styles.statCard, { backgroundColor: contextColor }]}
@@ -242,25 +230,35 @@ const StatsSection = React.memo(
   },
 );
 
-// Main Duels Screen Component (wrapped with context)
-function DuelsScreenContent() {
+// Main Duels Screen Component
+export default function DuelsScreen() {
   const router = useRouter();
-  const { refreshSession } = useAuth();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
+  // 🚀 NEW: Use the new store hooks instead of contexts
+  const { user, isAuthenticated, refreshSession } = useAuth();
   const {
     preferredCourse,
-    isLoading: courseLoading,
     getCourseColor,
+    isLoading: courseLoading,
   } = usePreferredCourse();
 
-  const [activeDuels, setActiveDuels] = useState<Duel[]>([]);
-  const [userStats, setUserStats] = useState<UserDuelStatsPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  // 🚀 NEW: Use the comprehensive duels data hook
+  const {
+    activeDuels,
+    activeDuelsLoading,
+    activeDuelsError,
+    duelStats,
+    duelStatsLoading,
+    duelStatsError,
+    isLoading,
+    hasError,
+    refetchAll,
+  } = useDuelsData();
+
+  // Local UI state
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [userData, setUserData] = useState<{ username?: string } | null>(null);
 
   // Memoized context color to prevent unnecessary re-renders
   const contextColor = useMemo(() => {
@@ -317,205 +315,73 @@ function DuelsScreenContent() {
     [isDark],
   );
 
-  // Load user data from AsyncStorage
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadUserData = async () => {
-      try {
-        const userData = await AsyncStorage.getItem('userData');
-        if (userData && isMounted) {
-          setUserData(JSON.parse(userData));
-        }
-      } catch (error) {
-        if (isMounted) {
-          console.error('Error loading user data from AsyncStorage:', error);
-        }
-      }
-    };
-
-    loadUserData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const fetchData = useCallback(async () => {
-    try {
-      setError(null);
-
-      const sessionValid = await checkAndRefreshSession();
-      if (!sessionValid) {
-        console.log('Session invalid, redirecting to login');
-        router.replace('/(auth)/login');
-        return;
-      }
-
-      const [duelsResponse, userStatsResponse] = await Promise.allSettled([
-        duelService.getActiveDuels(),
-        getUserDuelStats(),
-      ]);
-
-      let hasData = false;
-
-      if (duelsResponse.status === 'fulfilled') {
-        setActiveDuels(duelsResponse.value);
-        hasData = true;
-      } else {
-        console.error('Failed to fetch duels:', duelsResponse.reason);
-        setActiveDuels([]);
-      }
-
-      if (userStatsResponse.status === 'fulfilled') {
-        setUserStats(userStatsResponse.value);
-        hasData = true;
-      } else {
-        console.error('Failed to fetch user stats:', userStatsResponse.reason);
-        setUserStats(null);
-      }
-
-      if (!hasData) {
-        const firstError = [duelsResponse, userStatsResponse].find(
-          (response) => response.status === 'rejected',
-        )?.reason;
-
-        if (firstError?.message?.includes('Oturum süresi doldu')) {
-          router.replace('/(auth)/login');
-          return;
-        }
-
-        setError('Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
-      }
-    } catch (error) {
-      console.error('Error fetching duels data:', error);
-
-      if (
-        error instanceof Error &&
-        (error.message.includes('Oturum süresi doldu') ||
-          error.message.includes('unauthorized') ||
-          error.message.includes('401'))
-      ) {
-        router.replace('/(auth)/login');
-        return;
-      }
-
-      setError('Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
-    }
-  }, [router]);
-
+  // 🚀 SIMPLIFIED: Handle refresh with new hook
   const handleRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
-      setError(null);
 
-      console.log('Refreshing duels data...');
-
-      const sessionValid = await checkAndRefreshSession();
-      if (!sessionValid) {
-        console.log('Session invalid during refresh, redirecting to login');
-        router.replace('/(auth)/login');
-        return;
+      // Try to refresh session first
+      try {
+        await refreshSession();
+      } catch (sessionError) {
+        console.warn(
+          'Session refresh failed during manual refresh:',
+          sessionError,
+        );
       }
 
-      await fetchData();
+      // Refetch all duels data
+      await refetchAll();
+
       console.log('Duels refresh completed successfully');
     } catch (error) {
       console.error('Duels refresh failed:', error);
 
+      // If authentication failed, redirect to login
       if (
         error instanceof Error &&
-        error.message.includes('Oturum süresi doldu')
+        (error.message.includes('unauthorized') ||
+          error.message.includes('401') ||
+          error.message.includes('Oturum süresi doldu'))
       ) {
         router.replace('/(auth)/login');
         return;
       }
-
-      setError('Yenileme başarısız. Lütfen tekrar deneyin.');
     } finally {
       setRefreshing(false);
     }
-  }, [fetchData, router]);
+  }, [refetchAll, refreshSession, router]);
 
+  // 🚀 SIMPLIFIED: Handle retry
   const handleRetry = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      console.log('Retrying duels data fetch...');
-
-      try {
-        await refreshSession();
-        console.log('Session refreshed via AuthContext');
-      } catch (sessionError) {
-        console.error('AuthContext session refresh failed:', sessionError);
-
-        const sessionValid = await checkAndRefreshSession();
-        if (!sessionValid) {
-          console.log('Manual session check failed, redirecting to login');
-          router.replace('/(auth)/login');
-          return;
-        }
+      // Try to refresh session
+      const sessionValid = await refreshSession();
+      if (!sessionValid) {
+        router.replace('/(auth)/login');
+        return;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      await fetchData();
-
-      console.log('Duels retry completed successfully');
+      // Retry fetching data
+      await refetchAll();
     } catch (error) {
-      console.error('Duels retry failed:', error);
+      console.error('Retry failed:', error);
 
       if (
         error instanceof Error &&
         error.message.includes('Oturum süresi doldu')
       ) {
         router.replace('/(auth)/login');
-        return;
       }
-
-      setError('Yeniden deneme başarısız. Lütfen uygulamayı yeniden başlatın.');
-    } finally {
-      setLoading(false);
     }
-  }, [fetchData, router, refreshSession]);
+  }, [refreshSession, refetchAll, router]);
 
+  // Check authentication on mount
   useEffect(() => {
-    let isMounted = true;
-
-    async function initialFetch() {
-      if (!isMounted) return;
-
-      setLoading(true);
-
-      try {
-        const sessionValid = await checkAndRefreshSession();
-        if (!sessionValid) {
-          if (isMounted) {
-            setLoading(false);
-            router.replace('/(auth)/login');
-          }
-          return;
-        }
-
-        await fetchData();
-      } catch (error) {
-        console.error('Initial duels fetch error:', error);
-        if (isMounted) {
-          setError('Başlangıç verisi yüklenemedi. Lütfen tekrar deneyin.');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
+    if (!isAuthenticated) {
+      router.replace('/(auth)/login');
     }
-
-    initialFetch();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchData, router]);
+  }, [isAuthenticated, router]);
 
   // Memoized handlers to prevent unnecessary re-renders
   const handleNewDuel = useCallback(() => {
@@ -538,8 +404,14 @@ function DuelsScreenContent() {
     [router],
   );
 
-  // Enhanced error screen with better retry options
-  if (error && !loading) {
+  // 🚀 SIMPLIFIED: Error handling - show error if there's a persistent error
+  const shouldShowError = hasError && !isLoading && !refreshing;
+  const errorMessage =
+    activeDuelsError?.message ||
+    duelStatsError?.message ||
+    'Veri yüklenirken bir hata oluştu. Lütfen tekrar deneyin.';
+
+  if (shouldShowError) {
     return (
       <Container style={styles.errorContainer}>
         <View style={styles.errorContent}>
@@ -552,7 +424,11 @@ function DuelsScreenContent() {
 
           <Text style={dynamicStyles.errorTitle}>Bir Sorun Oluştu</Text>
 
-          <Alert type='error' message={error} style={styles.errorAlert} />
+          <Alert
+            type='error'
+            message={errorMessage}
+            style={styles.errorAlert}
+          />
 
           <View style={styles.errorActions}>
             <PlayfulButton
@@ -614,7 +490,7 @@ function DuelsScreenContent() {
           </PlayfulCard>
         </SlideInElement>
 
-        {loading ? (
+        {isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size='large' color={contextColor} />
             <Text style={dynamicStyles.loadingText}>
@@ -629,7 +505,7 @@ function DuelsScreenContent() {
             {/* Stats Cards */}
             <StatsSection
               activeDuels={activeDuels}
-              userStats={userStats}
+              duelStats={duelStats}
               contextColor={contextColor}
             />
 
@@ -718,8 +594,8 @@ function DuelsScreenContent() {
               </PlayfulCard>
             </View>
 
-            {/* Error display at bottom if there's an error but data is loaded */}
-            {error && !loading && activeDuels.length > 0 && (
+            {/* Error display at bottom if there's a partial error */}
+            {(activeDuelsError || duelStatsError) && activeDuels.length > 0 && (
               <Alert
                 type='warning'
                 message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
@@ -727,8 +603,8 @@ function DuelsScreenContent() {
               />
             )}
 
-            {/* Retry button at bottom for partial failures */}
-            {!loading && activeDuels.length === 0 && !error && (
+            {/* No data state when not loading but no duels */}
+            {!isLoading && activeDuels.length === 0 && !hasError && (
               <View
                 style={[
                   styles.noDataContainer,
@@ -904,12 +780,3 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 });
-
-// Main component with context provider
-export default function DuelsScreen() {
-  return (
-    <PreferredCourseProvider>
-      <DuelsScreenContent />
-    </PreferredCourseProvider>
-  );
-}

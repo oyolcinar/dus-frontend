@@ -17,12 +17,11 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import {
-  usePreferredCourse,
-  CourseCategory,
-  CATEGORY_COLORS,
-  PreferredCourse,
-} from '../../context/PreferredCourseContext';
+
+// ✅ UPDATED: Use new appStore and types
+import { usePreferredCourse } from '../../stores/appStore';
+import { PreferredCourse, CourseCategory } from '../../src/types/models';
+
 import {
   Colors,
   FontSizes,
@@ -30,10 +29,22 @@ import {
   Spacing,
   BorderRadius,
 } from '../../constants/theme';
-import { getAllCourses } from '../../src/api/studyService'; // Updated import
+import { getAllCourses } from '../../src/api/studyService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // Import Updates if using Expo
 import * as Updates from 'expo-updates';
+
+// ✅ UPDATED: Define CATEGORY_COLORS locally (matching appStore values)
+const CATEGORY_COLORS: Record<CourseCategory, string> = {
+  radyoloji: '#FF7675',
+  restoratif: '#4285F4',
+  endodonti: '#FFD93D',
+  pedodonti: '#FF6B9D',
+  protetik: '#21b958',
+  peridontoloji: '#800000',
+  cerrahi: '#ec1c24',
+  ortodonti: '#702963',
+};
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -53,11 +64,15 @@ const CourseSelectionModal: React.FC<CourseSelectionModalProps> = ({
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
+  // ✅ UPDATED: Use new appStore hook
   const { setPreferredCourse, getCourseCategory } = usePreferredCourse();
 
   const [selecting, setSelecting] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [courses, setCourses] = useState<PreferredCourse[]>([]);
+  // ✅ FIXED: Use extended type to include category
+  const [courses, setCourses] = useState<
+    (PreferredCourse & { category?: CourseCategory })[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [restartRequired, setRestartRequired] = useState(false);
 
@@ -86,11 +101,9 @@ const CourseSelectionModal: React.FC<CourseSelectionModalProps> = ({
       } else {
         // Map courses to include category
         const mappedCourses = fetchedCourses.map((course) => ({
-          course_id: course.course_id,
-          title: course.title,
-          description: course.description,
+          ...course,
           category: getCourseCategory(course.title),
-        }));
+        })) as (PreferredCourse & { category?: CourseCategory })[];
         setCourses(mappedCourses);
       }
     } catch (err) {
@@ -105,60 +118,71 @@ const CourseSelectionModal: React.FC<CourseSelectionModalProps> = ({
 
   // Use hardcoded fallback courses if API fails
   const useFallbackCourses = () => {
-    setCourses([
+    // ✅ FIXED: Map courses and add category using getCourseCategory function
+    const fallbackCourses: PreferredCourse[] = [
       {
         course_id: 29,
         title: 'Ağız, Diş ve Çene Radyolojisi',
         description: 'Ağız, diş ve çene radyolojisi dersleri',
-        category: 'radyoloji',
+        course_type: 'klinik_dersler',
       },
       {
         course_id: 24,
         title: 'Restoratif Diş Tedavisi',
         description: 'Restoratif diş tedavisi dersleri',
-        category: 'restoratif',
+        course_type: 'klinik_dersler',
       },
       {
         course_id: 25,
         title: 'Endodonti',
         description: 'Endodonti dersleri',
-        category: 'endodonti',
+        course_type: 'klinik_dersler',
       },
       {
         course_id: 26,
         title: 'Pedodonti',
         description: 'Pedodonti dersleri',
-        category: 'pedodonti',
+        course_type: 'klinik_dersler',
       },
       {
         course_id: 27,
         title: 'Protetik Diş Tedavisi',
         description: 'Protetik diş tedavisi dersleri',
-        category: 'protetik',
+        course_type: 'klinik_dersler',
       },
       {
         course_id: 28,
         title: 'Periodontoloji',
         description: 'Periodontoloji dersleri',
-        category: 'peridontoloji',
+        course_type: 'klinik_dersler',
       },
       {
         course_id: 23,
         title: 'Ağız, Diş ve Çene Cerrahisi',
         description: 'Ağız, diş ve çene cerrahisi dersleri',
-        category: 'cerrahi',
+        course_type: 'klinik_dersler',
       },
       {
         course_id: 30,
         title: 'Ortodonti',
         description: 'Ortodonti dersleri',
-        category: 'ortodonti',
+        course_type: 'klinik_dersler',
       },
-    ]);
+    ];
+
+    // Map fallback courses to add category dynamically
+    const mappedFallbackCourses = fallbackCourses.map((course) => ({
+      ...course,
+      category: getCourseCategory(course.title),
+    })) as (PreferredCourse & { category?: CourseCategory })[];
+
+    setCourses(mappedFallbackCourses);
   };
 
   // Store the selected course in AsyncStorage for immediate access across app
-  const storeSelectedCourse = async (course: PreferredCourse) => {
+  const storeSelectedCourse = async (
+    course: PreferredCourse | (PreferredCourse & { category?: CourseCategory }),
+  ) => {
     try {
       const courseWithTimestamp = {
         ...course,
@@ -193,22 +217,32 @@ const CourseSelectionModal: React.FC<CourseSelectionModalProps> = ({
     setRestartRequired(true);
   };
 
-  // Handle course selection
-  const handleCourseSelect = async (course: PreferredCourse) => {
+  // ✅ UPDATED: Handle course selection using new appStore
+  const handleCourseSelect = async (
+    course: PreferredCourse & { category?: CourseCategory },
+  ) => {
     try {
       console.log('Selecting course:', course.title);
       setSelecting(course.course_id);
       setError(null);
 
-      // Store course in AsyncStorage first for immediate access
-      await storeSelectedCourse(course);
+      // Create a clean course object for the store (without extra category property)
+      const cleanCourse: PreferredCourse = {
+        course_id: course.course_id,
+        title: course.title,
+        description: course.description,
+        course_type: course.course_type,
+      };
 
-      // Then set in the context
-      await setPreferredCourse(course.course_id, course);
+      // Store course in AsyncStorage first for immediate access
+      await storeSelectedCourse(cleanCourse);
+
+      // ✅ UPDATED: Use new appStore setPreferredCourse (takes full course object)
+      await setPreferredCourse(cleanCourse);
       console.log('Course selected successfully');
 
       if (onCourseSelected) {
-        onCourseSelected(course);
+        onCourseSelected(cleanCourse);
       }
       if (onClose) {
         onClose();
@@ -541,6 +575,7 @@ const CourseSelectionModal: React.FC<CourseSelectionModalProps> = ({
   );
 };
 
+// ✅ KEEPING: All styles exactly the same
 const styles = StyleSheet.create({
   // Main modal overlay - covers entire screen
   modalOverlay: {

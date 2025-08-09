@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,26 +9,21 @@ import {
   Alert,
   ActivityIndicator,
   useColorScheme,
-  Platform,
   RefreshControl,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
 import {
   NotificationType,
   NotificationPreferences,
-  TestNotificationRequest,
 } from '../../../src/types/models';
 import {
-  getPreferences,
-  updatePreferences,
-  sendTestNotification,
-  registerDeviceToken,
-  setupPushNotifications,
-  isNotificationTypeEnabled,
-  getNotificationIcon,
-  getNotificationColor,
-} from '../../../src/api/notificationService';
+  useNotificationSettingsData,
+  notificationHelpers,
+} from '../../../src/hooks/useNotificationsData';
+import {
+  useNotifications,
+  useNotificationPreferences,
+} from '../../../stores/appStore';
 import {
   PlayfulCard,
   PlayfulButton,
@@ -109,6 +98,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'SecondaryFont-Regular',
     opacity: 0.8,
+  },
+  statsRow: {
+    marginTop: Spacing[2],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[4],
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.primary.DEFAULT,
+    fontFamily: 'PrimaryFont',
+  },
+  statLabel: {
+    fontSize: 11,
+    color: Colors.gray[600],
+    fontFamily: 'SecondaryFont-Regular',
   },
   filterContainer: {
     marginBottom: Spacing[6],
@@ -263,17 +272,21 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  // Refs for cleanup
-  const isMountedRef = useRef(true);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  // 🚀 NEW: Use the enhanced hooks instead of manual state
+  const settingsData = useNotificationSettingsData();
+  const {
+    unreadCount,
+    unreadStudyCount,
+    unreadSocialCount,
+    unreadSystemCount,
+    courseRelatedCount,
+    canReceive,
+  } = useNotifications();
 
-  // State
-  const [preferences, setPreferences] = useState<NotificationPreferences[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [saving, setSaving] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [deviceToken, setDeviceToken] = useState<string | null>(null);
+  const { preferences, isTypeEnabled, getPreference } =
+    useNotificationPreferences();
+
+  // Local UI state
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('all');
 
   // Memoized constants
@@ -324,34 +337,14 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
       [],
     );
 
-  // Categorize notification types
+  // 🚀 NEW: Use helper functions for categorization
   const notificationCategories: Record<FilterType, NotificationType[]> =
     useMemo(
       () => ({
         all: Object.keys(notificationTypeNames) as NotificationType[],
-        study: [
-          'study_reminder',
-          'streak_reminder',
-          'plan_reminder',
-          'coaching_note',
-          'course_reminder',
-          'course_completed',
-          'course_progress',
-          'course_milestone',
-          'course_study_session',
-        ],
-        social: [
-          'duel_invitation',
-          'duel_result',
-          'friend_request',
-          'friend_activity',
-        ],
-        system: [
-          'achievement_unlock',
-          'content_update',
-          'motivational_message',
-          'system_announcement',
-        ],
+        study: notificationHelpers.getNotificationTypesByCategory('study'),
+        social: notificationHelpers.getNotificationTypesByCategory('social'),
+        system: notificationHelpers.getNotificationTypesByCategory('system'),
       }),
       [notificationTypeNames],
     );
@@ -365,112 +358,17 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
     [isDark],
   );
 
-  // Load user preferences and setup push notifications with cleanup
-  const loadPreferences = useCallback(async () => {
-    if (!isMountedRef.current) return;
-
-    // Create new abort controller for this request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-
-    try {
-      console.log('🔄 Starting loadPreferences...');
-      setError(null);
-
-      // Load preferences from API
-      console.log('📡 Calling getPreferences...');
-      const userPreferences = await getPreferences();
-
-      if (!isMountedRef.current) return;
-
-      console.log('✅ getPreferences completed:', userPreferences);
-      setPreferences(userPreferences);
-
-      // Setup push notifications using the service function
-      console.log('📱 Calling setupPushNotifications from service...');
-      const pushResult = await setupPushNotifications();
-
-      if (!isMountedRef.current) return;
-
-      console.log('📱 setupPushNotifications result:', pushResult);
-
-      if (pushResult.success && pushResult.token && !pushResult.isDevelopment) {
-        setDeviceToken(pushResult.token);
-        console.log('✅ Real device token set:', pushResult.token);
-      } else if (pushResult.isDevelopment) {
-        setDeviceToken('EXPO_GO_MOCK_TOKEN');
-        console.log('🚀 Development mode - mock token used');
-      }
-
-      console.log('✅ loadPreferences completed successfully');
-    } catch (err: any) {
-      if (!isMountedRef.current) return;
-      console.error('❌ loadPreferences error:', err);
-      setError(`Ayarlar yüklenirken bir hata oluştu: ${err.message}`);
-    }
-  }, []);
-
-  // Handle refresh
-  const handleRefresh = useCallback(async () => {
-    if (!isMountedRef.current) return;
-    setRefreshing(true);
-    await loadPreferences();
-    if (isMountedRef.current) {
-      setRefreshing(false);
-    }
-  }, [loadPreferences]);
-
-  // Handle retry
-  const handleRetry = useCallback(async () => {
-    if (!isMountedRef.current) return;
-    setIsLoading(true);
-    await loadPreferences();
-    if (isMountedRef.current) {
-      setIsLoading(false);
-    }
-  }, [loadPreferences]);
-
-  // Get preference for specific notification type
-  const getPreferenceForType = useCallback(
-    (type: NotificationType): NotificationPreferences | null => {
-      return preferences.find((p) => p.notification_type === type) || null;
-    },
-    [preferences],
-  );
-
-  // Handle toggle switches
+  // 🚀 NEW: Handle toggle switches using the new hooks
   const handleToggle = useCallback(
     async (
       type: NotificationType,
       setting: 'in_app_enabled' | 'push_enabled' | 'email_enabled',
       value: boolean,
     ) => {
-      if (!isMountedRef.current) return;
-
       try {
-        setSaving(`${type}-${setting}`);
-
-        // Update preference via API
-        const updatedPreference = await updatePreferences(type, {
-          [setting]: value,
-        });
-
-        if (!isMountedRef.current) return;
-
-        // Update local state
-        setPreferences((prev) => {
-          const existingIndex = prev.findIndex(
-            (p) => p.notification_type === type,
-          );
-          if (existingIndex >= 0) {
-            const updated = [...prev];
-            updated[existingIndex] = updatedPreference;
-            return updated;
-          } else {
-            return [...prev, updatedPreference];
-          }
+        await settingsData.updatePreferencesAsync({
+          notificationType: type,
+          preferences: { [setting]: value },
         });
 
         // Show success message for important changes
@@ -482,65 +380,36 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
           );
         }
       } catch (err: any) {
-        if (!isMountedRef.current) return;
         console.error('Error updating preference:', err);
         Alert.alert(
           'Hata',
           'Ayar güncellenirken bir hata oluştu. Lütfen tekrar deneyin.',
         );
-      } finally {
-        if (isMountedRef.current) {
-          setSaving(null);
-        }
       }
     },
-    [preferences],
+    [settingsData.updatePreferencesAsync],
   );
 
-  // Handle frequency updates
+  // 🚀 NEW: Handle frequency updates using the new hooks
   const handleFrequencyUpdate = useCallback(
     async (type: NotificationType, frequency: number) => {
-      if (!isMountedRef.current) return;
-
       try {
-        setSaving(`${type}-frequency`);
-
-        const updatedPreference = await updatePreferences(type, {
-          frequency_hours: frequency,
-        });
-
-        if (!isMountedRef.current) return;
-
-        // Update local state
-        setPreferences((prev) => {
-          const existingIndex = prev.findIndex(
-            (p) => p.notification_type === type,
-          );
-          if (existingIndex >= 0) {
-            const updated = [...prev];
-            updated[existingIndex] = updatedPreference;
-            return updated;
-          } else {
-            return [...prev, updatedPreference];
-          }
+        await settingsData.updatePreferencesAsync({
+          notificationType: type,
+          preferences: { frequency_hours: frequency },
         });
       } catch (err: any) {
-        if (!isMountedRef.current) return;
         console.error('Error updating frequency:', err);
         Alert.alert('Hata', 'Sıklık ayarı güncellenirken bir hata oluştu.');
-      } finally {
-        if (isMountedRef.current) {
-          setSaving(null);
-        }
       }
     },
-    [],
+    [settingsData.updatePreferencesAsync],
   );
 
   // Handle frequency change dialog
   const handleFrequencyChange = useCallback(
     async (type: NotificationType) => {
-      const currentPref = getPreferenceForType(type);
+      const currentPref = getPreference(type);
       const currentFrequency = currentPref?.frequency_hours || 24;
 
       Alert.alert('Bildirim Sıklığı', 'Bu bildirim türü için sıklık seçin:', [
@@ -562,22 +431,13 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
         },
       ]);
     },
-    [getPreferenceForType, handleFrequencyUpdate],
+    [getPreference, handleFrequencyUpdate],
   );
 
-  // Handle test notification
+  // 🚀 NEW: Handle test notification using the new hooks
   const handleTestNotification = useCallback(async () => {
     try {
-      const testRequest: TestNotificationRequest = {
-        template_name: 'test_notification',
-        notification_type: 'system_announcement',
-        variables: {
-          message: 'Bu bir test bildirimidir! 🎉',
-          title: 'Test Bildirimi',
-        },
-      };
-
-      await sendTestNotification(testRequest);
+      await settingsData.sendTest(notificationHelpers.createTestRequest());
 
       Alert.alert(
         'Test Bildirimi Gönderildi',
@@ -591,40 +451,36 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
         'Test bildirimi gönderilemedi. İnternet bağlantınızı kontrol edin.',
       );
     }
-  }, []);
+  }, [settingsData.sendTest]);
 
-  // Handle bulk actions (enable/disable all)
+  // 🚀 NEW: Handle bulk actions using the new approach
   const handleBulkAction = useCallback(
     async (enabled: boolean) => {
-      if (!isMountedRef.current) return;
-
       try {
-        setSaving('bulk-action');
-
         const types =
           selectedFilter === 'all'
-            ? Object.keys(notificationTypeNames)
+            ? (Object.keys(notificationTypeNames) as NotificationType[])
             : notificationCategories[selectedFilter];
 
+        // Update each preference type in parallel
         const promises = types.map(async (type) => {
-          const notificationType = type as NotificationType;
-
-          // Update each preference type
           await Promise.all([
-            updatePreferences(notificationType, { in_app_enabled: enabled }),
-            updatePreferences(notificationType, { push_enabled: enabled }),
-            updatePreferences(notificationType, {
-              email_enabled: enabled && false,
+            settingsData.updatePreferencesAsync({
+              notificationType: type,
+              preferences: { in_app_enabled: enabled },
+            }),
+            settingsData.updatePreferencesAsync({
+              notificationType: type,
+              preferences: { push_enabled: enabled },
+            }),
+            settingsData.updatePreferencesAsync({
+              notificationType: type,
+              preferences: { email_enabled: enabled && false },
             }),
           ]);
         });
 
         await Promise.all(promises);
-
-        if (!isMountedRef.current) return;
-
-        // Reload preferences to get updated state
-        await loadPreferences();
 
         Alert.alert(
           'Ayarlar Güncellendi',
@@ -634,20 +490,15 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
           [{ text: 'Tamam' }],
         );
       } catch (error: any) {
-        if (!isMountedRef.current) return;
         console.error('Error updating bulk preferences:', error);
         Alert.alert('Hata', 'Toplu işlem sırasında bir hata oluştu.');
-      } finally {
-        if (isMountedRef.current) {
-          setSaving(null);
-        }
       }
     },
     [
       selectedFilter,
       notificationCategories,
       notificationTypeNames,
-      loadPreferences,
+      settingsData.updatePreferencesAsync,
     ],
   );
 
@@ -656,10 +507,28 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
     return notificationCategories[selectedFilter];
   }, [notificationCategories, selectedFilter]);
 
-  // Memoized Filter Button Component
+  // 🚀 NEW: Enhanced Filter Button Component with counts
   const FilterButton = React.memo(
     ({ filter, title }: { filter: FilterType; title: string }) => {
       const isActive = selectedFilter === filter;
+
+      // Get unread count for this category
+      const getUnreadCount = () => {
+        switch (filter) {
+          case 'study':
+            return unreadStudyCount;
+          case 'social':
+            return unreadSocialCount;
+          case 'system':
+            return unreadSystemCount;
+          case 'all':
+            return unreadCount;
+          default:
+            return 0;
+        }
+      };
+
+      const count = getUnreadCount();
 
       return (
         <TouchableOpacity
@@ -678,6 +547,7 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
             adjustsFontSizeToFit
           >
             {title}
+            {count > 0 && ` (${count})`}
           </Text>
         </TouchableOpacity>
       );
@@ -704,19 +574,30 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
     [],
   );
 
-  // Render notification type settings
+  // 🚀 NEW: Render notification type settings using the new data
   const renderNotificationTypeSettings = useCallback(
     (type: NotificationType, index: number) => {
-      const pref = getPreferenceForType(type);
-      const isLoadingThis = saving?.startsWith(type);
-      const icon = getNotificationIcon(type);
-      const color = getNotificationColor(type);
+      const pref = getPreference(type);
+      const isLoadingThis = settingsData.isUpdatingPreferences;
+      const icon = notificationHelpers.formatNotificationForDisplay({
+        notification_type: type,
+      } as any).icon;
+      const color = notificationHelpers.getCategoryColor(
+        notificationHelpers
+          .getNotificationTypesByCategory('study')
+          .includes(type)
+          ? 'study'
+          : notificationHelpers
+                .getNotificationTypesByCategory('social')
+                .includes(type)
+            ? 'social'
+            : 'system',
+      );
 
       const frequencyText = useMemo(() => {
-        if (pref?.frequency_hours === 1) return 'Saatte bir';
-        if (pref?.frequency_hours === 24) return 'Günde bir';
-        if (pref?.frequency_hours === 168) return 'Haftada bir';
-        return `${pref?.frequency_hours || 24} saatte bir`;
+        return notificationHelpers.getFrequencyText(
+          pref?.frequency_hours || 24,
+        );
       }, [pref?.frequency_hours]);
 
       const showFrequencyButton =
@@ -873,8 +754,8 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
       );
     },
     [
-      getPreferenceForType,
-      saving,
+      getPreference,
+      settingsData.isUpdatingPreferences,
       notificationTypeNames,
       notificationTypeDescriptions,
       iconBackgroundColors,
@@ -884,44 +765,13 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
     ],
   );
 
-  // Load preferences on component mount with cleanup
-  useEffect(() => {
-    let isCancelled = false;
-
-    async function initialLoad() {
-      if (!isCancelled && isMountedRef.current) {
-        setIsLoading(true);
-        await loadPreferences();
-        if (!isCancelled && isMountedRef.current) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    initialLoad();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [loadPreferences]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
-
   // Memoized filtered notification types
   const filteredNotificationTypes = useMemo(() => {
     return getFilteredNotificationTypes();
   }, [getFilteredNotificationTypes]);
 
-  // Loading state
-  if (isLoading) {
+  // 🚀 NEW: Enhanced loading state using the new hooks
+  if (settingsData.isLoading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size='large' color={colors.loading} />
@@ -930,8 +780,8 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
     );
   }
 
-  // Error state
-  if (error) {
+  // 🚀 NEW: Enhanced error state using the new hooks
+  if (settingsData.hasError) {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <Feather
@@ -939,10 +789,12 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
           size={48}
           color={Colors.vibrant?.orange}
         />
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={styles.errorText}>
+          Ayarlar yüklenirken bir hata oluştu. Lütfen tekrar deneyin.
+        </Text>
         <PlayfulButton
           title='Tekrar Dene'
-          onPress={handleRetry}
+          onPress={settingsData.refetchAll}
           variant='primary'
           size='medium'
           style={styles.retryButton}
@@ -958,14 +810,14 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
+            refreshing={settingsData.isLoading}
+            onRefresh={settingsData.refetchAll}
             tintColor={Colors.primary.DEFAULT}
             colors={[Colors.primary.DEFAULT]}
           />
         }
       >
-        {/* Header Section */}
+        {/* 🚀 NEW: Enhanced Header Section with stats */}
         <SlideInElement delay={0}>
           <PlayfulCard style={styles.headerCard}>
             <Row style={styles.headerRow}>
@@ -983,17 +835,45 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
                 >
                   Hangi bildirimleri almak istediğinizi seçin
                 </Paragraph>
-                {deviceToken && (
+
+                {/* 🚀 NEW: Device token and connection status */}
+                {settingsData.deviceToken?.token && (
                   <Text style={styles.deviceTokenText}>
                     Push bildirimleri etkin ✓
                   </Text>
                 )}
+                {!canReceive && (
+                  <Text
+                    style={[
+                      styles.deviceTokenText,
+                      { color: Colors.vibrant.orange },
+                    ]}
+                  >
+                    ⚠️ Push bildirimleri devre dışı
+                  </Text>
+                )}
+
+                {/* 🚀 NEW: Quick stats */}
+                <View style={styles.statsRow}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{unreadCount}</Text>
+                    <Text style={styles.statLabel}>Okunmamış</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{courseRelatedCount}</Text>
+                    <Text style={styles.statLabel}>Ders</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{preferences.length}</Text>
+                    <Text style={styles.statLabel}>Ayar</Text>
+                  </View>
+                </View>
               </Column>
             </Row>
           </PlayfulCard>
         </SlideInElement>
 
-        {/* Filter Buttons */}
+        {/* 🚀 NEW: Enhanced Filter Buttons with counts */}
         <SlideInElement delay={100}>
           <View style={styles.filterContainer}>
             <Row style={styles.filterRow}>
@@ -1005,7 +885,7 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
           </View>
         </SlideInElement>
 
-        {/* Quick Actions */}
+        {/* 🚀 NEW: Enhanced Quick Actions */}
         <SlideInElement delay={200}>
           <PlayfulCard
             title='Hızlı İşlemler'
@@ -1024,7 +904,7 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
                 animated
                 size='xs'
                 fontFamily='PrimaryFont'
-                disabled={saving === 'bulk-action'}
+                disabled={settingsData.isUpdatingPreferences}
               />
               <PlayfulButton
                 title={
@@ -1037,7 +917,7 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
                 animated
                 size='xs'
                 fontFamily='PrimaryFont'
-                disabled={saving === 'bulk-action'}
+                disabled={settingsData.isUpdatingPreferences}
               />
             </Row>
             <Row style={styles.quickActionsRow}>
@@ -1050,22 +930,24 @@ const NotificationSettingsScreen: React.FC = React.memo(() => {
                 animated
                 size='xs'
                 fontFamily='PrimaryFont'
+                disabled={settingsData.isSendingTest}
               />
               <PlayfulButton
-                title='Ayarları Yenile'
-                onPress={loadPreferences}
+                title='Push Yenile'
+                onPress={settingsData.refreshToken}
                 variant='outline'
                 style={styles.quickActionButton}
                 icon='refresh'
                 animated
                 size='xs'
                 fontFamily='PrimaryFont'
+                disabled={settingsData.isSettingUp}
               />
             </Row>
           </PlayfulCard>
         </SlideInElement>
 
-        {/* Notification Types */}
+        {/* 🚀 NEW: Notification Types using new data */}
         {filteredNotificationTypes.map((type, index) =>
           renderNotificationTypeSettings(type, index),
         )}

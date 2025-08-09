@@ -12,15 +12,17 @@ import {
   ScrollView,
   useColorScheme,
   Text,
-  Image,
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FontAwesome } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
-import { useAuth } from '../../context/AuthContext';
+
+// 🚀 UPDATED: Use new integrated auth hooks
+import { useAuth, useTheme } from '../../stores/appStore';
+import { useUserData } from '../../src/hooks/useAppData';
+
 import { Button, Input, TextLink, Alert } from '../../components/ui';
 import { PlayfulButton, GlassCard, PlayfulCard } from '../../components/ui';
 import {
@@ -36,24 +38,41 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isOAuthLoading, setIsOAuthLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const colorScheme = useColorScheme();
   const videoRef = useRef<Video>(null);
 
-  const { signUp, signInWithGoogle, signInWithApple, signInWithFacebook } =
-    useAuth();
+  // 🚀 UPDATED: Use integrated auth store with authService
+  const {
+    user,
+    isAuthenticated,
+    isLoading,
+    error: authError,
+    isOAuthLoading,
+    oauthProvider,
+    register,
+    signInWithGoogle,
+    signInWithApple,
+    signInWithFacebook,
+    clearError,
+  } = useAuth();
 
-  const logoWhite = require('../../assets/images/logoWhite.jpg');
+  // 🚀 NEW: Use theme hook
+  const { theme, isDark } = useTheme();
+
+  // 🚀 NEW: User data hook (React Query result)
+  const userDataQuery = useUserData();
+
   const logoVideo = require('../../assets/videos/heyecanli.mp4');
 
-  const isDarkMode = useMemo(() => colorScheme === 'dark', [colorScheme]);
+  const isDarkMode = useMemo(
+    () => isDark || colorScheme === 'dark',
+    [isDark, colorScheme],
+  );
 
   // Memoize gradient colors calculation
   const linearGradientColors = useMemo(() => {
     const gradientColors = Colors.gradients?.tropical || [
-      Colors.vibrant?.green || Colors.success,
+      Colors.vibrant?.green || '#4caf50',
       Colors.vibrant?.mint || Colors.primary.DEFAULT,
     ];
 
@@ -63,12 +82,15 @@ export default function RegisterScreen() {
           gradientColors[1],
           ...(gradientColors.slice(2) || []),
         ] as readonly [string, string, ...string[]])
-      : ([Colors.success, Colors.primary.DEFAULT] as readonly [
+      : (['#4caf50', Colors.primary.DEFAULT] as readonly [
           string,
           string,
           ...string[],
         ]);
   }, []);
+
+  // 🚀 REMOVED: Don't initialize from register screen - should be done at app level
+  // The app initialization should happen in the root layout, not individual screens
 
   // Video cleanup
   useEffect(() => {
@@ -79,38 +101,52 @@ export default function RegisterScreen() {
     };
   }, []);
 
-  const handleRegister = useCallback(async () => {
-    setError(null);
-
-    // Basic form validation
-    if (!username || !email || !password || !confirmPassword) {
-      setError('Lütfen tüm alanları doldurun');
-      return;
+  // 🚀 UPDATED: Clear error when inputs change
+  useEffect(() => {
+    if (authError) {
+      clearError();
     }
+  }, [username, email, password, confirmPassword, clearError]);
 
+  // 🚀 NEW: Form validation
+  const validationError = useMemo(() => {
+    if (!username || !email || !password || !confirmPassword) {
+      return 'Lütfen tüm alanları doldurun';
+    }
     if (password !== confirmPassword) {
-      setError('Şifreler eşleşmiyor');
+      return 'Şifreler eşleşmiyor';
+    }
+    if (password.length < 6) {
+      return 'Şifre en az 6 karakter olmalıdır';
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      return 'Geçerli bir e-posta adresi girin';
+    }
+    return null;
+  }, [username, email, password, confirmPassword]);
+
+  // 🚀 UPDATED: Handle registration with enhanced error handling
+  const handleRegister = useCallback(async () => {
+    if (validationError) {
       return;
     }
 
     try {
-      setIsLoading(true);
-      await signUp(username, email, password);
-    } catch (error: any) {
-      const errorMessage =
-        error.message || 'Kayıt başarısız. Lütfen tekrar deneyin.';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [username, email, password, confirmPassword, signUp]);
+      clearError();
+      await register(username, email, password);
 
+      console.log('Registration successful');
+    } catch (error: any) {
+      // Error is automatically handled by the store
+      console.error('Registration error:', error);
+    }
+  }, [username, email, password, register, clearError, validationError]);
+
+  // 🚀 UPDATED: OAuth registration handlers using integrated auth store
   const handleOAuthSignUp = useCallback(
     async (provider: 'google' | 'apple' | 'facebook') => {
-      setError(null);
-      setIsOAuthLoading(provider);
-
       try {
+        // 🚀 UPDATED: Use auth store methods that integrate with authService
         switch (provider) {
           case 'google':
             await signInWithGoogle();
@@ -121,23 +157,35 @@ export default function RegisterScreen() {
           case 'facebook':
             await signInWithFacebook();
             break;
+          default:
+            throw new Error(`Unsupported OAuth provider: ${provider}`);
         }
+
+        console.log(
+          `${provider} OAuth registration flow initiated via auth store`,
+        );
       } catch (error: any) {
         console.error(`${provider} OAuth error:`, error);
-        const errorMessage =
-          error.message ||
-          `${provider} kaydı başarısız. Lütfen tekrar deneyin.`;
-        setError(errorMessage);
-      } finally {
-        setIsOAuthLoading(null);
+
+        // Only log error if it's not a user cancellation
+        // Error handling is managed by the auth store
+        if (!error.message?.includes('cancelled')) {
+          console.warn(`${provider} OAuth registration failed:`, error.message);
+        }
       }
     },
     [signInWithGoogle, signInWithApple, signInWithFacebook],
   );
 
   const isDisabled = useMemo(
-    () => isLoading || isOAuthLoading !== null,
+    () => isLoading || isOAuthLoading,
     [isLoading, isOAuthLoading],
+  );
+
+  // 🚀 NEW: Validation helper
+  const canSubmit = useMemo(
+    () => !validationError && !isDisabled,
+    [validationError, isDisabled],
   );
 
   return (
@@ -212,7 +260,9 @@ export default function RegisterScreen() {
 
               <PlayfulButton
                 title={
-                  isOAuthLoading === 'google' ? 'Kayıt oluyor...' : 'Google'
+                  isOAuthLoading && oauthProvider === 'google'
+                    ? 'Kayıt oluyor...'
+                    : 'Google'
                 }
                 icon='google'
                 onPress={() => handleOAuthSignUp('google')}
@@ -226,7 +276,11 @@ export default function RegisterScreen() {
               />
 
               <PlayfulButton
-                title={isOAuthLoading === 'apple' ? 'Kayıt oluyor...' : 'Apple'}
+                title={
+                  isOAuthLoading && oauthProvider === 'apple'
+                    ? 'Kayıt oluyor...'
+                    : 'Apple'
+                }
                 icon='apple'
                 onPress={() => handleOAuthSignUp('apple')}
                 variant='vibrant'
@@ -240,7 +294,9 @@ export default function RegisterScreen() {
 
               <PlayfulButton
                 title={
-                  isOAuthLoading === 'facebook' ? 'Kayıt oluyor...' : 'Facebook'
+                  isOAuthLoading && oauthProvider === 'facebook'
+                    ? 'Kayıt oluyor...'
+                    : 'Facebook'
                 }
                 icon='facebook'
                 onPress={() => handleOAuthSignUp('facebook')}
@@ -300,7 +356,7 @@ export default function RegisterScreen() {
                   label='Şifre'
                   value={password}
                   onChangeText={setPassword}
-                  placeholder='Şifre oluşturun'
+                  placeholder='Şifre oluşturun (en az 6 karakter)'
                   secureTextEntry
                   disabled={isDisabled}
                   leftIcon='lock'
@@ -323,23 +379,41 @@ export default function RegisterScreen() {
                 />
               </View>
 
-              {/* Display error message if exists */}
-              {error && (
-                <Alert type='error' message={error} style={styles.errorAlert} />
+              {/* 🚀 UPDATED: Display error message with enhanced formatting */}
+              {(authError || validationError) && (
+                <Alert
+                  type='error'
+                  message={authError || validationError || ''}
+                  style={styles.errorAlert}
+                  dismissible={!!authError}
+                  onDismiss={authError ? clearError : undefined}
+                />
               )}
+
+              {/* 🚀 NEW: Show validation hint for incomplete forms */}
+              {!canSubmit &&
+                (username || email || password || confirmPassword) &&
+                !validationError && (
+                  <Text style={styles.validationHint}>
+                    Lütfen tüm alanları doldurun
+                  </Text>
+                )}
 
               <PlayfulButton
                 title={isLoading ? 'Hesap Oluşturuluyor...' : 'Hesap Oluştur'}
                 onPress={handleRegister}
-                disabled={isDisabled}
+                disabled={!canSubmit}
                 variant='vibrant'
                 gradient='tropical'
                 size='medium'
                 fontFamily='SecondaryFont-Bold'
                 loading={isLoading}
-                style={styles.registerButton}
+                style={[
+                  styles.registerButton,
+                  !canSubmit && styles.registerButtonDisabled,
+                ]}
                 animated={true}
-                glowEffect={true}
+                glowEffect={!!canSubmit}
                 wiggleOnPress={true}
               />
             </GlassCard>
@@ -356,6 +430,19 @@ export default function RegisterScreen() {
                 }}
               />
             </View>
+
+            {/* 🚀 NEW: Debug info (remove in production) */}
+            {__DEV__ && (
+              <View style={styles.debugContainer}>
+                <Text style={styles.debugText}>
+                  Auth: {isAuthenticated ? 'Yes' : 'No'} | Loading:{' '}
+                  {isLoading ? 'Yes' : 'No'} | OAuth:{' '}
+                  {isOAuthLoading ? oauthProvider || 'Yes' : 'No'} | User:{' '}
+                  {userDataQuery.data?.username || user?.username || 'None'} |
+                  CanSubmit: {canSubmit ? 'Yes' : 'No'}
+                </Text>
+              </View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -490,9 +577,21 @@ const styles = StyleSheet.create({
   errorAlert: {
     marginBottom: Spacing[4],
   },
+  // 🚀 NEW: Validation hint styling
+  validationHint: {
+    ...Typography.caption,
+    color: Colors.vibrant?.orange || '#ff9500',
+    textAlign: 'center',
+    marginBottom: Spacing[3],
+    fontStyle: 'italic',
+  },
   registerButton: {
     width: '100%',
     marginTop: Spacing[2],
+  },
+  // 🚀 NEW: Disabled button styling
+  registerButtonDisabled: {
+    opacity: 0.6,
   },
   signInContainer: {
     flexDirection: 'row',
@@ -510,7 +609,7 @@ const styles = StyleSheet.create({
   },
   signInLink: {
     ...Typography.bodyLarge,
-    color: Colors.vibrant?.yellow || Colors.secondary.light,
+    color: Colors.vibrant?.yellow || '#ffeb3b',
     fontFamily: FontFamilies.secondary.bold,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
@@ -521,5 +620,17 @@ const styles = StyleSheet.create({
   signInTouchable: {
     paddingVertical: 0,
     marginVertical: 0,
+  },
+  // 🚀 NEW: Debug styles (remove in production)
+  debugContainer: {
+    marginTop: Spacing[4],
+    padding: Spacing[3],
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: BorderRadius.md,
+  },
+  debugText: {
+    ...Typography.caption,
+    color: Colors.white,
+    textAlign: 'center',
   },
 });

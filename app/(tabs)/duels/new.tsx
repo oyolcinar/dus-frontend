@@ -1,4 +1,4 @@
-// app/(tabs)/duels/new.tsx - Optimized for performance
+// app/(tabs)/duels/new.tsx - UPDATED WITH NEW ARCHITECTURE
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Platform, ActionSheetIOS, StyleSheet } from 'react-native';
 import {
@@ -9,11 +9,9 @@ import {
   TouchableOpacity,
   RefreshControl,
   useColorScheme,
-  Dimensions,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Container,
   SlideInElement,
@@ -22,7 +20,6 @@ import {
   Paragraph,
   Row,
   Column,
-  Avatar,
   Badge,
   Button,
   Input,
@@ -31,33 +28,24 @@ import {
   Picker,
   Modal,
   EmptyState,
-  OpponentListItem,
-  Opponent,
   SpinningWheel,
   FloatingElement,
   GlassCard,
   Colors,
   Spacing,
   BorderRadius,
-  VIBRANT_COLORS,
 } from '../../../components/ui';
 import {
-  duelService,
-  userService,
-  testService,
-  friendService,
-  courseService,
-  botService,
-} from '../../../src/api';
-import { ApiError } from '../../../src/api/apiClient';
+  useNewDuelData,
+  useDuelCreation,
+  useSocketBotChallenge,
+  useUserSearch,
+  duelHelpers,
+} from '../../../src/hooks/useDuelsData';
+import { useAuth, usePreferredCourse } from '../../../stores/appStore';
 import { Test, Course } from '../../../src/types/models';
 import { Bot } from '../../../src/api/botService';
 import { globalStyles } from '../../../utils/styleUtils';
-import { useAuth } from '../../../context/AuthContext';
-import {
-  usePreferredCourse,
-  PreferredCourseProvider,
-} from '../../../context/PreferredCourseContext';
 
 // Performance optimized shadow configuration
 const OPTIMIZED_SHADOW = {
@@ -68,46 +56,17 @@ const OPTIMIZED_SHADOW = {
   // elevation: 4,
 };
 
-// Socket service imports - handle gracefully if not available
-let challengeBotViaSocket:
-  | ((testId: number, difficulty: number) => Promise<void>)
-  | undefined;
-let challengeBotWithCourse:
-  | ((courseId: number, difficulty: number) => Promise<void>)
-  | undefined;
-let onBotChallengeCreated:
-  | ((callback: (data: { duel: any }) => void) => void)
-  | undefined;
-let onBotChallengeError:
-  | ((callback: (data: { message: string }) => void) => void)
-  | undefined;
-let onAutoJoinDuel:
-  | ((callback: (data: { duelId: number }) => void) => void)
-  | undefined;
-let off:
-  | ((event: string, callback?: (...args: any[]) => void) => void)
-  | undefined;
-let initializeSocket: (() => Promise<void>) | undefined;
-let isConnected: (() => boolean) | undefined;
-let connect: ((token?: string) => Promise<void>) | undefined;
-
-try {
-  const socketService = require('../../../src/api/socketService');
-  challengeBotViaSocket = socketService.challengeBot;
-  challengeBotWithCourse = socketService.challengeBotWithCourse;
-  onBotChallengeCreated = socketService.onBotChallengeCreated;
-  onBotChallengeError = socketService.onBotChallengeError;
-  onAutoJoinDuel = socketService.onAutoJoinDuel;
-  off = socketService.off;
-  initializeSocket = socketService.initializeSocket;
-  isConnected = socketService.isConnected;
-  connect = socketService.connect;
-} catch (error) {
-  console.warn('Socket service not available:', error);
-}
-
 type DuelHubTab = 'find' | 'friends' | 'leaderboard' | 'bots';
 type ChallengeStep = 'selectOpponent' | 'selectCourse' | 'confirm';
+
+// Define opponent interface locally since it might not be in the hook
+interface Opponent {
+  id: number;
+  username: string;
+  winRate?: number;
+  totalDuels?: number;
+  isBot?: boolean;
+}
 
 // Memoized components for better performance
 const FilterButton = React.memo(
@@ -167,66 +126,29 @@ const BotListItem = React.memo(
   ({
     bot,
     contextColor,
-    isConnectingSocket,
+    isLoading,
     isAuthenticated,
     onChallenge,
   }: {
     bot: Bot;
     contextColor: string;
-    isConnectingSocket: boolean;
+    isLoading: boolean;
     isAuthenticated: boolean;
     onChallenge: (bot: Bot) => void;
   }) => {
     const difficultyInfo = useMemo(() => {
-      const getDifficultyLabel = (level: number): string => {
-        switch (level) {
-          case 1:
-            return 'Kolay';
-          case 2:
-            return 'Orta';
-          case 3:
-            return 'Zor';
-          case 4:
-            return 'Uzman';
-          case 5:
-            return 'Efsane';
-          default:
-            return 'Bilinmeyen';
-        }
-      };
-
-      const getDifficultyColor = (level: number): string => {
-        switch (level) {
-          case 1:
-            return Colors.vibrant.mint;
-          case 2:
-            return Colors.vibrant.yellow;
-          case 3:
-            return Colors.vibrant.orange;
-          case 4:
-            return Colors.vibrant.coral;
-          case 5:
-            return contextColor;
-          default:
-            return Colors.gray[500];
-        }
-      };
-
-      return {
-        label: getDifficultyLabel(bot.difficultyLevel),
-        color: getDifficultyColor(bot.difficultyLevel),
-      };
-    }, [bot.difficultyLevel, contextColor]);
+      return duelHelpers.getBotDisplayInfo(bot);
+    }, [bot]);
 
     const handlePress = useCallback(() => {
       onChallenge(bot);
     }, [bot, onChallenge]);
 
     const buttonTitle = useMemo(() => {
-      if (isConnectingSocket) return 'Bağlanıyor...';
+      if (isLoading) return 'Bağlanıyor...';
       if (!isAuthenticated) return 'Giriş Gerekli';
       return 'Meydan Oku';
-    }, [isConnectingSocket, isAuthenticated]);
+    }, [isLoading, isAuthenticated]);
 
     return (
       <View style={styles.listItemContainer}>
@@ -234,14 +156,16 @@ const BotListItem = React.memo(
           <Row style={styles.listItemRow}>
             <Row style={styles.listItemLeft}>
               <Column style={styles.listItemInfo}>
-                <Text style={styles.botName}>{bot.botName}</Text>
+                <Text style={styles.botName}>{difficultyInfo.name}</Text>
                 <Text style={styles.botStats}>
-                  Doğruluk: {(bot.accuracyRate * 100).toFixed(0)}% • Süre:{' '}
-                  {(bot.avgResponseTime / 1000).toFixed(0)}s
+                  Doğruluk: {difficultyInfo.accuracy}% • Süre:{' '}
+                  {difficultyInfo.avgTime}s
                 </Text>
                 <Row style={styles.badgeRow}>
                   <Badge
-                    text={difficultyInfo.label}
+                    text={duelHelpers.getDifficultyLabel(
+                      difficultyInfo.difficulty,
+                    )}
                     variant='primary'
                     style={[
                       styles.difficultyBadge,
@@ -257,7 +181,7 @@ const BotListItem = React.memo(
               variant='primary'
               size='small'
               onPress={handlePress}
-              disabled={isConnectingSocket || !isAuthenticated}
+              disabled={isLoading || !isAuthenticated}
               style={[
                 styles.challengeButton,
                 {
@@ -275,7 +199,7 @@ const BotListItem = React.memo(
   },
 );
 
-const StyledOpponentListItem = React.memo(
+const OpponentListItem = React.memo(
   ({
     opponent,
     isAuthenticated,
@@ -302,6 +226,7 @@ const StyledOpponentListItem = React.memo(
                 <Text style={styles.opponentName}>{opponent.username}</Text>
                 <Text style={styles.opponentStats}>
                   Kazanma Oranı: {((opponent.winRate || 0) * 100).toFixed(0)}%
+                  {opponent.totalDuels && ` • ${opponent.totalDuels} Düello`}
                 </Text>
               </Column>
             </Row>
@@ -332,25 +257,28 @@ const UsernameSearch = React.memo(
   ({
     onChallenge,
     contextColor,
+    isAuthenticated,
   }: {
     onChallenge: (user: Opponent) => void;
     contextColor: string;
+    isAuthenticated: boolean;
   }) => {
     const [username, setUsername] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { searchUser } = useUserSearch();
 
     const handleSearch = useCallback(async () => {
-      if (!username.trim()) return;
+      if (!username.trim() || !isAuthenticated) return;
+
       setLoading(true);
       setError(null);
 
       try {
-        const opponent = await userService.searchUserByUsername(
-          username.trim(),
-        );
+        const opponent = await searchUser(username.trim());
         if (opponent) {
           onChallenge(opponent);
+          setUsername(''); // Clear search on success
         } else {
           setError(`'${username}' bulunamadı.`);
         }
@@ -359,7 +287,7 @@ const UsernameSearch = React.memo(
       } finally {
         setLoading(false);
       }
-    }, [username, onChallenge]);
+    }, [username, onChallenge, searchUser, isAuthenticated]);
 
     return (
       <Card style={styles.searchCard}>
@@ -368,14 +296,22 @@ const UsernameSearch = React.memo(
           value={username}
           onChangeText={setUsername}
           autoCapitalize='none'
-          disabled={loading}
+          disabled={loading || !isAuthenticated}
           inputStyle={styles.searchInput}
         />
         <Button
-          title='Ara ve Meydan Oku'
+          title={isAuthenticated ? 'Ara ve Meydan Oku' : 'Giriş Gerekli'}
           onPress={handleSearch}
           loading={loading}
-          style={[styles.searchButton, { backgroundColor: contextColor }]}
+          disabled={!isAuthenticated || !username.trim()}
+          style={[
+            styles.searchButton,
+            {
+              backgroundColor: isAuthenticated
+                ? contextColor
+                : Colors.gray[500],
+            },
+          ]}
           textStyle={styles.searchButtonText}
         />
         {error && (
@@ -386,43 +322,52 @@ const UsernameSearch = React.memo(
   },
 );
 
-// Main New Duel Screen Component (wrapped with context)
-function NewDuelScreenContent() {
+// Main New Duel Screen Component
+export default function NewDuelScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  const {
-    user: contextUser,
-    isLoading: authLoading,
-    isSessionValid,
-  } = useAuth();
+  // 🚀 NEW: Use the new store hooks
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { preferredCourse, getCourseColor } = usePreferredCourse();
 
+  // 🚀 NEW: Use the comprehensive new duel data hook
   const {
-    preferredCourse,
-    isLoading: courseLoading,
-    getCourseColor,
-  } = usePreferredCourse();
+    recommendedOpponents,
+    friendOpponents,
+    botOpponents,
+    courses,
+    isLoading: dataLoading,
+    refetchAll,
+  } = useNewDuelData();
+
+  // 🚀 NEW: Use the duel creation hook
+  const { challengeUser, challengeBot, challengeUserWithTest } =
+    useDuelCreation();
+
+  // 🚀 NEW: Use the socket bot challenge hook
+  const {
+    challengeBot: socketChallengeBot,
+    challengeState,
+    challengeError: socketError,
+    createdDuel,
+    reset: resetSocketChallenge,
+    isLoading: socketLoading,
+  } = useSocketBotChallenge();
 
   // Memoized context color to prevent unnecessary re-renders
   const contextColor = useMemo(() => {
     return (
-      (preferredCourse as any)?.category &&
-      getCourseColor((preferredCourse as any).category)
+      ((preferredCourse as any)?.category &&
+        getCourseColor((preferredCourse as any).category)) ||
+      '#4285F4'
     );
   }, [preferredCourse, getCourseColor]);
 
-  // Main state
+  // Local UI state
   const [activeTab, setActiveTab] = useState<DuelHubTab>('find');
-  const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  // Data state
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [recommended, setRecommended] = useState<Opponent[]>([]);
-  const [friends, setFriends] = useState<Opponent[]>([]);
-  const [leaderboard, setLeaderboard] = useState<Opponent[]>([]);
-  const [bots, setBots] = useState<Bot[]>([]);
 
   // Challenge flow state
   const [challengeStep, setChallengeStep] =
@@ -438,18 +383,7 @@ function NewDuelScreenContent() {
   const [showWheelForCourse, setShowWheelForCourse] = useState(false);
   const [isSubmittingChallenge, setIsSubmittingChallenge] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Bot challenge state
   const [isBotChallenge, setIsBotChallenge] = useState(false);
-  const [isChallenginBot, setIsChallenginBot] = useState(false);
-
-  // Enhanced auth + socket state
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [socketConnected, setSocketConnected] = useState(false);
-  const [isConnectingSocket, setIsConnectingSocket] = useState(false);
-  const [socketError, setSocketError] = useState<string | null>(null);
 
   // Memoized styles that depend on theme
   const dynamicStyles = useMemo(
@@ -459,12 +393,6 @@ function NewDuelScreenContent() {
           marginTop: Spacing[3],
           color: isDark ? Colors.white : Colors.white,
           fontFamily: 'SecondaryFont-Regular',
-        },
-        authLoadingText: {
-          marginTop: Spacing[3],
-          color: Colors.white,
-          fontFamily: 'SecondaryFont-Regular',
-          textAlign: 'center',
         },
         headerTitle: {
           fontFamily: 'PrimaryFont',
@@ -487,118 +415,6 @@ function NewDuelScreenContent() {
     [isDark],
   );
 
-  // Enhanced auth + socket initialization
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkAuthAndInitSocket = async () => {
-      try {
-        if (!isMounted) return;
-        setIsCheckingAuth(true);
-
-        if (authLoading) {
-          console.log('Auth context still loading, waiting...');
-          return;
-        }
-
-        if (!contextUser || !isSessionValid) {
-          console.log('User not authenticated via context');
-          if (isMounted) {
-            setIsAuthenticated(false);
-            setAuthToken(null);
-            setSocketConnected(false);
-            setIsCheckingAuth(false);
-          }
-          return;
-        }
-
-        const [authStorageToken, userStorageToken] = await Promise.all([
-          AsyncStorage.getItem('authToken'),
-          AsyncStorage.getItem('userToken'),
-        ]);
-
-        if (!authStorageToken && !userStorageToken) {
-          console.log('No auth tokens found in storage');
-          if (isMounted) {
-            setIsAuthenticated(false);
-            setAuthToken(null);
-            setSocketConnected(false);
-            setIsCheckingAuth(false);
-          }
-          return;
-        }
-
-        const effectiveToken = authStorageToken || userStorageToken;
-        if (userStorageToken && !authStorageToken) {
-          await AsyncStorage.setItem('authToken', userStorageToken);
-          console.log('Synced authToken for socket service');
-        }
-
-        if (isMounted) {
-          setAuthToken(effectiveToken);
-          setIsAuthenticated(true);
-        }
-
-        console.log('User authenticated, initializing socket connection...', {
-          user: contextUser.username,
-          hasToken: !!effectiveToken,
-        });
-
-        if (initializeSocket && isConnected) {
-          try {
-            if (isMounted) {
-              setIsConnectingSocket(true);
-              setSocketError(null);
-            }
-            await initializeSocket();
-            if (isMounted) {
-              setSocketConnected(isConnected());
-            }
-            console.log('Socket initialized successfully:', isConnected());
-          } catch (error) {
-            console.warn(
-              'Failed to initialize socket (but user is authenticated):',
-              error,
-            );
-            if (isMounted) {
-              setSocketConnected(false);
-              setSocketError(
-                error instanceof Error ? error.message : 'Connection failed',
-              );
-            }
-          } finally {
-            if (isMounted) {
-              setIsConnectingSocket(false);
-            }
-          }
-        } else {
-          console.log('Socket service not available, will use HTTP fallback');
-          if (isMounted) {
-            setSocketConnected(false);
-          }
-        }
-      } catch (error) {
-        console.error('Error during auth check:', error);
-        if (isMounted) {
-          setIsAuthenticated(false);
-          setAuthToken(null);
-          setSocketConnected(false);
-          setSocketError('Authentication check failed');
-        }
-      } finally {
-        if (isMounted) {
-          setIsCheckingAuth(false);
-        }
-      }
-    };
-
-    checkAuthAndInitSocket();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [contextUser, isSessionValid, authLoading]);
-
   // Reset challenge state function
   const resetChallengeState = useCallback(() => {
     setSelectedOpponent(null);
@@ -608,8 +424,9 @@ function NewDuelScreenContent() {
     setChallengeStep('selectOpponent');
     setShowWheelForCourse(false);
     setError(null);
-    setIsChallenginBot(false);
-  }, []);
+    setIsSubmittingChallenge(false);
+    resetSocketChallenge();
+  }, [resetSocketChallenge]);
 
   // Handle modal close
   const handleCloseModal = useCallback(() => {
@@ -617,138 +434,31 @@ function NewDuelScreenContent() {
     resetChallengeState();
   }, [resetChallengeState]);
 
-  const fetchData = useCallback(async () => {
-    try {
-      setError(null);
-
-      const [coursesData, recommendedData, friendsData, leaderboardData] =
-        await Promise.all([
-          courseService.getAllCourses(),
-          duelService.getRecommendedOpponents(),
-          friendService.getUserFriends(),
-          duelService.getDuelLeaderboard(),
-        ]);
-
-      setCourses(coursesData);
-      setRecommended(
-        recommendedData.map((u: any) => ({
-          id: u.userId,
-          username: u.username,
-          winRate: u.winRate,
-        })),
-      );
-
-      setFriends(
-        friendsData.map((f: any) => ({
-          id: f.friend_id,
-          username: f.friend_username || 'Bilinmeyen Kullanıcı',
-          winRate: f.winRate || 0,
-        })),
-      );
-
-      setLeaderboard(
-        leaderboardData.leaderboard.map((u: any) => ({
-          id: u.userId,
-          username: u.username,
-          winRate: u.winRate,
-        })),
-      );
-
-      try {
-        const botsData = await botService.getAvailableBots();
-        setBots(botsData || []);
-      } catch (botError) {
-        console.warn('Failed to fetch bots:', botError);
-        setBots([]);
-      }
-    } catch (e) {
-      setError('Veriler yüklenirken bir hata oluştu.');
-      console.error(e);
-    }
-  }, []);
-
+  // 🚀 SIMPLIFIED: Handle refresh with new hook
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  }, [fetchData]);
-
-  const handleRetry = useCallback(async () => {
-    setIsLoading(true);
-    await fetchData();
-    setIsLoading(false);
-  }, [fetchData]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const initialFetch = async () => {
-      if (!isMounted) return;
-
-      setIsLoading(true);
-      await fetchData();
-      if (isMounted) {
-        setIsLoading(false);
-      }
-    };
-
-    initialFetch();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchData]);
-  // Socket event listeners for bot challenges
-  useEffect(() => {
-    if (
-      !onBotChallengeCreated ||
-      !onBotChallengeError ||
-      !onAutoJoinDuel ||
-      !off
-    ) {
-      return;
+    try {
+      await refetchAll();
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    } finally {
+      setRefreshing(false);
     }
+  }, [refetchAll]);
 
-    const handleBotChallengeCreated = (data: { duel: any }) => {
-      console.log('Bot challenge created via socket:', data);
-      setIsChallenginBot(false);
+  // Handle socket challenge result
+  useEffect(() => {
+    if (challengeState === 'success' && createdDuel) {
       setModalVisible(false);
       resetChallengeState();
-      if (data.duel && data.duel.duel_id) {
-        console.log('Navigating to duel:', data.duel.duel_id);
-        router.push({
-          pathname: '/(tabs)/duels/[id]' as any,
-          params: { id: data.duel.duel_id.toString() },
-        });
-      }
-    };
-
-    const handleBotChallengeError = (data: { message: string }) => {
-      console.error('Bot challenge error via socket:', data.message);
-      setError(data.message);
-      setIsChallenginBot(false);
-    };
-
-    const handleAutoJoinDuel = (data: { duelId: number }) => {
-      console.log('Auto joining duel:', data.duelId);
       router.push({
-        pathname: '/duels/[id]' as any,
-        params: { id: data.duelId.toString() },
+        pathname: '/(tabs)/duels/[id]' as any,
+        params: { id: createdDuel.duel_id.toString() },
       });
-    };
-
-    onBotChallengeCreated(handleBotChallengeCreated);
-    onBotChallengeError(handleBotChallengeError);
-    onAutoJoinDuel(handleAutoJoinDuel);
-
-    return () => {
-      if (off) {
-        off('bot_challenge_created', handleBotChallengeCreated);
-        off('bot_challenge_error', handleBotChallengeError);
-        off('auto_join_duel', handleAutoJoinDuel);
-      }
-    };
-  }, [router, resetChallengeState]);
+    } else if (challengeState === 'error' && socketError) {
+      setError(socketError);
+    }
+  }, [challengeState, createdDuel, socketError, router, resetChallengeState]);
 
   // Memoized challenge handlers
   const handleOpenChallengeModal = useCallback(
@@ -765,6 +475,7 @@ function NewDuelScreenContent() {
       setChallengeStep('selectCourse');
       setShowWheelForCourse(false);
       setModalVisible(true);
+      setError(null);
     },
     [isAuthenticated],
   );
@@ -783,6 +494,7 @@ function NewDuelScreenContent() {
       setChallengeStep('selectCourse');
       setShowWheelForCourse(false);
       setModalVisible(true);
+      setError(null);
     },
     [isAuthenticated],
   );
@@ -809,179 +521,73 @@ function NewDuelScreenContent() {
     setActiveTab(tab);
   }, []);
 
+  // 🚀 SIMPLIFIED: Challenge submission with new hooks
   const handleChallengeSubmit = useCallback(async () => {
     if (!selectedCourse) {
       setError('Ders seçilmedi.');
       return;
     }
 
-    if (!isAuthenticated || !authToken || !contextUser || !isSessionValid) {
-      setError(
-        'Oturum süresi dolmuş. Lütfen uygulamayı yeniden başlatın veya tekrar giriş yapın.',
-      );
+    if (!isAuthenticated || !user) {
+      setError('Oturum süresi dolmuş. Lütfen tekrar giriş yapın.');
       return;
     }
 
-    if (isBotChallenge && selectedBot) {
-      const currentToken = await AsyncStorage.getItem('authToken');
-      if (!currentToken) {
-        setError(
-          'Kimlik doğrulama hatası. Lütfen uygulamayı yeniden başlatın.',
+    setError(null);
+
+    try {
+      if (isBotChallenge && selectedBot) {
+        // Try socket first, then fallback to HTTP
+        await socketChallengeBot(
+          selectedCourse.course_id,
+          selectedBot.difficultyLevel,
+          true, // prefer socket
         );
-        setIsChallenginBot(false);
-        return;
-      }
+        // Success handling is done in useEffect above
+      } else if (!isBotChallenge && selectedOpponent) {
+        setIsSubmittingChallenge(true);
 
-      setIsChallenginBot(true);
-      setError(null);
-
-      try {
-        const shouldUseSocket =
-          challengeBotViaSocket &&
-          isConnected &&
-          isConnected() &&
-          isAuthenticated;
-
-        console.log('Bot challenge attempt:', {
-          socketAvailable: !!challengeBotViaSocket,
-          socketConnected: socketConnected,
-          isAuthenticated: isAuthenticated,
-          hasAuthToken: !!authToken,
-          contextUser: contextUser.username,
-          courseId: selectedCourse.course_id,
-          difficulty: selectedBot.difficultyLevel,
-        });
-
-        if (shouldUseSocket) {
-          console.log('Using socket-based bot challenge with course');
-          try {
-            await challengeBotWithCourse!(
-              selectedCourse.course_id,
-              selectedBot.difficultyLevel,
-            );
-            console.log('Socket course-based bot challenge sent successfully');
-          } catch (socketError) {
-            console.error('Socket challenge failed:', socketError);
-            throw socketError;
-          }
-        } else {
-          console.log(
-            'Using HTTP API for bot challenge (socket not available/connected)',
-          );
-          throw new Error('Socket not available, using fallback');
-        }
-      } catch (err) {
-        console.log('Attempting HTTP fallback for bot challenge');
-
-        try {
-          const response = await botService.challengeBotWithCourse(
-            selectedCourse.course_id,
-            selectedBot.difficultyLevel,
-          );
-
-          if (response.success && response.duel) {
-            console.log(
-              'HTTP course-based bot challenge successful:',
-              response.duel,
-            );
-            setModalVisible(false);
-            resetChallengeState();
-
-            router.push({
-              pathname: '/duels/[id]' as any,
-              params: { id: response.duel.duel_id.toString() },
-            });
-            return;
-          } else {
-            throw new Error(
-              response.message || 'Bot meydan okuması başarısız oldu.',
-            );
-          }
-        } catch (fallbackError) {
-          console.error('HTTP fallback also failed:', fallbackError);
-
-          if (fallbackError instanceof ApiError) {
-            setError(
-              fallbackError.message || 'Bot meydan okuması gönderilemedi.',
-            );
-          } else {
-            setError(
-              'Bot meydan okuması gönderilemedi. Lütfen tekrar deneyin.',
-            );
-          }
-        }
-
-        setIsChallenginBot(false);
-      }
-    } else if (!isBotChallenge && selectedOpponent) {
-      setIsSubmittingChallenge(true);
-      setError(null);
-
-      try {
-        const response = await duelService.challengeUserWithCourse(
+        const response = await challengeUser(
           selectedOpponent.id,
           selectedCourse.course_id,
-          5,
+          5, // question count
         );
-        const newDuel = response.duel;
-        setModalVisible(false);
-        resetChallengeState();
 
-        router.push({
-          pathname: '/duels/[id]' as any,
-          params: { id: newDuel.duel_id.toString() },
-        });
-      } catch (err) {
-        if (err instanceof ApiError) {
-          setError(err.message || 'Meydan okuma gönderilemedi.');
-        } else {
-          setError('Bilinmeyen bir hata oluştu.');
+        if (response?.duel) {
+          setModalVisible(false);
+          resetChallengeState();
+
+          router.push({
+            pathname: '/(tabs)/duels/[id]' as any,
+            params: { id: response.duel.duel_id.toString() },
+          });
         }
-      } finally {
-        setIsSubmittingChallenge(false);
       }
+    } catch (err) {
+      console.error('Challenge submission failed:', err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Meydan okuma gönderilemedi. Lütfen tekrar deneyin.',
+      );
+    } finally {
+      setIsSubmittingChallenge(false);
     }
   }, [
     selectedCourse,
     isAuthenticated,
-    authToken,
-    contextUser,
-    isSessionValid,
+    user,
     isBotChallenge,
     selectedBot,
     selectedOpponent,
-    socketConnected,
+    socketChallengeBot,
+    challengeUser,
     resetChallengeState,
     router,
   ]);
 
-  const retrySocketConnection = useCallback(async () => {
-    if (!connect || !isAuthenticated || !authToken) {
-      console.log('Cannot retry socket - not authenticated');
-      setSocketError('Not authenticated');
-      return;
-    }
-
-    setIsConnectingSocket(true);
-    setSocketError(null);
-
-    try {
-      console.log('Retrying socket connection with auth token...');
-      await connect(authToken);
-      setSocketConnected(isConnected ? isConnected() : false);
-      console.log('Socket reconnection successful');
-    } catch (error) {
-      console.error('Socket reconnection failed:', error);
-      setSocketError(
-        error instanceof Error ? error.message : 'Reconnection failed',
-      );
-    } finally {
-      setIsConnectingSocket(false);
-    }
-  }, [connect, isAuthenticated, authToken]);
-
   const renderTabContent = useCallback(() => {
-    if (isLoading) {
+    if (dataLoading && !refreshing) {
       return (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size='large' color={contextColor} />
@@ -1000,6 +606,7 @@ function NewDuelScreenContent() {
               <UsernameSearch
                 onChallenge={handleOpenChallengeModal}
                 contextColor={contextColor}
+                isAuthenticated={isAuthenticated}
               />
             </SlideInElement>
             <SlideInElement delay={100} key={`${activeTab}-title`}>
@@ -1013,13 +620,13 @@ function NewDuelScreenContent() {
                 Önerilen Rakipler
               </Text>
             </SlideInElement>
-            {recommended.length > 0 ? (
-              recommended.map((user, index) => (
+            {recommendedOpponents.length > 0 ? (
+              recommendedOpponents.map((user, index) => (
                 <SlideInElement
                   key={`${activeTab}-rec-${user.id}`}
                   delay={200 + index * 100}
                 >
-                  <StyledOpponentListItem
+                  <OpponentListItem
                     opponent={user}
                     isAuthenticated={isAuthenticated}
                     onChallenge={handleOpenChallengeModal}
@@ -1036,13 +643,13 @@ function NewDuelScreenContent() {
           </>
         );
       case 'friends':
-        return friends.length > 0 ? (
-          friends.map((user, index) => (
+        return friendOpponents.length > 0 ? (
+          friendOpponents.map((user, index) => (
             <SlideInElement
               key={`${activeTab}-friend-${user.id}`}
               delay={index * 100}
             >
-              <StyledOpponentListItem
+              <OpponentListItem
                 opponent={user}
                 isAuthenticated={isAuthenticated}
                 onChallenge={handleOpenChallengeModal}
@@ -1062,47 +669,31 @@ function NewDuelScreenContent() {
           </SlideInElement>
         );
       case 'leaderboard':
-        return leaderboard.length > 0 ? (
-          leaderboard.map((user, index) => (
-            <SlideInElement
-              key={`${activeTab}-lead-${user.id}`}
-              delay={index * 100}
-            >
-              <StyledOpponentListItem
-                opponent={user}
-                isAuthenticated={isAuthenticated}
-                onChallenge={handleOpenChallengeModal}
-              />
-            </SlideInElement>
-          ))
-        ) : (
+        return (
           <SlideInElement delay={0} key={`${activeTab}-empty`}>
             <EmptyState
               icon='trophy'
-              title='Liderlik Tablosu Boş'
-              message='Henüz sıralama oluşmadı.'
+              title='Liderlik Tablosu'
+              message='Liderlik tablosu özelliği yakında gelecek!'
             />
           </SlideInElement>
         );
       case 'bots':
-        return bots.length > 0 ? (
-          <>
-            {(isAuthenticated || isCheckingAuth) &&
-              bots.map((bot, index) => (
-                <SlideInElement
-                  key={`${activeTab}-bot-${bot.botId}`}
-                  delay={100 + index * 100}
-                >
-                  <BotListItem
-                    bot={bot}
-                    contextColor={contextColor}
-                    isConnectingSocket={isConnectingSocket}
-                    isAuthenticated={isAuthenticated}
-                    onChallenge={handleOpenBotChallengeModal}
-                  />
-                </SlideInElement>
-              ))}
-          </>
+        return botOpponents.length > 0 ? (
+          botOpponents.map((bot, index) => (
+            <SlideInElement
+              key={`${activeTab}-bot-${bot.id}`}
+              delay={100 + index * 100}
+            >
+              <BotListItem
+                bot={bot.botInfo!} // We know it's a bot from botOpponents
+                contextColor={contextColor}
+                isLoading={socketLoading}
+                isAuthenticated={isAuthenticated}
+                onChallenge={(bot) => handleOpenBotChallengeModal(bot)}
+              />
+            </SlideInElement>
+          ))
         ) : (
           <SlideInElement delay={0} key={`${activeTab}-empty`}>
             <EmptyState
@@ -1116,16 +707,15 @@ function NewDuelScreenContent() {
         return null;
     }
   }, [
-    isLoading,
+    dataLoading,
+    refreshing,
     activeTab,
     contextColor,
-    recommended,
-    friends,
-    leaderboard,
-    bots,
+    recommendedOpponents,
+    friendOpponents,
+    botOpponents,
     isAuthenticated,
-    isCheckingAuth,
-    isConnectingSocket,
+    socketLoading,
     handleOpenChallengeModal,
     handleOpenBotChallengeModal,
     dynamicStyles,
@@ -1170,20 +760,6 @@ function NewDuelScreenContent() {
                 <Text style={styles.botDetails}>
                   Zorluk: Seviye {selectedBot.difficultyLevel} • Doğruluk:{' '}
                   {(selectedBot.accuracyRate * 100).toFixed(0)}%
-                </Text>
-                <Text
-                  style={[
-                    styles.connectionStatus,
-                    {
-                      color: socketConnected
-                        ? Colors.vibrant.mint
-                        : Colors.vibrant.yellow,
-                    },
-                  ]}
-                >
-                  {socketConnected
-                    ? '⚡ Gerçek Zamanlı Mod'
-                    : '📡 Standart Mod'}
                 </Text>
               </>
             )}
@@ -1310,30 +886,14 @@ function NewDuelScreenContent() {
                     <Text style={styles.summaryLabel}>Soru Sayısı:</Text> 5
                     Rastgele Soru
                   </Text>
-                  {isBotChallenge && (
-                    <Text
-                      style={[
-                        styles.summaryConnection,
-                        {
-                          color: socketConnected
-                            ? Colors.vibrant.mint
-                            : Colors.vibrant.yellow,
-                        },
-                      ]}
-                    >
-                      {socketConnected
-                        ? '⚡ Gerçek zamanlı düello'
-                        : '📡 Standart düello'}
-                    </Text>
-                  )}
                 </View>
               </View>
 
               <Button
                 title={isBotChallenge ? 'Bota Meydan Oku!' : 'Meydan Oku!'}
                 onPress={handleChallengeSubmit}
-                loading={isSubmittingChallenge || isChallenginBot}
-                disabled={isSubmittingChallenge || isChallenginBot}
+                loading={isSubmittingChallenge || socketLoading}
+                disabled={isSubmittingChallenge || socketLoading}
                 style={styles.submitButton}
                 textStyle={styles.submitButtonText}
               />
@@ -1342,7 +902,7 @@ function NewDuelScreenContent() {
                 title='Geri Dön'
                 onPress={() => setChallengeStep('selectCourse')}
                 variant='outline'
-                disabled={isSubmittingChallenge || isChallenginBot}
+                disabled={isSubmittingChallenge || socketLoading}
                 style={styles.backButton}
                 textStyle={styles.backButtonText}
               />
@@ -1366,7 +926,6 @@ function NewDuelScreenContent() {
     getOpponentDisplayName,
     isBotChallenge,
     selectedBot,
-    socketConnected,
     challengeStep,
     showWheelForCourse,
     courses,
@@ -1374,44 +933,19 @@ function NewDuelScreenContent() {
     selectedCourse,
     handleCourseSelected,
     isSubmittingChallenge,
-    isChallenginBot,
+    socketLoading,
     handleChallengeSubmit,
     error,
   ]);
 
   // Show loading while checking auth
-  if (isCheckingAuth || authLoading) {
+  if (authLoading) {
     return (
       <Container
         style={[styles.authLoadingContainer, { backgroundColor: contextColor }]}
       >
         <ActivityIndicator size='large' color={Colors.white} />
-        <Text style={dynamicStyles.authLoadingText}>
-          Kimlik doğrulanıyor...
-        </Text>
-      </Container>
-    );
-  }
-
-  if (error && !isLoading) {
-    return (
-      <Container
-        style={[styles.errorScreenContainer, { backgroundColor: contextColor }]}
-      >
-        <Alert
-          type='error'
-          title='Hata'
-          message={error}
-          style={styles.errorScreenAlert}
-        />
-        <Button
-          title='Yenile'
-          variant='primary'
-          onPress={handleRetry}
-          icon='refresh'
-          style={styles.retryButton}
-          textStyle={[styles.retryButtonText, { color: contextColor }]}
-        />
+        <Text style={dynamicStyles.loadingText}>Kimlik doğrulanıyor...</Text>
       </Container>
     );
   }
@@ -1472,7 +1006,7 @@ function NewDuelScreenContent() {
                 isDark={isDark}
                 onPress={handleTabChange}
               />
-              {bots.length > 0 && (
+              {botOpponents.length > 0 && (
                 <FilterButton
                   filter='bots'
                   title='Botlar'
@@ -1505,15 +1039,6 @@ function NewDuelScreenContent() {
             </GlassCard>
           </FloatingElement>
         </View>
-
-        {/* Error display at bottom if there's an error but data is loaded */}
-        {error && !isLoading && (
-          <Alert
-            type='warning'
-            message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
-            style={styles.bottomError}
-          />
-        )}
 
         {/* Bottom spacing to ensure content is fully visible */}
         <View style={styles.bottomSpacing} />
@@ -1682,12 +1207,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
-  connectionStatus: {
-    fontSize: 10,
-    fontFamily: 'SecondaryFont-Bold',
-    textAlign: 'center',
-    marginTop: 4,
-  },
   courseDescription: {
     fontSize: 14,
     lineHeight: 20,
@@ -1766,11 +1285,6 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontWeight: 'bold',
   },
-  summaryConnection: {
-    fontFamily: 'SecondaryFont-Bold',
-    fontSize: 12,
-    marginTop: Spacing[1],
-  },
   submitButton: {
     minHeight: 48,
     backgroundColor: Colors.vibrant.purple,
@@ -1805,34 +1319,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: Spacing[4],
   },
-  errorScreenContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing[4],
-  },
-  errorScreenAlert: {
-    marginBottom: Spacing[4],
-  },
-  retryButton: {
-    backgroundColor: Colors.white,
-  },
-  retryButtonText: {
-    // color set dynamically
-  },
-  bottomError: {
-    marginTop: Spacing[4],
-  },
   bottomSpacing: {
     height: Spacing[8],
   },
 });
-
-// Main component with context provider
-export default function NewDuelScreen() {
-  return (
-    <PreferredCourseProvider>
-      <NewDuelScreenContent />
-    </PreferredCourseProvider>
-  );
-}

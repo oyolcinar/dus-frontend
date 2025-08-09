@@ -1,12 +1,6 @@
-// app/(tabs)/duels/history.tsx - Optimized Duel History Screen
+// app/(tabs)/duels/history.tsx - Updated with new hooks and store
 
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,7 +13,6 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Container,
   SlideInElement,
@@ -28,7 +21,6 @@ import {
   Paragraph,
   Row,
   Column,
-  Avatar,
   Badge,
   Button,
   Alert,
@@ -43,38 +35,18 @@ import {
   VIBRANT_COLORS,
 } from '../../../components/ui';
 import {
-  duelResultService,
-  duelService,
-  userService,
-  courseService,
-} from '../../../src/api';
-import { DuelResult, Duel, User, Course } from '../../../src/types/models';
-import { UserDuelStatsPayload } from '../../../src/api/duelResultService';
+  useDuelHistoryData,
+  duelHelpers,
+  type DuelHistoryItem,
+} from '../../../src/hooks/useDuelsData';
+import { useAuth } from '../../../stores/appStore';
 import { globalStyles } from '../../../utils/styleUtils';
-import { useAuth } from '../../../context/AuthContext';
 
 type HistoryTab = 'stats' | 'recent' | 'all';
 
-interface ExtendedDuelResult extends DuelResult {
-  winner_username?: string;
-}
-
-interface DuelHistoryItem extends ExtendedDuelResult {
-  result: 'won' | 'lost' | 'draw';
-  opponentName?: string;
-  courseName?: string;
-  testName?: string;
-  formattedDate: string;
-  duelInfo?: Duel;
-}
-
 // Optimized shadow configuration
 const OPTIMIZED_SHADOW = {
-  // shadowColor: Colors.gray[900],
-  // shadowOffset: { width: 2, height: 4 },
-  // shadowOpacity: 0.3,
-  // shadowRadius: 4,
-  // elevation: 4,
+  // Remove shadows to improve performance if needed
 };
 
 const styles = StyleSheet.create({
@@ -290,29 +262,27 @@ const DuelHistoryScreen = React.memo(() => {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const {
-    user: contextUser,
-    isLoading: authLoading,
-    isSessionValid,
-  } = useAuth();
 
-  // Refs for cleanup
-  const isMountedRef = useRef(true);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  // 🚀 NEW: Use the simplified auth hook from store
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+
+  // 🚀 NEW: Use the specialized duel history hook
+  const {
+    duelStats,
+    duelHistory,
+    recentDuels,
+    isLoading,
+    hasError,
+    refetchAll,
+    duelStatsLoading,
+    historyLoading,
+    duelStatsError,
+    historyError,
+  } = useDuelHistoryData(50, 10); // 50 total history, 10 recent
 
   // State management
   const [activeTab, setActiveTab] = useState<HistoryTab>('stats');
-  const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  // Data state
-  const [userStats, setUserStats] = useState<UserDuelStatsPayload | null>(null);
-  const [duelHistory, setDuelHistory] = useState<DuelHistoryItem[]>([]);
-  const [recentDuels, setRecentDuels] = useState<DuelHistoryItem[]>([]);
-
-  // UI state
-  const [error, setError] = useState<string | null>(null);
-  const [userData, setUserData] = useState<any>(null);
 
   // Memoized color calculations
   const colors = useMemo(
@@ -325,365 +295,26 @@ const DuelHistoryScreen = React.memo(() => {
     [isDark],
   );
 
-  // Load user data with cleanup
-  useEffect(() => {
-    let isCancelled = false;
-
-    const loadUserData = async () => {
-      try {
-        const data = await AsyncStorage.getItem('userData');
-        if (data && !isCancelled && isMountedRef.current) {
-          setUserData(JSON.parse(data));
-        }
-      } catch (error) {
-        if (!isCancelled) {
-          console.error('Error loading user data:', error);
-        }
-      }
-    };
-
-    loadUserData();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, []);
-
-  // Helper function to determine duel result for current user
-  const getDuelResult = useCallback(
-    (
-      duelResult: DuelResult,
-      currentUserId: number,
-    ): 'won' | 'lost' | 'draw' => {
-      if (duelResult.winner_id === currentUserId) {
-        return 'won';
-      } else if (
-        duelResult.winner_id &&
-        duelResult.winner_id !== currentUserId
-      ) {
-        return 'lost';
-      }
-      return 'draw';
-    },
-    [],
-  );
-
-  // Helper function for known opponents
-  const getKnownOpponentName = useCallback((opponentId: number): string => {
-    const knownOpponents: Record<number, string> = {
-      30: 'dr_bot_easy',
-      33: 'dr_bot_expert',
-    };
-    return knownOpponents[opponentId] || `Kullanıcı ${opponentId}`;
-  }, []);
-
-  // Helper function to get opponent info from duel result
-  const getOpponentInfo = useCallback(
-    async (
-      duel: Duel,
-      duelResult: ExtendedDuelResult,
-      currentUserId: number,
-    ): Promise<{ opponentId: number; opponentName: string }> => {
-      let opponentId: number;
-      if (duel.initiator_id === currentUserId) {
-        opponentId = duel.opponent_id;
-      } else {
-        opponentId = duel.initiator_id;
-      }
-
-      let opponentName = 'Bilinmeyen Rakip';
-
-      if (duel.opponent?.username && duel.opponent.user_id === opponentId) {
-        opponentName = duel.opponent.username;
-      } else if (
-        duel.initiator?.username &&
-        duel.initiator.user_id === opponentId
-      ) {
-        opponentName = duel.initiator.username;
-      } else if (duel.opponent_username && duel.opponent_id === opponentId) {
-        opponentName = duel.opponent_username;
-      } else if (duel.initiator_username && duel.initiator_id === opponentId) {
-        opponentName = duel.initiator_username;
-      } else if (duelResult.winner_username) {
-        if (duelResult.winner_id === opponentId) {
-          opponentName = duelResult.winner_username;
-        } else {
-          try {
-            const opponent = await userService.getUserProfile();
-            if (opponent && opponent.userId === opponentId) {
-              opponentName = userService.getUserDisplayName(opponent);
-            } else {
-              opponentName = getKnownOpponentName(opponentId);
-            }
-          } catch (error) {
-            opponentName = getKnownOpponentName(opponentId);
-          }
-        }
-      } else {
-        opponentName = getKnownOpponentName(opponentId);
-      }
-
-      return { opponentId, opponentName };
-    },
-    [getKnownOpponentName],
-  );
-
-  // Fetch actual duel history data with cleanup
-  const fetchActualHistoryData = useCallback(async (): Promise<
-    DuelHistoryItem[]
-  > => {
-    if (!contextUser || !userData?.userId || !isMountedRef.current) {
-      return [];
-    }
-
-    // Create new abort controller for this request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-
-    try {
-      const currentUserId = userData.userId;
-      const completedDuels = await duelService.getCompletedDuels();
-
-      if (
-        !completedDuels ||
-        completedDuels.length === 0 ||
-        !isMountedRef.current
-      ) {
-        return [];
-      }
-
-      const historyPromises = completedDuels.map(
-        async (duel): Promise<DuelHistoryItem | null> => {
-          if (!isMountedRef.current) return null;
-
-          try {
-            const duelResult = await duelResultService.getDuelResultByDuelId(
-              duel.duel_id,
-            );
-            if (!duelResult || !isMountedRef.current) return null;
-
-            const { opponentId, opponentName } = await getOpponentInfo(
-              duel,
-              duelResult as ExtendedDuelResult,
-              currentUserId,
-            );
-
-            if (!isMountedRef.current) return null;
-
-            const result = getDuelResult(duelResult, currentUserId);
-
-            let courseName = 'Bilinmeyen Ders';
-            try {
-              if (duel.course?.title) {
-                courseName = duel.course.title;
-              } else if (duel.course_title) {
-                courseName = duel.course_title;
-              } else if (duel.course?.course_id && isMountedRef.current) {
-                const course = await courseService.getCourseById(
-                  duel.course.course_id,
-                );
-                if (course && isMountedRef.current) {
-                  courseName = course.title;
-                }
-              }
-            } catch (error) {
-              console.warn(
-                `Could not fetch course info for duel ${duel.duel_id}:`,
-                error,
-              );
-            }
-
-            if (!isMountedRef.current) return null;
-
-            const formattedDate = new Date(
-              duelResult.created_at,
-            ).toLocaleDateString('tr-TR', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-
-            return {
-              ...duelResult,
-              result,
-              opponentName,
-              courseName,
-              testName: `Test ${duel.duel_id}`,
-              formattedDate,
-              duelInfo: duel,
-            };
-          } catch (error) {
-            console.error(`Error processing duel ${duel.duel_id}:`, error);
-            return null;
-          }
-        },
-      );
-
-      const historyResults = await Promise.all(historyPromises);
-
-      if (!isMountedRef.current) return [];
-
-      const validHistory = historyResults.filter(
-        (item): item is DuelHistoryItem => item !== null,
-      );
-
-      validHistory.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      );
-
-      return validHistory;
-    } catch (error) {
-      if (!isMountedRef.current) return [];
-      console.error('Error fetching actual history data:', error);
-      throw error;
-    }
-  }, [contextUser, userData?.userId, getOpponentInfo, getDuelResult]);
-
-  // Generate placeholder history (memoized)
-  const generatePlaceholderHistory = useCallback(
-    (stats: UserDuelStatsPayload): DuelHistoryItem[] => {
-      const history: DuelHistoryItem[] = [];
-      const totalDuels = stats.totalDuels || 0;
-
-      if (totalDuels === 0) return [];
-
-      for (let i = 0; i < Math.min(totalDuels, 50); i++) {
-        const isWin = i < (stats.wins || 0);
-        const duelId = 1000 + i;
-
-        history.push({
-          duel_id: duelId,
-          winner_id: isWin ? userData?.userId : (userData?.userId || 0) + 1,
-          initiator_score: isWin
-            ? Math.floor(Math.random() * 20) + 15
-            : Math.floor(Math.random() * 15) + 5,
-          opponent_score: isWin
-            ? Math.floor(Math.random() * 15) + 5
-            : Math.floor(Math.random() * 20) + 15,
-          created_at: new Date(
-            Date.now() - i * 24 * 60 * 60 * 1000,
-          ).toISOString(),
-          result: isWin ? 'won' : ('lost' as 'won' | 'lost' | 'draw'),
-          opponentName: `Rakip ${i + 1}`,
-          courseName: ['Matematik', 'Türkçe', 'Fen', 'Sosyal'][i % 4],
-          testName: `Test ${i + 1}`,
-          formattedDate: new Date(
-            Date.now() - i * 24 * 60 * 60 * 1000,
-          ).toLocaleDateString('tr-TR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-        } as DuelHistoryItem);
-      }
-
-      return history.reverse();
-    },
-    [userData?.userId],
-  );
-
-  // Fetch duel history data with cleanup
-  const fetchHistoryData = useCallback(async () => {
-    if (!isMountedRef.current) return;
-
-    try {
-      setError(null);
-
-      if (!contextUser || !isSessionValid) {
-        setError('Giriş yapmanız gerekiyor.');
-        return;
-      }
-
-      const [statsData, actualHistory] = await Promise.all([
-        duelResultService.getUserDuelStats(),
-        fetchActualHistoryData().catch((error) => {
-          console.error(
-            'Error fetching actual history, falling back to placeholder:',
-            error,
-          );
-          return [];
-        }),
-      ]);
-
-      if (!isMountedRef.current) return;
-
-      setUserStats(statsData);
-
-      if (actualHistory.length > 0) {
-        setDuelHistory(actualHistory);
-        setRecentDuels(actualHistory.slice(0, 10));
-      } else {
-        const placeholderHistory = generatePlaceholderHistory(statsData);
-        setDuelHistory(placeholderHistory);
-        setRecentDuels(placeholderHistory.slice(0, 10));
-      }
-    } catch (e) {
-      if (!isMountedRef.current) return;
-      console.error('Error fetching history data:', e);
-      setError('İstatistik verileri yüklenirken bir hata oluştu.');
-    }
-  }, [
-    contextUser,
-    isSessionValid,
-    fetchActualHistoryData,
-    generatePlaceholderHistory,
-  ]);
-
-  const handleRefresh = useCallback(async () => {
-    if (!isMountedRef.current) return;
+  // 🚀 SIMPLIFIED: Handle refresh using the hook's refetch function
+  const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchHistoryData();
-    if (isMountedRef.current) {
+    try {
+      await refetchAll();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
       setRefreshing(false);
     }
-  }, [fetchHistoryData]);
+  };
 
-  const handleRetry = useCallback(async () => {
-    if (!isMountedRef.current) return;
-    setIsLoading(true);
-    await fetchHistoryData();
-    if (isMountedRef.current) {
-      setIsLoading(false);
+  // 🚀 SIMPLIFIED: Handle retry using the hook's refetch function
+  const handleRetry = async () => {
+    try {
+      await refetchAll();
+    } catch (error) {
+      console.error('Error retrying data fetch:', error);
     }
-  }, [fetchHistoryData]);
-
-  // Initial data fetch with cleanup
-  useEffect(() => {
-    let isCancelled = false;
-
-    const initialFetch = async () => {
-      if (userData && !isCancelled && isMountedRef.current) {
-        setIsLoading(true);
-        await fetchHistoryData();
-        if (!isCancelled && isMountedRef.current) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initialFetch();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [fetchHistoryData, userData]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
+  };
 
   // Memoized Filter Button Component
   const FilterButton = React.memo(
@@ -761,48 +392,19 @@ const DuelHistoryScreen = React.memo(() => {
     ),
   );
 
-  // Memoized Duel History Item Component
+  // 🚀 IMPROVED: Memoized Duel History Item Component using helper functions
   const DuelHistoryItemComponent = React.memo(
     ({ duel }: { duel: DuelHistoryItem }) => {
-      const resultStyles = useMemo(() => {
-        const getResultColor = () => {
-          switch (duel.result) {
-            case 'won':
-              return Colors.vibrant.mint;
-            case 'lost':
-              return Colors.vibrant.coral;
-            case 'draw':
-              return Colors.vibrant.yellow;
-            default:
-              return Colors.gray[500];
-          }
-        };
+      const resultColor = duelHelpers.getResultColor(duel.result);
+      const resultText = duelHelpers.getResultText(duel.result);
+      const formattedDate = duelHelpers.formatDuelDate(duel.created_at);
 
-        const getResultText = () => {
-          switch (duel.result) {
-            case 'won':
-              return 'Kazandı';
-            case 'lost':
-              return 'Kaybetti';
-            case 'draw':
-              return 'Berabere';
-            default:
-              return 'Bilinmeyen';
-          }
-        };
-
-        const color = getResultColor();
-        return {
-          color,
-          text: getResultText(),
-          variant:
-            duel.result === 'won'
-              ? 'success'
-              : duel.result === 'lost'
-                ? 'error'
-                : 'warning',
-        };
-      }, [duel.result]);
+      const resultVariant =
+        duel.result === 'won'
+          ? 'success'
+          : duel.result === 'lost'
+            ? 'error'
+            : 'warning';
 
       return (
         <PlayfulCard style={styles.historyCard}>
@@ -811,12 +413,12 @@ const DuelHistoryScreen = React.memo(() => {
               <Column style={styles.historyColumn}>
                 <Row style={styles.historyHeader}>
                   <Text style={styles.historyOpponent}>
-                    vs {duel.opponentName}
+                    vs {duel.opponentName || 'Bilinmeyen Rakip'}
                   </Text>
                   <Badge
-                    text={resultStyles.text}
-                    variant={resultStyles.variant as any}
-                    style={{ backgroundColor: resultStyles.color }}
+                    text={resultText}
+                    variant={resultVariant as any}
+                    style={{ backgroundColor: resultColor }}
                     textStyle={{
                       color: Colors.white,
                       fontFamily: 'SecondaryFont-Bold',
@@ -825,15 +427,16 @@ const DuelHistoryScreen = React.memo(() => {
                 </Row>
                 <Row style={styles.historyDetails}>
                   <Text style={styles.historyInfo}>
-                    📚 {duel.courseName} • 📝 {duel.testName}
+                    📚 {duel.courseName || 'Bilinmeyen Ders'} • 📝{' '}
+                    {duel.testName || 'Test'}
                   </Text>
-                  <Text
-                    style={[styles.historyScore, { color: resultStyles.color }]}
-                  >
-                    {duel.initiator_score}-{duel.opponent_score}
+                  <Text style={[styles.historyScore, { color: resultColor }]}>
+                    {duel.initiator_score || 0}-{duel.opponent_score || 0}
                   </Text>
                 </Row>
-                <Text style={styles.historyDate}>{duel.formattedDate}</Text>
+                <Text style={styles.historyDate}>
+                  {duel.formattedDate || formattedDate}
+                </Text>
               </Column>
             </Row>
           </Row>
@@ -842,7 +445,7 @@ const DuelHistoryScreen = React.memo(() => {
     },
   );
 
-  // Memoized tab content
+  // 🚀 SIMPLIFIED: Memoized tab content using hook data
   const tabContent = useMemo(() => {
     if (isLoading) {
       return (
@@ -859,7 +462,7 @@ const DuelHistoryScreen = React.memo(() => {
       case 'stats':
         return (
           <>
-            {userStats && (
+            {duelStats && (
               <>
                 <SlideInElement delay={0} key={`${activeTab}-overview`}>
                   <PlayfulCard style={styles.overviewCard}>
@@ -869,9 +472,9 @@ const DuelHistoryScreen = React.memo(() => {
                       </Text>
                       <Row style={styles.overviewRow}>
                         <ScoreDisplay
-                          score={userStats.wins || 0}
-                          maxScore={userStats.totalDuels || 0}
-                          label={`${userStats.totalDuels || 0} Düellodan ${userStats.wins || 0} Galibiyet`}
+                          score={duelStats.wins || 0}
+                          maxScore={duelStats.totalDuels || 0}
+                          label={`${duelStats.totalDuels || 0} Düellodan ${duelStats.wins || 0} Galibiyet`}
                           variant='gradient'
                           size='large'
                         />
@@ -884,7 +487,7 @@ const DuelHistoryScreen = React.memo(() => {
                   <Row style={styles.statsRow}>
                     <StatsCard
                       title='Toplam Düello'
-                      value={userStats.totalDuels || 0}
+                      value={duelStats.totalDuels || 0}
                       color={Colors.vibrant.purple}
                       animated
                     />
@@ -895,13 +498,13 @@ const DuelHistoryScreen = React.memo(() => {
                   <Row style={styles.statsRow}>
                     <StatsCard
                       title='Galibiyet'
-                      value={userStats.wins || 0}
+                      value={duelStats.wins || 0}
                       color={Colors.vibrant.mint}
                       animated
                     />
                     <StatsCard
                       title='Mağlubiyet'
-                      value={userStats.losses || 0}
+                      value={duelStats.losses || 0}
                       color={Colors.vibrant.coral}
                       animated
                     />
@@ -913,8 +516,8 @@ const DuelHistoryScreen = React.memo(() => {
                     <StatsCard
                       title='Başarı Oranı'
                       value={
-                        userStats.totalDuels > 0
-                          ? `${Math.round(((userStats.wins || 0) / userStats.totalDuels) * 100)}%`
+                        duelStats.totalDuels > 0
+                          ? `${Math.round(((duelStats.wins || 0) / duelStats.totalDuels) * 100)}%`
                           : '0%'
                       }
                       subtitle='Kazanma yüzdesi'
@@ -1005,7 +608,7 @@ const DuelHistoryScreen = React.memo(() => {
       default:
         return null;
     }
-  }, [activeTab, isLoading, userStats, recentDuels, duelHistory, colors]);
+  }, [activeTab, isLoading, duelStats, recentDuels, duelHistory, colors]);
 
   // Show loading while checking auth
   if (authLoading) {
@@ -1024,13 +627,39 @@ const DuelHistoryScreen = React.memo(() => {
     );
   }
 
-  if (error && !isLoading) {
+  // Show auth error
+  if (!isAuthenticated) {
+    return (
+      <Container style={styles.errorContainer}>
+        <Alert
+          type='error'
+          title='Giriş Gerekli'
+          message='Düello geçmişini görmek için giriş yapmanız gerekiyor.'
+          style={styles.errorAlert}
+        />
+        <Button
+          title='Giriş Yap'
+          variant='primary'
+          onPress={() => router.replace('/(auth)/login')}
+          icon='sign-in'
+        />
+      </Container>
+    );
+  }
+
+  // Show error if there's a serious error and no data
+  if (hasError && !duelStats && !duelHistory.length) {
+    const errorMessage =
+      duelStatsError?.message ||
+      historyError?.message ||
+      'Bilinmeyen hata oluştu';
+
     return (
       <Container style={styles.errorContainer}>
         <Alert
           type='error'
           title='Hata'
-          message={error}
+          message={`İstatistik verileri yüklenirken hata oluştu: ${errorMessage}`}
           style={styles.errorAlert}
         />
         <Button
@@ -1108,14 +737,15 @@ const DuelHistoryScreen = React.memo(() => {
           </FloatingElement>
         </View>
 
-        {/* Error display at bottom if there's an error but data is loaded */}
-        {error && !isLoading && (
-          <Alert
-            type='warning'
-            message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
-            style={styles.bottomAlert}
-          />
-        )}
+        {/* 🚀 IMPROVED: Show warning if there are errors but partial data is available */}
+        {(duelStatsError || historyError) &&
+          (duelStats || duelHistory.length > 0) && (
+            <Alert
+              type='warning'
+              message='Bazı veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
+              style={styles.bottomAlert}
+            />
+          )}
 
         {/* Bottom spacing to ensure content is fully visible */}
         <View style={styles.bottomSpacing} />
