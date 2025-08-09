@@ -500,11 +500,11 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
           backgroundColor: baseBackgroundColor,
           textColor: baseTextColor,
           iconColor: baseIconColor,
-          shadow:
-            createPlayfulShadow?.(
-              Colors.shadows?.medium || Colors.gray[400],
-              'heavy',
-            ) || {},
+          // shadow:
+          //   createPlayfulShadow?.(
+          //     Colors.shadows?.medium || Colors.gray[400],
+          //     'heavy',
+          //   ) || {},
         };
       default:
         return {
@@ -757,7 +757,6 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
       borderColor: variantStyles.borderColor,
       borderWidth: variantStyles.borderWidth,
     },
-    variantStyles.shadow,
     style,
   ];
 
@@ -771,11 +770,11 @@ const StudyChronometer: React.FC<StudyChronometerProps> = ({
 const styles = StyleSheet.create({
   card: {
     borderRadius: BorderRadius.card || BorderRadius.xl,
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 10, height: 20 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
+    // shadowColor: Colors.gray[900],
+    // shadowOffset: { width: 10, height: 20 },
+    // shadowOpacity: 0.8,
+    // shadowRadius: 10,
+    // elevation: 10,
   },
   container: {
     padding: Spacing[4],
@@ -858,11 +857,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing[3],
     borderRadius: BorderRadius.full,
     minWidth: 100,
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 10, height: 20 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
+    // shadowColor: Colors.gray[900],
+    // shadowOffset: { width: 10, height: 20 },
+    // shadowOpacity: 0.8,
+    // shadowRadius: 10,
+    // elevation: 10,
   },
   buttonText: {
     marginLeft: Spacing[2],

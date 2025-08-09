@@ -1,8 +1,9 @@
-// components/ui/Animation/SlideInElement.tsx
-import React, { useRef, useEffect } from 'react';
+// components/ui/Animation/SlideInElement.tsx - PERFORMANCE OPTIMIZED
+import React, { useRef, useEffect, useMemo } from 'react';
 import { Animated, Easing, Dimensions } from 'react-native';
 import { SlideInElementProps } from '../types';
 
+// 🚀 PERFORMANCE FIX: Memoize screen dimensions to prevent repeated calculations
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const SlideInElement: React.FC<SlideInElementProps> = ({
@@ -14,21 +15,37 @@ const SlideInElement: React.FC<SlideInElementProps> = ({
   testID,
 }) => {
   const slideAnimation = useRef(new Animated.Value(0)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  // 🚀 PERFORMANCE FIX: Memoize animation config
+  const animationConfig = useMemo(
+    () => ({
+      toValue: 1,
+      duration: duration,
+      easing: Easing.out(Easing.back(1.2)),
+      useNativeDriver: true,
+    }),
+    [duration],
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      Animated.timing(slideAnimation, {
-        toValue: 1,
-        duration: duration,
-        easing: Easing.out(Easing.back(1.2)),
-        useNativeDriver: true,
-      }).start();
+      animationRef.current = Animated.timing(slideAnimation, animationConfig);
+      animationRef.current.start();
     }, delay);
 
-    return () => clearTimeout(timer);
-  }, [duration, delay]);
+    // 🚀 PERFORMANCE FIX: Proper cleanup
+    return () => {
+      clearTimeout(timer);
+      if (animationRef.current) {
+        animationRef.current.stop();
+        animationRef.current = null;
+      }
+    };
+  }, [slideAnimation, animationConfig, delay]);
 
-  const getTransform = () => {
+  // 🚀 PERFORMANCE FIX: Memoize transform interpolation based on direction
+  const transform = useMemo(() => {
     switch (direction) {
       case 'left':
         return {
@@ -66,27 +83,33 @@ const SlideInElement: React.FC<SlideInElementProps> = ({
           }),
         };
     }
-  };
+  }, [slideAnimation, direction]);
 
-  const opacity = slideAnimation.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
+  // 🚀 PERFORMANCE FIX: Memoize opacity interpolation
+  const opacity = useMemo(
+    () =>
+      slideAnimation.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, 1],
+      }),
+    [slideAnimation],
+  );
+
+  // 🚀 PERFORMANCE FIX: Memoize animated style to prevent recreation
+  const animatedStyle = useMemo(
+    () => ({
+      opacity,
+      transform: [transform],
+    }),
+    [opacity, transform],
+  );
 
   return (
-    <Animated.View
-      style={[
-        style,
-        {
-          opacity,
-          transform: [getTransform()],
-        },
-      ]}
-      testID={testID}
-    >
+    <Animated.View style={[style, animatedStyle]} testID={testID}>
       {children}
     </Animated.View>
   );
 };
 
-export default SlideInElement;
+// 🚀 PERFORMANCE FIX: Memoize to prevent unnecessary re-renders
+export default React.memo(SlideInElement);

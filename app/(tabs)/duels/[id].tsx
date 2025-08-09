@@ -1306,13 +1306,15 @@ export default function DuelRoomScreen() {
                   size='lg'
                   name={userData?.username?.charAt(0) || 'K'}
                   bgColor={Colors.vibrant.purple}
-                  style={{
-                    shadowColor: '#000',
-                    shadowOffset: { width: 4, height: 16 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 20,
-                    elevation: 20,
-                  }}
+                  style={
+                    {
+                      // shadowColor: '#000',
+                      // shadowOffset: { width: 4, height: 16 },
+                      // shadowOpacity: 0.25,
+                      // shadowRadius: 20,
+                      // elevation: 20,
+                    }
+                  }
                 />
                 <Text style={styles.vsText}>KARŞI</Text>
                 <Avatar
@@ -1323,13 +1325,15 @@ export default function DuelRoomScreen() {
                       : opponentInfo?.username?.charAt(0) || '?'
                   }
                   bgColor={botInfo ? botInfo.color : Colors.vibrant.orange}
-                  style={{
-                    shadowColor: '#000',
-                    shadowOffset: { width: 4, height: 16 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 20,
-                    elevation: 20,
-                  }}
+                  style={
+                    {
+                      // shadowColor: '#000',
+                      // shadowOffset: { width: 4, height: 16 },
+                      // shadowOpacity: 0.25,
+                      // shadowRadius: 20,
+                      // elevation: 20,
+                    }
+                  }
                 />
               </Row>
 
@@ -2195,10 +2199,10 @@ const styles = {
     // High z-index to stay on top
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    // shadowColor: '#000',
+    // shadowOffset: { width: 2, height: 12 },
+    // shadowOpacity: 0.25,
+    // shadowRadius: 10,
 
     width: '100%',
     elevation: 10, // Higher elevation for Android
@@ -2211,11 +2215,11 @@ const styles = {
     padding: Spacing[4],
     marginBottom: Spacing[4],
     minHeight: 80,
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
+    // shadowColor: '#000',
+    // shadowOffset: { width: 2, height: 12 },
+    // shadowOpacity: 0.25,
+    // shadowRadius: 10,
+    // elevation: 10,
   } as ViewStyle,
 
   questionHeader: {
@@ -2243,11 +2247,11 @@ const styles = {
     minHeight: 60,
     justifyContent: 'center' as const,
     maxWidth: '50%',
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
+    // shadowColor: '#000',
+    // shadowOffset: { width: 2, height: 12 },
+    // shadowOpacity: 0.25,
+    // shadowRadius: 10,
+    // elevation: 10,
   } as ViewStyle,
 
   // FIXED: Question card with proper dimensions
@@ -2333,11 +2337,11 @@ const styles = {
 
   answerStatusBadge: {
     marginBottom: Spacing[2],
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
+    // shadowColor: '#000',
+    // shadowOffset: { width: 2, height: 12 },
+    // shadowOpacity: 0.25,
+    // shadowRadius: 10,
+    // elevation: 10,
     fontFamily: 'SecondaryFont-Bold',
   } as ViewStyle,
 
@@ -2404,11 +2408,11 @@ const styles = {
 
   resultBadge: {
     marginVertical: Spacing[1],
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
+    // shadowColor: '#000',
+    // shadowOffset: { width: 2, height: 12 },
+    // shadowOpacity: 0.25,
+    // shadowRadius: 10,
+    // elevation: 10,
   } as ViewStyle,
 
   currentScoreContainer: {
@@ -2813,11 +2817,11 @@ const styles = {
     borderRadius: BorderRadius.lg,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
+    // shadowColor: '#000',
+    // shadowOffset: { width: 2, height: 4 },
+    // shadowOpacity: 0.25,
+    // shadowRadius: 8,
+    // elevation: 8,
   } as ViewStyle,
 
   reportButtonText: {

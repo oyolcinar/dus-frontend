@@ -1,10 +1,16 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from 'react';
 import { View, useColorScheme, StyleSheet } from 'react-native';
 import { SplashScreen } from 'expo-router';
 import { useFonts } from 'expo-font';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import { Stack, useSegments, usePathname } from 'expo-router';
 import {
   DarkTheme,
   DefaultTheme,
@@ -54,6 +60,44 @@ const fontConfig = {
   'SecondaryFont-Regular': require('../assets/fonts/secondaryFontRegular.ttf'),
   'SecondaryFont-Bold': require('../assets/fonts/secondaryFontBold.ttf'),
 };
+
+// Performance Navigation Tracker for Expo Router
+function PerformanceNavigationTracker() {
+  const segments = useSegments();
+  const pathname = usePathname();
+  const previousScreen = useRef<string | null>(null);
+  const navigationCount = useRef(0);
+
+  useEffect(() => {
+    const currentScreen = segments.join('/') || 'root';
+
+    if (previousScreen.current && currentScreen !== previousScreen.current) {
+      navigationCount.current += 1;
+
+      console.log('🔄 EXPO ROUTER NAVIGATION #' + navigationCount.current);
+      console.log(`  From: ${previousScreen.current}`);
+      console.log(`  To: ${currentScreen}`);
+      console.log(`  Pathname: ${pathname}`);
+      console.log('  ⚠️ CHECK PERFORMANCE MONITOR NOW!');
+      console.log(
+        '  📊 UI FPS should stay above 55 (currently drops to 37-38)',
+      );
+      console.log(
+        '  💾 RAM was 270MB, now growing to 330MB - check current usage',
+      );
+      console.log('---');
+
+      // Track every 5 navigations for memory pattern
+      if (navigationCount.current % 5 === 0) {
+        console.log('🚨 MEMORY CHECK: After 5 navigations - check RAM usage!');
+      }
+    }
+
+    previousScreen.current = currentScreen;
+  }, [segments, pathname]);
+
+  return null;
+}
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
@@ -186,6 +230,8 @@ function RootLayoutNav() {
       <NotificationProvider>
         <ThemeProvider value={customNavigationTheme}>
           <StatusBar style={statusBarStyle} />
+          {/* Performance Navigation Tracker */}
+          <PerformanceNavigationTracker />
           <AppBackground>
             <Stack screenOptions={stackScreenOptions}>
               {/* Your existing Auth Context already handles redirections,

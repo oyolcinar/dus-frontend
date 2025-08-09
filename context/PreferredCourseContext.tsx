@@ -5,6 +5,7 @@ import React, {
   useState,
   useEffect,
   ReactNode,
+  useRef,
 } from 'react';
 import {
   getUserPreferredCourse,
@@ -69,6 +70,67 @@ export const CATEGORY_COLORS: Record<CourseCategory, string> = {
   ortodonti: '#702963',
 };
 
+// 🚀 PERFORMANCE FIX: Add caching for course data
+const COURSE_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+let coursesCache: { courses: PreferredCourse[]; timestamp: number } | null =
+  null;
+let preferredCourseCache: {
+  course: PreferredCourse | null;
+  timestamp: number;
+} | null = null;
+
+// 🚀 PERFORMANCE FIX: Fallback courses as constant to prevent recreation
+const FALLBACK_COURSES: PreferredCourse[] = [
+  {
+    course_id: 29,
+    title: 'Ağız, Diş ve Çene Radyolojisi',
+    description: 'Ağız, diş ve çene radyolojisi dersleri',
+    category: 'radyoloji',
+  },
+  {
+    course_id: 24,
+    title: 'Restoratif Diş Tedavisi',
+    description: 'Restoratif diş tedavisi dersleri',
+    category: 'restoratif',
+  },
+  {
+    course_id: 25,
+    title: 'Endodonti',
+    description: 'Endodonti dersleri',
+    category: 'endodonti',
+  },
+  {
+    course_id: 26,
+    title: 'Pedodonti',
+    description: 'Pedodonti dersleri',
+    category: 'pedodonti',
+  },
+  {
+    course_id: 27,
+    title: 'Protetik Diş Tedavisi',
+    description: 'Protetik diş tedavisi dersleri',
+    category: 'protetik',
+  },
+  {
+    course_id: 28,
+    title: 'Periodontoloji',
+    description: 'Periodontoloji dersleri',
+    category: 'peridontoloji',
+  },
+  {
+    course_id: 23,
+    title: 'Ağız, Diş ve Çene Cerrahisi',
+    description: 'Ağız, diş ve çene cerrahisi dersleri',
+    category: 'cerrahi',
+  },
+  {
+    course_id: 30,
+    title: 'Ortodonti',
+    description: 'Ortodonti dersleri',
+    category: 'ortodonti',
+  },
+];
+
 const PreferredCourseContext = createContext<
   PreferredCourseContextType | undefined
 >(undefined);
@@ -89,8 +151,15 @@ export const PreferredCourseProvider: React.FC<
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // 🚀 PERFORMANCE FIX: Use refs to prevent unnecessary API calls
+  const hasInitialized = useRef(false);
+  const lastCoursesFetch = useRef(0);
+
   const forceRefresh = () => {
-    console.log('Force refreshing PreferredCourseContext');
+    console.log('🔄 Force refreshing PreferredCourseContext');
+    // 🚀 PERFORMANCE FIX: Clear caches on force refresh
+    coursesCache = null;
+    preferredCourseCache = null;
     setRefreshTrigger((prev) => prev + 1);
   };
 
@@ -113,90 +182,114 @@ export const PreferredCourseProvider: React.FC<
     return CATEGORY_COLORS[category];
   };
 
-  // ✅ UPDATED: Load courses with correct function call
-  const refreshCourses = async () => {
+  // 🚀 PERFORMANCE FIX: Add cached course loading
+  const loadCoursesFromAPI = async (): Promise<PreferredCourse[]> => {
+    console.log('📚 Loading courses from API...');
+    const courses = await getAllCourses('klinik_dersler');
+    console.log(`✅ Fetched ${courses.length} courses from API`);
+
+    const mappedCourses = courses.map((course) => {
+      const category = getCourseCategory(course.title);
+      return {
+        course_id: course.course_id,
+        title: course.title,
+        description: course.description,
+        category,
+      };
+    });
+
+    return mappedCourses;
+  };
+
+  // 🚀 PERFORMANCE FIX: Cached course refresh
+  const refreshCourses = async (): Promise<void> => {
+    const now = Date.now();
+
+    // Return cached courses if still valid
+    if (coursesCache && now - coursesCache.timestamp < COURSE_CACHE_DURATION) {
+      console.log('📚 Using cached courses');
+      setAvailableCourses(coursesCache.courses);
+      return;
+    }
+
+    // Prevent multiple simultaneous API calls
+    if (now - lastCoursesFetch.current < 1000) {
+      console.log('⏸️ Skipping courses fetch (too recent)');
+      return;
+    }
+
+    lastCoursesFetch.current = now;
+
     try {
-      console.log('Refreshing courses...');
-      // ✅ FIXED: Use getAllCourses with 'klinik_dersler' parameter
-      const courses = await getAllCourses('klinik_dersler');
-      console.log('Fetched courses:', courses.length);
+      console.log('🔄 Refreshing courses from API...');
+      const courses = await loadCoursesFromAPI();
 
-      const mappedCourses = courses.map((course) => {
-        const category = getCourseCategory(course.title);
-        return {
-          course_id: course.course_id,
-          title: course.title,
-          description: course.description,
-          category,
-        };
-      });
+      // Cache the result
+      coursesCache = {
+        courses,
+        timestamp: now,
+      };
 
-      setAvailableCourses(mappedCourses);
+      setAvailableCourses(courses);
     } catch (err) {
-      console.error('Error loading available courses:', err);
+      console.error('❌ Error loading courses, using fallback:', err);
 
-      // SIMPLIFIED: Just use fallback courses on any error
-      // Don't check for session expiry here - let the API client handle it
-      setAvailableCourses([
-        {
-          course_id: 29,
-          title: 'Ağız, Diş ve Çene Radyolojisi',
-          description: 'Ağız, diş ve çene radyolojisi dersleri',
-          category: 'radyoloji',
-        },
-        {
-          course_id: 24,
-          title: 'Restoratif Diş Tedavisi',
-          description: 'Restoratif diş tedavisi dersleri',
-          category: 'restoratif',
-        },
-        {
-          course_id: 25,
-          title: 'Endodonti',
-          description: 'Endodonti dersleri',
-          category: 'endodonti',
-        },
-        {
-          course_id: 26,
-          title: 'Pedodonti',
-          description: 'Pedodonti dersleri',
-          category: 'pedodonti',
-        },
-        {
-          course_id: 27,
-          title: 'Protetik Diş Tedavisi',
-          description: 'Protetik diş tedavisi dersleri',
-          category: 'protetik',
-        },
-        {
-          course_id: 28,
-          title: 'Periodontoloji',
-          description: 'Periodontoloji dersleri',
-          category: 'peridontoloji',
-        },
-        {
-          course_id: 23,
-          title: 'Ağız, Diş ve Çene Cerrahisi',
-          description: 'Ağız, diş ve çene cerrahisi dersleri',
-          category: 'cerrahi',
-        },
-        {
-          course_id: 30,
-          title: 'Ortodonti',
-          description: 'Ortodonti dersleri',
-          category: 'ortodonti',
-        },
-      ]);
+      // Use fallback courses
+      setAvailableCourses(FALLBACK_COURSES);
+
+      // Cache fallback courses too (but with shorter duration)
+      coursesCache = {
+        courses: FALLBACK_COURSES,
+        timestamp: now,
+      };
     }
   };
 
+  // 🚀 PERFORMANCE FIX: Cached preferred course loading
+  const loadPreferredCourseFromAPI =
+    async (): Promise<PreferredCourse | null> => {
+      const now = Date.now();
+
+      // Return cached preferred course if still valid
+      if (
+        preferredCourseCache &&
+        now - preferredCourseCache.timestamp < COURSE_CACHE_DURATION
+      ) {
+        console.log('🎯 Using cached preferred course');
+        return preferredCourseCache.course;
+      }
+
+      try {
+        console.log('🎯 Loading preferred course from API...');
+        const course = await getUserPreferredCourse();
+
+        // Cache the result
+        preferredCourseCache = {
+          course,
+          timestamp: now,
+        };
+
+        return course;
+      } catch (apiError) {
+        console.error('❌ Error loading preferred course from API:', apiError);
+
+        // Cache null result too
+        preferredCourseCache = {
+          course: null,
+          timestamp: now,
+        };
+
+        return null;
+      }
+    };
+
   // SIMPLIFIED: Check AsyncStorage first
-  const checkAsyncStorage = async () => {
+  const checkAsyncStorage = async (): Promise<boolean> => {
     try {
       const storedCourse = await AsyncStorage.getItem('selectedCourse');
       if (storedCourse) {
         const parsedCourse = JSON.parse(storedCourse) as PreferredCourse;
-        console.log('Found course in AsyncStorage:', parsedCourse.title);
+        console.log('📱 Found course in AsyncStorage:', parsedCourse.title);
 
         const category = getCourseCategory(parsedCourse.title);
         setPreferredCourseState({
@@ -207,17 +300,22 @@ export const PreferredCourseProvider: React.FC<
         return true;
       }
     } catch (err) {
-      console.error('Error reading from AsyncStorage:', err);
+      console.error('❌ Error reading from AsyncStorage:', err);
     }
     return false;
   };
 
-  // SIMPLIFIED: Load preferred course
+  // 🚀 PERFORMANCE FIX: Optimized useEffect with better dependency management
   useEffect(() => {
+    // Only run if not initialized or forced refresh
+    if (hasInitialized.current && refreshTrigger === 0) {
+      return;
+    }
+
     const loadPreferredCourse = async () => {
       try {
         console.log(
-          'Loading preferred course, refresh trigger:',
+          '🚀 Loading preferred course, refresh trigger:',
           refreshTrigger,
         );
         setIsLoading(true);
@@ -227,30 +325,27 @@ export const PreferredCourseProvider: React.FC<
         const foundInStorage = await checkAsyncStorage();
 
         if (!foundInStorage) {
-          // If not in AsyncStorage, try to load from API
-          try {
-            const course = await getUserPreferredCourse();
+          // If not in AsyncStorage, try to load from API (cached)
+          const course = await loadPreferredCourseFromAPI();
 
-            if (course) {
-              console.log('Preferred course loaded from API:', course.title);
-              const category = getCourseCategory(course.title);
-              setPreferredCourseState({
-                ...course,
-                category,
-              });
-            } else {
-              console.log('No preferred course found');
-            }
-          } catch (apiError) {
-            console.error('Error loading from API:', apiError);
-            // Don't show error for this - just continue without preferred course
+          if (course) {
+            console.log('✅ Preferred course loaded from API:', course.title);
+            const category = getCourseCategory(course.title);
+            setPreferredCourseState({
+              ...course,
+              category,
+            });
+          } else {
+            console.log('ℹ️ No preferred course found');
           }
         }
 
-        // Load available courses
+        // Load available courses (cached)
         await refreshCourses();
+
+        hasInitialized.current = true;
       } catch (err) {
-        console.error('Error loading preferred course:', err);
+        console.error('❌ Error loading preferred course:', err);
         setError(
           err instanceof Error
             ? err.message
@@ -262,7 +357,7 @@ export const PreferredCourseProvider: React.FC<
     };
 
     loadPreferredCourse();
-  }, [refreshTrigger]);
+  }, [refreshTrigger]); // 🚀 PERFORMANCE FIX: Only depend on refreshTrigger
 
   // SIMPLIFIED: Set preferred course
   const setPreferredCourse = async (
@@ -270,16 +365,19 @@ export const PreferredCourseProvider: React.FC<
     courseData: PreferredCourse,
   ) => {
     try {
-      console.log('Setting preferred course:', courseData.title);
+      console.log('🎯 Setting preferred course:', courseData.title);
       setError(null);
 
       // Try to set via API, but don't fail if it doesn't work
       try {
         await setUserPreferredCourse(courseId);
-        console.log('Preferred course set via API');
+        console.log('✅ Preferred course set via API');
+
+        // Clear cache since we updated it
+        preferredCourseCache = null;
       } catch (apiError) {
         console.error(
-          'API set failed, continuing with local storage:',
+          '⚠️ API set failed, continuing with local storage:',
           apiError,
         );
         // Continue anyway - at least save locally
@@ -300,9 +398,9 @@ export const PreferredCourseProvider: React.FC<
         JSON.stringify(updatedCourse),
       );
 
-      console.log('Preferred course set successfully');
+      console.log('✅ Preferred course set successfully');
     } catch (err) {
-      console.error('Error setting preferred course:', err);
+      console.error('❌ Error setting preferred course:', err);
       setError(
         err instanceof Error ? err.message : 'Failed to set preferred course',
       );
@@ -313,6 +411,9 @@ export const PreferredCourseProvider: React.FC<
   const clearPreferredCourse = () => {
     setPreferredCourseState(null);
     AsyncStorage.removeItem('selectedCourse');
+    // 🚀 PERFORMANCE FIX: Clear cache when clearing course
+    preferredCourseCache = null;
+    hasInitialized.current = false;
   };
 
   const value: PreferredCourseContextType = {

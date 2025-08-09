@@ -105,11 +105,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing[2],
     minWidth: 80,
     justifyContent: 'center',
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    // shadowColor: Colors.gray[900],
+    // shadowOffset: { width: 2, height: 4 },
+    // shadowOpacity: 0.3,
+    // shadowRadius: 4,
+    // elevation: 4,
   },
   streakText: {
     marginLeft: Spacing[2],
@@ -117,20 +117,20 @@ const styles = StyleSheet.create({
     fontFamily: 'SecondaryFont-Bold',
   },
   avatarStyle: {
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    // shadowColor: Colors.gray[900],
+    // shadowOffset: { width: 2, height: 4 },
+    // shadowOpacity: 0.3,
+    // shadowRadius: 4,
+    // elevation: 4,
   },
   chronometerContainer: {
     width: '100%',
     alignSelf: 'stretch',
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    // shadowColor: Colors.gray[900],
+    // shadowOffset: { width: 2, height: 4 },
+    // shadowOpacity: 0.3,
+    // shadowRadius: 4,
+    // elevation: 4,
   },
   loadingContainer: {
     alignItems: 'center',
@@ -166,21 +166,21 @@ const styles = StyleSheet.create({
   courseCardContainer: {
     width: screenWidth,
     paddingHorizontal: Spacing[4],
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    // shadowColor: Colors.gray[900],
+    // shadowOffset: { width: 2, height: 4 },
+    // shadowOpacity: 0.3,
+    // shadowRadius: 4,
+    // elevation: 4,
     paddingTop: Spacing[6],
     paddingBottom: Spacing[12],
   },
   courseCard: {
     width: '100%',
-    shadowColor: Colors.gray[900],
-    shadowOffset: { width: 4, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
+    // shadowColor: Colors.gray[900],
+    // shadowOffset: { width: 4, height: 8 },
+    // shadowOpacity: 0.4,
+    // shadowRadius: 8,
+    // elevation: 8,
   },
   courseHeader: {
     flexDirection: 'row',
@@ -1412,11 +1412,11 @@ function HomeScreenContent() {
                   title='Genel Performans Özeti'
                   style={{
                     marginBottom: 24,
-                    shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 4, height: 8 },
-                    shadowOpacity: 0.4,
-                    shadowRadius: 8,
-                    elevation: 8,
+                    // shadowColor: Colors.gray[900],
+                    // shadowOffset: { width: 4, height: 8 },
+                    // shadowOpacity: 0.4,
+                    // shadowRadius: 8,
+                    // elevation: 8,
                   }}
                   titleFontFamily='PrimaryFont'
                   variant='elevated'
@@ -1447,11 +1447,11 @@ function HomeScreenContent() {
                   title='Genel Performans Özeti'
                   style={{
                     marginBottom: 24,
-                    shadowColor: Colors.gray[900],
-                    shadowOffset: { width: 4, height: 8 },
-                    shadowOpacity: 0.4,
-                    shadowRadius: 8,
-                    elevation: 8,
+                    // shadowColor: Colors.gray[900],
+                    // shadowOffset: { width: 4, height: 8 },
+                    // shadowOpacity: 0.4,
+                    // shadowRadius: 8,
+                    // elevation: 8,
                   }}
                   titleFontFamily='PrimaryFont'
                   variant='elevated'

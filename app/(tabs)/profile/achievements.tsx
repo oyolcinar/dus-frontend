@@ -67,11 +67,11 @@ interface EnhancedAchievement extends Achievement {
 
 // Optimized shadow style
 const OPTIMIZED_SHADOW = {
-  shadowColor: Colors.gray[900],
-  shadowOffset: { width: 2, height: 4 },
-  shadowOpacity: 0.3,
-  shadowRadius: 4,
-  elevation: 4,
+  // shadowColor: Colors.gray[900],
+  // shadowOffset: { width: 2, height: 4 },
+  // shadowOpacity: 0.3,
+  // shadowRadius: 4,
+  // elevation: 4,
 };
 
 function AchievementScreenContent() {

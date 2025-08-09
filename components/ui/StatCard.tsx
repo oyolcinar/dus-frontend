@@ -126,8 +126,8 @@ const StatCard: React.FC<StatCardProps> = ({
     size === 'small'
       ? styles.containerSmall
       : size === 'large'
-      ? styles.containerLarge
-      : styles.containerMedium;
+        ? styles.containerLarge
+        : styles.containerMedium;
 
   // Determine icon size based on card size
   const iconSize = size === 'small' ? 16 : size === 'large' ? 24 : 20;
@@ -137,8 +137,8 @@ const StatCard: React.FC<StatCardProps> = ({
     size === 'small'
       ? styles.valueSmall
       : size === 'large'
-      ? styles.valueLarge
-      : styles.valueMedium;
+        ? styles.valueLarge
+        : styles.valueMedium;
 
   // Determine change indicator icon - with proper typing
   let changeIcon: React.ComponentProps<typeof FontAwesome>['name'] = 'minus';
@@ -271,19 +271,19 @@ const styles = StyleSheet.create<StatCardStyles>({
   },
   containerLight: {
     backgroundColor: Colors.vibrant.purpleDark || Colors.primary.DEFAULT,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 4, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    // shadowColor: Colors.black,
+    // shadowOffset: { width: 4, height: 6 },
+    // shadowOpacity: 0.4,
+    // shadowRadius: 8,
+    // elevation: 6,
   },
   containerDark: {
     backgroundColor: Colors.white,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 4, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    // shadowColor: Colors.black,
+    // shadowOffset: { width: 4, height: 6 },
+    // shadowOpacity: 0.4,
+    // shadowRadius: 8,
+    // elevation: 6,
   },
   title: {
     fontSize: FontSizes.xs,

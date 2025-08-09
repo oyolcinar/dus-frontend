@@ -1,4 +1,10 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, {
+  createContext,
+  useState,
+  useEffect,
+  useContext,
+  useRef,
+} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useSegments } from 'expo-router';
 import * as Linking from 'expo-linking';
@@ -77,6 +83,11 @@ const AuthContext = createContext<AuthContextType>({
   isSessionValid: false,
 });
 
+// 🚀 PERFORMANCE FIX: Add caching for session validation
+const SESSION_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes cache
+let sessionValidationCache: { isValid: boolean; timestamp: number } | null =
+  null;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,42 +95,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const router = useRouter();
 
+  // 🚀 PERFORMANCE FIX: Use ref to prevent unnecessary effect triggers
+  const lastValidationTime = useRef(0);
+
   useEffect(() => {
     checkUserSession();
     const deepLinkSubscription = setupDeepLinkHandler();
 
-    // Set up periodic session validation (optional - for extra security)
+    // 🚀 PERFORMANCE FIX: Reduce session check frequency and make it less aggressive
     const sessionCheckInterval = setInterval(
       () => {
-        if (user && isSessionValid) {
-          validateSession().catch((error) => {
+        // Only check if we haven't validated recently AND user is authenticated
+        const now = Date.now();
+        const timeSinceLastValidation = now - lastValidationTime.current;
+
+        if (
+          user &&
+          isSessionValid &&
+          timeSinceLastValidation > SESSION_CACHE_DURATION
+        ) {
+          console.log('🕐 Periodic session check (cached)');
+          validateSessionCached().catch((error) => {
             console.warn('Periodic session validation failed:', error);
           });
         }
       },
-      5 * 60 * 1000,
-    ); // Check every 5 minutes
+      10 * 60 * 1000, // 🚀 PERFORMANCE FIX: Increased to 10 minutes instead of 5
+    );
 
     return () => {
       deepLinkSubscription.remove();
       clearInterval(sessionCheckInterval);
     };
-  }, []);
+  }, []); // 🚀 PERFORMANCE FIX: Removed dependencies to prevent unnecessary reruns
 
+  // 🚀 PERFORMANCE FIX: Navigation effect - runs on user/loading changes
   useEffect(() => {
+    console.log('🔄 Navigation effect triggered:', {
+      isLoading,
+      user: user?.username || 'null',
+      segments: segments.join('/') || 'root',
+      isAuthenticated: !!user,
+    });
+
     if (!isLoading) {
       const firstSegment = segments[0] as string;
       const inAuthGroup = firstSegment === '(auth)';
 
+      console.log('🎯 Navigation decision:', {
+        firstSegment,
+        inAuthGroup,
+        hasUser: !!user,
+        shouldRedirectToTabs: user && inAuthGroup,
+        shouldRedirectToLogin: !user && !inAuthGroup,
+      });
+
+      // Only redirect if we're in the wrong place
       if (!user && !inAuthGroup) {
-        console.log('No user, redirecting to login');
-        (router as any).replace('/(auth)/login');
+        console.log('🔀 No user, redirecting to login');
+        router.replace('/(auth)/login');
       } else if (user && inAuthGroup) {
-        console.log('User authenticated, redirecting to tabs');
-        (router as any).replace('/(tabs)');
+        console.log('🔀 User authenticated, redirecting to tabs');
+        router.replace('/(tabs)');
+      } else {
+        console.log('✅ User is in correct location, no redirect needed');
       }
     }
-  }, [user, segments, isLoading]);
+  }, [user, isLoading, segments, router]); // 🚀 FIXED: Include router dependency
 
   function setupDeepLinkHandler() {
     Linking.getInitialURL().then((url) => {
@@ -161,24 +203,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return subscription;
   }
 
+  // 🚀 PERFORMANCE FIX: Add cached session validation
+  async function validateSessionCached(): Promise<boolean> {
+    const now = Date.now();
+
+    // Return cached result if it's still valid
+    if (
+      sessionValidationCache &&
+      now - sessionValidationCache.timestamp < SESSION_CACHE_DURATION
+    ) {
+      console.log('✅ Using cached session validation result');
+      return sessionValidationCache.isValid;
+    }
+
+    // Make fresh validation call
+    const isValid = await validateSession();
+
+    // Cache the result
+    sessionValidationCache = {
+      isValid,
+      timestamp: now,
+    };
+
+    lastValidationTime.current = now;
+    return isValid;
+  }
+
   // Enhanced session validation with backend
   async function validateSession(): Promise<boolean> {
     try {
+      console.log('🔐 Validating session with backend...');
       const sessionStatus = await authService.validateSession();
       setIsSessionValid(sessionStatus.isValid);
 
       if (!sessionStatus.isValid) {
         console.log('Session validation failed:', sessionStatus.message);
         setUser(null);
+        // 🚀 PERFORMANCE FIX: Clear cache on invalid session
+        sessionValidationCache = null;
         return false;
       }
 
-      console.log('Session validation successful');
+      console.log('✅ Session validation successful');
       return true;
     } catch (error) {
       console.error('Session validation error:', error);
       setIsSessionValid(false);
       setUser(null);
+      // 🚀 PERFORMANCE FIX: Clear cache on error
+      sessionValidationCache = null;
       return false;
     }
   }
@@ -196,6 +269,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (authStatus.user && authStatus.token) {
         setUser(authStatus.user);
         setIsSessionValid(true);
+        // 🚀 PERFORMANCE FIX: Clear cache after refresh
+        sessionValidationCache = null;
         console.log('Session refreshed successfully via backend');
       } else {
         throw new Error('No user data after refresh');
@@ -203,6 +278,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Session refresh failed:', error);
       setIsSessionValid(false);
+      // 🚀 PERFORMANCE FIX: Clear cache on error
+      sessionValidationCache = null;
       await signOut();
       throw error;
     } finally {
@@ -213,23 +290,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Enhanced session check with backend validation
   async function checkUserSession() {
     try {
-      console.log('Checking user session...');
+      console.log('🔍 Checking user session...');
       const authStatus = await authService.getAuthStatus();
 
       if (authStatus.user && authStatus.token) {
-        // Validate the session with backend
+        // 🚀 PERFORMANCE FIX: Use cached validation for initial check
         try {
-          const isValid = await validateSession();
+          const isValid = await validateSessionCached();
           if (isValid) {
             setUser(authStatus.user);
             setIsSessionValid(true);
             console.log(
-              'Session loaded and validated for user:',
+              '✅ Session loaded and validated for user:',
               authStatus.user.username,
             );
           } else {
             // Token exists but is invalid, try to refresh
-            console.log('Token invalid, attempting refresh...');
+            console.log('🔄 Token invalid, attempting refresh...');
             await refreshSession();
           }
         } catch (validationError) {
@@ -242,7 +319,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await authService.logout();
         }
       } else {
-        console.log('No stored session found');
+        console.log('❌ No stored session found');
         setUser(null);
         setIsSessionValid(false);
       }
@@ -258,17 +335,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signIn(email: string, password: string) {
     try {
       setIsLoading(true);
-      console.log('Attempting login via backend for:', email);
+      console.log('🔑 Attempting login via backend for:', email);
+
       const response = await authService.login(email, password);
+      console.log('🎉 Login API response received:', {
+        hasUser: !!response.user,
+        username: response.user?.username,
+        hasToken: !!response.token,
+      });
+
       setUser(response.user);
       setIsSessionValid(true);
-      console.log('Login successful for user:', response.user.username);
+      // 🚀 PERFORMANCE FIX: Clear cache on new login
+      sessionValidationCache = null;
+
+      console.log('✅ Login successful - state updated:', {
+        user: response.user.username,
+        isSessionValid: true,
+      });
+
+      // 🔀 Force redirect after successful login (backup)
+      setTimeout(() => {
+        console.log('🔀 Forcing redirect to tabs after login');
+        router.replace('/(tabs)');
+      }, 100);
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ Login error:', error);
       setIsSessionValid(false);
       throw error;
     } finally {
       setIsLoading(false);
+      console.log('🏁 Login process complete, isLoading set to false');
     }
   }
 
@@ -279,6 +376,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await authService.register(username, email, password);
       setUser(response.user);
       setIsSessionValid(true);
+      // 🚀 PERFORMANCE FIX: Clear cache on new signup
+      sessionValidationCache = null;
       console.log('Registration successful for user:', response.user.username);
     } catch (error) {
       console.error('Registration error:', error);
@@ -341,12 +440,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authService.logout();
       setUser(null);
       setIsSessionValid(false);
+      // 🚀 PERFORMANCE FIX: Clear cache on logout
+      sessionValidationCache = null;
       console.log('User signed out successfully');
     } catch (error) {
       console.error('Sign out error:', error);
       // Still clear local state even if backend logout fails
       setUser(null);
       setIsSessionValid(false);
+      sessionValidationCache = null;
     } finally {
       setIsLoading(false);
     }
@@ -361,6 +463,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('IsLoading:', isLoading);
       console.log('IsAuthenticated:', !!user);
       console.log('IsSessionValid:', isSessionValid);
+      console.log('Cache:', sessionValidationCache);
       console.log('========================');
     };
   }
@@ -378,7 +481,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         isAuthenticated: !!user,
         refreshSession,
-        validateSession,
+        validateSession: validateSessionCached, // 🚀 PERFORMANCE FIX: Use cached version
         isSessionValid,
       }}
     >
@@ -409,7 +512,7 @@ export function useSession() {
     if (!user) return false;
 
     try {
-      // First check if current session is valid
+      // First check if current session is valid (now cached!)
       const isValid = await validateSession();
       if (isValid) return true;
 
