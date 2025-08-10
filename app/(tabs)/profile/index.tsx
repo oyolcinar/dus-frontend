@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 
 // ✅ UPDATED: Using new state management hooks
 import { useAuth, usePreferredCourse } from '../../../stores/appStore';
-import { useAchievementsData } from '../../../src/hooks/useAchievementsData';
+import { useUserAchievements } from '../../../src/hooks/useAchievementsData';
 import { useDuelsData } from '../../../src/hooks/useDuelsData';
 import { useAppData } from '../../../src/hooks/useAppData';
 
@@ -40,19 +40,7 @@ import {
   CourseSelectionModal,
 } from '../../../components/ui';
 import { Colors, Spacing, FontSizes } from '../../../constants/theme';
-
-// Keep the same interfaces for backward compatibility
-interface Achievement {
-  achievement_id: number;
-  name: string;
-  description?: string;
-  requirements?: any;
-  category?: string;
-  icon?: string;
-  points?: number;
-  created_at: string;
-  date_earned?: string;
-}
+import { UserAchievement } from '@/src/types/models';
 
 interface DuelStats {
   totalDuels: number;
@@ -89,13 +77,13 @@ function ProfileScreenContent() {
     getCourseColor,
   } = usePreferredCourse();
 
-  // ✅ UPDATED: Use new data hooks instead of manual state management
+  // ✅ UPDATED: Use only user achievements hook (unlocked achievements only)
   const {
-    achievements,
-    achievementsLoading,
-    achievementsError,
-    refetchAchievements,
-  } = useAchievementsData();
+    data: userAchievements = [],
+    isLoading: achievementsLoading,
+    error: achievementsError,
+    refetch: refetchAchievements,
+  } = useUserAchievements();
 
   const {
     duelStats,
@@ -245,27 +233,38 @@ function ProfileScreenContent() {
     refreshSession,
   ]);
 
-  // Get icon for achievement - returns only valid FontAwesome icon names
-  const getAchievementIcon = useCallback((achievement: Achievement): string => {
-    if (achievement.icon) {
-      return achievement.icon;
-    }
+  // ✅ UPDATED: Get icon for UserAchievement - handles nested achievement data
+  const getAchievementIcon = useCallback(
+    (userAchievement: UserAchievement): string => {
+      // Try to get icon from nested achievement or direct properties
+      const icon = userAchievement.icon || userAchievement.icon;
+      if (icon) {
+        return icon;
+      }
 
-    const category = achievement.category?.toLowerCase() || '';
+      // Try to get category from nested achievement or direct properties
+      const category = (userAchievement.category || '').toLowerCase();
 
-    if (category.includes('course')) return 'book';
-    if (category.includes('study')) return 'clock';
-    if (category.includes('duel')) return 'trophy';
-    if (category.includes('test')) return 'check-circle';
-    if (category.includes('streak')) return 'fire';
+      if (category.includes('course')) return 'book';
+      if (category.includes('study')) return 'clock';
+      if (category.includes('duel')) return 'trophy';
+      if (category.includes('test')) return 'check-circle';
+      if (category.includes('streak')) return 'fire';
 
-    return 'certificate';
-  }, []);
+      return 'certificate';
+    },
+    [],
+  );
 
-  // Get achievement category color - now uses context colors as fallback
+  // ✅ UPDATED: Get achievement color for UserAchievement - handles nested achievement data
   const getAchievementColor = useCallback(
-    (achievement: Achievement): string => {
-      const category = achievement.category?.toLowerCase() || '';
+    (userAchievement: UserAchievement): string => {
+      // Try to get category from nested achievement or direct properties
+      const category = (
+        userAchievement.category ||
+        userAchievement.category ||
+        ''
+      ).toLowerCase();
 
       if (category.includes('course'))
         return Colors.vibrant?.blue || Colors.info;
@@ -289,6 +288,14 @@ function ProfileScreenContent() {
       );
     },
     [preferredCourse, getCourseColor],
+  );
+
+  // ✅ UPDATED: Get achievement name - handles nested achievement data
+  const getAchievementName = useCallback(
+    (userAchievement: UserAchievement): string => {
+      return userAchievement.name || userAchievement.name || 'Başarı';
+    },
+    [],
   );
 
   const handleSignOut = useCallback(async () => {
@@ -529,11 +536,11 @@ function ProfileScreenContent() {
                 </SlideInElement>
               )}
 
-              {/* Achievements */}
+              {/* ✅ UPDATED: User Achievements Section - Now shows only unlocked achievements */}
               <SlideInElement direction='right' delay={600}>
                 <View style={[styles.cardContainer, OPTIMIZED_SHADOW]}>
                   <PlayfulCard
-                    title='Başarılar'
+                    title='Kazanılan Başarılar'
                     titleFontFamily='PrimaryFont'
                     variant='playful'
                     category={(preferredCourse as any)?.category}
@@ -545,49 +552,53 @@ function ProfileScreenContent() {
                     animated
                     floatingAnimation
                   >
-                    {achievements.length > 0 ? (
+                    {userAchievements.length > 0 ? (
                       <>
                         <Row style={styles.achievementsGrid}>
-                          {achievements.slice(0, 6).map((achievement) => (
-                            <GlassCard
-                              key={achievement.achievement_id}
-                              style={styles.achievementCard}
-                              shimmerEffect
-                            >
-                              <View style={styles.achievementContent}>
-                                <View
-                                  style={[
-                                    styles.achievementIcon,
-                                    {
-                                      backgroundColor:
-                                        getAchievementColor(achievement),
-                                    },
-                                  ]}
-                                >
-                                  <FontAwesome
-                                    name={
-                                      getAchievementIcon(achievement) as any
-                                    }
-                                    size={20}
-                                    color={Colors.white}
-                                  />
+                          {userAchievements
+                            .slice(0, 6)
+                            .map((userAchievement) => (
+                              <GlassCard
+                                key={userAchievement.achievement_id}
+                                style={styles.achievementCard}
+                                shimmerEffect
+                              >
+                                <View style={styles.achievementContent}>
+                                  <View
+                                    style={[
+                                      styles.achievementIcon,
+                                      {
+                                        backgroundColor:
+                                          getAchievementColor(userAchievement),
+                                      },
+                                    ]}
+                                  >
+                                    <FontAwesome
+                                      name={
+                                        getAchievementIcon(
+                                          userAchievement,
+                                        ) as any
+                                      }
+                                      size={20}
+                                      color={Colors.white}
+                                    />
+                                  </View>
+                                  <Text
+                                    style={[
+                                      styles.achievementText,
+                                      {
+                                        color: isDark
+                                          ? Colors.white
+                                          : Colors.white,
+                                      },
+                                    ]}
+                                    numberOfLines={1}
+                                  >
+                                    {getAchievementName(userAchievement)}
+                                  </Text>
                                 </View>
-                                <Text
-                                  style={[
-                                    styles.achievementText,
-                                    {
-                                      color: isDark
-                                        ? Colors.white
-                                        : Colors.white,
-                                    },
-                                  ]}
-                                  numberOfLines={1}
-                                >
-                                  {achievement.name}
-                                </Text>
-                              </View>
-                            </GlassCard>
-                          ))}
+                              </GlassCard>
+                            ))}
                         </Row>
 
                         <PlayfulButton
@@ -778,17 +789,19 @@ function ProfileScreenContent() {
               </SlideInElement>
 
               {/* Error display at bottom if there's an error but data is loaded */}
-              {error && !loading && (achievements.length > 0 || duelStats) && (
-                <Alert
-                  type='warning'
-                  message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
-                  style={styles.bottomAlert}
-                />
-              )}
+              {error &&
+                !loading &&
+                (userAchievements.length > 0 || duelStats) && (
+                  <Alert
+                    type='warning'
+                    message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
+                    style={styles.bottomAlert}
+                  />
+                )}
 
               {/* Retry button at bottom for partial failures */}
               {!loading &&
-                achievements.length === 0 &&
+                userAchievements.length === 0 &&
                 !duelStats &&
                 !error && (
                   <View

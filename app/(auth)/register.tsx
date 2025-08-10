@@ -432,7 +432,7 @@ export default function RegisterScreen() {
             </View>
 
             {/* 🚀 NEW: Debug info (remove in production) */}
-            {__DEV__ && (
+            {/* {__DEV__ && (
               <View style={styles.debugContainer}>
                 <Text style={styles.debugText}>
                   Auth: {isAuthenticated ? 'Yes' : 'No'} | Loading:{' '}
@@ -442,7 +442,7 @@ export default function RegisterScreen() {
                   CanSubmit: {canSubmit ? 'Yes' : 'No'}
                 </Text>
               </View>
-            )}
+            )} */}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

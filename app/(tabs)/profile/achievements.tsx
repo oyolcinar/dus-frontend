@@ -48,7 +48,8 @@ import {
   formatProgressPercentage,
 } from '../../../src/api/achievementService';
 import type { AchievementProgress } from '../../../src/types/models';
-import { usePreferredCourse } from '../../../context/PreferredCourseContext';
+// 🚀 UPDATED: Import from appStore instead of PreferredCourseContext
+import { usePreferredCourse } from '../../../stores/appStore';
 
 // ✅ Type-safe filter value types
 type StatusFilterValue = AchievementFilters['status'];
@@ -71,7 +72,7 @@ function AchievementScreenContent() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  // Use the preferred course context
+  // 🚀 UPDATED: Use the preferred course from appStore
   const {
     preferredCourse,
     isLoading: courseLoading,
@@ -463,7 +464,7 @@ function AchievementScreenContent() {
           style={styles.listContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* 🚀 NEW: Stats Overview */}
+          {/* 🚀 NEW: Stats Overview
           {completionStats && (
             <SlideInElement delay={0}>
               <PlayfulCard
@@ -498,7 +499,7 @@ function AchievementScreenContent() {
                 </Row>
               </PlayfulCard>
             </SlideInElement>
-          )}
+          )} */}
 
           {/* Filter Section */}
           <SlideInElement delay={100}>

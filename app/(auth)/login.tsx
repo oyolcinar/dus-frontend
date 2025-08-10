@@ -402,7 +402,7 @@ export default function LoginScreen() {
             </View>
 
             {/* 🚀 NEW: Debug info (remove in production) */}
-            {__DEV__ && (
+            {/* {__DEV__ && (
               <View style={styles.debugContainer}>
                 <Text style={styles.debugText}>
                   Auth: {isAuthenticated ? 'Yes' : 'No'} | Loading:{' '}
@@ -411,7 +411,7 @@ export default function LoginScreen() {
                   {userDataQuery.data?.username || user?.username || 'None'}
                 </Text>
               </View>
-            )}
+            )} */}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
