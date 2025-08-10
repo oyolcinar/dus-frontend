@@ -484,7 +484,7 @@ function HomeScreenContent() {
             style={styles.courseCard}
             titleFontFamily='PrimaryFont'
             variant='elevated'
-            category={preferredCourse?.course_type as any}
+            category={getCourseCategory(preferredCourse?.title || '')}
             animated={false}
             floatingAnimation={false}
           >
@@ -572,7 +572,7 @@ function HomeScreenContent() {
                   <MemoizedPlayfulCard
                     title='Yeni Çalışma Seansı Başlat'
                     variant='outlined'
-                    category={getCourseCategory(course.title)}
+                    category={getCourseCategory(preferredCourse?.title || '')}
                     style={[
                       { marginBottom: 12 },
                       { backgroundColor: Colors.gray[100] },
@@ -857,7 +857,7 @@ function HomeScreenContent() {
                 description: selectedCourse.description,
                 category: getCourseCategory(selectedCourse.title),
               }}
-              category={getCourseCategory(selectedCourse.title)}
+              category={getCourseCategory(preferredCourse?.title || '')}
               variant='elevated'
               style={styles.chronometerContainer}
               maxWidth='100%'
