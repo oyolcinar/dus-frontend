@@ -1,4 +1,4 @@
-// app/(tabs)/index.tsx - OPTIMIZED WITH ZUSTAND STORE
+// app/(tabs)/index.tsx - COMPLETE FIXED VERSION WITH PROPER MODAL LOGIC
 import React, { useEffect, useCallback, useMemo, memo, useState } from 'react';
 import {
   View,
@@ -29,7 +29,7 @@ import {
   Button,
 } from '../../components/ui';
 
-// 🚀 USING YOUR ZUSTAND STORE (replaces context imports)
+// 🚀 USING ZUSTAND STORE (replaces context imports)
 import {
   useAuth,
   usePreferredCourse,
@@ -46,10 +46,8 @@ import {
 import { Colors, Spacing } from '../../constants/theme';
 import { studyService } from '../../src/api';
 
-// 🚀 NEW: Import the optimized data hook
 import { useAppData, useUserData } from '../../src/hooks/useAppData';
 
-// 🚀 NEW: Import optimized components
 import {
   OptimizedCourseAnalytics,
   OptimizedStudySessionCard,
@@ -120,6 +118,12 @@ const styles = StyleSheet.create({
     marginTop: Spacing[4],
     fontFamily: 'SecondaryFont-Regular',
     fontSize: 16,
+  },
+  loadingSubText: {
+    marginTop: Spacing[2],
+    fontFamily: 'SecondaryFont-Regular',
+    fontSize: 14,
+    textAlign: 'center',
   },
   errorContainer: {
     justifyContent: 'center',
@@ -288,17 +292,20 @@ const getIconForCourse = (title: string): string => {
 const MemoizedPlayfulCard = memo(PlayfulCard);
 const MemoizedStudyChronometer = memo(StudyChronometer);
 
-// 🚀 HEAVILY SIMPLIFIED: Main Home Screen Component
+// 🚀 MAIN COMPONENT: Home Screen with Fixed Preferred Course Logic
 function HomeScreenContent() {
   const router = useRouter();
 
-  // 🚀 USING YOUR ZUSTAND STORE (replaces multiple context imports)
+  // 🚀 USING ZUSTAND STORE
   const { user, refreshSession } = useAuth();
   const {
     preferredCourse,
     availableCourses,
     isLoading: courseLoading,
+    hasCheckedPreferredCourse, // 🆕 NEW: Use this flag
+    preferredCourseLoading, // 🆕 NEW: Use this flag
     refreshCourses,
+    checkAndLoadPreferredCourse, // 🆕 NEW: Use this action
     getCourseColor,
     getCourseCategory,
   } = usePreferredCourse();
@@ -309,7 +316,7 @@ function HomeScreenContent() {
   const showCourseModal = useAppStore((state) => state.showCourseModal);
   const setShowCourseModal = useAppStore((state) => state.setShowCourseModal);
 
-  // 🚀 NEW: Use the optimized data hook instead of multiple useEffect
+  // 🚀 USE OPTIMIZED DATA HOOKS
   const {
     courses,
     coursesLoading,
@@ -329,10 +336,9 @@ function HomeScreenContent() {
     refetchAll,
   } = useAppData();
 
-  // 🚀 NEW: Add userData hook for user profile data
   const { data: userData } = useUserData();
 
-  // 🚀 SIMPLIFIED: Local state for UI only
+  // 🚀 LOCAL STATE for UI only
   const [selectedCourse, setSelectedCourse] =
     useState<CourseWithProgress | null>(null);
   const [activeCourseIndex, setActiveCourseIndex] = useState(0);
@@ -347,6 +353,21 @@ function HomeScreenContent() {
   );
   const [updatingCourse, setUpdatingCourse] = useState<number | null>(null);
 
+  // 🔧 FIXED: Load preferred course on mount if needed
+  useEffect(() => {
+    if (user && !hasCheckedPreferredCourse && !preferredCourseLoading) {
+      console.log(
+        '🔍 User logged in but preferred course not checked yet, loading...',
+      );
+      checkAndLoadPreferredCourse();
+    }
+  }, [
+    user,
+    hasCheckedPreferredCourse,
+    preferredCourseLoading,
+    checkAndLoadPreferredCourse,
+  ]);
+
   // 🚀 OPTIMIZED: Auto-select course logic (much simpler)
   useEffect(() => {
     if (courses.length > 0 && !selectedCourse) {
@@ -360,26 +381,42 @@ function HomeScreenContent() {
     }
   }, [courses, selectedCourse, preferredCourse]);
 
-  // 🚀 SIMPLIFIED: Course modal logic (uses store state)
+  // 🔧 FIXED: Course modal logic with proper checks
   useEffect(() => {
+    // Only show modal if:
+    // 1. We've finished checking for preferred course
+    // 2. No preferred course exists
+    // 3. Available courses are loaded
+    // 4. Modal is not already showing
+    // 5. User is logged in
     if (
-      !courseLoading &&
-      !preferredCourse &&
-      courses.length > 0 &&
-      !showCourseModal
+      hasCheckedPreferredCourse && // 🆕 Wait for check to complete
+      !preferredCourse && // No preferred course
+      !courseLoading && // Courses are loaded
+      availableCourses.length > 0 && // Have courses available
+      !showCourseModal && // Modal not already showing
+      user // User is logged in
     ) {
+      console.log(
+        '🎯 Showing course selection modal - no preferred course found after check',
+      );
       setShowCourseModal(true);
-      console.log('🎯 Showing course selection modal');
+    } else if (preferredCourse && showCourseModal) {
+      // If we have a preferred course but modal is showing, close it
+      console.log('✅ Preferred course found, closing modal');
+      setShowCourseModal(false);
     }
   }, [
-    courseLoading,
+    hasCheckedPreferredCourse, // 🆕 Key dependency
     preferredCourse,
-    courses.length,
+    courseLoading,
+    availableCourses.length,
     showCourseModal,
     setShowCourseModal,
+    user,
   ]);
 
-  // 🚀 OPTIMIZED: Refresh handler (much simpler)
+  // 🔧 ENHANCED: Refresh handler now also refreshes preferred course
   const handleRefresh = useCallback(async () => {
     try {
       const sessionValid = await checkAndRefreshSession();
@@ -388,15 +425,19 @@ function HomeScreenContent() {
         return;
       }
 
-      // 🚀 REFRESH BOTH STORE DATA AND APP DATA
-      await Promise.allSettled([refreshCourses(), refetchAll()]);
+      // 🚀 REFRESH ALL DATA INCLUDING PREFERRED COURSE
+      await Promise.allSettled([
+        refreshCourses(),
+        checkAndLoadPreferredCourse(), // 🆕 Also refresh preferred course
+        refetchAll(),
+      ]);
 
       console.log('✅ Refresh complete');
     } catch (error) {
       console.error('❌ Refresh failed:', error);
       RNAlert.alert('Hata', 'Yenileme başarısız oldu.');
     }
-  }, [router, refreshCourses, refetchAll]);
+  }, [router, refreshCourses, checkAndLoadPreferredCourse, refetchAll]);
 
   // 🚀 OPTIMIZED: Course editing handlers
   const handleEditCourseDetails = useCallback((course: CourseWithProgress) => {
@@ -469,6 +510,7 @@ function HomeScreenContent() {
   }, [setShowCourseModal]);
 
   const handleCourseSelected = useCallback(() => {
+    console.log('✅ Course selected, closing modal');
     setShowCourseModal(false);
   }, [setShowCourseModal]);
 
@@ -751,8 +793,24 @@ function HomeScreenContent() {
     ],
   );
 
+  // 🔧 ENHANCED: Loading check now includes preferred course loading
+  const isInitialLoading = useMemo(() => {
+    return (
+      isLoading ||
+      courseLoading ||
+      (user && !hasCheckedPreferredCourse) || // 🆕 Wait for preferred course check
+      preferredCourseLoading // 🆕 Wait for preferred course loading
+    );
+  }, [
+    isLoading,
+    courseLoading,
+    user,
+    hasCheckedPreferredCourse,
+    preferredCourseLoading,
+  ]);
+
   // 🚀 SIMPLIFIED: Error screen
-  if (hasError && !isLoading) {
+  if (hasError && !isInitialLoading) {
     return (
       <Container style={styles.errorContainer}>
         <View style={styles.errorContent}>
@@ -788,7 +846,7 @@ function HomeScreenContent() {
         style={styles.container}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading || courseLoading}
+            refreshing={isInitialLoading} // 🔧 Use enhanced loading check
             onRefresh={handleRefresh}
             tintColor={getCourseColor(
               getCourseCategory(preferredCourse?.title || ''),
@@ -878,7 +936,7 @@ function HomeScreenContent() {
         </View>
 
         {/* Main Content */}
-        {isLoading || courseLoading ? (
+        {isInitialLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator
               size='large'
@@ -891,6 +949,17 @@ function HomeScreenContent() {
             >
               Ana sayfa yükleniyor...
             </Text>
+            {/* 🆕 NEW: Show specific loading message if checking preferred course */}
+            {user && !hasCheckedPreferredCourse && (
+              <Text
+                style={[
+                  styles.loadingSubText,
+                  { color: getTertiaryTextColor(isDark) },
+                ]}
+              >
+                Ders tercihiniz kontrol ediliyor...
+              </Text>
+            )}
           </View>
         ) : (
           <>

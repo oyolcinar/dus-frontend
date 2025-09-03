@@ -1,6 +1,15 @@
-// src/hooks/useDuelsData.ts - COMPLETE DUELS DATA MANAGEMENT
+// src/hooks/useDuelsData.ts - COMPLETE PERFORMANCE-OPTIMIZED DUELS DATA MANAGEMENT
 import { useQuery, useQueries } from '@tanstack/react-query';
-import { useState, useEffect, useCallback } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  useReducer,
+} from 'react';
+import { unstable_batchedUpdates } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   duelService,
   duelResultService,
@@ -10,6 +19,7 @@ import {
   courseService,
   testService,
 } from '../api';
+import * as socketService from '../api/socketService';
 import type { Duel, User, Course, Test, DuelResult } from '../types/models';
 import type { UserDuelStatsPayload } from '../api/duelResultService';
 import type { Bot } from '../api/botService';
@@ -44,13 +54,227 @@ export interface LeaderboardEntry {
   rank: number;
 }
 
+interface RoundResult {
+  questionIndex: number;
+  question: {
+    text: string;
+    options: Record<string, string>;
+    correctAnswer: string;
+    explanation?: string;
+  };
+  answers: Array<{
+    userId: number;
+    selectedAnswer: string;
+    isCorrect: boolean;
+    timeTaken: number;
+  }>;
+}
+
+export interface FinalResults {
+  winnerId: number | null;
+  user1: {
+    userId: number;
+    score: number;
+    totalTime: number;
+    accuracy: number;
+  };
+  user2: {
+    userId: number;
+    score: number;
+    totalTime: number;
+    accuracy: number;
+  };
+}
+
+// 🚀 PERFORMANCE FIX 1: Single State Object with useReducer
+interface DuelRoomState {
+  // Connection state
+  isConnected: boolean;
+  isConnecting: boolean;
+  connectionError: string | null;
+  retryCount: number;
+  maxRetries: number;
+
+  // Room state
+  isInRoom: boolean;
+  roomError: string | null;
+  session: any | null;
+
+  // Game state
+  phase:
+    | 'connecting'
+    | 'lobby'
+    | 'countdown'
+    | 'question'
+    | 'results'
+    | 'final'
+    | 'error';
+  currentQuestion: any | null;
+  questionIndex: number;
+  totalQuestions: number;
+  timeLeft: number;
+  userScore: number;
+  opponentScore: number;
+  hasAnswered: boolean;
+  opponentAnswered: boolean;
+  gameError: string | null;
+  roundResult: RoundResult | null;
+  finalResults: FinalResults | null;
+}
+
+// 🚀 PERFORMANCE FIX 2: Action Types for Reducer
+type DuelRoomAction =
+  | {
+      type: 'SET_CONNECTION';
+      payload: Partial<
+        Pick<
+          DuelRoomState,
+          'isConnected' | 'isConnecting' | 'connectionError' | 'retryCount'
+        >
+      >;
+    }
+  | {
+      type: 'SET_ROOM';
+      payload: Partial<
+        Pick<DuelRoomState, 'isInRoom' | 'roomError' | 'session'>
+      >;
+    }
+  | {
+      type: 'SET_GAME';
+      payload: Partial<
+        Pick<
+          DuelRoomState,
+          | 'phase'
+          | 'currentQuestion'
+          | 'questionIndex'
+          | 'totalQuestions'
+          | 'timeLeft'
+          | 'userScore'
+          | 'opponentScore'
+          | 'hasAnswered'
+          | 'opponentAnswered'
+          | 'gameError'
+          | 'roundResult'
+          | 'finalResults'
+        >
+      >;
+    }
+  | { type: 'BATCH_UPDATE'; payload: Partial<DuelRoomState> }
+  | { type: 'RESET_GAME' };
+
+// 🚀 PERFORMANCE FIX 3: Optimized Reducer
+const initialDuelRoomState: DuelRoomState = {
+  isConnected: false,
+  isConnecting: false,
+  connectionError: null,
+  retryCount: 0,
+  maxRetries: 3,
+  isInRoom: false,
+  roomError: null,
+  session: null,
+  phase: 'connecting',
+  currentQuestion: null,
+  questionIndex: 0,
+  totalQuestions: 3,
+  timeLeft: 60,
+  userScore: 0,
+  opponentScore: 0,
+  hasAnswered: false,
+  opponentAnswered: false,
+  gameError: null,
+  roundResult: null,
+  finalResults: null,
+};
+
+const duelRoomReducer = (
+  state: DuelRoomState,
+  action: DuelRoomAction,
+): DuelRoomState => {
+  switch (action.type) {
+    case 'SET_CONNECTION':
+      return { ...state, ...action.payload };
+    case 'SET_ROOM':
+      return { ...state, ...action.payload };
+    case 'SET_GAME':
+      return { ...state, ...action.payload };
+    case 'BATCH_UPDATE':
+      return { ...state, ...action.payload };
+    case 'RESET_GAME':
+      return { ...initialDuelRoomState, phase: 'connecting' };
+    default:
+      return state;
+  }
+};
+
+// 🚀 PERFORMANCE FIX 4: Memoized User ID Cache
+const userIdCache = { value: null as number | null, timestamp: 0 };
+const USER_ID_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+const getCachedUserId = async (): Promise<number | null> => {
+  const now = Date.now();
+
+  if (
+    userIdCache.value &&
+    now - userIdCache.timestamp < USER_ID_CACHE_DURATION
+  ) {
+    return userIdCache.value;
+  }
+
+  try {
+    const userDataString = await AsyncStorage.getItem('userData');
+    if (userDataString) {
+      const userData = JSON.parse(userDataString);
+      const userId = userData.userId || null;
+
+      userIdCache.value = userId;
+      userIdCache.timestamp = now;
+
+      return userId;
+    }
+  } catch (error) {
+    console.error('Error getting cached user ID:', error);
+  }
+
+  return null;
+};
+
+// 🚀 PERFORMANCE FIX 5: Optimized Auth Token Cache
+const authTokenCache = { value: null as string | null, timestamp: 0 };
+const AUTH_TOKEN_CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+
+const getCachedAuthToken = async (): Promise<string | null> => {
+  const now = Date.now();
+
+  if (
+    authTokenCache.value &&
+    now - authTokenCache.timestamp < AUTH_TOKEN_CACHE_DURATION
+  ) {
+    return authTokenCache.value;
+  }
+
+  try {
+    const authToken = await AsyncStorage.getItem('authToken');
+    const userToken = await AsyncStorage.getItem('userToken');
+    const token = authToken || userToken;
+
+    if (token) {
+      authTokenCache.value = token;
+      authTokenCache.timestamp = now;
+    }
+
+    return token;
+  } catch (error) {
+    console.error('Error getting cached auth token:', error);
+    return null;
+  }
+};
+
 // 🚀 MAIN ACTIVE DUELS HOOK
 export function useActiveDuels() {
   return useQuery({
     queryKey: ['active-duels'],
     queryFn: async (): Promise<Duel[]> => {
       console.log('🔄 Fetching active duels...');
-
       try {
         const activeDuels = await duelService.getActiveDuels();
         console.log('⚔️ Active duels fetched:', activeDuels?.length || 0);
@@ -73,7 +297,6 @@ export function useDuelStats() {
     queryKey: ['user-duel-stats'],
     queryFn: async (): Promise<UserDuelStatsPayload | null> => {
       console.log('📊 Fetching user duel statistics...');
-
       try {
         const stats = await duelResultService.getUserDuelStats();
         console.log('📈 Duel stats fetched:', {
@@ -167,7 +390,6 @@ export function useDuelLeaderboard(limit: number = 20) {
     queryKey: ['duel-leaderboard', limit],
     queryFn: async (): Promise<LeaderboardEntry[]> => {
       console.log('🏆 Fetching duel leaderboard...');
-
       try {
         const leaderboardResponse = await duelService.getDuelLeaderboard(limit);
         const leaderboard = leaderboardResponse.leaderboard || [];
@@ -217,14 +439,8 @@ export function useDuelHistory(limit: number = 50) {
               );
               if (!duelResult) return null;
 
-              // 🚀 FIXED: Use AsyncStorage instead of localStorage for React Native
-              const { default: AsyncStorage } = await import(
-                '@react-native-async-storage/async-storage'
-              );
-              const userDataString = await AsyncStorage.getItem('userData');
-              const userData = userDataString ? JSON.parse(userDataString) : {};
-              const currentUserId = userData.userId;
-
+              // Use cached user ID for better performance
+              const currentUserId = await getCachedUserId();
               if (!currentUserId) return null;
 
               // Determine result for current user
@@ -345,6 +561,680 @@ export function useDuelDetails(duelId: number) {
     retry: 2,
     enabled: !!duelId && duelId > 0,
   });
+}
+
+// 🚀 BOT DETECTION AND INFO HOOK
+export function useBotInfo(userId?: number) {
+  return useQuery({
+    queryKey: ['bot-info', userId],
+    queryFn: async (): Promise<{ isBot: boolean; botInfo?: Bot | null }> => {
+      if (!userId) return { isBot: false };
+
+      try {
+        console.log('🤖 Checking if user is bot:', userId);
+        const isBot = await botService.isBot(userId);
+
+        if (isBot) {
+          const botInfo = await botService.getBotInfo(userId);
+          console.log('🤖 Bot info fetched:', botInfo?.botName);
+          return { isBot: true, botInfo };
+        }
+
+        return { isBot: false };
+      } catch (error) {
+        console.error('❌ Error checking bot info:', error);
+        return { isBot: false };
+      }
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes - bot status doesn't change
+    gcTime: 30 * 60 * 1000, // 30 minutes
+    retry: 1,
+    enabled: !!userId && userId > 0,
+  });
+}
+
+// 🚀 PERFORMANCE OPTIMIZED DUEL ROOM MANAGEMENT HOOK
+export function useDuelRoomManagement(duelId: number) {
+  // 🚀 PERFORMANCE FIX 6: Single useReducer instead of 3 useState
+  const [state, dispatch] = useReducer(duelRoomReducer, initialDuelRoomState);
+
+  // Get duel details and bot info (unchanged)
+  const duelDetailsQuery = useDuelDetails(duelId);
+  const opponentId = duelDetailsQuery.data?.duel?.opponent_id;
+  const botInfoQuery = useBotInfo(opponentId);
+
+  // 🚀 PERFORMANCE FIX 7: Memoized dispatch functions
+  const dispatchActions = useMemo(
+    () => ({
+      setConnection: (
+        payload: Partial<
+          Pick<
+            DuelRoomState,
+            'isConnected' | 'isConnecting' | 'connectionError' | 'retryCount'
+          >
+        >,
+      ) => {
+        unstable_batchedUpdates(() => {
+          dispatch({ type: 'SET_CONNECTION', payload });
+        });
+      },
+      setRoom: (
+        payload: Partial<
+          Pick<DuelRoomState, 'isInRoom' | 'roomError' | 'session'>
+        >,
+      ) => {
+        unstable_batchedUpdates(() => {
+          dispatch({ type: 'SET_ROOM', payload });
+        });
+      },
+      setGame: (
+        payload: Partial<
+          Pick<
+            DuelRoomState,
+            | 'phase'
+            | 'currentQuestion'
+            | 'questionIndex'
+            | 'totalQuestions'
+            | 'timeLeft'
+            | 'userScore'
+            | 'opponentScore'
+            | 'hasAnswered'
+            | 'opponentAnswered'
+            | 'gameError'
+            | 'roundResult'
+            | 'finalResults'
+          >
+        >,
+      ) => {
+        unstable_batchedUpdates(() => {
+          dispatch({ type: 'SET_GAME', payload });
+        });
+      },
+      batchUpdate: (payload: Partial<DuelRoomState>) => {
+        unstable_batchedUpdates(() => {
+          dispatch({ type: 'BATCH_UPDATE', payload });
+        });
+      },
+    }),
+    [],
+  );
+
+  // Stable refs (unchanged but optimized)
+  const stableRefs = useRef({
+    cleanupFunctions: [] as Array<() => void>,
+    connectionTimeout: null as number | null,
+    isCleaningUp: false,
+    connectionAttempt: null as Promise<void> | null,
+    eventListenersSetup: false,
+    isMounted: true,
+    hasConnectedOnce: false,
+    retryCount: 0,
+    maxRetries: 3,
+  });
+
+  // 🚀 PERFORMANCE FIX 8: Debounced Event Handlers
+  const debouncedEventHandlers = useMemo(() => {
+    let eventTimeout: any = null;
+
+    const debouncedDispatch = (action: DuelRoomAction, delay: number = 16) => {
+      if (eventTimeout) clearTimeout(eventTimeout);
+      eventTimeout = setTimeout(() => {
+        unstable_batchedUpdates(() => {
+          dispatch(action);
+        });
+      }, delay);
+    };
+
+    return {
+      handleConnect: () => {
+        console.log('📡 Socket connected');
+        stableRefs.current.hasConnectedOnce = true;
+        debouncedDispatch({
+          type: 'SET_CONNECTION',
+          payload: { isConnected: true },
+        });
+      },
+
+      handleDisconnect: () => {
+        console.log('📡 Socket disconnected');
+        debouncedDispatch({
+          type: 'BATCH_UPDATE',
+          payload: { isConnected: false, isInRoom: false },
+        });
+      },
+
+      handleRoomJoined: (data: { session: any }) => {
+        console.log('🚪 ROOM JOINED SUCCESS');
+        debouncedDispatch({
+          type: 'BATCH_UPDATE',
+          payload: {
+            isInRoom: true,
+            roomError: null,
+            session: data.session,
+            phase: 'lobby' as const,
+          },
+        });
+      },
+
+      handleGameStateUpdate: (
+        gameUpdate: Partial<
+          Pick<
+            DuelRoomState,
+            | 'phase'
+            | 'currentQuestion'
+            | 'questionIndex'
+            | 'totalQuestions'
+            | 'timeLeft'
+            | 'hasAnswered'
+            | 'opponentAnswered'
+          >
+        >,
+      ) => {
+        debouncedDispatch({ type: 'SET_GAME', payload: gameUpdate });
+      },
+    };
+  }, []);
+
+  // 🚀 PERFORMANCE FIX 9: Optimized Event Listeners Setup
+  const setupEventListeners = useCallback(() => {
+    const refs = stableRefs.current;
+
+    if (refs.eventListenersSetup) {
+      console.log('📡 Event listeners already set up, skipping...');
+      return;
+    }
+
+    console.log('📡 Setting up duel room event listeners...');
+    refs.eventListenersSetup = true;
+
+    const cleanupExisting = () => {
+      socketService.off('room_joined');
+      socketService.off('duel_starting');
+      socketService.off('question_presented');
+      socketService.off('opponent_answered');
+      socketService.off('round_result');
+      socketService.off('duel_completed');
+      socketService.off('timer_update');
+      socketService.off('question_time_up');
+    };
+
+    cleanupExisting();
+
+    // 🚀 PERFORMANCE FIX 10: Optimized Event Handlers
+    const handleRoomError = (data: { message: string }) => {
+      console.log('❌ Room error:', data.message);
+      dispatchActions.batchUpdate({
+        roomError: data.message,
+        phase: 'error',
+        gameError: data.message,
+      });
+    };
+
+    const handleDuelStarting = (data: { countdown: number }) => {
+      console.log('🏁 Duel starting:', data);
+      dispatchActions.setGame({ phase: 'countdown' });
+    };
+
+    const handleQuestionPresented = (data: any) => {
+      console.log('❓ Question presented:', data);
+
+      dispatchActions.batchUpdate({
+        phase: 'question',
+        currentQuestion: data.question,
+        questionIndex: data.questionIndex,
+        totalQuestions: data.totalQuestions,
+        timeLeft: Math.ceil(data.timeLimit / 1000),
+        hasAnswered: false,
+        opponentAnswered: false,
+      });
+    };
+
+    const handleTimerUpdate = (data: any) => {
+      dispatchActions.setGame({ timeLeft: data.timeRemaining });
+    };
+
+    const handleOpponentAnswered = () => {
+      console.log('👥 Opponent answered');
+      dispatchActions.setGame({ opponentAnswered: true });
+    };
+
+    // 🚀 PERFORMANCE FIX 11: Optimized Round Result Handler
+    const handleRoundResult = async (data: any) => {
+      console.log('Round result received - switching to results IMMEDIATELY');
+
+      // Validate data structure
+      if (!data || !data.question || !data.answers) {
+        console.error('Invalid round result data:', data);
+        return;
+      }
+
+      try {
+        // Get user ID from cache for better performance
+        const currentUserId = await getCachedUserId();
+        if (!currentUserId) {
+          console.warn('No current user ID found');
+          return;
+        }
+
+        // Calculate score updates
+        const userAnswer = data.answers.find(
+          (a: any) => a.userId === currentUserId,
+        );
+        const opponentAnswer = data.answers.find(
+          (a: any) => a.userId !== currentUserId,
+        );
+
+        console.log('Score calculation:', {
+          currentUserId,
+          userAnswer: userAnswer
+            ? { isCorrect: userAnswer.isCorrect, userId: userAnswer.userId }
+            : null,
+          opponentAnswer: opponentAnswer
+            ? {
+                isCorrect: opponentAnswer.isCorrect,
+                userId: opponentAnswer.userId,
+              }
+            : null,
+        });
+
+        // IMMEDIATE phase switch - no delays
+        console.log('IMMEDIATE TRANSITION: question phase -> results phase');
+
+        // Single batched state update
+        dispatchActions.batchUpdate({
+          phase: 'results',
+          roundResult: data,
+          userScore: state.userScore + (userAnswer?.isCorrect ? 1 : 0),
+          opponentScore:
+            state.opponentScore + (opponentAnswer?.isCorrect ? 1 : 0),
+          timeLeft: 0, // Stop question timer immediately
+          hasAnswered: false, // Reset for next question
+          opponentAnswered: false, // Reset for next question
+          gameError: null, // Clear any previous errors
+        });
+
+        console.log('Results phase active - will display for 30 seconds');
+        console.log(
+          'Round result processed successfully - immediate transition complete',
+        );
+      } catch (error) {
+        console.error('Error processing round result:', error);
+
+        // Even if score calculation fails, still switch to results immediately
+        console.log('FALLBACK: Switching to results phase despite error');
+
+        dispatchActions.setGame({
+          phase: 'results', // IMMEDIATE phase switch even on error
+          roundResult: data,
+          timeLeft: 0, // Stop timer
+          hasAnswered: false, // Reset states
+          opponentAnswered: false,
+          gameError: null,
+        });
+      }
+    };
+
+    // 🔧 FIXED: Enhanced duel completed handler
+    const handleDuelCompleted = (data: any) => {
+      console.log('🎉 Duel completed:', data);
+
+      if (!data) {
+        console.error('❌ Invalid final results data:', data);
+        return;
+      }
+
+      dispatchActions.setGame({
+        phase: 'final',
+        finalResults: data,
+      });
+
+      console.log('✅ Duel completion processed successfully');
+    };
+
+    const handleGameError = (data: { message: string }) => {
+      console.log('❌ Game error:', data.message);
+      dispatchActions.batchUpdate({
+        phase: 'error',
+        gameError: data.message,
+      });
+    };
+
+    // Register all event listeners
+    socketService.on('connect', debouncedEventHandlers.handleConnect);
+    socketService.on('disconnect', debouncedEventHandlers.handleDisconnect);
+    socketService.on('room_joined', debouncedEventHandlers.handleRoomJoined);
+    socketService.on('room_error', handleRoomError);
+    socketService.on('duel_starting', handleDuelStarting);
+    socketService.on('question_presented', handleQuestionPresented);
+    socketService.on('timer_update', handleTimerUpdate);
+    socketService.on('opponent_answered', handleOpponentAnswered);
+    socketService.on('round_result', handleRoundResult);
+    socketService.on('duel_completed', handleDuelCompleted);
+    socketService.on('duel_error', handleGameError);
+
+    // Store cleanup functions
+    const cleanupFunctions = [
+      () => socketService.off('connect', debouncedEventHandlers.handleConnect),
+      () =>
+        socketService.off(
+          'disconnect',
+          debouncedEventHandlers.handleDisconnect,
+        ),
+      () =>
+        socketService.off(
+          'room_joined',
+          debouncedEventHandlers.handleRoomJoined,
+        ),
+      () => socketService.off('room_error', handleRoomError),
+      () => socketService.off('duel_starting', handleDuelStarting),
+      () => socketService.off('question_presented', handleQuestionPresented),
+      () => socketService.off('timer_update', handleTimerUpdate),
+      () => socketService.off('opponent_answered', handleOpponentAnswered),
+      () => socketService.off('round_result', handleRoundResult),
+      () => socketService.off('duel_completed', handleDuelCompleted),
+      () => socketService.off('duel_error', handleGameError),
+    ];
+
+    refs.cleanupFunctions.push(...cleanupFunctions);
+    console.log('✅ Event listeners set up successfully');
+  }, [
+    debouncedEventHandlers,
+    dispatchActions,
+    state.userScore,
+    state.opponentScore,
+  ]);
+
+  // 🚀 PERFORMANCE FIX 12: Optimized Connection Logic
+  const initializeConnection = useCallback(async () => {
+    const refs = stableRefs.current;
+
+    // Prevent multiple concurrent connection attempts
+    if (refs.connectionAttempt) {
+      console.log('🔄 Connection already in progress, skipping...');
+      return refs.connectionAttempt;
+    }
+
+    console.log('🚀 Initializing duel room connection...');
+
+    const connectAttempt = async (): Promise<void> => {
+      dispatchActions.setConnection({
+        isConnecting: true,
+        connectionError: null,
+      });
+
+      try {
+        // Get cached token for better performance
+        const token = await getCachedAuthToken();
+        if (!token) {
+          throw new Error('No authentication token available');
+        }
+
+        // Set connection timeout
+        refs.connectionTimeout = setTimeout(() => {
+          throw new Error('Connection timeout after 15 seconds');
+        }, 15000) as any;
+
+        // Attempt connection
+        console.log('🔌 Connecting to socket...');
+        await socketService.connect(token);
+
+        // Clear timeout
+        if (refs.connectionTimeout) {
+          clearTimeout(refs.connectionTimeout);
+          refs.connectionTimeout = null;
+        }
+
+        // Verify connection
+        if (!socketService.isConnected()) {
+          throw new Error('Socket connection failed');
+        }
+
+        console.log('✅ Socket connected successfully');
+
+        refs.retryCount = 0; // Reset retry count on successful connection
+        dispatchActions.batchUpdate({
+          isConnected: true,
+          isConnecting: false,
+          connectionError: null,
+          retryCount: 0,
+        });
+
+        // Set up event listeners AFTER successful connection
+        setupEventListeners();
+
+        // Auto-join room after connection
+        try {
+          console.log('🚪 Joining duel room:', duelId);
+          socketService.joinDuelRoom(duelId);
+          dispatchActions.setRoom({ roomError: null });
+        } catch (roomError) {
+          const errorMessage =
+            roomError instanceof Error
+              ? roomError.message
+              : 'Failed to join room';
+          console.error('❌ Failed to join duel room:', errorMessage);
+          dispatchActions.setRoom({ roomError: errorMessage });
+        }
+      } catch (error) {
+        // Clear timeout
+        if (refs.connectionTimeout) {
+          clearTimeout(refs.connectionTimeout);
+          refs.connectionTimeout = null;
+        }
+
+        const errorMessage =
+          error instanceof Error ? error.message : 'Connection failed';
+        console.error('❌ Connection failed:', errorMessage);
+
+        refs.retryCount++;
+        dispatchActions.batchUpdate({
+          isConnected: false,
+          isConnecting: false,
+          connectionError: errorMessage,
+          retryCount: refs.retryCount,
+        });
+
+        // Retry logic
+        if (refs.retryCount < refs.maxRetries) {
+          const retryDelay = Math.min(
+            1000 * Math.pow(2, refs.retryCount),
+            10000,
+          );
+          console.log(
+            `🔄 Retrying connection in ${retryDelay}ms... (${refs.retryCount}/${refs.maxRetries})`,
+          );
+
+          setTimeout(() => {
+            refs.connectionAttempt = null;
+            initializeConnection();
+          }, retryDelay);
+        } else {
+          dispatchActions.setGame({
+            phase: 'error',
+            gameError: errorMessage,
+          });
+        }
+
+        throw error;
+      }
+    };
+
+    refs.connectionAttempt = connectAttempt();
+    return refs.connectionAttempt;
+  }, [dispatchActions, setupEventListeners, duelId]);
+
+  // 🚀 PERFORMANCE FIX 13: Optimized Actions
+  const submitAnswer = useCallback(
+    async (selectedAnswer: string | null, timeTaken: number) => {
+      if (!state.currentQuestion || state.hasAnswered) {
+        console.warn(
+          '⚠️ Cannot submit answer: no question or already answered',
+        );
+        return;
+      }
+
+      if (!socketService.isConnected()) {
+        throw new Error('Socket not connected');
+      }
+
+      try {
+        console.log('📝 Submitting answer:', { selectedAnswer, timeTaken });
+        socketService.submitAnswer(
+          state.currentQuestion.id,
+          selectedAnswer,
+          timeTaken,
+        );
+        dispatchActions.setGame({ hasAnswered: true });
+      } catch (error) {
+        console.error('❌ Failed to submit answer:', error);
+        throw error;
+      }
+    },
+    [state.currentQuestion, state.hasAnswered, dispatchActions],
+  );
+
+  // 🔧 STABLE: Signal ready
+  const signalReady = useCallback(async () => {
+    if (!socketService.isConnected()) {
+      throw new Error('Socket not connected');
+    }
+
+    try {
+      console.log('✅ Signaling ready');
+      socketService.signalReady();
+    } catch (error) {
+      console.error('❌ Failed to signal ready:', error);
+      throw error;
+    }
+  }, []);
+
+  // 🔧 STABLE: Cleanup - only called on actual unmount
+  const cleanup = useCallback(() => {
+    const refs = stableRefs.current;
+
+    console.log('🧹 FINAL CLEANUP - Component unmounting');
+    refs.isCleaningUp = true;
+    refs.isMounted = false;
+
+    // Clear timeout
+    if (refs.connectionTimeout) {
+      clearTimeout(refs.connectionTimeout);
+      refs.connectionTimeout = null;
+    }
+
+    // Run cleanup functions
+    refs.cleanupFunctions.forEach((cleanupFn) => {
+      try {
+        cleanupFn();
+      } catch (error) {
+        console.warn('Error in cleanup function:', error);
+      }
+    });
+    refs.cleanupFunctions = [];
+
+    // Reset flags
+    refs.eventListenersSetup = false;
+
+    // Disconnect socket
+    try {
+      socketService.leaveDuelRoom();
+      socketService.disconnect();
+    } catch (error) {
+      console.warn('Error during socket cleanup:', error);
+    }
+
+    console.log('✅ Final cleanup complete');
+  }, []);
+
+  // 🔧 CRITICAL: One-time setup - NEVER re-runs
+  useEffect(() => {
+    console.log('🔧 useDuelRoomManagement: ONE-TIME SETUP');
+    const refs = stableRefs.current;
+
+    refs.isMounted = true;
+    refs.isCleaningUp = false;
+
+    // Return cleanup that only runs on unmount
+    return () => {
+      console.log('🔧 useDuelRoomManagement: UNMOUNTING');
+      cleanup();
+    };
+  }, [cleanup]); // EMPTY ARRAY - NEVER re-runs!
+
+  // 🚀 PERFORMANCE FIX 14: Memoized Return Value
+  const opponentInfo = useMemo(() => {
+    return duelDetailsQuery.data?.duel
+      ? {
+          userId: duelDetailsQuery.data.duel.opponent_id,
+          username: duelDetailsQuery.data.duel.opponent_username,
+          isBot: botInfoQuery.data?.isBot || false,
+          botInfo: botInfoQuery.data?.botInfo,
+        }
+      : null;
+  }, [duelDetailsQuery.data?.duel, botInfoQuery.data]);
+
+  // Return stable object
+  const returnValue = useMemo(
+    () => ({
+      // Connection state
+      isConnected: state.isConnected,
+      connectionError: state.connectionError,
+
+      // Room state
+      roomState: state.session,
+      roomError: state.roomError,
+
+      // Duel details
+      duelInfo: duelDetailsQuery.data?.duel,
+      opponentInfo,
+      botInfo: botInfoQuery.data,
+
+      // Game state - ALL game data comes from hook
+      gamePhase: state.phase,
+      currentQuestion: state.currentQuestion,
+      questionIndex: state.questionIndex,
+      totalQuestions: state.totalQuestions,
+      timeLeft: state.timeLeft,
+      userScore: state.userScore,
+      opponentScore: state.opponentScore,
+      hasAnswered: state.hasAnswered,
+      opponentAnswered: state.opponentAnswered,
+      gameError: state.gameError,
+
+      // 🔧 CRITICAL: These are now properly managed by hook
+      roundResult: state.roundResult,
+      finalResults: state.finalResults,
+
+      // Actions
+      initializeConnection,
+      submitAnswer,
+      signalReady,
+      cleanup,
+
+      // Loading states
+      isLoading: duelDetailsQuery.isLoading || state.isConnecting,
+      hasError: !!(
+        state.connectionError ||
+        state.roomError ||
+        state.gameError ||
+        duelDetailsQuery.error
+      ),
+    }),
+    [
+      state,
+      duelDetailsQuery.data?.duel,
+      duelDetailsQuery.isLoading,
+      duelDetailsQuery.error,
+      opponentInfo,
+      botInfoQuery.data,
+      initializeConnection,
+      submitAnswer,
+      signalReady,
+      cleanup,
+    ],
+  );
+
+  return returnValue;
 }
 
 // 🚀 COMBINED DUELS DATA HOOK (Main hook for duels screens)
@@ -486,9 +1376,6 @@ export function useUserSearch() {
         const user = await userService.searchUserByUsername(username.trim());
 
         if (user) {
-          // 🚀 FIXED: Don't access non-existent properties, use defaults
-          // We could optionally fetch duel stats for this user, but for search results
-          // it's better to keep it simple and fast
           return {
             id: user.userId || user.id,
             username: user.username,
@@ -505,7 +1392,7 @@ export function useUserSearch() {
       }
     },
 
-    // 🚀 NEW: Enhanced search that includes duel stats (slower but more complete)
+    // Enhanced search that includes duel stats (slower but more complete)
     searchUserWithStats: async (
       username: string,
     ): Promise<DuelOpponent | null> => {
@@ -585,7 +1472,7 @@ export function useDuelCreation() {
       }
     },
 
-    // 🚀 NEW: Challenge with test (backward compatibility)
+    // Challenge with test (backward compatibility)
     challengeUserWithTest: async (
       opponentId: number,
       testId: number,
@@ -609,7 +1496,7 @@ export function useDuelCreation() {
       }
     },
 
-    // 🚀 NEW: Accept challenge
+    // Accept challenge
     acceptChallenge: async (duelId: number) => {
       try {
         console.log('✅ Accepting challenge:', duelId);
@@ -621,7 +1508,7 @@ export function useDuelCreation() {
       }
     },
 
-    // 🚀 NEW: Decline challenge
+    // Decline challenge
     declineChallenge: async (duelId: number) => {
       try {
         console.log('❌ Declining challenge:', duelId);
@@ -635,7 +1522,7 @@ export function useDuelCreation() {
   };
 }
 
-// 🚀 NEW: REAL-TIME SOCKET CONNECTION HOOK
+// 🚀 REAL-TIME SOCKET CONNECTION HOOK
 export function useSocketConnection() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionState, setConnectionState] = useState<any>(null);
@@ -700,37 +1587,7 @@ export function useSocketConnection() {
   };
 }
 
-// 🚀 NEW: BOT DETECTION AND INFO HOOK
-export function useBotInfo(userId?: number) {
-  return useQuery({
-    queryKey: ['bot-info', userId],
-    queryFn: async (): Promise<{ isBot: boolean; botInfo?: Bot | null }> => {
-      if (!userId) return { isBot: false };
-
-      try {
-        console.log('🤖 Checking if user is bot:', userId);
-        const isBot = await botService.isBot(userId);
-
-        if (isBot) {
-          const botInfo = await botService.getBotInfo(userId);
-          console.log('🤖 Bot info fetched:', botInfo?.botName);
-          return { isBot: true, botInfo };
-        }
-
-        return { isBot: false };
-      } catch (error) {
-        console.error('❌ Error checking bot info:', error);
-        return { isBot: false };
-      }
-    },
-    staleTime: 10 * 60 * 1000, // 10 minutes - bot status doesn't change
-    gcTime: 30 * 60 * 1000, // 30 minutes
-    retry: 1,
-    enabled: !!userId && userId > 0,
-  });
-}
-
-// 🚀 NEW: REAL-TIME DUEL ROOM HOOK
+// 🚀 REAL-TIME DUEL ROOM HOOK
 export function useDuelRoom(duelId: number) {
   const [roomState, setRoomState] = useState<any>(null);
   const [roomError, setRoomError] = useState<string | null>(null);
@@ -846,7 +1703,7 @@ export function useDuelRoom(duelId: number) {
   };
 }
 
-// 🚀 NEW: ENHANCED DUEL DETAILS WITH BOT INFO
+// 🚀 ENHANCED DUEL DETAILS WITH BOT INFO
 export function useEnhancedDuelDetails(duelId: number) {
   const duelDetailsQuery = useDuelDetails(duelId);
   const [botInfo, setBotInfo] = useState<{
@@ -895,236 +1752,7 @@ export function useEnhancedDuelDetails(duelId: number) {
   };
 }
 
-// 🚀 NEW: COMPREHENSIVE DUEL ROOM MANAGEMENT HOOK
-export function useDuelRoomManagement(duelId: number) {
-  const socketConnection = useSocketConnection();
-  const duelRoom = useDuelRoom(duelId);
-  const enhancedDetails = useEnhancedDuelDetails(duelId);
-
-  // Game state
-  const [gamePhase, setGamePhase] = useState<
-    | 'connecting'
-    | 'lobby'
-    | 'countdown'
-    | 'question'
-    | 'results'
-    | 'final'
-    | 'error'
-  >('connecting');
-  const [currentQuestion, setCurrentQuestion] = useState<any>(null);
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [totalQuestions, setTotalQuestions] = useState(3);
-  const [timeLeft, setTimeLeft] = useState(60);
-  const [userScore, setUserScore] = useState(0);
-  const [opponentScore, setOpponentScore] = useState(0);
-  const [hasAnswered, setHasAnswered] = useState(false);
-  const [opponentAnswered, setOpponentAnswered] = useState(false);
-  const [gameError, setGameError] = useState<string | null>(null);
-
-  // Initialize socket connection
-  const initializeConnection = useCallback(
-    async (token?: string) => {
-      try {
-        await socketConnection.connect(token);
-        if (socketConnection.isConnected) {
-          await duelRoom.joinRoom();
-          setGamePhase('lobby');
-        }
-      } catch (error) {
-        console.error('Failed to initialize duel room:', error);
-        setGameError(
-          error instanceof Error ? error.message : 'Connection failed',
-        );
-        setGamePhase('error');
-      }
-    },
-    [socketConnection, duelRoom],
-  );
-
-  // Setup real-time event listeners
-  const setupRealTimeListeners = useCallback(async () => {
-    try {
-      const { on, off } = await import('../api/socketService');
-
-      // Game flow events
-      const handleDuelStarting = (data: { countdown: number }) => {
-        setGamePhase('countdown');
-      };
-
-      const handleQuestionPresented = (data: {
-        questionIndex: number;
-        totalQuestions: number;
-        question: any;
-        timeLimit: number;
-        serverStartTime: number;
-        serverEndTime: number;
-      }) => {
-        setGamePhase('question');
-        setCurrentQuestion(data.question);
-        setQuestionIndex(data.questionIndex);
-        setTotalQuestions(data.totalQuestions);
-        setTimeLeft(Math.ceil(data.timeLimit / 1000));
-        setHasAnswered(false);
-        setOpponentAnswered(false);
-      };
-
-      const handleTimerUpdate = (data: {
-        timeRemaining: number;
-        serverTime: number;
-        questionIndex: number;
-      }) => {
-        if (data.questionIndex === questionIndex) {
-          setTimeLeft(data.timeRemaining);
-        }
-      };
-
-      const handleOpponentAnswered = () => {
-        setOpponentAnswered(true);
-      };
-
-      const handleRoundResult = (data: any) => {
-        setGamePhase('results');
-        // Update scores based on results
-        if (data.answers) {
-          data.answers.forEach((answer: any) => {
-            if (answer.isCorrect) {
-              if (answer.userId === enhancedDetails.opponentInfo?.userId) {
-                setOpponentScore((prev) => prev + 1);
-              } else {
-                setUserScore((prev) => prev + 1);
-              }
-            }
-          });
-        }
-      };
-
-      const handleDuelCompleted = (data: any) => {
-        setGamePhase('final');
-      };
-
-      const handleGameError = (data: { message: string }) => {
-        setGameError(data.message);
-        setGamePhase('error');
-      };
-
-      // Register all event listeners
-      on('duel_starting', handleDuelStarting);
-      on('question_presented', handleQuestionPresented);
-      on('timer_update', handleTimerUpdate);
-      on('opponent_answered', handleOpponentAnswered);
-      on('round_result', handleRoundResult);
-      on('duel_completed', handleDuelCompleted);
-      on('duel_error', handleGameError);
-
-      return () => {
-        // Cleanup function
-        off('duel_starting', handleDuelStarting);
-        off('question_presented', handleQuestionPresented);
-        off('timer_update', handleTimerUpdate);
-        off('opponent_answered', handleOpponentAnswered);
-        off('round_result', handleRoundResult);
-        off('duel_completed', handleDuelCompleted);
-        off('duel_error', handleGameError);
-      };
-    } catch (error) {
-      console.error('Failed to setup real-time listeners:', error);
-    }
-  }, [questionIndex, enhancedDetails.opponentInfo?.userId]);
-
-  // Answer submission
-  const submitAnswer = useCallback(
-    async (selectedAnswer: string | null, timeTaken: number) => {
-      if (!currentQuestion || hasAnswered) return;
-
-      try {
-        await duelRoom.submitAnswer(
-          currentQuestion.id,
-          selectedAnswer,
-          timeTaken,
-        );
-        setHasAnswered(true);
-      } catch (error) {
-        console.error('Failed to submit answer:', error);
-        setGameError('Failed to submit answer');
-      }
-    },
-    [currentQuestion, hasAnswered, duelRoom],
-  );
-
-  // Ready signal
-  const signalReady = useCallback(async () => {
-    try {
-      await duelRoom.signalReady();
-    } catch (error) {
-      console.error('Failed to signal ready:', error);
-      setGameError('Failed to signal ready');
-    }
-  }, [duelRoom]);
-
-  // Cleanup
-  const cleanup = useCallback(async () => {
-    try {
-      await duelRoom.leaveRoom();
-      socketConnection.disconnect();
-    } catch (error) {
-      console.error('Failed to cleanup duel room:', error);
-    }
-  }, [duelRoom, socketConnection]);
-
-  useEffect(() => {
-    const cleanupListeners = setupRealTimeListeners();
-
-    return () => {
-      if (cleanupListeners) {
-        cleanupListeners.then((cleanup) => cleanup && cleanup());
-      }
-    };
-  }, [setupRealTimeListeners]);
-
-  return {
-    // Connection state
-    isConnected: socketConnection.isConnected,
-    connectionError: socketConnection.connectionError,
-
-    // Room state
-    roomState: duelRoom.roomState,
-    roomError: duelRoom.roomError,
-
-    // Duel details
-    duelInfo: enhancedDetails.duelInfo,
-    opponentInfo: enhancedDetails.opponentInfo,
-    botInfo: enhancedDetails.botInfo,
-
-    // Game state
-    gamePhase,
-    currentQuestion,
-    questionIndex,
-    totalQuestions,
-    timeLeft,
-    userScore,
-    opponentScore,
-    hasAnswered,
-    opponentAnswered,
-    gameError,
-
-    // Actions
-    initializeConnection,
-    submitAnswer,
-    signalReady,
-    cleanup,
-
-    // Loading states
-    isLoading: enhancedDetails.isLoading,
-    hasError: !!(
-      socketConnection.connectionError ||
-      duelRoom.roomError ||
-      gameError ||
-      enhancedDetails.error
-    ),
-  };
-}
-
-// 🚀 NEW: REAL-TIME TIMER MANAGEMENT HOOK
+// 🚀 REAL-TIME TIMER MANAGEMENT HOOK
 export function useDuelTimer(initialTime: number = 60) {
   const [timeLeft, setTimeLeft] = useState(initialTime);
   const [isActive, setIsActive] = useState(false);
@@ -1206,7 +1834,7 @@ export function useDuelTimer(initialTime: number = 60) {
   };
 }
 
-// 🚀 NEW: SOCKET-BASED BOT CHALLENGE HOOK
+// 🚀 SOCKET-BASED BOT CHALLENGE HOOK
 export function useSocketBotChallenge() {
   const [challengeState, setChallengeState] = useState<
     'idle' | 'challenging' | 'success' | 'error'
@@ -1355,7 +1983,7 @@ export function useSocketBotChallenge() {
   };
 }
 
-// 🚀 HELPER FUNCTIONS FOR DUEL PROCESSING
+// 🚀 PERFORMANCE OPTIMIZED HELPER FUNCTIONS FOR DUEL PROCESSING
 export const duelHelpers = {
   getDuelResult: (
     duelResult: DuelResult,
@@ -1450,14 +2078,14 @@ export const duelHelpers = {
     }
   },
 
-  // 🚀 NEW: Helper to get opponent ID from duel based on current user
+  // Helper to get opponent ID from duel based on current user
   getOpponentId: (duel: Duel, currentUserId: number): number => {
     return duel.initiator_id === currentUserId
       ? duel.opponent_id
       : duel.initiator_id;
   },
 
-  // 🚀 NEW: Helper to get opponent name from duel
+  // Helper to get opponent name from duel
   getOpponentName: (duel: Duel, currentUserId: number): string => {
     const opponentId = duelHelpers.getOpponentId(duel, currentUserId);
 
@@ -1477,7 +2105,7 @@ export const duelHelpers = {
     return `Rakip ${opponentId}`;
   },
 
-  // 🚀 NEW: Helper to get course name from duel
+  // Helper to get course name from duel
   getCourseName: (duel: Duel): string => {
     if (duel.course?.title) {
       return duel.course.title;
@@ -1489,7 +2117,7 @@ export const duelHelpers = {
     return 'Bilinmeyen Ders';
   },
 
-  // 🚀 NEW: Helper to determine if user can act on duel
+  // Helper to determine if user can act on duel
   canUserActOnDuel: (duel: Duel, currentUserId: number): boolean => {
     if (duel.status === 'completed') return false;
     if (duel.status === 'pending' && duel.opponent_id === currentUserId)
@@ -1498,7 +2126,7 @@ export const duelHelpers = {
     return false;
   },
 
-  // 🚀 NEW: Helper to get duel status badge variant
+  // Helper to get duel status badge variant
   getDuelStatusVariant: (
     status: string,
   ): 'info' | 'warning' | 'success' | 'error' => {
@@ -1514,31 +2142,3 @@ export const duelHelpers = {
     }
   },
 };
-
-// 🚀 COMBINED EXPORTS FOR REAL-TIME DUEL FUNCTIONALITY
-export const realTimeDuelHooks = {
-  useSocketConnection,
-  useBotInfo,
-  useDuelRoom,
-  useEnhancedDuelDetails,
-  useDuelRoomManagement,
-  useDuelTimer,
-  useSocketBotChallenge,
-};
-
-// 🚀 ENHANCED MAIN DUELS DATA HOOK WITH REAL-TIME CAPABILITIES
-export function useCompleteDuelsData() {
-  const duelsData = useDuelsData();
-  const socketConnection = useSocketConnection();
-  const socketBotChallenge = useSocketBotChallenge();
-
-  return {
-    ...duelsData,
-    // Real-time capabilities
-    socketConnection,
-    socketBotChallenge,
-    // Helper functions to create duels with real-time support
-    challengeBotRealTime: socketBotChallenge.challengeBot,
-    isSocketConnected: socketConnection.isConnected,
-  };
-}

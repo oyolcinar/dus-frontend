@@ -45,10 +45,15 @@ const getBuildType = (): 'expo-go' | 'eas-build' => {
 
 const getAppScheme = (): string => {
   const buildType = getBuildType();
+
   if (buildType === 'expo-go') {
-    return 'https://auth.expo.io/@dusapptr/dus-app';
+    return 'https://auth.expo.io/@dusapptr/dus-app/--/oauth-callback';
+  } else {
+    // For EAS builds
+    return Platform.OS === 'ios'
+      ? 'com.dortac.dusfrontend://oauth-callback'
+      : 'dus-app://oauth-callback';
   }
-  return Platform.OS === 'ios' ? 'com.dortac.dusfrontend://' : 'dus-app://';
 };
 
 function normalizeUser(apiUser: any): User {
@@ -376,8 +381,7 @@ async function startOAuth(
 
     console.log(`Opening ${provider} OAuth URL:`, response.data.url);
 
-    const redirectUrl =
-      Platform.OS === 'ios' ? 'com.dortac.dusfrontend://' : 'dus-app://';
+    const redirectUrl = getAppScheme();
 
     console.log(`Expected redirect URL: ${redirectUrl}`);
 

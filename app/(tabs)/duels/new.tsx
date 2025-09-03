@@ -1,14 +1,15 @@
-// app/(tabs)/duels/new.tsx - UPDATED WITH NEW ARCHITECTURE
+// app/(tabs)/duels/new.tsx - PERFORMANCE OPTIMIZED VERSION
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Platform, ActionSheetIOS, StyleSheet } from 'react-native';
 import {
   View,
   Text,
-  ScrollView,
   ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
   useColorScheme,
+  FlatList,
+  ListRenderItem,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -48,18 +49,11 @@ import { Bot } from '../../../src/api/botService';
 import { globalStyles } from '../../../utils/styleUtils';
 
 // Performance optimized shadow configuration
-const OPTIMIZED_SHADOW = {
-  // shadowColor: Colors.gray[900],
-  // shadowOffset: { width: 2, height: 4 },
-  // shadowOpacity: 0.3,
-  // shadowRadius: 4,
-  // elevation: 4,
-};
+const OPTIMIZED_SHADOW = {};
 
 type DuelHubTab = 'find' | 'friends' | 'leaderboard' | 'bots';
 type ChallengeStep = 'selectOpponent' | 'selectCourse' | 'confirm';
 
-// Define opponent interface locally since it might not be in the hook
 interface Opponent {
   id: number;
   username: string;
@@ -68,7 +62,7 @@ interface Opponent {
   isBot?: boolean;
 }
 
-// Memoized components for better performance
+// Optimized FilterButton
 const FilterButton = React.memo(
   ({
     filter,
@@ -89,12 +83,14 @@ const FilterButton = React.memo(
       onPress(filter);
     }, [filter, onPress]);
 
+    const isActive = activeTab === filter;
+
     return (
       <TouchableOpacity
         style={[
           styles.filterButton,
           {
-            backgroundColor: activeTab === filter ? contextColor : Colors.white,
+            backgroundColor: isActive ? contextColor : Colors.white,
           },
         ]}
         onPress={handlePress}
@@ -103,13 +99,8 @@ const FilterButton = React.memo(
           style={[
             styles.filterButtonText,
             {
-              fontWeight: activeTab === filter ? '600' : '500',
-              color:
-                activeTab === filter
-                  ? Colors.white
-                  : isDark
-                    ? Colors.gray[700]
-                    : Colors.gray[700],
+              fontWeight: isActive ? '600' : '500',
+              color: isActive ? Colors.white : Colors.gray[700],
             },
           ]}
           numberOfLines={1}
@@ -120,8 +111,13 @@ const FilterButton = React.memo(
       </TouchableOpacity>
     );
   },
+  (prevProps, nextProps) =>
+    prevProps.activeTab === nextProps.activeTab &&
+    prevProps.contextColor === nextProps.contextColor &&
+    prevProps.filter === nextProps.filter,
 );
 
+// Optimized BotListItem
 const BotListItem = React.memo(
   ({
     bot,
@@ -138,17 +134,26 @@ const BotListItem = React.memo(
   }) => {
     const difficultyInfo = useMemo(() => {
       return duelHelpers.getBotDisplayInfo(bot);
-    }, [bot]);
+    }, [bot.botName, bot.difficultyLevel, bot.accuracyRate]);
 
     const handlePress = useCallback(() => {
       onChallenge(bot);
     }, [bot, onChallenge]);
 
-    const buttonTitle = useMemo(() => {
-      if (isLoading) return 'Bağlanıyor...';
-      if (!isAuthenticated) return 'Giriş Gerekli';
-      return 'Meydan Oku';
-    }, [isLoading, isAuthenticated]);
+    const buttonConfig = useMemo(
+      () => ({
+        title: isLoading
+          ? 'Bağlanıyor...'
+          : !isAuthenticated
+            ? 'Giriş Gerekli'
+            : 'Meydan Oku',
+        backgroundColor: !isAuthenticated
+          ? Colors.gray[500]
+          : difficultyInfo.color,
+        disabled: isLoading || !isAuthenticated,
+      }),
+      [isLoading, isAuthenticated, difficultyInfo.color],
+    );
 
     return (
       <View style={styles.listItemContainer}>
@@ -177,18 +182,14 @@ const BotListItem = React.memo(
               </Column>
             </Row>
             <Button
-              title={buttonTitle}
+              title={buttonConfig.title}
               variant='primary'
               size='small'
               onPress={handlePress}
-              disabled={isLoading || !isAuthenticated}
+              disabled={buttonConfig.disabled}
               style={[
                 styles.challengeButton,
-                {
-                  backgroundColor: !isAuthenticated
-                    ? Colors.gray[500]
-                    : difficultyInfo.color,
-                },
+                { backgroundColor: buttonConfig.backgroundColor },
               ]}
               textStyle={styles.challengeButtonText}
             />
@@ -197,8 +198,15 @@ const BotListItem = React.memo(
       </View>
     );
   },
+  (prevProps, nextProps) =>
+    prevProps.bot.botName === nextProps.bot.botName &&
+    prevProps.bot.difficultyLevel === nextProps.bot.difficultyLevel &&
+    prevProps.isLoading === nextProps.isLoading &&
+    prevProps.isAuthenticated === nextProps.isAuthenticated &&
+    prevProps.contextColor === nextProps.contextColor,
 );
 
+// Optimized OpponentListItem
 const OpponentListItem = React.memo(
   ({
     opponent,
@@ -213,9 +221,13 @@ const OpponentListItem = React.memo(
       onChallenge(opponent);
     }, [opponent, onChallenge]);
 
-    const buttonTitle = useMemo(() => {
-      return !isAuthenticated ? 'Giriş Gerekli' : 'Meydan Oku';
-    }, [isAuthenticated]);
+    const opponentStats = useMemo(
+      () => ({
+        winRate: ((opponent.winRate || 0) * 100).toFixed(0),
+        totalDuels: opponent.totalDuels,
+      }),
+      [opponent.winRate, opponent.totalDuels],
+    );
 
     return (
       <View style={styles.listItemContainer}>
@@ -225,13 +237,14 @@ const OpponentListItem = React.memo(
               <Column style={styles.listItemInfo}>
                 <Text style={styles.opponentName}>{opponent.username}</Text>
                 <Text style={styles.opponentStats}>
-                  Kazanma Oranı: {((opponent.winRate || 0) * 100).toFixed(0)}%
-                  {opponent.totalDuels && ` • ${opponent.totalDuels} Düello`}
+                  Kazanma Oranı: {opponentStats.winRate}%
+                  {opponentStats.totalDuels &&
+                    ` • ${opponentStats.totalDuels} Düello`}
                 </Text>
               </Column>
             </Row>
             <Button
-              title={buttonTitle}
+              title={isAuthenticated ? 'Meydan Oku' : 'Giriş Gerekli'}
               variant='primary'
               size='small'
               onPress={handlePress}
@@ -239,9 +252,9 @@ const OpponentListItem = React.memo(
               style={[
                 styles.challengeButton,
                 {
-                  backgroundColor: !isAuthenticated
-                    ? Colors.gray[500]
-                    : Colors.vibrant.coral,
+                  backgroundColor: isAuthenticated
+                    ? Colors.vibrant.coral
+                    : Colors.gray[500],
                 },
               ]}
               textStyle={styles.challengeButtonText}
@@ -251,8 +264,14 @@ const OpponentListItem = React.memo(
       </View>
     );
   },
+  (prevProps, nextProps) =>
+    prevProps.opponent.id === nextProps.opponent.id &&
+    prevProps.isAuthenticated === nextProps.isAuthenticated &&
+    prevProps.opponent.winRate === nextProps.opponent.winRate &&
+    prevProps.opponent.totalDuels === nextProps.opponent.totalDuels,
 );
 
+// Optimized UsernameSearch
 const UsernameSearch = React.memo(
   ({
     onChallenge,
@@ -278,7 +297,7 @@ const UsernameSearch = React.memo(
         const opponent = await searchUser(username.trim());
         if (opponent) {
           onChallenge(opponent);
-          setUsername(''); // Clear search on success
+          setUsername('');
         } else {
           setError(`'${username}' bulunamadı.`);
         }
@@ -322,17 +341,107 @@ const UsernameSearch = React.memo(
   },
 );
 
-// Main New Duel Screen Component
+// Header Component
+const NewDuelHeader = React.memo(
+  ({
+    dynamicStyles,
+    isAuthenticated,
+  }: {
+    dynamicStyles: any;
+    isAuthenticated: boolean;
+  }) => (
+    <SlideInElement delay={0}>
+      <PlayfulCard style={styles.headerCard}>
+        <Row style={styles.headerRow}>
+          <Column style={styles.headerColumn}>
+            <PlayfulTitle
+              level={1}
+              gradient='primary'
+              style={dynamicStyles.headerTitle}
+            >
+              Yeni Düello ⚔️
+            </PlayfulTitle>
+            <Paragraph style={dynamicStyles.headerSubtitle}>
+              {isAuthenticated
+                ? 'Rakip seç ve meydan okumaya başla'
+                : 'Meydan okumak için giriş yapın'}
+            </Paragraph>
+          </Column>
+        </Row>
+      </PlayfulCard>
+    </SlideInElement>
+  ),
+);
+
+// Filter Buttons Component
+const FilterButtons = React.memo(
+  ({
+    activeTab,
+    contextColor,
+    isDark,
+    onTabChange,
+    botOpponents,
+  }: {
+    activeTab: DuelHubTab;
+    contextColor: string;
+    isDark: boolean;
+    onTabChange: (tab: DuelHubTab) => void;
+    botOpponents: any[];
+  }) => (
+    <SlideInElement delay={100}>
+      <View style={styles.filterContainer}>
+        <Row style={styles.filterRow}>
+          <FilterButton
+            filter='find'
+            title='Rakip Bul'
+            activeTab={activeTab}
+            contextColor={contextColor}
+            isDark={isDark}
+            onPress={onTabChange}
+          />
+          <FilterButton
+            filter='friends'
+            title='Arkadaşlar'
+            activeTab={activeTab}
+            contextColor={contextColor}
+            isDark={isDark}
+            onPress={onTabChange}
+          />
+          {botOpponents.length > 0 && (
+            <FilterButton
+              filter='bots'
+              title='Botlar'
+              activeTab={activeTab}
+              contextColor={contextColor}
+              isDark={isDark}
+              onPress={onTabChange}
+            />
+          )}
+          <FilterButton
+            filter='leaderboard'
+            title='Liderlik'
+            activeTab={activeTab}
+            contextColor={contextColor}
+            isDark={isDark}
+            onPress={onTabChange}
+          />
+        </Row>
+      </View>
+    </SlideInElement>
+  ),
+);
+
+// Main Component
 export default function NewDuelScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  // 🚀 NEW: Use the new store hooks
+  // Store hooks
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { preferredCourse, getCourseColor } = usePreferredCourse();
 
-  // 🚀 NEW: Use the comprehensive new duel data hook
+  // Data hooks
   const {
     recommendedOpponents,
     friendOpponents,
@@ -342,11 +451,7 @@ export default function NewDuelScreen() {
     refetchAll,
   } = useNewDuelData();
 
-  // 🚀 NEW: Use the duel creation hook
-  const { challengeUser, challengeBot, challengeUserWithTest } =
-    useDuelCreation();
-
-  // 🚀 NEW: Use the socket bot challenge hook
+  const { challengeUser } = useDuelCreation();
   const {
     challengeBot: socketChallengeBot,
     challengeState,
@@ -356,20 +461,16 @@ export default function NewDuelScreen() {
     isLoading: socketLoading,
   } = useSocketBotChallenge();
 
-  // Memoized context color to prevent unnecessary re-renders
+  // Memoized context color
   const contextColor = useMemo(() => {
-    return (
-      ((preferredCourse as any)?.category &&
-        getCourseColor((preferredCourse as any).category)) ||
-      '#4285F4'
-    );
+    return (preferredCourse as any)?.category
+      ? getCourseColor((preferredCourse as any).category) || '#4285F4'
+      : '#4285F4';
   }, [preferredCourse, getCourseColor]);
 
-  // Local UI state
+  // State
   const [activeTab, setActiveTab] = useState<DuelHubTab>('find');
   const [refreshing, setRefreshing] = useState(false);
-
-  // Challenge flow state
   const [challengeStep, setChallengeStep] =
     useState<ChallengeStep>('selectOpponent');
   const [modalVisible, setModalVisible] = useState(false);
@@ -378,20 +479,18 @@ export default function NewDuelScreen() {
   );
   const [selectedBot, setSelectedBot] = useState<Bot | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-
-  // UI state
   const [showWheelForCourse, setShowWheelForCourse] = useState(false);
   const [isSubmittingChallenge, setIsSubmittingChallenge] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isBotChallenge, setIsBotChallenge] = useState(false);
 
-  // Memoized styles that depend on theme
+  // Memoized styles
   const dynamicStyles = useMemo(
     () =>
       StyleSheet.create({
         loadingText: {
           marginTop: Spacing[3],
-          color: isDark ? Colors.white : Colors.white,
+          color: Colors.white,
           fontFamily: 'SecondaryFont-Regular',
         },
         headerTitle: {
@@ -399,11 +498,11 @@ export default function NewDuelScreen() {
           color: Colors.gray[900],
         },
         headerSubtitle: {
-          color: isDark ? Colors.gray[700] : Colors.gray[700],
+          color: Colors.gray[700],
           fontFamily: 'SecondaryFont-Regular',
         },
         sectionTitle: {
-          color: isDark ? Colors.white : Colors.white,
+          color: Colors.white,
           marginTop: Spacing[6],
           marginBottom: Spacing[2],
           fontFamily: 'SecondaryFont-Bold',
@@ -415,7 +514,7 @@ export default function NewDuelScreen() {
     [isDark],
   );
 
-  // Reset challenge state function
+  // Optimized handlers
   const resetChallengeState = useCallback(() => {
     setSelectedOpponent(null);
     setSelectedBot(null);
@@ -428,14 +527,14 @@ export default function NewDuelScreen() {
     resetSocketChallenge();
   }, [resetSocketChallenge]);
 
-  // Handle modal close
   const handleCloseModal = useCallback(() => {
     setModalVisible(false);
     resetChallengeState();
   }, [resetChallengeState]);
 
-  // 🚀 SIMPLIFIED: Handle refresh with new hook
   const handleRefresh = useCallback(async () => {
+    if (refreshing) return;
+
     setRefreshing(true);
     try {
       await refetchAll();
@@ -444,23 +543,12 @@ export default function NewDuelScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [refetchAll]);
+  }, [refreshing, refetchAll]);
 
-  // Handle socket challenge result
-  useEffect(() => {
-    if (challengeState === 'success' && createdDuel) {
-      setModalVisible(false);
-      resetChallengeState();
-      router.push({
-        pathname: '/(tabs)/duels/[id]' as any,
-        params: { id: createdDuel.duel_id.toString() },
-      });
-    } else if (challengeState === 'error' && socketError) {
-      setError(socketError);
-    }
-  }, [challengeState, createdDuel, socketError, router, resetChallengeState]);
+  const handleTabChange = useCallback((tab: DuelHubTab) => {
+    setActiveTab(tab);
+  }, []);
 
-  // Memoized challenge handlers
   const handleOpenChallengeModal = useCallback(
     (opponent: Opponent) => {
       if (!isAuthenticated) {
@@ -499,6 +587,12 @@ export default function NewDuelScreen() {
     [isAuthenticated],
   );
 
+  const handleCourseSelected = useCallback((course: Course) => {
+    setSelectedCourse(course);
+    setError(null);
+    setChallengeStep('confirm');
+  }, []);
+
   const handleCourseSpinComplete = useCallback(
     (courseName: string, index: number) => {
       const winningCourse = courses[index];
@@ -507,21 +601,9 @@ export default function NewDuelScreen() {
       }
       setShowWheelForCourse(false);
     },
-    [courses],
+    [courses, handleCourseSelected],
   );
 
-  const handleCourseSelected = useCallback(async (course: Course) => {
-    setSelectedCourse(course);
-    setError(null);
-    setChallengeStep('confirm');
-  }, []);
-
-  // Memoized tab change handler
-  const handleTabChange = useCallback((tab: DuelHubTab) => {
-    setActiveTab(tab);
-  }, []);
-
-  // 🚀 SIMPLIFIED: Challenge submission with new hooks
   const handleChallengeSubmit = useCallback(async () => {
     if (!selectedCourse) {
       setError('Ders seçilmedi.');
@@ -537,26 +619,22 @@ export default function NewDuelScreen() {
 
     try {
       if (isBotChallenge && selectedBot) {
-        // Try socket first, then fallback to HTTP
         await socketChallengeBot(
           selectedCourse.course_id,
           selectedBot.difficultyLevel,
-          true, // prefer socket
+          true,
         );
-        // Success handling is done in useEffect above
       } else if (!isBotChallenge && selectedOpponent) {
         setIsSubmittingChallenge(true);
-
         const response = await challengeUser(
           selectedOpponent.id,
           selectedCourse.course_id,
-          5, // question count
+          5,
         );
 
         if (response?.duel) {
           setModalVisible(false);
           resetChallengeState();
-
           router.push({
             pathname: '/(tabs)/duels/[id]' as any,
             params: { id: response.duel.duel_id.toString() },
@@ -586,6 +664,57 @@ export default function NewDuelScreen() {
     router,
   ]);
 
+  // Socket challenge result handling
+  useEffect(() => {
+    if (challengeState === 'success' && createdDuel) {
+      setModalVisible(false);
+      resetChallengeState();
+      router.push({
+        pathname: '/(tabs)/duels/[id]' as any,
+        params: { id: createdDuel.duel_id.toString() },
+      });
+    } else if (challengeState === 'error' && socketError) {
+      setError(socketError);
+    }
+  }, [challengeState, createdDuel, socketError, router, resetChallengeState]);
+
+  // FlatList render functions
+  const renderBotItem: ListRenderItem<any> = useCallback(
+    ({ item }) => (
+      <BotListItem
+        bot={item.botInfo!}
+        contextColor={contextColor}
+        isLoading={socketLoading}
+        isAuthenticated={isAuthenticated}
+        onChallenge={handleOpenBotChallengeModal}
+      />
+    ),
+    [contextColor, socketLoading, isAuthenticated, handleOpenBotChallengeModal],
+  );
+
+  const renderOpponentItem: ListRenderItem<Opponent> = useCallback(
+    ({ item }) => (
+      <OpponentListItem
+        opponent={item}
+        isAuthenticated={isAuthenticated}
+        onChallenge={handleOpenChallengeModal}
+      />
+    ),
+    [isAuthenticated, handleOpenChallengeModal],
+  );
+
+  // Key extractors
+  const botKeyExtractor = useCallback(
+    (item: any) =>
+      `bot-${item.botInfo?.botName || 'unknown'}-${item.botInfo?.difficultyLevel || 0}`,
+    [],
+  );
+  const opponentKeyExtractor = useCallback(
+    (item: Opponent) => `opponent-${item.id}`,
+    [],
+  );
+
+  // Tab content renderer with FlatList
   const renderTabContent = useCallback(() => {
     if (dataLoading && !refreshing) {
       return (
@@ -601,107 +730,93 @@ export default function NewDuelScreen() {
     switch (activeTab) {
       case 'find':
         return (
-          <>
-            <SlideInElement delay={0} key={`${activeTab}-search`}>
-              <UsernameSearch
-                onChallenge={handleOpenChallengeModal}
-                contextColor={contextColor}
-                isAuthenticated={isAuthenticated}
-              />
-            </SlideInElement>
-            <SlideInElement delay={100} key={`${activeTab}-title`}>
-              <Text
-                style={[
-                  globalStyles.textLg,
-                  globalStyles.fontSemibold,
-                  dynamicStyles.sectionTitle,
-                ]}
-              >
-                Önerilen Rakipler
-              </Text>
-            </SlideInElement>
+          <View style={styles.tabContentContainer}>
+            <UsernameSearch
+              onChallenge={handleOpenChallengeModal}
+              contextColor={contextColor}
+              isAuthenticated={isAuthenticated}
+            />
+            <Text
+              style={[
+                globalStyles.textLg,
+                globalStyles.fontSemibold,
+                dynamicStyles.sectionTitle,
+              ]}
+            >
+              Önerilen Rakipler
+            </Text>
             {recommendedOpponents.length > 0 ? (
-              recommendedOpponents.map((user, index) => (
-                <SlideInElement
-                  key={`${activeTab}-rec-${user.id}`}
-                  delay={200 + index * 100}
-                >
-                  <OpponentListItem
-                    opponent={user}
-                    isAuthenticated={isAuthenticated}
-                    onChallenge={handleOpenChallengeModal}
-                  />
-                </SlideInElement>
-              ))
+              <FlatList
+                data={recommendedOpponents}
+                renderItem={renderOpponentItem}
+                keyExtractor={opponentKeyExtractor}
+                showsVerticalScrollIndicator={false}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={3}
+                windowSize={5}
+                initialNumToRender={2}
+                scrollEnabled={false}
+                nestedScrollEnabled={true}
+              />
             ) : (
-              <SlideInElement delay={200} key={`${activeTab}-empty`}>
-                <Paragraph style={dynamicStyles.emptyText}>
-                  Şu an için önerilen rakip bulunmuyor.
-                </Paragraph>
-              </SlideInElement>
+              <Paragraph style={dynamicStyles.emptyText}>
+                Şu an için önerilen rakip bulunmuyor.
+              </Paragraph>
             )}
-          </>
+          </View>
         );
       case 'friends':
         return friendOpponents.length > 0 ? (
-          friendOpponents.map((user, index) => (
-            <SlideInElement
-              key={`${activeTab}-friend-${user.id}`}
-              delay={index * 100}
-            >
-              <OpponentListItem
-                opponent={user}
-                isAuthenticated={isAuthenticated}
-                onChallenge={handleOpenChallengeModal}
-              />
-            </SlideInElement>
-          ))
+          <FlatList
+            data={friendOpponents}
+            renderItem={renderOpponentItem}
+            keyExtractor={opponentKeyExtractor}
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={3}
+            windowSize={5}
+            initialNumToRender={2}
+            scrollEnabled={false}
+            nestedScrollEnabled={true}
+          />
         ) : (
-          <SlideInElement delay={0} key={`${activeTab}-empty`}>
-            <EmptyState
-              icon='users'
-              title='Arkadaş Yok'
-              message='Düello yapmak için önce arkadaş eklemelisin.'
-              fontFamily='SecondaryFont-Regular'
-              buttonFontFamily='PrimaryFont'
-              titleFontFamily='PrimaryFont'
-            />
-          </SlideInElement>
+          <EmptyState
+            icon='users'
+            title='Arkadaş Yok'
+            message='Düello yapmak için önce arkadaş eklemelisin.'
+            fontFamily='SecondaryFont-Regular'
+            buttonFontFamily='PrimaryFont'
+            titleFontFamily='PrimaryFont'
+          />
         );
       case 'leaderboard':
         return (
-          <SlideInElement delay={0} key={`${activeTab}-empty`}>
-            <EmptyState
-              icon='trophy'
-              title='Liderlik Tablosu'
-              message='Liderlik tablosu özelliği yakında gelecek!'
-            />
-          </SlideInElement>
+          <EmptyState
+            icon='trophy'
+            title='Liderlik Tablosu'
+            message='Liderlik tablosu özelliği yakında gelecek!'
+          />
         );
       case 'bots':
         return botOpponents.length > 0 ? (
-          botOpponents.map((bot, index) => (
-            <SlideInElement
-              key={`${activeTab}-bot-${bot.id}`}
-              delay={100 + index * 100}
-            >
-              <BotListItem
-                bot={bot.botInfo!} // We know it's a bot from botOpponents
-                contextColor={contextColor}
-                isLoading={socketLoading}
-                isAuthenticated={isAuthenticated}
-                onChallenge={(bot) => handleOpenBotChallengeModal(bot)}
-              />
-            </SlideInElement>
-          ))
+          <FlatList
+            data={botOpponents}
+            renderItem={renderBotItem}
+            keyExtractor={botKeyExtractor}
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={3}
+            windowSize={5}
+            initialNumToRender={2}
+            scrollEnabled={false}
+            nestedScrollEnabled={true}
+          />
         ) : (
-          <SlideInElement delay={0} key={`${activeTab}-empty`}>
-            <EmptyState
-              icon='gears'
-              title='Bot Yok'
-              message='Şu an kullanılabilir bot bulunmuyor.'
-            />
-          </SlideInElement>
+          <EmptyState
+            icon='gears'
+            title='Bot Yok'
+            message='Şu an kullanılabilir bot bulunmuyor.'
+          />
         );
       default:
         return null;
@@ -711,16 +826,19 @@ export default function NewDuelScreen() {
     refreshing,
     activeTab,
     contextColor,
+    dynamicStyles,
+    isAuthenticated,
+    handleOpenChallengeModal,
     recommendedOpponents,
     friendOpponents,
     botOpponents,
-    isAuthenticated,
-    socketLoading,
-    handleOpenChallengeModal,
-    handleOpenBotChallengeModal,
-    dynamicStyles,
+    renderOpponentItem,
+    renderBotItem,
+    opponentKeyExtractor,
+    botKeyExtractor,
   ]);
 
+  // Modal content
   const getModalTitle = useCallback(() => {
     if (isBotChallenge && selectedBot) {
       return `${selectedBot.botName} ile Düello`;
@@ -756,16 +874,14 @@ export default function NewDuelScreen() {
               Rakip: {getOpponentDisplayName()}
             </Text>
             {isBotChallenge && selectedBot && (
-              <>
-                <Text style={styles.botDetails}>
-                  Zorluk: Seviye {selectedBot.difficultyLevel} • Doğruluk:{' '}
-                  {(selectedBot.accuracyRate * 100).toFixed(0)}%
-                </Text>
-              </>
+              <Text style={styles.botDetails}>
+                Zorluk: Seviye {selectedBot.difficultyLevel} • Doğruluk:{' '}
+                {(selectedBot.accuracyRate * 100).toFixed(0)}%
+              </Text>
             )}
           </View>
 
-          {/* Course Selection Step */}
+          {/* Course Selection */}
           {challengeStep === 'selectCourse' && (
             <>
               <Text style={styles.courseDescription}>
@@ -797,7 +913,6 @@ export default function NewDuelScreen() {
                           'İptal',
                           ...courses.map((c) => c.title),
                         ];
-
                         ActionSheetIOS.showActionSheetWithOptions(
                           {
                             options,
@@ -807,10 +922,8 @@ export default function NewDuelScreen() {
                           },
                           (buttonIndex) => {
                             if (buttonIndex > 0) {
-                              const selectedCourse = courses[buttonIndex - 1];
-                              if (selectedCourse) {
-                                handleCourseSelected(selectedCourse);
-                              }
+                              const course = courses[buttonIndex - 1];
+                              if (course) handleCourseSelected(course);
                             }
                           },
                         );
@@ -838,9 +951,7 @@ export default function NewDuelScreen() {
                       selectedValue={selectedCourse?.course_id || null}
                       onValueChange={(val) => {
                         const course = courses.find((c) => c.course_id === val);
-                        if (course) {
-                          handleCourseSelected(course);
-                        }
+                        if (course) handleCourseSelected(course);
                       }}
                       placeholder='Bir Ders Seçin...'
                       enabled={true}
@@ -856,7 +967,6 @@ export default function NewDuelScreen() {
                     onPress={() => setShowWheelForCourse(true)}
                     variant='secondary'
                     icon='random'
-                    disabled={false}
                     style={styles.spinButton}
                     textStyle={styles.spinButtonText}
                   />
@@ -865,14 +975,13 @@ export default function NewDuelScreen() {
             </>
           )}
 
-          {/* Confirmation Step */}
+          {/* Confirmation */}
           {challengeStep === 'confirm' && selectedCourse && (
             <>
               <View style={styles.confirmationContainer}>
                 <Text style={styles.confirmationTitle}>
                   {isBotChallenge ? 'Bot Meydan Okuma' : 'Meydan Okuma'} Özeti
                 </Text>
-
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryText}>
                     <Text style={styles.summaryLabel}>Rakip:</Text>{' '}
@@ -938,7 +1047,7 @@ export default function NewDuelScreen() {
     error,
   ]);
 
-  // Show loading while checking auth
+  // Loading state
   if (authLoading) {
     return (
       <Container
@@ -952,9 +1061,35 @@ export default function NewDuelScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+      <FlatList
+        data={[]} // Empty data since we're using ListHeaderComponent for content
+        renderItem={() => null}
+        ListHeaderComponent={() => (
+          <>
+            <NewDuelHeader
+              dynamicStyles={dynamicStyles}
+              isAuthenticated={isAuthenticated}
+            />
+            <FilterButtons
+              activeTab={activeTab}
+              contextColor={contextColor}
+              isDark={isDark}
+              onTabChange={handleTabChange}
+              botOpponents={botOpponents}
+            />
+            <FloatingElement>
+              <GlassCard
+                style={[styles.tabContent, { backgroundColor: contextColor }]}
+                animated={false}
+              >
+                {renderTabContent()}
+              </GlassCard>
+            </FloatingElement>
+            <View style={styles.bottomSpacing} />
+          </>
+        )}
+        contentContainerStyle={styles.flatListContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -963,102 +1098,22 @@ export default function NewDuelScreen() {
             colors={[contextColor]}
           />
         }
-      >
-        {/* Header Section */}
-        <SlideInElement delay={0}>
-          <PlayfulCard style={styles.headerCard}>
-            <Row style={styles.headerRow}>
-              <Column style={styles.headerColumn}>
-                <PlayfulTitle
-                  level={1}
-                  gradient='primary'
-                  style={dynamicStyles.headerTitle}
-                >
-                  Yeni Düello ⚔️
-                </PlayfulTitle>
-                <Paragraph style={dynamicStyles.headerSubtitle}>
-                  {isAuthenticated
-                    ? 'Rakip seç ve meydan okumaya başla'
-                    : 'Meydan okumak için giriş yapın'}
-                </Paragraph>
-              </Column>
-            </Row>
-          </PlayfulCard>
-        </SlideInElement>
-
-        {/* Filter Buttons */}
-        <SlideInElement delay={100}>
-          <View style={styles.filterContainer}>
-            <Row style={styles.filterRow}>
-              <FilterButton
-                filter='find'
-                title='Rakip Bul'
-                activeTab={activeTab}
-                contextColor={contextColor}
-                isDark={isDark}
-                onPress={handleTabChange}
-              />
-              <FilterButton
-                filter='friends'
-                title='Arkadaşlar'
-                activeTab={activeTab}
-                contextColor={contextColor}
-                isDark={isDark}
-                onPress={handleTabChange}
-              />
-              {botOpponents.length > 0 && (
-                <FilterButton
-                  filter='bots'
-                  title='Botlar'
-                  activeTab={activeTab}
-                  contextColor={contextColor}
-                  isDark={isDark}
-                  onPress={handleTabChange}
-                />
-              )}
-              <FilterButton
-                filter='leaderboard'
-                title='Liderlik'
-                activeTab={activeTab}
-                contextColor={contextColor}
-                isDark={isDark}
-                onPress={handleTabChange}
-              />
-            </Row>
-          </View>
-        </SlideInElement>
-
-        {/* Tab Content */}
-        <View>
-          <FloatingElement>
-            <GlassCard
-              style={[styles.tabContent, { backgroundColor: contextColor }]}
-              animated
-            >
-              {renderTabContent()}
-            </GlassCard>
-          </FloatingElement>
-        </View>
-
-        {/* Bottom spacing to ensure content is fully visible */}
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
-
-      {/* Challenge Modal */}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={1}
+        windowSize={1}
+        initialNumToRender={1}
+      />
       {renderChallengeModal()}
     </View>
   );
 }
 
-// Styles
+// Optimized styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
+  flatListContent: {
     padding: Spacing[4],
   },
   headerCard: {
@@ -1100,6 +1155,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing[4],
     overflow: 'hidden',
     ...OPTIMIZED_SHADOW,
+  },
+  tabContentContainer: {
+    padding: Spacing[2],
   },
   loadingContainer: {
     alignItems: 'center',
@@ -1163,9 +1221,7 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontFamily: 'SecondaryFont-Bold',
   },
-  challengeButton: {
-    // backgroundColor set dynamically
-  },
+  challengeButton: {},
   challengeButtonText: {
     fontFamily: 'SecondaryFont-Bold',
   },
@@ -1178,7 +1234,6 @@ const styles = StyleSheet.create({
   },
   searchButton: {
     marginTop: Spacing[2],
-    // backgroundColor set dynamically
   },
   searchButtonText: {
     fontFamily: 'SecondaryFont-Bold',

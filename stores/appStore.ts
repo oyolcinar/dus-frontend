@@ -1,4 +1,4 @@
-// stores/appStore.ts - COMPLETE FIXED VERSION WITH EXACT CATEGORY MAPPING
+// stores/appStore.ts - OPTIMIZED VERSION WITH FAST LOGOUT
 import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -55,6 +55,9 @@ interface AppState {
   preferredCourse: ExtendedPreferredCourse | null;
   availableCourses: ExtendedPreferredCourse[];
   coursesLoading: boolean;
+  // 🆕 ADD: Flag to track if we've checked for preferred course
+  hasCheckedPreferredCourse: boolean;
+  preferredCourseLoading: boolean;
 
   // NOTIFICATION STATE
   notifications: Notification[];
@@ -110,6 +113,8 @@ interface AppActions {
   loadAvailableCourses: () => Promise<void>;
   selectCourse: (courseId: number) => void;
   refreshPreferredCourse: () => Promise<void>;
+  // 🆕 ADD: New action to check preferred course
+  checkAndLoadPreferredCourse: () => Promise<void>;
 
   // NOTIFICATION ACTIONS
   loadNotifications: () => Promise<void>;
@@ -292,15 +297,16 @@ export const useAppStore = create<AppStore>()(
   subscribeWithSelector(
     persist(
       (set, get) => {
-        // 🚀 EXACT COPY: getCourseCategory logic from PreferredCourseContext
+        // 🔧 OPTIMIZED: getCourseCategory with better validation to prevent warnings
         const getCourseCategory = (
           courseTitle: string,
         ): CourseCategory | undefined => {
-          if (!courseTitle || typeof courseTitle !== 'string') {
-            console.warn(
-              '⚠️ getCourseCategory called with invalid title:',
-              courseTitle,
-            );
+          // Silent handling of empty/invalid titles (common during logout)
+          if (
+            !courseTitle ||
+            typeof courseTitle !== 'string' ||
+            courseTitle.trim() === ''
+          ) {
             return undefined;
           }
 
@@ -323,17 +329,19 @@ export const useAppStore = create<AppStore>()(
           return CATEGORY_COLORS[category] || '#4285F4';
         };
 
-        // 🚀 FIXED: Helper function to ensure proper course structure
+        // 🔧 OPTIMIZED: Helper function with better error handling
         const ensureCourseStructure = (
           course: any,
         ): ExtendedPreferredCourse => {
-          if (!course) {
-            throw new Error('Course is null or undefined');
+          if (!course || !course.course_id) {
+            throw new Error('Course is null, undefined, or missing course_id');
           }
 
-          // Compute category using the exact same logic as PreferredCourseContext
+          // Only compute category if we have a valid title
           const computedCategory =
-            course.category || getCourseCategory(course.title);
+            course.title && course.title.trim()
+              ? course.category || getCourseCategory(course.title)
+              : undefined;
 
           return {
             course_id: course.course_id,
@@ -371,7 +379,7 @@ export const useAppStore = create<AppStore>()(
         };
 
         return {
-          // INITIAL STATE
+          // INITIAL STATE - 🆕 ADD the new flags
           user: null,
           isAuthenticated: false,
           isLoading: false,
@@ -381,6 +389,8 @@ export const useAppStore = create<AppStore>()(
           preferredCourse: null,
           availableCourses: [],
           coursesLoading: false,
+          hasCheckedPreferredCourse: false,
+          preferredCourseLoading: false,
           notifications: [],
           unreadCount: 0,
           notificationPreferences: [],
@@ -436,35 +446,72 @@ export const useAppStore = create<AppStore>()(
             }
           },
 
+          // 🔥 OPTIMIZED: FAST LOGOUT - Immediate UI update, background cleanup
           signOut: async () => {
-            try {
-              set({ isLoading: true });
-              await authService.logout();
-              console.log('✅ Logout successful via authService');
-            } catch (error) {
-              console.warn('⚠️ Logout error:', error);
-            } finally {
-              // 🚀 FIXED: Clear caches on logout
-              coursesCache = null;
-              preferredCourseCache = null;
+            // 🔥 IMMEDIATE: Clear caches and state first for instant UI response
+            coursesCache = null;
+            preferredCourseCache = null;
 
-              set({
-                user: null,
-                isAuthenticated: false,
-                preferredCourse: null,
-                notifications: [],
-                unreadCount: 0,
-                notificationPreferences: [],
-                deviceToken: null,
-                notificationStats: null,
-                authError: null,
-                lastNotificationSync: null,
-                isLoading: false,
-                isOAuthLoading: false,
-                oauthProvider: null,
-                hasInitialized: false,
+            set({
+              // Auth state - immediate clear
+              user: null,
+              isAuthenticated: false,
+              authError: null,
+              isOAuthLoading: false,
+              oauthProvider: null,
+
+              // UI state - immediate clear to prevent modals/race conditions
+              showCourseModal: false,
+              showNotificationSettings: false,
+              selectedCourseId: null,
+
+              // Course state - clear fetched data but KEEP user preferences
+              // preferredCourse: KEEP - user's course selection should persist
+              availableCourses: [], // Clear fetched courses (will be refetched on login)
+              coursesLoading: false,
+              // hasCheckedPreferredCourse: KEEP - we still have the preferred course
+              preferredCourseLoading: false,
+
+              // Notification state - immediate clear
+              notifications: [],
+              unreadCount: 0,
+              notificationPreferences: [],
+              notificationsLoading: false,
+              deviceToken: null,
+              notificationStats: null,
+              pushNotificationsEnabled: false,
+              lastNotificationSync: null,
+              notificationFilters: {
+                unreadOnly: false,
+                courseRelatedOnly: false,
+              },
+
+              // Other state
+              notificationListOffset: 0,
+              hasInitialized: false,
+              initializationError: null,
+              isLoading: false,
+            });
+
+            // 🔥 BACKGROUND: Do API call and cleanup without blocking UI
+            // NOTE: Don't remove 'selectedCourse' - it's a user preference that should persist
+            Promise.allSettled([
+              authService.logout(),
+              AsyncStorage.multiRemove([
+                'notificationPreferences', // Only clear notification prefs, not course selection
+              ]),
+            ])
+              .then(([logoutResult]) => {
+                if (logoutResult.status === 'fulfilled') {
+                  console.log('✅ Logout successful via authService');
+                } else {
+                  console.warn('⚠️ Logout error:', logoutResult.reason);
+                }
+                console.log('🧹 Background logout cleanup completed');
+              })
+              .catch((error) => {
+                console.warn('⚠️ Background cleanup error:', error);
               });
-            }
           },
 
           register: async (
@@ -677,7 +724,7 @@ export const useAppStore = create<AppStore>()(
           setAuthError: (authError: string | null) => set({ authError }),
           setAuthLoading: (isLoading: boolean) => set({ isLoading }),
 
-          // 🚀 FIXED: INITIALIZATION with proper course handling
+          // 🔧 FIXED: INITIALIZATION - now properly loads preferred course
           initializeApp: async () => {
             try {
               set({ isLoading: true, initializationError: null });
@@ -686,7 +733,7 @@ export const useAppStore = create<AppStore>()(
               const sessionRestored = await get().refreshSession();
 
               if (sessionRestored) {
-                // 🚀 FIXED: Restore preferred course with proper category computation
+                // 🔧 FIXED: Restore from storage first (immediate UI update)
                 try {
                   const storedCourse =
                     await AsyncStorage.getItem('selectedCourse');
@@ -697,18 +744,22 @@ export const useAppStore = create<AppStore>()(
                       course.title,
                     );
 
-                    // Ensure the course has proper structure with computed category
                     const properCourse = ensureCourseStructure(course);
-
                     set({ preferredCourse: properCourse });
                     console.log(
-                      '✅ Preferred course restored with category:',
+                      '✅ Preferred course restored from storage with category:',
                       properCourse.category,
                     );
                   }
                 } catch (error) {
-                  console.warn('⚠️ Failed to restore preferred course:', error);
+                  console.warn(
+                    '⚠️ Failed to restore preferred course from storage:',
+                    error,
+                  );
                 }
+
+                // 🆕 NEW: Now also check the API and sync
+                await get().checkAndLoadPreferredCourse();
 
                 // Restore notification preferences
                 try {
@@ -731,11 +782,10 @@ export const useAppStore = create<AppStore>()(
                   );
                 }
 
-                console.log(
-                  '📱 User authenticated, data will load when needed',
-                );
+                console.log('📱 User authenticated, initial data loaded');
               } else {
                 console.log('📱 No valid session found');
+                set({ hasCheckedPreferredCourse: true }); // Mark as checked even if not logged in
               }
 
               set({ hasInitialized: true });
@@ -748,17 +798,97 @@ export const useAppStore = create<AppStore>()(
                     ? error.message
                     : 'Initialization failed',
                 hasInitialized: true,
+                hasCheckedPreferredCourse: true, // Mark as checked to prevent modal
               });
             } finally {
               set({ isLoading: false });
             }
           },
 
-          // 🚀 FIXED: COURSE ACTIONS with exact logic from PreferredCourseContext
+          // 🆕 NEW: Comprehensive preferred course check and load
+          checkAndLoadPreferredCourse: async () => {
+            if (get().hasCheckedPreferredCourse && get().preferredCourse) {
+              console.log(
+                '✅ Preferred course already checked and exists, skipping',
+              );
+              return;
+            }
+
+            try {
+              set({ preferredCourseLoading: true });
+              console.log('🔍 Checking for preferred course...');
+
+              // First, try to get from API
+              try {
+                const apiCourse = await studyService.getUserPreferredCourse();
+
+                if (apiCourse) {
+                  console.log(
+                    '✅ Found preferred course from API:',
+                    apiCourse.title,
+                  );
+                  const properCourse = ensureCourseStructure(apiCourse);
+
+                  set({
+                    preferredCourse: properCourse,
+                    hasCheckedPreferredCourse: true,
+                  });
+
+                  // Update local storage
+                  await AsyncStorage.setItem(
+                    'selectedCourse',
+                    JSON.stringify(properCourse),
+                  );
+
+                  console.log(
+                    '✅ Preferred course loaded from API with category:',
+                    properCourse.category,
+                  );
+                  return;
+                }
+              } catch (apiError) {
+                console.warn(
+                  '⚠️ API check failed, checking local storage:',
+                  apiError,
+                );
+              }
+
+              // If no API course, check if we have one from local storage
+              const currentPreferred = get().preferredCourse;
+              if (currentPreferred) {
+                console.log(
+                  '✅ Using preferred course from local storage:',
+                  currentPreferred.title,
+                );
+                set({ hasCheckedPreferredCourse: true });
+                return;
+              }
+
+              // No preferred course found anywhere
+              console.log(
+                'ℹ️ No preferred course found - user will need to select one',
+              );
+              set({ hasCheckedPreferredCourse: true });
+            } catch (error) {
+              console.error('❌ Error checking preferred course:', error);
+              set({ hasCheckedPreferredCourse: true }); // Mark as checked to prevent infinite loops
+            } finally {
+              set({ preferredCourseLoading: false });
+            }
+          },
+
+          // 🔧 ENHANCED: Set preferred course with proper flags and validation
           setPreferredCourse: async (course: ExtendedPreferredCourse) => {
             try {
-              if (!course || !course.course_id || !course.title) {
-                throw new Error('Invalid course data');
+              if (
+                !course ||
+                !course.course_id ||
+                !course.title ||
+                course.title.trim() === ''
+              ) {
+                throw new Error(
+                  'Invalid course data: missing course_id or title',
+                );
               }
 
               console.log('🎯 Setting preferred course:', course.title);
@@ -767,9 +897,7 @@ export const useAppStore = create<AppStore>()(
               try {
                 await studyService.setUserPreferredCourse(course.course_id);
                 console.log('✅ Preferred course saved to API');
-
-                // Clear cache since we updated it
-                preferredCourseCache = null;
+                preferredCourseCache = null; // Clear cache
               } catch (apiError) {
                 console.warn(
                   '⚠️ API save failed, continuing with local:',
@@ -777,10 +905,13 @@ export const useAppStore = create<AppStore>()(
                 );
               }
 
-              // Ensure course has proper structure with computed category
               const properCourse = ensureCourseStructure(course);
 
-              set({ preferredCourse: properCourse });
+              set({
+                preferredCourse: properCourse,
+                hasCheckedPreferredCourse: true,
+                showCourseModal: false,
+              });
 
               // Save to local storage
               await AsyncStorage.setItem(
@@ -798,11 +929,10 @@ export const useAppStore = create<AppStore>()(
             }
           },
 
-          // 🚀 FIXED: Load available courses with caching from PreferredCourseContext
+          // 🔧 ENHANCED: Load available courses (unchanged but with better logging)
           loadAvailableCourses: async () => {
             const now = Date.now();
 
-            // Return cached courses if still valid
             if (
               coursesCache &&
               now - coursesCache.timestamp < COURSE_CACHE_DURATION
@@ -828,11 +958,7 @@ export const useAppStore = create<AppStore>()(
                 courses = FALLBACK_COURSES;
               }
 
-              // Cache the result
-              coursesCache = {
-                courses,
-                timestamp: now,
-              };
+              coursesCache = { courses, timestamp: now };
 
               set({
                 availableCourses: courses,
@@ -853,11 +979,10 @@ export const useAppStore = create<AppStore>()(
             set({ selectedCourseId: courseId });
           },
 
-          // 🚀 FIXED: Refresh preferred course with caching
+          // 🔧 FIXED: Refresh preferred course (keep existing but with flag updates)
           refreshPreferredCourse: async () => {
             const now = Date.now();
 
-            // Return cached preferred course if still valid
             if (
               preferredCourseCache &&
               now - preferredCourseCache.timestamp < COURSE_CACHE_DURATION
@@ -879,36 +1004,31 @@ export const useAppStore = create<AppStore>()(
                 const properCourse = ensureCourseStructure(apiCourse);
                 finalCourse = properCourse;
 
-                set({ preferredCourse: properCourse });
+                set({
+                  preferredCourse: properCourse,
+                  hasCheckedPreferredCourse: true,
+                });
 
-                // Update local storage
                 await AsyncStorage.setItem(
                   'selectedCourse',
                   JSON.stringify(properCourse),
                 );
-
                 console.log(
                   '✅ Preferred course refreshed from API with category:',
                   properCourse.category,
                 );
+              } else {
+                set({ hasCheckedPreferredCourse: true });
               }
 
-              // Cache the result
-              preferredCourseCache = {
-                course: finalCourse,
-                timestamp: now,
-              };
+              preferredCourseCache = { course: finalCourse, timestamp: now };
             } catch (error) {
               console.warn(
                 '⚠️ Failed to refresh preferred course from API:',
                 error,
               );
-
-              // Cache null result too
-              preferredCourseCache = {
-                course: null,
-                timestamp: now,
-              };
+              preferredCourseCache = { course: null, timestamp: now };
+              set({ hasCheckedPreferredCourse: true });
             }
           },
 
@@ -1145,14 +1265,14 @@ export const useAppStore = create<AppStore>()(
             set({ notificationListOffset }),
           resetNotificationListOffset: () => set({ notificationListOffset: 0 }),
 
-          // 🚀 FIXED: COMPUTED VALUES (exactly like PreferredCourseContext)
+          // 🔧 OPTIMIZED: COMPUTED VALUES with null safety
           getCourseColor,
           getCourseCategory,
 
           getUnreadNotificationsByCategory: (
             category: 'study' | 'social' | 'system',
           ) => {
-            const notifications = get().notifications;
+            const notifications = get().notifications || [];
             const categoryTypes = NOTIFICATION_TYPE_CATEGORIES[category];
             return notifications.filter(
               (n) => !n.is_read && categoryTypes.includes(n.notification_type),
@@ -1160,12 +1280,12 @@ export const useAppStore = create<AppStore>()(
           },
 
           getNotificationsByType: (type: NotificationType) => {
-            const notifications = get().notifications;
+            const notifications = get().notifications || [];
             return notifications.filter((n) => n.notification_type === type);
           },
 
           getCourseRelatedNotifications: () => {
-            const notifications = get().notifications;
+            const notifications = get().notifications || [];
             const courseTypes: NotificationType[] = [
               'course_reminder',
               'course_completed',
@@ -1179,7 +1299,7 @@ export const useAppStore = create<AppStore>()(
           },
 
           getHighPriorityNotifications: () => {
-            const notifications = get().notifications;
+            const notifications = get().notifications || [];
             const highPriorityTypes: NotificationType[] = [
               'duel_invitation',
               'friend_request',
@@ -1220,6 +1340,8 @@ export const useAppStore = create<AppStore>()(
           authError: null,
           oauthProvider: null,
           initializationError: null,
+          hasCheckedPreferredCourse: false,
+          preferredCourseLoading: false,
         }),
       },
     ),
@@ -1287,15 +1409,18 @@ export const useAuth = () => {
   };
 };
 
-// 🚀 FIXED: Course hook with proper category support
+// 🔧 ENHANCED: Course hook now include the new flags
 export const usePreferredCourse = () => {
   const {
     preferredCourse,
     availableCourses,
     coursesLoading,
+    hasCheckedPreferredCourse,
+    preferredCourseLoading,
     setPreferredCourse,
     loadAvailableCourses,
     refreshPreferredCourse,
+    checkAndLoadPreferredCourse,
     getCourseColor,
     getCourseCategory,
   } = useAppStore();
@@ -1304,15 +1429,18 @@ export const usePreferredCourse = () => {
     preferredCourse,
     availableCourses,
     isLoading: coursesLoading,
+    hasCheckedPreferredCourse,
+    preferredCourseLoading,
     setPreferredCourse,
     refreshCourses: loadAvailableCourses,
     refreshPreferredCourse,
+    checkAndLoadPreferredCourse,
     getCourseColor,
     getCourseCategory,
   };
 };
 
-// Notification hook
+// Notification hook (unchanged)
 export const useNotifications = () => {
   const {
     notifications,
@@ -1379,7 +1507,7 @@ export const useNotifications = () => {
   };
 };
 
-// Theme hook
+// Theme hook (unchanged)
 export const useTheme = () => {
   const { theme, setTheme, toggleTheme } = useAppStore();
   return {
@@ -1390,7 +1518,7 @@ export const useTheme = () => {
   };
 };
 
-// Network hook
+// Network hook (unchanged)
 export const useNetwork = () => {
   const { isOnline, setNetworkStatus } = useAppStore();
   return {
@@ -1399,7 +1527,7 @@ export const useNetwork = () => {
   };
 };
 
-// Notification preferences hook
+// Notification preferences hook (unchanged)
 export const useNotificationPreferences = () => {
   const {
     notificationPreferences,
@@ -1432,7 +1560,7 @@ export const useNotificationPreferences = () => {
   };
 };
 
-// Store subscriptions
+// Store subscriptions (unchanged)
 useAppStore.subscribe(
   (state) => state.preferredCourse,
   (preferredCourse) => {

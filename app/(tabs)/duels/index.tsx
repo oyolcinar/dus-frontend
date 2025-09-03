@@ -1,14 +1,15 @@
-// app/(tabs)/duels.tsx - UPDATED WITH NEW ARCHITECTURE
+// app/(tabs)/duels.tsx - PERFORMANCE OPTIMIZED VERSION
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Text,
   View,
-  ScrollView,
   ActivityIndicator,
   useColorScheme,
   RefreshControl,
   TouchableOpacity,
   StyleSheet,
+  FlatList,
+  ListRenderItem,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -34,15 +35,9 @@ import {
 import { Colors, Spacing, FontSizes } from '../../../constants/theme';
 
 // Performance optimized shadow configuration
-const OPTIMIZED_SHADOW = {
-  // shadowColor: Colors.gray[900],
-  // shadowOffset: { width: 2, height: 4 },
-  // shadowOpacity: 0.3,
-  // shadowRadius: 4,
-  // elevation: 4,
-};
+const OPTIMIZED_SHADOW = {};
 
-// Memoized components for better performance
+// Optimized DuelCard with better memoization
 const DuelCard = React.memo(
   ({
     duel,
@@ -55,103 +50,113 @@ const DuelCard = React.memo(
     onPress: () => void;
     preferredCourse: any;
   }) => {
+    // Memoize display data to prevent recalculation
+    const displayData = useMemo(
+      () => ({
+        opponentName:
+          (duel as any).opponent_username ||
+          (duel as any).opponent_name ||
+          (duel.opponent_id ? `Rakip ${duel.opponent_id}` : 'Rakip'),
+        courseName:
+          (duel as any).course_name ||
+          (duel as any).course_title ||
+          (duel as any).subject ||
+          (duel as any).category ||
+          (duel as any).course ||
+          (duel as any).topic ||
+          'Tıp Bilgisi Düellosu',
+        score: (duel as any).your_score,
+        maxScore: (duel as any).max_score || 100,
+      }),
+      [
+        (duel as any).opponent_username,
+        (duel as any).opponent_name,
+        duel.opponent_id,
+        (duel as any).course_name,
+        (duel as any).course_title,
+        (duel as any).subject,
+        (duel as any).your_score,
+        (duel as any).max_score,
+      ],
+    );
+
+    // Simplified card props - reduced animations for performance
     const cardProps = useMemo(() => {
-      const status = duel.status;
-      if (status === 'active') {
-        return {
-          variant: 'playful' as const,
-          animated: true,
-          pulseEffect: true,
-          borderGlow: true,
-        };
-      } else if (status === 'completed') {
-        return {
-          variant: 'elevated' as const,
-          animated: false,
-          pulseEffect: false,
-          borderGlow: false,
-        };
-      } else if (status === 'pending') {
-        return {
-          variant: 'glass' as const,
-          animated: false,
-          pulseEffect: false,
-          borderGlow: false,
-        };
+      switch (duel.status) {
+        case 'active':
+          return {
+            variant: 'playful' as const,
+            animated: true,
+            pulseEffect: false,
+            borderGlow: false,
+          };
+        case 'completed':
+          return {
+            variant: 'elevated' as const,
+            animated: false,
+            pulseEffect: false,
+            borderGlow: false,
+          };
+        case 'pending':
+          return {
+            variant: 'glass' as const,
+            animated: false,
+            pulseEffect: false,
+            borderGlow: false,
+          };
+        default:
+          return {
+            variant: 'default' as const,
+            animated: false,
+            pulseEffect: false,
+            borderGlow: false,
+          };
       }
-      return {
-        variant: 'default' as const,
-        animated: false,
-        pulseEffect: false,
-        borderGlow: false,
-      };
     }, [duel.status]);
 
-    const opponentDisplayName = useMemo(() => {
-      if ((duel as any).opponent_username) {
-        return (duel as any).opponent_username;
-      }
-      if ((duel as any).opponent_name) {
-        return (duel as any).opponent_name;
-      }
-      if (duel.opponent_id) {
-        return `Rakip ${duel.opponent_id}`;
-      }
-      return 'Rakip';
-    }, [duel]);
-
-    const courseName = useMemo(() => {
-      if ((duel as any).course_name) return (duel as any).course_name;
-      if ((duel as any).course_title) return (duel as any).course_title;
-      if ((duel as any).subject) return (duel as any).subject;
-      if ((duel as any).category) return (duel as any).category;
-      if ((duel as any).course) return (duel as any).course;
-      if ((duel as any).topic) return (duel as any).topic;
-      return 'Tıp Bilgisi Düellosu';
-    }, [duel]);
-
+    // Memoize status badge
     const statusBadge = useMemo(() => {
-      const status = duel.status;
-      if (status === 'pending') {
-        return (
-          <Badge
-            text='Bekliyor'
-            variant='info'
-            size='md'
-            fontFamily='SecondaryFont-Bold'
-          />
-        );
-      } else if (status === 'active') {
-        return (
-          <Badge
-            text='Senin Sıran'
-            variant='warning'
-            size='md'
-            fontFamily='SecondaryFont-Bold'
-          />
-        );
-      } else if (status === 'completed') {
-        return (
-          <Badge
-            text='Tamamlandı'
-            variant='success'
-            size='md'
-            fontFamily='SecondaryFont-Bold'
-          />
-        );
+      switch (duel.status) {
+        case 'pending':
+          return (
+            <Badge
+              text='Bekliyor'
+              variant='info'
+              size='md'
+              fontFamily='SecondaryFont-Bold'
+            />
+          );
+        case 'active':
+          return (
+            <Badge
+              text='Senin Sıran'
+              variant='warning'
+              size='md'
+              fontFamily='SecondaryFont-Bold'
+            />
+          );
+        case 'completed':
+          return (
+            <Badge
+              text='Tamamlandı'
+              variant='success'
+              size='md'
+              fontFamily='SecondaryFont-Bold'
+            />
+          );
+        default:
+          return null;
       }
-      return null;
     }, [duel.status]);
 
     return (
       <TouchableOpacity
-        key={duel.duel_id}
         onPress={onPress}
         activeOpacity={0.8}
         style={styles.duelCardContainer}
       >
         <PlayfulCard
-          title={`${opponentDisplayName} ile Düello`}
+          title={`${displayData.opponentName} ile Düello`}
           titleFontFamily='PrimaryFont'
           category={preferredCourse?.category}
           style={[styles.duelCard, { backgroundColor: contextColor }]}
@@ -161,20 +166,20 @@ const DuelCard = React.memo(
             <Row style={styles.duelCardLeft}>
               <Column style={styles.duelCardInfo}>
                 <Title level={3} style={styles.opponentName}>
-                  {opponentDisplayName}
+                  {displayData.opponentName}
                 </Title>
-                <Text style={styles.courseName}>{courseName}</Text>
+                <Text style={styles.courseName}>{displayData.courseName}</Text>
                 {statusBadge}
               </Column>
             </Row>
 
-            {(duel as any).your_score !== undefined && (
+            {displayData.score !== undefined && (
               <ScoreDisplay
-                score={(duel as any).your_score || 0}
-                maxScore={(duel as any).max_score || 100}
+                score={displayData.score || 0}
+                maxScore={displayData.maxScore}
                 variant='gradient'
                 size='small'
-                animated
+                animated={false} // Disabled for performance
               />
             )}
           </Row>
@@ -182,8 +187,23 @@ const DuelCard = React.memo(
       </TouchableOpacity>
     );
   },
+  // Custom comparison function for better memoization
+  (prevProps, nextProps) => {
+    return (
+      prevProps.duel.duel_id === nextProps.duel.duel_id &&
+      prevProps.duel.status === nextProps.duel.status &&
+      prevProps.contextColor === nextProps.contextColor &&
+      prevProps.preferredCourse?.category ===
+        nextProps.preferredCourse?.category &&
+      (prevProps.duel as any).your_score ===
+        (nextProps.duel as any).your_score &&
+      (prevProps.duel as any).opponent_username ===
+        (nextProps.duel as any).opponent_username
+    );
+  },
 );
 
+// Optimized StatsSection
 const StatsSection = React.memo(
   ({
     activeDuels,
@@ -194,9 +214,13 @@ const StatsSection = React.memo(
     duelStats: any;
     contextColor: string;
   }) => {
-    const pendingCount = useMemo(
-      () => activeDuels.filter((d) => d.status === 'pending').length,
-      [activeDuels],
+    const stats = useMemo(
+      () => ({
+        activeCount: activeDuels.length,
+        wins: duelStats?.wins || 0,
+        pendingCount: activeDuels.filter((d) => d.status === 'pending').length,
+      }),
+      [activeDuels, duelStats?.wins],
     );
 
     return (
@@ -204,7 +228,7 @@ const StatsSection = React.memo(
         <StatCard
           icon='trophy'
           title='Aktif Düellolar'
-          value={activeDuels.length.toString()}
+          value={stats.activeCount.toString()}
           color={Colors.white}
           titleFontFamily='SecondaryFont-Bold'
           style={[styles.statCard, { backgroundColor: contextColor }]}
@@ -212,7 +236,7 @@ const StatsSection = React.memo(
         <StatCard
           icon='fire'
           title='Kazanılan'
-          value={(duelStats?.wins || 0).toString()}
+          value={stats.wins.toString()}
           color={Colors.white}
           titleFontFamily='SecondaryFont-Bold'
           style={[styles.statCard, { backgroundColor: contextColor }]}
@@ -220,7 +244,7 @@ const StatsSection = React.memo(
         <StatCard
           icon='hourglass'
           title='Bekleyen'
-          value={pendingCount.toString()}
+          value={stats.pendingCount.toString()}
           color={Colors.white}
           titleFontFamily='SecondaryFont-Bold'
           style={[styles.statCard, { backgroundColor: contextColor }]}
@@ -228,6 +252,103 @@ const StatsSection = React.memo(
       </Row>
     );
   },
+  (prevProps, nextProps) =>
+    prevProps.activeDuels.length === nextProps.activeDuels.length &&
+    prevProps.duelStats?.wins === nextProps.duelStats?.wins &&
+    prevProps.contextColor === nextProps.contextColor &&
+    prevProps.activeDuels.filter((d) => d.status === 'pending').length ===
+      nextProps.activeDuels.filter((d) => d.status === 'pending').length,
+);
+
+// Header component for better performance
+const DuelsHeader = React.memo(
+  ({
+    contextColor,
+    dynamicStyles,
+    onNewDuel,
+  }: {
+    contextColor: string;
+    dynamicStyles: any;
+    onNewDuel: () => void;
+  }) => (
+    <>
+      <SlideInElement delay={0}>
+        <PlayfulCard style={styles.headerCard}>
+          <Row style={styles.headerRow}>
+            <Column style={styles.headerColumn}>
+              <PlayfulTitle
+                level={1}
+                gradient='primary'
+                style={dynamicStyles.headerTitle}
+              >
+                Düellolar ⚔️
+              </PlayfulTitle>
+              <Paragraph style={dynamicStyles.headerSubtitle}>
+                Arkadaşlarınla yarışarak öğren
+              </Paragraph>
+            </Column>
+          </Row>
+        </PlayfulCard>
+      </SlideInElement>
+
+      <PlayfulButton
+        title='Yeni Düello Başlat'
+        onPress={onNewDuel}
+        variant='secondary'
+        gradient='fire'
+        animated={false} // Disabled for performance
+        style={[styles.newDuelButton, { backgroundColor: contextColor }]}
+        icon='plus'
+      />
+    </>
+  ),
+);
+
+// Footer component
+const QuickActions = React.memo(
+  ({
+    contextColor,
+    preferredCourse,
+    onDuelHistory,
+  }: {
+    contextColor: string;
+    preferredCourse: any;
+    onDuelHistory: () => void;
+  }) => (
+    <View style={styles.quickActionsContainer}>
+      <PlayfulCard
+        title='Hızlı İşlemler'
+        variant='playful'
+        titleFontFamily='PrimaryFont'
+        category={preferredCourse?.category}
+        style={[styles.quickActionsCard, { backgroundColor: contextColor }]}
+        animated={false} // Disabled for performance
+      >
+        <Row style={styles.quickActionsRow}>
+          <PlayfulButton
+            title='Tüm Düellolar'
+            onPress={onDuelHistory}
+            variant='outline'
+            style={styles.quickActionLeft}
+            icon='list'
+            animated={false}
+            size='xs'
+            fontFamily='PrimaryFont'
+          />
+          <PlayfulButton
+            title='Düello Geçmişi'
+            onPress={onDuelHistory}
+            variant='outline'
+            style={styles.quickActionRight}
+            icon='history'
+            animated={false}
+            size='xs'
+            fontFamily='PrimaryFont'
+          />
+        </Row>
+      </PlayfulCard>
+    </View>
+  ),
 );
 
 // Main Duels Screen Component
@@ -236,51 +357,44 @@ export default function DuelsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  // 🚀 NEW: Use the new store hooks instead of contexts
+  // Store hooks
   const { user, isAuthenticated, refreshSession } = useAuth();
-  const {
-    preferredCourse,
-    getCourseColor,
-    isLoading: courseLoading,
-  } = usePreferredCourse();
+  const { preferredCourse, getCourseColor } = usePreferredCourse();
 
-  // 🚀 NEW: Use the comprehensive duels data hook
+  // Data hooks
   const {
     activeDuels,
-    activeDuelsLoading,
     activeDuelsError,
     duelStats,
-    duelStatsLoading,
     duelStatsError,
     isLoading,
     hasError,
     refetchAll,
   } = useDuelsData();
 
-  // Local UI state
+  // Local state
   const [refreshing, setRefreshing] = useState(false);
 
-  // Memoized context color to prevent unnecessary re-renders
+  // Memoized context color with stable reference
   const contextColor = useMemo(() => {
-    return (
-      (preferredCourse as any)?.category &&
-      getCourseColor((preferredCourse as any).category)
-    );
-  }, [preferredCourse, getCourseColor]);
+    return preferredCourse?.category
+      ? getCourseColor(preferredCourse.category) || '#4285F4'
+      : '#4285F4';
+  }, [preferredCourse?.category, getCourseColor]);
 
-  // Memoized styles that depend on theme
+  // Memoized theme styles
   const dynamicStyles = useMemo(
     () =>
       StyleSheet.create({
         loadingText: {
           marginTop: Spacing[4],
-          color: isDark ? Colors.white : Colors.white,
+          color: Colors.white,
           fontFamily: 'SecondaryFont-Regular',
           fontSize: 16,
         },
         loadingSubtext: {
           marginTop: Spacing[2],
-          color: isDark ? Colors.gray[200] : Colors.gray[200],
+          color: Colors.gray[200],
           fontFamily: 'SecondaryFont-Regular',
           fontSize: 14,
           textAlign: 'center',
@@ -290,22 +404,19 @@ export default function DuelsScreen() {
           color: Colors.gray[900],
         },
         headerSubtitle: {
-          color: isDark ? Colors.gray[700] : Colors.gray[700],
+          color: Colors.gray[700],
           fontFamily: 'SecondaryFont-Regular',
         },
         errorTitle: {
           fontSize: 18,
           fontWeight: 'bold',
-          color: isDark ? Colors.gray[800] : Colors.gray[800],
+          color: Colors.gray[800],
           textAlign: 'center',
           marginBottom: Spacing[2],
           fontFamily: 'SecondaryFont-Bold',
         },
-        refreshTitle: {
-          color: isDark ? Colors.gray[600] : Colors.gray[600],
-        },
         noDataText: {
-          color: isDark ? Colors.gray[600] : Colors.gray[600],
+          color: Colors.gray[600],
           fontFamily: 'SecondaryFont-Regular',
           textAlign: 'center',
           marginBottom: Spacing[4],
@@ -315,58 +426,37 @@ export default function DuelsScreen() {
     [isDark],
   );
 
-  // 🚀 SIMPLIFIED: Handle refresh with new hook
+  // Optimized handlers with stable references
   const handleRefresh = useCallback(async () => {
+    if (refreshing) return; // Prevent multiple refreshes
+
     try {
       setRefreshing(true);
-
-      // Try to refresh session first
-      try {
-        await refreshSession();
-      } catch (sessionError) {
-        console.warn(
-          'Session refresh failed during manual refresh:',
-          sessionError,
-        );
-      }
-
-      // Refetch all duels data
-      await refetchAll();
-
-      console.log('Duels refresh completed successfully');
+      await Promise.all([refreshSession().catch(console.warn), refetchAll()]);
     } catch (error) {
-      console.error('Duels refresh failed:', error);
-
-      // If authentication failed, redirect to login
+      console.error('Refresh failed:', error);
       if (
         error instanceof Error &&
         (error.message.includes('unauthorized') ||
-          error.message.includes('401') ||
-          error.message.includes('Oturum süresi doldu'))
+          error.message.includes('401'))
       ) {
         router.replace('/(auth)/login');
-        return;
       }
     } finally {
       setRefreshing(false);
     }
-  }, [refetchAll, refreshSession, router]);
+  }, [refreshing, refreshSession, refetchAll, router]);
 
-  // 🚀 SIMPLIFIED: Handle retry
   const handleRetry = useCallback(async () => {
     try {
-      // Try to refresh session
       const sessionValid = await refreshSession();
       if (!sessionValid) {
         router.replace('/(auth)/login');
         return;
       }
-
-      // Retry fetching data
       await refetchAll();
     } catch (error) {
       console.error('Retry failed:', error);
-
       if (
         error instanceof Error &&
         error.message.includes('Oturum süresi doldu')
@@ -376,14 +466,6 @@ export default function DuelsScreen() {
     }
   }, [refreshSession, refetchAll, router]);
 
-  // Check authentication on mount
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/(auth)/login');
-    }
-  }, [isAuthenticated, router]);
-
-  // Memoized handlers to prevent unnecessary re-renders
   const handleNewDuel = useCallback(() => {
     router.push('/(tabs)/duels/new' as any);
   }, [router]);
@@ -396,15 +478,154 @@ export default function DuelsScreen() {
     router.replace('/(auth)/login');
   }, [router]);
 
-  // Memoized duel press handlers
-  const createDuelPressHandler = useCallback(
-    (duelId: string) => {
-      return () => router.push(`/(tabs)/duels/${duelId}` as any);
-    },
-    [router],
+  // FlatList optimizations
+  const renderDuelItem: ListRenderItem<Duel> = useCallback(
+    ({ item: duel }) => (
+      <DuelCard
+        duel={duel}
+        contextColor={contextColor}
+        onPress={() => router.push(`/(tabs)/duels/${duel.duel_id}` as any)}
+        preferredCourse={preferredCourse}
+      />
+    ),
+    [contextColor, router, preferredCourse],
   );
 
-  // 🚀 SIMPLIFIED: Error handling - show error if there's a persistent error
+  const keyExtractor = useCallback((item: Duel) => item.duel_id.toString(), []);
+
+  const getItemLayout = useCallback(
+    (data: any, index: number) => ({
+      length: 120, // Approximate item height
+      offset: 120 * index,
+      index,
+    }),
+    [],
+  );
+
+  const ListEmptyComponent = useCallback(
+    () => (
+      <PlayfulCard
+        variant='glass'
+        animated={false}
+        style={styles.emptyStateCard}
+      >
+        <EmptyState
+          icon='users'
+          fontFamily='PrimaryFont'
+          title='Aktif düello yok'
+          buttonFontFamily='PrimaryFont'
+          message='Arkadaşlarını düelloya davet et ve rekabeti başlat.'
+          actionButton={{
+            title: 'Düello Başlat',
+            onPress: handleNewDuel,
+            variant: 'secondary',
+          }}
+        />
+      </PlayfulCard>
+    ),
+    [handleNewDuel],
+  );
+
+  const ListHeaderComponent = useCallback(
+    () => (
+      <>
+        <DuelsHeader
+          contextColor={contextColor}
+          dynamicStyles={dynamicStyles}
+          onNewDuel={handleNewDuel}
+        />
+
+        {!isLoading && (
+          <StatsSection
+            activeDuels={activeDuels}
+            duelStats={duelStats}
+            contextColor={contextColor}
+          />
+        )}
+      </>
+    ),
+    [
+      contextColor,
+      dynamicStyles,
+      handleNewDuel,
+      isLoading,
+      activeDuels,
+      duelStats,
+    ],
+  );
+
+  const ListFooterComponent = useCallback(
+    () => (
+      <>
+        <QuickActions
+          contextColor={contextColor}
+          preferredCourse={preferredCourse}
+          onDuelHistory={handleDuelHistory}
+        />
+
+        {/* Error display */}
+        {(activeDuelsError || duelStatsError) && activeDuels.length > 0 && (
+          <Alert
+            type='warning'
+            message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
+            style={styles.bottomAlert}
+          />
+        )}
+
+        {/* No data state */}
+        {!isLoading && activeDuels.length === 0 && !hasError && (
+          <View
+            style={[
+              styles.noDataContainer,
+              { backgroundColor: `${contextColor}20` },
+            ]}
+          >
+            <FontAwesome
+              name='wifi'
+              size={48}
+              color={contextColor}
+              style={styles.noDataIcon}
+            />
+            <Text style={dynamicStyles.noDataText}>
+              Düello verileri yüklenemedi
+            </Text>
+            <PlayfulButton
+              title='Tekrar Dene'
+              onPress={handleRetry}
+              variant='primary'
+              size='medium'
+              animated={false}
+              icon='refresh'
+              style={[styles.noDataButton, { backgroundColor: contextColor }]}
+            />
+          </View>
+        )}
+
+        <View style={styles.bottomSpacing} />
+      </>
+    ),
+    [
+      contextColor,
+      preferredCourse,
+      handleDuelHistory,
+      activeDuelsError,
+      duelStatsError,
+      activeDuels.length,
+      isLoading,
+      hasError,
+      dynamicStyles,
+      handleRetry,
+    ],
+  );
+
+  // Auth check effect
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace('/(auth)/login');
+    }
+  }, [isAuthenticated, router]);
+
+  // Error state
   const shouldShowError = hasError && !isLoading && !refreshing;
   const errorMessage =
     activeDuelsError?.message ||
@@ -421,26 +642,22 @@ export default function DuelsScreen() {
             color={Colors.vibrant?.orange || Colors.warning}
             style={styles.errorIcon}
           />
-
           <Text style={dynamicStyles.errorTitle}>Bir Sorun Oluştu</Text>
-
           <Alert
             type='error'
             message={errorMessage}
             style={styles.errorAlert}
           />
-
           <View style={styles.errorActions}>
             <PlayfulButton
               title='Yeniden Dene'
               onPress={handleRetry}
               variant='primary'
-              animated
+              animated={false}
               icon='refresh'
               size='medium'
               style={[styles.retryButton, { backgroundColor: contextColor }]}
             />
-
             <PlayfulButton
               title='Giriş Ekranına Dön'
               onPress={handleLoginRedirect}
@@ -454,11 +671,33 @@ export default function DuelsScreen() {
     );
   }
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size='large' color={contextColor} />
+          <Text style={dynamicStyles.loadingText}>Düellolar yükleniyor...</Text>
+          <Text style={dynamicStyles.loadingSubtext}>
+            Bu birkaç saniye sürebilir
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Main render with FlatList
   return (
     <View style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+      <FlatList
+        data={activeDuels}
+        renderItem={renderDuelItem}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={ListHeaderComponent}
+        ListFooterComponent={ListFooterComponent}
+        ListEmptyComponent={ListEmptyComponent}
+        contentContainerStyle={styles.flatListContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -466,194 +705,36 @@ export default function DuelsScreen() {
             tintColor={contextColor}
             colors={[contextColor]}
             title='Yenileniyor...'
-            titleColor={dynamicStyles.refreshTitle.color}
           />
         }
-      >
-        {/* Header with animated title */}
-        <SlideInElement delay={0}>
-          <PlayfulCard style={styles.headerCard}>
-            <Row style={styles.headerRow}>
-              <Column style={styles.headerColumn}>
-                <PlayfulTitle
-                  level={1}
-                  gradient='primary'
-                  style={dynamicStyles.headerTitle}
-                >
-                  Düellolar ⚔️
-                </PlayfulTitle>
-                <Paragraph style={dynamicStyles.headerSubtitle}>
-                  Arkadaşlarınla yarışarak öğren
-                </Paragraph>
-              </Column>
-            </Row>
-          </PlayfulCard>
-        </SlideInElement>
-
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size='large' color={contextColor} />
-            <Text style={dynamicStyles.loadingText}>
-              Düellolar yükleniyor...
-            </Text>
-            <Text style={dynamicStyles.loadingSubtext}>
-              Bu birkaç saniye sürebilir
-            </Text>
-          </View>
-        ) : (
-          <>
-            {/* Stats Cards */}
-            <StatsSection
-              activeDuels={activeDuels}
-              duelStats={duelStats}
-              contextColor={contextColor}
-            />
-
-            {/* Create New Duel Button */}
-            <PlayfulButton
-              title='Yeni Düello Başlat'
-              onPress={handleNewDuel}
-              variant='secondary'
-              gradient='fire'
-              animated
-              style={[styles.newDuelButton, { backgroundColor: contextColor }]}
-              icon='plus'
-              wiggleOnPress
-            />
-
-            {activeDuels.length > 0 ? (
-              <View>
-                {activeDuels.map((duel) => (
-                  <DuelCard
-                    key={duel.duel_id}
-                    duel={duel}
-                    contextColor={contextColor}
-                    onPress={createDuelPressHandler(duel.duel_id.toString())}
-                    preferredCourse={preferredCourse}
-                  />
-                ))}
-              </View>
-            ) : (
-              <PlayfulCard
-                variant='glass'
-                animated
-                floatingAnimation
-                style={styles.emptyStateCard}
-              >
-                <EmptyState
-                  icon='users'
-                  fontFamily='PrimaryFont'
-                  title='Aktif düello yok'
-                  buttonFontFamily='PrimaryFont'
-                  message='Arkadaşlarını düelloya davet et ve rekabeti başlat.'
-                  actionButton={{
-                    title: 'Düello Başlat',
-                    onPress: handleNewDuel,
-                    variant: 'secondary',
-                  }}
-                />
-              </PlayfulCard>
-            )}
-
-            {/* Quick Actions */}
-            <View style={styles.quickActionsContainer}>
-              <PlayfulCard
-                title='Hızlı İşlemler'
-                variant='playful'
-                titleFontFamily='PrimaryFont'
-                category={(preferredCourse as any)?.category}
-                style={[
-                  styles.quickActionsCard,
-                  { backgroundColor: contextColor },
-                ]}
-                animated
-                floatingAnimation
-              >
-                <Row style={styles.quickActionsRow}>
-                  <PlayfulButton
-                    title='Tüm Düellolar'
-                    onPress={handleDuelHistory}
-                    variant='outline'
-                    style={styles.quickActionLeft}
-                    icon='list'
-                    animated
-                    size='xs'
-                    fontFamily='PrimaryFont'
-                  />
-                  <PlayfulButton
-                    title='Düello Geçmişi'
-                    onPress={handleDuelHistory}
-                    variant='outline'
-                    style={styles.quickActionRight}
-                    icon='history'
-                    animated
-                    size='xs'
-                    fontFamily='PrimaryFont'
-                  />
-                </Row>
-              </PlayfulCard>
-            </View>
-
-            {/* Error display at bottom if there's a partial error */}
-            {(activeDuelsError || duelStatsError) && activeDuels.length > 0 && (
-              <Alert
-                type='warning'
-                message='Veriler yenilenirken sorun yaşandı. Çekmek için aşağı kaydırın.'
-                style={styles.bottomAlert}
-              />
-            )}
-
-            {/* No data state when not loading but no duels */}
-            {!isLoading && activeDuels.length === 0 && !hasError && (
-              <View
-                style={[
-                  styles.noDataContainer,
-                  { backgroundColor: `${contextColor}20` },
-                ]}
-              >
-                <FontAwesome
-                  name='wifi'
-                  size={48}
-                  color={contextColor}
-                  style={styles.noDataIcon}
-                />
-                <Text style={dynamicStyles.noDataText}>
-                  Düello verileri yüklenemedi
-                </Text>
-                <PlayfulButton
-                  title='Tekrar Dene'
-                  onPress={handleRetry}
-                  variant='primary'
-                  size='medium'
-                  animated
-                  icon='refresh'
-                  style={[
-                    styles.noDataButton,
-                    { backgroundColor: contextColor },
-                  ]}
-                />
-              </View>
-            )}
-          </>
-        )}
-
-        {/* Bottom spacing to ensure content is fully visible */}
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
+        // Performance optimizations
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={5}
+        windowSize={10}
+        initialNumToRender={3}
+        updateCellsBatchingPeriod={50}
+        getItemLayout={getItemLayout}
+        // Prevent unnecessary re-renders
+        extraData={`${contextColor}-${preferredCourse?.category || ''}`}
+      />
     </View>
   );
 }
 
-// Styles
+// Optimized styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
+  flatListContent: {
     padding: Spacing[4],
+    flexGrow: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing[8],
   },
   headerCard: {
     marginBottom: Spacing[6],
@@ -665,11 +746,6 @@ const styles = StyleSheet.create({
   },
   headerColumn: {
     flex: 1,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing[8],
   },
   statsContainer: {
     justifyContent: 'space-between',
@@ -748,13 +824,12 @@ const styles = StyleSheet.create({
   noDataIcon: {
     marginBottom: Spacing[3],
   },
-  noDataButton: {
-    // backgroundColor will be set dynamically
-  },
+  noDataButton: {},
   bottomSpacing: {
     height: Spacing[8],
   },
   errorContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing[4],

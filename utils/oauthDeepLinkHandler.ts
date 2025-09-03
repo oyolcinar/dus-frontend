@@ -10,7 +10,6 @@ interface DeepLinkUrl {
   queryParams: Record<string, string>;
 }
 
-// Parse deep link URL and extract query parameters
 function parseDeepLinkUrl(url: string): DeepLinkUrl {
   const queryParams: Record<string, string> = {};
 
@@ -40,7 +39,6 @@ function parseDeepLinkUrl(url: string): DeepLinkUrl {
   }
 }
 
-// Handle OAuth callback from deep link
 export async function handleOAuthDeepLink(url: string): Promise<boolean> {
   try {
     console.log('🔗 Handling OAuth deep link:', url);
@@ -48,40 +46,32 @@ export async function handleOAuthDeepLink(url: string): Promise<boolean> {
     const parsedUrl = parseDeepLinkUrl(url);
     const queryParams = parsedUrl.queryParams;
 
-    // Check if this is an OAuth callback
     if (!queryParams?.code && !queryParams?.error) {
       console.log('🔗 Not an OAuth callback URL, ignoring');
       return false;
     }
 
-    // Handle OAuth error
     if (queryParams.error) {
       const errorDescription =
         queryParams.error_description || queryParams.error;
       console.error('❌ OAuth error from deep link:', errorDescription);
 
-      // Update auth store with error
       const store = useAppStore.getState();
       store.setAuthError(`OAuth authentication failed: ${errorDescription}`);
 
-      // Navigate to login screen
       router.replace('/(auth)/login');
       return true;
     }
 
-    // Handle OAuth success
     if (queryParams.code) {
       console.log('✅ OAuth authorization code received via deep link');
 
       try {
-        // Use authService to handle the OAuth callback
         const store = useAppStore.getState();
         await store.handleOAuthCallback(queryParams.code);
 
         console.log('✅ OAuth callback processed successfully');
 
-        // Navigate to main app (this will be handled by auth state change)
-        // The auth store will automatically redirect based on authentication state
         return true;
       } catch (callbackError) {
         console.error('❌ OAuth callback processing failed:', callbackError);
@@ -93,7 +83,6 @@ export async function handleOAuthDeepLink(url: string): Promise<boolean> {
             : 'OAuth authentication failed';
         store.setAuthError(errorMessage);
 
-        // Navigate to login screen
         router.replace('/(auth)/login');
         return true;
       }
@@ -106,7 +95,6 @@ export async function handleOAuthDeepLink(url: string): Promise<boolean> {
     const store = useAppStore.getState();
     store.setAuthError('OAuth authentication failed');
 
-    // Navigate to login screen
     router.replace('/(auth)/login');
     return true;
   }
@@ -132,7 +120,6 @@ export function isOAuthDeepLink(url: string): boolean {
   }
 }
 
-// Extract OAuth provider from deep link
 export function getOAuthProviderFromDeepLink(
   url: string,
 ): 'google' | 'apple' | 'facebook' | null {
@@ -163,23 +150,17 @@ export function getOAuthProviderFromDeepLink(
   }
 }
 
-// Handle general deep links (use in your main deep link handler)
 export async function handleDeepLink(url: string): Promise<boolean> {
   console.log('🔗 Processing deep link:', url);
 
-  // Check if it's an OAuth deep link
   if (isOAuthDeepLink(url)) {
     return await handleOAuthDeepLink(url);
   }
-
-  // Handle other deep links here
   console.log('🔗 Non-OAuth deep link, handling normally');
 
-  // Return false to indicate this handler didn't process the link
   return false;
 }
 
-// Helper to validate deep link format
 export function validateDeepLinkFormat(url: string): {
   isValid: boolean;
   errors: string[];
@@ -187,13 +168,11 @@ export function validateDeepLinkFormat(url: string): {
   const errors: string[] = [];
 
   try {
-    // Check if URL is valid
     new URL(url);
   } catch (error) {
     errors.push('Invalid URL format');
   }
 
-  // Check scheme
   const expectedSchemes = ['com.dortac.dusfrontend', 'dus-app', 'https'];
   const hasValidScheme = expectedSchemes.some((scheme) =>
     url.startsWith(scheme),
@@ -211,7 +190,6 @@ export function validateDeepLinkFormat(url: string): {
   };
 }
 
-// Debug helper for development
 export function debugDeepLink(url: string): void {
   if (__DEV__) {
     console.log('=== DEEP LINK DEBUG ===');
