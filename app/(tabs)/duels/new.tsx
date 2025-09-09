@@ -47,6 +47,7 @@ import { useAuth, usePreferredCourse } from '../../../stores/appStore';
 import { Test, Course } from '../../../src/types/models';
 import { Bot } from '../../../src/api/botService';
 import { globalStyles } from '../../../utils/styleUtils';
+import { useFocusEffect } from '@react-navigation/native';
 
 // Performance optimized shadow configuration
 const OPTIMIZED_SHADOW = {};
@@ -527,10 +528,32 @@ export default function NewDuelScreen() {
     resetSocketChallenge();
   }, [resetSocketChallenge]);
 
+  useFocusEffect(
+    useCallback(() => {
+      // Reset all challenge states when screen comes into focus
+      resetSocketChallenge();
+      setModalVisible(false);
+      resetChallengeState();
+      setError(null);
+    }, [resetSocketChallenge, resetChallengeState]),
+  );
+
+  useEffect(() => {
+    // Reset socket challenge state when screen loads
+    resetSocketChallenge();
+  }, [resetSocketChallenge]);
+
+  // const handleCloseModal = useCallback(() => {
+  //   setModalVisible(false);
+  //   resetChallengeState();
+  // }, [resetChallengeState]);
+
   const handleCloseModal = useCallback(() => {
     setModalVisible(false);
     resetChallengeState();
-  }, [resetChallengeState]);
+    // Force reset socket challenge state
+    resetSocketChallenge();
+  }, [resetChallengeState, resetSocketChallenge]);
 
   const handleRefresh = useCallback(async () => {
     if (refreshing) return;
@@ -553,6 +576,11 @@ export default function NewDuelScreen() {
     (opponent: Opponent) => {
       if (!isAuthenticated) {
         setError('Meydan okumak için giriş yapmanız gerekiyor.');
+        return;
+      }
+
+      if (socketLoading || challengeState === 'challenging') {
+        console.log('Bot challenge already in progress, ignoring...');
         return;
       }
 

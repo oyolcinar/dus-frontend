@@ -28,8 +28,9 @@ import {
   ListRenderItem,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, router } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 import {
   useDuelRoomManagement,
@@ -545,6 +546,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 183, 3, 0.3)',
     alignItems: 'center',
+    minHeight: 120,
+    flexShrink: 0,
   },
   reportQuestionTitle: {
     fontSize: 14,
@@ -1525,14 +1528,22 @@ const ResultsScreen = memo<{
           </View>
 
           {/* Question Report Modal */}
-          {currentQuestion && (
+          {(currentQuestion || roundResult?.question) && (
             <QuestionReportModal
               isVisible={showReportModal}
               onClose={() => onShowReportModal(false)}
-              questionId={currentQuestion?.id || 0}
-              questionText={roundResult.question.text}
-              questionOptions={roundResult.question.options}
-              correctAnswer={roundResult.question.correctAnswer}
+              questionId={currentQuestion?.id || roundResult?.question?.id || 0}
+              questionText={
+                roundResult?.question?.text || currentQuestion?.text || ''
+              }
+              questionOptions={
+                roundResult?.question?.options || currentQuestion?.options || {}
+              }
+              correctAnswer={
+                roundResult?.question?.correctAnswer ||
+                currentQuestion?.correctAnswer ||
+                ''
+              }
               userAnswer={userAnswer?.selectedAnswer || null}
               isCorrect={isUserCorrect}
             />
@@ -1759,7 +1770,14 @@ const FinalScreen = memo<{
                     <Button
                       title='Yeni Düello'
                       variant='ghost'
-                      onPress={() => onCleanupAndNavigate('/(tabs)/duels/new')}
+                      onPress={() => {
+                        // Force cleanup and navigate
+                        onCleanupAndNavigate('/(tabs)/duels/new');
+                        // Add a small delay to ensure cleanup completes
+                        setTimeout(() => {
+                          router.replace('/(tabs)/duels/new');
+                        }, 100);
+                      }}
                       style={styles.actionButton}
                     />
                     <Button
@@ -1818,6 +1836,49 @@ export default function DuelRoomScreen() {
     hasCleanedUp: false,
     isInitializing: false,
   });
+
+  useEffect(() => {
+    console.log('🔄 Duel ID changed, resetting initialization flags:', duelId);
+    const initRef = initializationRef.current;
+    initRef.hasInitialized = false;
+    initRef.hasCleanedUp = false;
+    initRef.isInitializing = false;
+  }, [duelId]);
+
+  // CRITICAL: Add this effect to force cleanup when duel ID changes
+  useEffect(() => {
+    const initRef = initializationRef.current;
+
+    return () => {
+      console.log('🔧 DuelRoomScreen: Duel ID effect cleanup for:', duelId);
+
+      // Reset flags for new duel
+      initRef.hasInitialized = false;
+      initRef.hasCleanedUp = false;
+      initRef.isInitializing = false;
+    };
+  }, [duelId]); // This will run cleanup when duelId changes
+
+  // Enhanced focus effect for more aggressive cleanup
+  useFocusEffect(
+    useCallback(() => {
+      console.log(
+        '🔍 DuelRoomScreen focused - ensuring fresh state for duel:',
+        duelId,
+      );
+
+      return () => {
+        console.log('🔍 DuelRoomScreen blurred - potential cleanup needed');
+        // Don't cleanup here as it might interfere with normal navigation
+        // But we can reset some UI flags
+        setUIState((prev) => ({
+          ...prev,
+          showReportModal: false,
+          isModalStable: false,
+        }));
+      };
+    }, [duelId]),
+  );
 
   // Duel room management hook
   const duelRoomHook = useDuelRoomManagement(duelId);
@@ -1936,20 +1997,58 @@ export default function DuelRoomScreen() {
     );
   }, [cleanup, router]);
 
+  // const handleCleanupAndNavigate = useCallback(
+  //   (route: string) => {
+  //     if (gamePhase !== 'final' && gamePhase !== 'error') {
+  //       console.warn('Preventing navigation during active duel');
+  //       return;
+  //     }
+  //     const initRef = initializationRef.current;
+  //     if (!initRef.hasCleanedUp) {
+  //       initRef.hasCleanedUp = true;
+  //       cleanup();
+  //     }
+  //     router.replace(route as any);
+  //   },
+  //   [cleanup, router, gamePhase],
+  // );
+
   const handleCleanupAndNavigate = useCallback(
     (route: string) => {
-      if (gamePhase !== 'final' && gamePhase !== 'error') {
-        console.warn('Preventing navigation during active duel');
-        return;
-      }
+      console.log('🚀 FORCING COMPLETE CLEANUP before navigation to:', route);
+
       const initRef = initializationRef.current;
+
+      // CRITICAL: Force cleanup regardless of current state
       if (!initRef.hasCleanedUp) {
         initRef.hasCleanedUp = true;
+        console.log('🧹 Executing cleanup...');
         cleanup();
       }
+
+      // CRITICAL: Reset ALL initialization flags
+      initRef.hasInitialized = false;
+      initRef.isInitializing = false;
+
+      // CRITICAL: Reset UI state completely
+      setUIState({
+        selectedAnswer: null,
+        countdown: 3,
+        showReportModal: false,
+        answeredQuestions: [],
+        duelStartTime: null,
+        duelEndTime: null,
+        isCreatingDuelResult: false,
+        duelResultCreated: false,
+        isModalStable: false,
+      });
+
+      console.log('✅ Complete cleanup executed, navigating to:', route);
+
+      // Force immediate navigation with replace to prevent back navigation
       router.replace(route as any);
     },
-    [cleanup, router, gamePhase],
+    [cleanup, router],
   );
 
   const handleRetry = useCallback(() => {
@@ -1967,6 +2066,49 @@ export default function DuelRoomScreen() {
         });
     }
   }, [initializeConnection]);
+
+  // Enhanced Effect 1: Component initialization and cleanup with state reset
+  useEffect(() => {
+    const initRef = initializationRef.current;
+
+    console.log('🔧 DuelRoomScreen: Enhanced initialization for duel:', duelId);
+
+    if (
+      !initRef.hasInitialized &&
+      !initRef.isInitializing &&
+      !initRef.hasCleanedUp &&
+      isAuthenticated &&
+      user &&
+      duelId
+    ) {
+      console.log('🚀 Starting fresh initialization for duel:', duelId);
+      initRef.isInitializing = true;
+
+      // CRITICAL: Clear any existing state before initializing
+      setUIState({
+        selectedAnswer: null,
+        countdown: 3,
+        showReportModal: false,
+        answeredQuestions: [],
+        duelStartTime: null,
+        duelEndTime: null,
+        isCreatingDuelResult: false,
+        duelResultCreated: false,
+        isModalStable: false,
+      });
+
+      initializeConnection()
+        .then(() => {
+          initRef.hasInitialized = true;
+          initRef.isInitializing = false;
+          console.log('✅ Fresh initialization complete for duel:', duelId);
+        })
+        .catch((error) => {
+          console.error('❌ Initialization failed for duel:', duelId, error);
+          initRef.isInitializing = false;
+        });
+    }
+  }, [isAuthenticated, user?.userId, duelId, initializeConnection]);
 
   const handleShowReportModal = useCallback((show: boolean) => {
     setUIState((prev) => ({ ...prev, showReportModal: show }));

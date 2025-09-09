@@ -319,12 +319,16 @@ const styles = StyleSheet.create({
     margin: 0,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
+    minHeight: height * 0.8,
   },
   modalContent: {
     width: Math.min(width * 0.95, 500),
     maxHeight: height * 0.9,
     borderRadius: BorderRadius['3xl'],
     padding: 0,
+    flexShrink: 0,
+    minHeight: height * 0.8,
   },
   scrollContent: {
     padding: Spacing[6],

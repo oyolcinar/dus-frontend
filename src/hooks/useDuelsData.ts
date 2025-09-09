@@ -655,11 +655,16 @@ export function useDuelRoomManagement(duelId: number) {
           dispatch({ type: 'BATCH_UPDATE', payload });
         });
       },
+      resetGame: () => {
+        unstable_batchedUpdates(() => {
+          dispatch({ type: 'RESET_GAME' });
+        });
+      },
     }),
     [],
   );
 
-  // Stable refs (unchanged but optimized)
+  // Stable refs (enhanced with duelId tracking)
   const stableRefs = useRef({
     cleanupFunctions: [] as Array<() => void>,
     connectionTimeout: null as number | null,
@@ -670,7 +675,52 @@ export function useDuelRoomManagement(duelId: number) {
     hasConnectedOnce: false,
     retryCount: 0,
     maxRetries: 3,
+    currentDuelId: duelId, // Track current duel ID
   });
+
+  // 🔧 CRITICAL FIX: Reset state when duel ID changes
+  useEffect(() => {
+    const refs = stableRefs.current;
+
+    if (refs.currentDuelId !== duelId) {
+      console.log(
+        '🔄 Duel ID changed, resetting ALL state:',
+        refs.currentDuelId,
+        '->',
+        duelId,
+      );
+
+      // Update tracked duel ID
+      refs.currentDuelId = duelId;
+
+      // Reset initialization flags
+      refs.hasConnectedOnce = false;
+      refs.retryCount = 0;
+      refs.isCleaningUp = false;
+      refs.connectionAttempt = null;
+
+      // CRITICAL: Force cleanup of old event listeners
+      if (refs.eventListenersSetup) {
+        console.log(
+          '🧹 Forcing cleanup of old event listeners for previous duel',
+        );
+        refs.cleanupFunctions.forEach((cleanupFn) => {
+          try {
+            cleanupFn();
+          } catch (error) {
+            console.warn('Error cleaning up old listener:', error);
+          }
+        });
+        refs.cleanupFunctions = [];
+        refs.eventListenersSetup = false;
+      }
+
+      // CRITICAL: Reset the reducer state completely
+      dispatchActions.resetGame();
+
+      console.log('✅ Complete state reset for new duel:', duelId);
+    }
+  }, [duelId, dispatchActions]);
 
   // 🚀 PERFORMANCE FIX 8: Debounced Event Handlers
   const debouncedEventHandlers = useMemo(() => {
@@ -687,7 +737,7 @@ export function useDuelRoomManagement(duelId: number) {
 
     return {
       handleConnect: () => {
-        console.log('📡 Socket connected');
+        console.log('📡 Socket connected for duel:', duelId);
         stableRefs.current.hasConnectedOnce = true;
         debouncedDispatch({
           type: 'SET_CONNECTION',
@@ -696,7 +746,7 @@ export function useDuelRoomManagement(duelId: number) {
       },
 
       handleDisconnect: () => {
-        console.log('📡 Socket disconnected');
+        console.log('📡 Socket disconnected for duel:', duelId);
         debouncedDispatch({
           type: 'BATCH_UPDATE',
           payload: { isConnected: false, isInRoom: false },
@@ -704,7 +754,7 @@ export function useDuelRoomManagement(duelId: number) {
       },
 
       handleRoomJoined: (data: { session: any }) => {
-        console.log('🚪 ROOM JOINED SUCCESS');
+        console.log('🚪 ROOM JOINED SUCCESS for duel:', duelId);
         debouncedDispatch({
           type: 'BATCH_UPDATE',
           payload: {
@@ -733,99 +783,261 @@ export function useDuelRoomManagement(duelId: number) {
         debouncedDispatch({ type: 'SET_GAME', payload: gameUpdate });
       },
     };
-  }, []);
+  }, [duelId]);
 
-  // 🚀 PERFORMANCE FIX 9: Optimized Event Listeners Setup
+  // 🚀 ENHANCED EVENT LISTENERS SETUP with aggressive cleanup
   const setupEventListeners = useCallback(() => {
     const refs = stableRefs.current;
 
     if (refs.eventListenersSetup) {
-      console.log('📡 Event listeners already set up, skipping...');
-      return;
+      console.log(
+        '📡 Event listeners already set up, cleaning up first for duel:',
+        duelId,
+      );
+      // CRITICAL: Force cleanup of existing listeners before setting up new ones
+      refs.cleanupFunctions.forEach((cleanupFn) => {
+        try {
+          cleanupFn();
+        } catch (error) {
+          console.warn('Error cleaning up old listener:', error);
+        }
+      });
+      refs.cleanupFunctions = [];
+      refs.eventListenersSetup = false;
     }
 
-    console.log('📡 Setting up duel room event listeners...');
+    console.log(
+      '📡 Setting up fresh duel room event listeners for duel:',
+      duelId,
+    );
     refs.eventListenersSetup = true;
 
-    const cleanupExisting = () => {
-      socketService.off('room_joined');
-      socketService.off('duel_starting');
-      socketService.off('question_presented');
-      socketService.off('opponent_answered');
-      socketService.off('round_result');
-      socketService.off('duel_completed');
-      socketService.off('timer_update');
-      socketService.off('question_time_up');
-    };
+    // AGGRESSIVE cleanup of ALL potential event listeners
+    const cleanupAllExisting = () => {
+      const eventNames = [
+        'connect',
+        'disconnect',
+        'room_joined',
+        'room_error',
+        'duel_starting',
+        'question_presented',
+        'timer_update',
+        'opponent_answered',
+        'round_result',
+        'duel_completed',
+        'duel_error',
+        'question_time_up',
+        // Additional potential events that might exist
+        'duel_cancelled',
+        'connection_lost',
+        'reconnect_attempt',
+        'user_disconnected',
+      ];
 
-    cleanupExisting();
-
-    // 🚀 PERFORMANCE FIX 10: Optimized Event Handlers
-    const handleRoomError = (data: { message: string }) => {
-      console.log('❌ Room error:', data.message);
-      dispatchActions.batchUpdate({
-        roomError: data.message,
-        phase: 'error',
-        gameError: data.message,
+      eventNames.forEach((eventName) => {
+        try {
+          socketService.off(eventName);
+        } catch (error) {
+          // Ignore cleanup errors but log them for debugging
+          console.debug(`Cleanup warning for event ${eventName}:`, error);
+        }
       });
     };
 
-    const handleDuelStarting = (data: { countdown: number }) => {
-      console.log('🏁 Duel starting:', data);
-      dispatchActions.setGame({ phase: 'countdown' });
+    // Perform aggressive cleanup before setting up new listeners
+    cleanupAllExisting();
+
+    // 🚀 ENHANCED EVENT HANDLERS with duel ID validation and improved error handling
+    const handleRoomError = (data: { message: string; duelId?: number }) => {
+      try {
+        // Validate this event is for current duel
+        if (data.duelId && data.duelId !== duelId) {
+          console.warn(
+            'Ignoring room error for different duel:',
+            data.duelId,
+            'vs current:',
+            duelId,
+          );
+          return;
+        }
+
+        console.log('❌ Room error for duel:', duelId, data.message);
+        dispatchActions.batchUpdate({
+          roomError: data.message,
+          phase: 'error',
+          gameError: data.message,
+        });
+      } catch (error) {
+        console.error('Error handling room error:', error);
+      }
+    };
+
+    const handleDuelStarting = (data: {
+      countdown: number;
+      duelId?: number;
+    }) => {
+      try {
+        // Validate this event is for current duel
+        if (data.duelId && data.duelId !== duelId) {
+          console.warn(
+            'Ignoring duel starting for different duel:',
+            data.duelId,
+            'vs current:',
+            duelId,
+          );
+          return;
+        }
+
+        console.log('🏁 Duel starting for duel:', duelId, data);
+        dispatchActions.setGame({ phase: 'countdown' });
+      } catch (error) {
+        console.error('Error handling duel starting:', error);
+      }
     };
 
     const handleQuestionPresented = (data: any) => {
-      console.log('❓ Question presented:', data);
+      try {
+        // Validate this event is for current duel
+        if (data.duelId && data.duelId !== duelId) {
+          console.warn(
+            'Ignoring question for different duel:',
+            data.duelId,
+            'vs current:',
+            duelId,
+          );
+          return;
+        }
 
-      dispatchActions.batchUpdate({
-        phase: 'question',
-        currentQuestion: data.question,
-        questionIndex: data.questionIndex,
-        totalQuestions: data.totalQuestions,
-        timeLeft: Math.ceil(data.timeLimit / 1000),
-        hasAnswered: false,
-        opponentAnswered: false,
-      });
+        // Validate required data structure
+        if (!data.question) {
+          console.error('Invalid question data - missing question:', data);
+          return;
+        }
+
+        console.log('❓ Question presented for duel:', duelId, {
+          questionIndex: data.questionIndex,
+          totalQuestions: data.totalQuestions,
+          timeLimit: data.timeLimit,
+        });
+
+        dispatchActions.batchUpdate({
+          phase: 'question',
+          currentQuestion: data.question,
+          questionIndex: data.questionIndex || 0,
+          totalQuestions: data.totalQuestions || 3,
+          timeLeft: Math.ceil((data.timeLimit || 60000) / 1000),
+          hasAnswered: false,
+          opponentAnswered: false,
+          gameError: null, // Clear any previous errors
+        });
+      } catch (error) {
+        console.error('Error handling question presented:', error);
+        dispatchActions.setGame({
+          phase: 'error',
+          gameError: 'Failed to process question data',
+        });
+      }
     };
 
     const handleTimerUpdate = (data: any) => {
-      dispatchActions.setGame({ timeLeft: data.timeRemaining });
-    };
-
-    const handleOpponentAnswered = () => {
-      console.log('👥 Opponent answered');
-      dispatchActions.setGame({ opponentAnswered: true });
-    };
-
-    // 🚀 PERFORMANCE FIX 11: Optimized Round Result Handler
-    const handleRoundResult = async (data: any) => {
-      console.log('Round result received - switching to results IMMEDIATELY');
-
-      // Validate data structure
-      if (!data || !data.question || !data.answers) {
-        console.error('Invalid round result data:', data);
-        return;
-      }
-
       try {
+        // Validate this event is for current duel
+        if (data.duelId && data.duelId !== duelId) {
+          console.debug(
+            'Ignoring timer update for different duel:',
+            data.duelId,
+            'vs current:',
+            duelId,
+          );
+          return;
+        }
+
+        // Validate timer data
+        if (typeof data.timeRemaining !== 'number' || data.timeRemaining < 0) {
+          console.warn('Invalid timer data:', data);
+          return;
+        }
+
+        dispatchActions.setGame({ timeLeft: Math.max(0, data.timeRemaining) });
+      } catch (error) {
+        console.error('Error handling timer update:', error);
+      }
+    };
+
+    const handleOpponentAnswered = (data: any = {}) => {
+      try {
+        // Validate this event is for current duel
+        if (data.duelId && data.duelId !== duelId) {
+          console.warn(
+            'Ignoring opponent answer for different duel:',
+            data.duelId,
+            'vs current:',
+            duelId,
+          );
+          return;
+        }
+
+        console.log('👥 Opponent answered for duel:', duelId);
+        dispatchActions.setGame({ opponentAnswered: true });
+      } catch (error) {
+        console.error('Error handling opponent answered:', error);
+      }
+    };
+
+    // 🔧 CRITICAL: Enhanced round result handler with improved validation and error handling
+    const handleRoundResult = async (data: any) => {
+      try {
+        console.log('Round result received for duel:', duelId);
+
+        // VALIDATION: Make sure this event is for the current duel
+        if (data.duelId && data.duelId !== duelId) {
+          console.warn(
+            'Ignoring round result for different duel:',
+            data.duelId,
+            'vs current:',
+            duelId,
+          );
+          return;
+        }
+
+        // Validate data structure
+        if (!data || !data.question || !Array.isArray(data.answers)) {
+          console.error('Invalid round result data structure:', data);
+          dispatchActions.setGame({
+            phase: 'error',
+            gameError: 'Invalid round result data received',
+          });
+          return;
+        }
+
         // Get user ID from cache for better performance
         const currentUserId = await getCachedUserId();
         if (!currentUserId) {
-          console.warn('No current user ID found');
+          console.warn('No current user ID found for round result processing');
+          dispatchActions.setGame({
+            phase: 'error',
+            gameError: 'User authentication lost during duel',
+          });
           return;
         }
 
         // Calculate score updates
         const userAnswer = data.answers.find(
-          (a: any) => a.userId === currentUserId,
+          (a: any) => a && a.userId === currentUserId,
         );
         const opponentAnswer = data.answers.find(
-          (a: any) => a.userId !== currentUserId,
+          (a: any) => a && a.userId !== currentUserId,
         );
 
-        console.log('Score calculation:', {
+        // Get current scores at execution time (not from closure)
+        const currentState = state; // Access current state
+        const currentUserScore = currentState.userScore || 0;
+        const currentOpponentScore = currentState.opponentScore || 0;
+
+        console.log('Score calculation for duel:', duelId, {
           currentUserId,
+          currentUserScore,
+          currentOpponentScore,
           userAnswer: userAnswer
             ? { isCorrect: userAnswer.isCorrect, userId: userAnswer.userId }
             : null,
@@ -837,111 +1049,346 @@ export function useDuelRoomManagement(duelId: number) {
             : null,
         });
 
-        // IMMEDIATE phase switch - no delays
-        console.log('IMMEDIATE TRANSITION: question phase -> results phase');
+        // Calculate new scores
+        const newUserScore = currentUserScore + (userAnswer?.isCorrect ? 1 : 0);
+        const newOpponentScore =
+          currentOpponentScore + (opponentAnswer?.isCorrect ? 1 : 0);
 
-        // Single batched state update
+        // IMMEDIATE phase switch - no delays
+        console.log(
+          'IMMEDIATE TRANSITION: question phase -> results phase for duel:',
+          duelId,
+        );
+
+        // Single batched state update with calculated scores
         dispatchActions.batchUpdate({
           phase: 'results',
-          roundResult: data,
-          userScore: state.userScore + (userAnswer?.isCorrect ? 1 : 0),
-          opponentScore:
-            state.opponentScore + (opponentAnswer?.isCorrect ? 1 : 0),
+          roundResult: {
+            ...data,
+            // Ensure we have all required data
+            questionIndex: data.questionIndex || 0,
+            userCorrect: userAnswer?.isCorrect || false,
+            opponentCorrect: opponentAnswer?.isCorrect || false,
+          },
+          userScore: newUserScore,
+          opponentScore: newOpponentScore,
           timeLeft: 0, // Stop question timer immediately
           hasAnswered: false, // Reset for next question
           opponentAnswered: false, // Reset for next question
           gameError: null, // Clear any previous errors
         });
 
-        console.log('Results phase active - will display for 30 seconds');
-        console.log(
-          'Round result processed successfully - immediate transition complete',
-        );
+        console.log('Results phase active for duel:', duelId, {
+          newUserScore,
+          newOpponentScore,
+        });
       } catch (error) {
-        console.error('Error processing round result:', error);
+        console.error('Error processing round result for duel:', duelId, error);
 
         // Even if score calculation fails, still switch to results immediately
-        console.log('FALLBACK: Switching to results phase despite error');
+        console.log(
+          'FALLBACK: Switching to results phase despite error for duel:',
+          duelId,
+        );
 
-        dispatchActions.setGame({
-          phase: 'results', // IMMEDIATE phase switch even on error
-          roundResult: data,
-          timeLeft: 0, // Stop timer
-          hasAnswered: false, // Reset states
+        dispatchActions.batchUpdate({
+          phase: 'results',
+          roundResult: data || null,
+          timeLeft: 0,
+          hasAnswered: false,
           opponentAnswered: false,
           gameError: null,
         });
       }
     };
 
-    // 🔧 FIXED: Enhanced duel completed handler
+    // 🔧 CRITICAL: Enhanced duel completed handler with comprehensive validation
     const handleDuelCompleted = (data: any) => {
-      console.log('🎉 Duel completed:', data);
+      try {
+        console.log('🎉 Duel completed for duel:', duelId, data);
 
-      if (!data) {
-        console.error('❌ Invalid final results data:', data);
-        return;
+        // VALIDATION: Make sure this event is for the current duel
+        if (data.duelId && data.duelId !== duelId) {
+          console.warn(
+            'Ignoring duel completion for different duel:',
+            data.duelId,
+            'vs current:',
+            duelId,
+          );
+          return;
+        }
+
+        // Validate final results data structure
+        if (!data) {
+          console.error(
+            '❌ Invalid final results data for duel:',
+            duelId,
+            data,
+          );
+          dispatchActions.setGame({
+            phase: 'error',
+            gameError: 'Invalid final results received',
+          });
+          return;
+        }
+
+        // Ensure final results have required structure
+        const finalResults = {
+          ...data,
+          // Provide defaults if missing
+          winnerId: data.winnerId || null,
+          user1: data.user1 || {
+            userId: 0,
+            score: 0,
+            totalTime: 0,
+            accuracy: 0,
+          },
+          user2: data.user2 || {
+            userId: 0,
+            score: 0,
+            totalTime: 0,
+            accuracy: 0,
+          },
+        };
+
+        dispatchActions.setGame({
+          phase: 'final',
+          finalResults,
+          gameError: null, // Clear any errors
+        });
+
+        console.log('✅ Duel completion processed for duel:', duelId);
+      } catch (error) {
+        console.error(
+          'Error handling duel completion for duel:',
+          duelId,
+          error,
+        );
+        dispatchActions.setGame({
+          phase: 'error',
+          gameError: 'Failed to process duel completion',
+        });
       }
+    };
 
+    const handleGameError = (data: { message: string; duelId?: number }) => {
+      try {
+        // Validate this event is for current duel
+        if (data.duelId && data.duelId !== duelId) {
+          console.warn(
+            'Ignoring game error for different duel:',
+            data.duelId,
+            'vs current:',
+            duelId,
+          );
+          return;
+        }
+
+        console.log('❌ Game error for duel:', duelId, data.message);
+        dispatchActions.batchUpdate({
+          phase: 'error',
+          gameError: data.message || 'Unknown game error occurred',
+        });
+      } catch (error) {
+        console.error('Error handling game error:', error);
+        dispatchActions.setGame({
+          phase: 'error',
+          gameError: 'Critical error in game state management',
+        });
+      }
+    };
+
+    // Additional event handlers for better connection management
+    const handleConnectionLost = () => {
+      try {
+        console.log('🔌 Connection lost for duel:', duelId);
+        dispatchActions.batchUpdate({
+          isConnected: false,
+          isInRoom: false,
+          connectionError: 'Connection lost during duel',
+        });
+      } catch (error) {
+        console.error('Error handling connection lost:', error);
+      }
+    };
+
+    const handleDuelCancelled = (data: {
+      reason?: string;
+      duelId?: number;
+    }) => {
+      try {
+        if (data.duelId && data.duelId !== duelId) {
+          console.warn(
+            'Ignoring cancellation for different duel:',
+            data.duelId,
+          );
+          return;
+        }
+
+        console.log('🚫 Duel cancelled for duel:', duelId, data.reason);
+        dispatchActions.setGame({
+          phase: 'error',
+          gameError: data.reason || 'Duel was cancelled',
+        });
+      } catch (error) {
+        console.error('Error handling duel cancellation:', error);
+      }
+    };
+
+    // Register all event listeners with enhanced error handling
+    try {
+      socketService.on('connect', debouncedEventHandlers.handleConnect);
+      socketService.on('disconnect', debouncedEventHandlers.handleDisconnect);
+      socketService.on('room_joined', debouncedEventHandlers.handleRoomJoined);
+      socketService.on('room_error', handleRoomError);
+      socketService.on('duel_starting', handleDuelStarting);
+      socketService.on('question_presented', handleQuestionPresented);
+      socketService.on('timer_update', handleTimerUpdate);
+      socketService.on('opponent_answered', handleOpponentAnswered);
+      socketService.on('round_result', handleRoundResult);
+      socketService.on('duel_completed', handleDuelCompleted);
+      socketService.on('duel_error', handleGameError);
+
+      // Additional event listeners for better error handling
+      socketService.on('connection_lost', handleConnectionLost);
+      socketService.on('duel_cancelled', handleDuelCancelled);
+
+      console.log('✅ All event listeners registered for duel:', duelId);
+    } catch (error) {
+      console.error(
+        'Error registering event listeners for duel:',
+        duelId,
+        error,
+      );
       dispatchActions.setGame({
-        phase: 'final',
-        finalResults: data,
-      });
-
-      console.log('✅ Duel completion processed successfully');
-    };
-
-    const handleGameError = (data: { message: string }) => {
-      console.log('❌ Game error:', data.message);
-      dispatchActions.batchUpdate({
         phase: 'error',
-        gameError: data.message,
+        gameError: 'Failed to set up event listeners',
       });
-    };
+      return;
+    }
 
-    // Register all event listeners
-    socketService.on('connect', debouncedEventHandlers.handleConnect);
-    socketService.on('disconnect', debouncedEventHandlers.handleDisconnect);
-    socketService.on('room_joined', debouncedEventHandlers.handleRoomJoined);
-    socketService.on('room_error', handleRoomError);
-    socketService.on('duel_starting', handleDuelStarting);
-    socketService.on('question_presented', handleQuestionPresented);
-    socketService.on('timer_update', handleTimerUpdate);
-    socketService.on('opponent_answered', handleOpponentAnswered);
-    socketService.on('round_result', handleRoundResult);
-    socketService.on('duel_completed', handleDuelCompleted);
-    socketService.on('duel_error', handleGameError);
-
-    // Store cleanup functions
+    // Store cleanup functions with enhanced error handling
     const cleanupFunctions = [
-      () => socketService.off('connect', debouncedEventHandlers.handleConnect),
-      () =>
-        socketService.off(
-          'disconnect',
-          debouncedEventHandlers.handleDisconnect,
-        ),
-      () =>
-        socketService.off(
-          'room_joined',
-          debouncedEventHandlers.handleRoomJoined,
-        ),
-      () => socketService.off('room_error', handleRoomError),
-      () => socketService.off('duel_starting', handleDuelStarting),
-      () => socketService.off('question_presented', handleQuestionPresented),
-      () => socketService.off('timer_update', handleTimerUpdate),
-      () => socketService.off('opponent_answered', handleOpponentAnswered),
-      () => socketService.off('round_result', handleRoundResult),
-      () => socketService.off('duel_completed', handleDuelCompleted),
-      () => socketService.off('duel_error', handleGameError),
+      () => {
+        try {
+          socketService.off('connect', debouncedEventHandlers.handleConnect);
+        } catch (e) {
+          console.debug('Cleanup error for connect:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off(
+            'disconnect',
+            debouncedEventHandlers.handleDisconnect,
+          );
+        } catch (e) {
+          console.debug('Cleanup error for disconnect:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off(
+            'room_joined',
+            debouncedEventHandlers.handleRoomJoined,
+          );
+        } catch (e) {
+          console.debug('Cleanup error for room_joined:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off('room_error', handleRoomError);
+        } catch (e) {
+          console.debug('Cleanup error for room_error:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off('duel_starting', handleDuelStarting);
+        } catch (e) {
+          console.debug('Cleanup error for duel_starting:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off('question_presented', handleQuestionPresented);
+        } catch (e) {
+          console.debug('Cleanup error for question_presented:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off('timer_update', handleTimerUpdate);
+        } catch (e) {
+          console.debug('Cleanup error for timer_update:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off('opponent_answered', handleOpponentAnswered);
+        } catch (e) {
+          console.debug('Cleanup error for opponent_answered:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off('round_result', handleRoundResult);
+        } catch (e) {
+          console.debug('Cleanup error for round_result:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off('duel_completed', handleDuelCompleted);
+        } catch (e) {
+          console.debug('Cleanup error for duel_completed:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off('duel_error', handleGameError);
+        } catch (e) {
+          console.debug('Cleanup error for duel_error:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off('connection_lost', handleConnectionLost);
+        } catch (e) {
+          console.debug('Cleanup error for connection_lost:', e);
+        }
+      },
+      () => {
+        try {
+          socketService.off('duel_cancelled', handleDuelCancelled);
+        } catch (e) {
+          console.debug('Cleanup error for duel_cancelled:', e);
+        }
+      },
+      () => {
+        try {
+          cleanupAllExisting(); // Final aggressive cleanup
+        } catch (e) {
+          console.debug('Cleanup error for cleanupAllExisting:', e);
+        }
+      },
     ];
 
+    // Add cleanup functions to refs
     refs.cleanupFunctions.push(...cleanupFunctions);
-    console.log('✅ Event listeners set up successfully');
+
+    console.log(
+      '✅ Fresh event listeners set up successfully for duel:',
+      duelId,
+      '- Total cleanup functions:',
+      refs.cleanupFunctions.length,
+    );
   }, [
     debouncedEventHandlers,
     dispatchActions,
-    state.userScore,
-    state.opponentScore,
+    duelId,
+    // Removed state.userScore and state.opponentScore to prevent unnecessary recreations
   ]);
 
   // 🚀 PERFORMANCE FIX 12: Optimized Connection Logic
@@ -950,11 +1397,15 @@ export function useDuelRoomManagement(duelId: number) {
 
     // Prevent multiple concurrent connection attempts
     if (refs.connectionAttempt) {
-      console.log('🔄 Connection already in progress, skipping...');
+      console.log(
+        '🔄 Connection already in progress for duel:',
+        duelId,
+        'skipping...',
+      );
       return refs.connectionAttempt;
     }
 
-    console.log('🚀 Initializing duel room connection...');
+    console.log('🚀 Initializing duel room connection for duel:', duelId);
 
     const connectAttempt = async (): Promise<void> => {
       dispatchActions.setConnection({
@@ -975,7 +1426,7 @@ export function useDuelRoomManagement(duelId: number) {
         }, 15000) as any;
 
         // Attempt connection
-        console.log('🔌 Connecting to socket...');
+        console.log('🔌 Connecting to socket for duel:', duelId);
         await socketService.connect(token);
 
         // Clear timeout
@@ -989,7 +1440,7 @@ export function useDuelRoomManagement(duelId: number) {
           throw new Error('Socket connection failed');
         }
 
-        console.log('✅ Socket connected successfully');
+        console.log('✅ Socket connected successfully for duel:', duelId);
 
         refs.retryCount = 0; // Reset retry count on successful connection
         dispatchActions.batchUpdate({
@@ -1012,7 +1463,7 @@ export function useDuelRoomManagement(duelId: number) {
             roomError instanceof Error
               ? roomError.message
               : 'Failed to join room';
-          console.error('❌ Failed to join duel room:', errorMessage);
+          console.error('❌ Failed to join duel room:', duelId, errorMessage);
           dispatchActions.setRoom({ roomError: errorMessage });
         }
       } catch (error) {
@@ -1024,7 +1475,7 @@ export function useDuelRoomManagement(duelId: number) {
 
         const errorMessage =
           error instanceof Error ? error.message : 'Connection failed';
-        console.error('❌ Connection failed:', errorMessage);
+        console.error('❌ Connection failed for duel:', duelId, errorMessage);
 
         refs.retryCount++;
         dispatchActions.batchUpdate({
@@ -1041,7 +1492,7 @@ export function useDuelRoomManagement(duelId: number) {
             10000,
           );
           console.log(
-            `🔄 Retrying connection in ${retryDelay}ms... (${refs.retryCount}/${refs.maxRetries})`,
+            `🔄 Retrying connection for duel ${duelId} in ${retryDelay}ms... (${refs.retryCount}/${refs.maxRetries})`,
           );
 
           setTimeout(() => {
@@ -1068,7 +1519,9 @@ export function useDuelRoomManagement(duelId: number) {
     async (selectedAnswer: string | null, timeTaken: number) => {
       if (!state.currentQuestion || state.hasAnswered) {
         console.warn(
-          '⚠️ Cannot submit answer: no question or already answered',
+          '⚠️ Cannot submit answer for duel:',
+          duelId,
+          '- no question or already answered',
         );
         return;
       }
@@ -1078,7 +1531,10 @@ export function useDuelRoomManagement(duelId: number) {
       }
 
       try {
-        console.log('📝 Submitting answer:', { selectedAnswer, timeTaken });
+        console.log('📝 Submitting answer for duel:', duelId, {
+          selectedAnswer,
+          timeTaken,
+        });
         socketService.submitAnswer(
           state.currentQuestion.id,
           selectedAnswer,
@@ -1086,11 +1542,11 @@ export function useDuelRoomManagement(duelId: number) {
         );
         dispatchActions.setGame({ hasAnswered: true });
       } catch (error) {
-        console.error('❌ Failed to submit answer:', error);
+        console.error('❌ Failed to submit answer for duel:', duelId, error);
         throw error;
       }
     },
-    [state.currentQuestion, state.hasAnswered, dispatchActions],
+    [state.currentQuestion, state.hasAnswered, dispatchActions, duelId],
   );
 
   // 🔧 STABLE: Signal ready
@@ -1100,19 +1556,19 @@ export function useDuelRoomManagement(duelId: number) {
     }
 
     try {
-      console.log('✅ Signaling ready');
+      console.log('✅ Signaling ready for duel:', duelId);
       socketService.signalReady();
     } catch (error) {
-      console.error('❌ Failed to signal ready:', error);
+      console.error('❌ Failed to signal ready for duel:', duelId, error);
       throw error;
     }
-  }, []);
+  }, [duelId]);
 
-  // 🔧 STABLE: Cleanup - only called on actual unmount
+  // 🔧 ENHANCED: Cleanup with duel ID tracking
   const cleanup = useCallback(() => {
     const refs = stableRefs.current;
 
-    console.log('🧹 FINAL CLEANUP - Component unmounting');
+    console.log('🧹 FINAL CLEANUP - Component unmounting for duel:', duelId);
     refs.isCleaningUp = true;
     refs.isMounted = false;
 
@@ -1127,28 +1583,31 @@ export function useDuelRoomManagement(duelId: number) {
       try {
         cleanupFn();
       } catch (error) {
-        console.warn('Error in cleanup function:', error);
+        console.warn('Error in cleanup function for duel:', duelId, error);
       }
     });
     refs.cleanupFunctions = [];
 
     // Reset flags
     refs.eventListenersSetup = false;
+    refs.connectionAttempt = null;
+    refs.hasConnectedOnce = false;
+    refs.retryCount = 0;
 
     // Disconnect socket
     try {
       socketService.leaveDuelRoom();
       socketService.disconnect();
     } catch (error) {
-      console.warn('Error during socket cleanup:', error);
+      console.warn('Error during socket cleanup for duel:', duelId, error);
     }
 
-    console.log('✅ Final cleanup complete');
-  }, []);
+    console.log('✅ Final cleanup complete for duel:', duelId);
+  }, [duelId]);
 
   // 🔧 CRITICAL: One-time setup - NEVER re-runs
   useEffect(() => {
-    console.log('🔧 useDuelRoomManagement: ONE-TIME SETUP');
+    console.log('🔧 useDuelRoomManagement: ONE-TIME SETUP for duel:', duelId);
     const refs = stableRefs.current;
 
     refs.isMounted = true;
@@ -1156,10 +1615,10 @@ export function useDuelRoomManagement(duelId: number) {
 
     // Return cleanup that only runs on unmount
     return () => {
-      console.log('🔧 useDuelRoomManagement: UNMOUNTING');
+      console.log('🔧 useDuelRoomManagement: UNMOUNTING for duel:', duelId);
       cleanup();
     };
-  }, [cleanup]); // EMPTY ARRAY - NEVER re-runs!
+  }, [cleanup, duelId]); // Include duelId to ensure proper cleanup tracking
 
   // 🚀 PERFORMANCE FIX 14: Memoized Return Value
   const opponentInfo = useMemo(() => {
@@ -1835,12 +2294,162 @@ export function useDuelTimer(initialTime: number = 60) {
 }
 
 // 🚀 SOCKET-BASED BOT CHALLENGE HOOK
+// export function useSocketBotChallenge() {
+//   const [challengeState, setChallengeState] = useState<
+//     'idle' | 'challenging' | 'success' | 'error'
+//   >('idle');
+//   const [challengeError, setChallengeError] = useState<string | null>(null);
+//   const [createdDuel, setCreatedDuel] = useState<any>(null);
+
+//   const challengeBotWithSocket = useCallback(
+//     async (courseId: number, difficulty: number) => {
+//       setChallengeState('challenging');
+//       setChallengeError(null);
+//       setCreatedDuel(null);
+
+//       try {
+//         const { challengeBotWithCourse } = await import('../api/socketService');
+//         await challengeBotWithCourse(courseId, difficulty);
+
+//         // DON'T set success here!
+//         // Let the event listener handle success when server responds
+//       } catch (error) {
+//         setChallengeError(
+//           error instanceof Error ? error.message : 'Challenge failed',
+//         );
+//         setChallengeState('error');
+//       }
+//     },
+//     [],
+//   );
+
+//   const challengeBotWithHttp = useCallback(
+//     async (courseId: number, difficulty: number) => {
+//       setChallengeState('challenging');
+//       setChallengeError(null);
+//       setCreatedDuel(null);
+
+//       try {
+//         const response = await botService.challengeBotWithCourse(
+//           courseId,
+//           difficulty,
+//         );
+
+//         if (response.success && response.duel) {
+//           setCreatedDuel(response.duel);
+//           setChallengeState('success');
+//         } else {
+//           setChallengeError(response.message || 'Challenge failed');
+//           setChallengeState('error');
+//         }
+//       } catch (error) {
+//         console.error('HTTP bot challenge failed:', error);
+//         setChallengeError(
+//           error instanceof Error ? error.message : 'Challenge failed',
+//         );
+//         setChallengeState('error');
+//       }
+//     },
+//     [],
+//   );
+
+//   const challengeBot = useCallback(
+//     async (
+//       courseId: number,
+//       difficulty: number,
+//       preferSocket: boolean = true,
+//     ) => {
+//       if (preferSocket) {
+//         try {
+//           const { isConnected } = await import('../api/socketService');
+//           if (isConnected()) {
+//             await challengeBotWithSocket(courseId, difficulty);
+//             return;
+//           }
+//         } catch (error) {
+//           console.warn('Socket challenge failed, falling back to HTTP:', error);
+//         }
+//       }
+
+//       // Fallback to HTTP
+//       await challengeBotWithHttp(courseId, difficulty);
+//     },
+//     [challengeBotWithSocket, challengeBotWithHttp],
+//   );
+
+//   // Setup socket event listeners for bot challenge responses
+//   useEffect(() => {
+//     const setupBotChallengeListeners = async () => {
+//       try {
+//         const { on, off } = await import('../api/socketService');
+
+//         const handleBotChallengeCreated = (data: { duel: any }) => {
+//           console.log('🤖 Bot challenge created via socket:', data);
+//           setCreatedDuel(data.duel);
+//           setChallengeState('success');
+//         };
+
+//         const handleBotChallengeError = (data: { message: string }) => {
+//           console.log('❌ Bot challenge error via socket:', data);
+//           setChallengeError(data.message);
+//           setChallengeState('error');
+//         };
+
+//         const handleAutoJoinDuel = (data: { duelId: number }) => {
+//           console.log('🎯 Auto-joining duel:', data.duelId);
+//           // This could trigger navigation to the duel room
+//         };
+
+//         on('bot_challenge_created', handleBotChallengeCreated);
+//         on('bot_challenge_error', handleBotChallengeError);
+//         on('auto_join_duel', handleAutoJoinDuel);
+
+//         return () => {
+//           off('bot_challenge_created', handleBotChallengeCreated);
+//           off('bot_challenge_error', handleBotChallengeError);
+//           off('auto_join_duel', handleAutoJoinDuel);
+//         };
+//       } catch (error) {
+//         console.error('Failed to setup bot challenge listeners:', error);
+//       }
+//     };
+
+//     const cleanup = setupBotChallengeListeners();
+
+//     return () => {
+//       cleanup.then((cleanupFn) => cleanupFn && cleanupFn());
+//     };
+//   }, []);
+
+//   const reset = useCallback(() => {
+//     setChallengeState('idle');
+//     setChallengeError(null);
+//     setCreatedDuel(null);
+//   }, []);
+
+//   return {
+//     challengeState,
+//     challengeError,
+//     createdDuel,
+//     challengeBot,
+//     challengeBotWithSocket,
+//     challengeBotWithHttp,
+//     reset,
+//     isLoading: challengeState === 'challenging',
+//     hasError: challengeState === 'error',
+//     isSuccess: challengeState === 'success',
+//   };
+// }
+
 export function useSocketBotChallenge() {
   const [challengeState, setChallengeState] = useState<
     'idle' | 'challenging' | 'success' | 'error'
   >('idle');
   const [challengeError, setChallengeError] = useState<string | null>(null);
   const [createdDuel, setCreatedDuel] = useState<any>(null);
+
+  // Add socket connection state tracking
+  const [socketConnected, setSocketConnected] = useState(false);
 
   const challengeBotWithSocket = useCallback(
     async (courseId: number, difficulty: number) => {
@@ -1851,11 +2460,9 @@ export function useSocketBotChallenge() {
       try {
         const { challengeBotWithCourse } = await import('../api/socketService');
         await challengeBotWithCourse(courseId, difficulty);
-
-        // The socket will emit bot_challenge_created or bot_challenge_error
-        setChallengeState('success');
+        // DON'T set success here!
+        // Let the event listener handle success when server responds
       } catch (error) {
-        console.error('Socket bot challenge failed:', error);
         setChallengeError(
           error instanceof Error ? error.message : 'Challenge failed',
         );
@@ -1919,11 +2526,26 @@ export function useSocketBotChallenge() {
     [challengeBotWithSocket, challengeBotWithHttp],
   );
 
-  // Setup socket event listeners for bot challenge responses
+  // FIXED: Setup socket event listeners with connection state tracking
   useEffect(() => {
     const setupBotChallengeListeners = async () => {
       try {
-        const { on, off } = await import('../api/socketService');
+        const { on, off, isConnected } = await import('../api/socketService');
+
+        const connected = isConnected();
+        setSocketConnected(connected);
+
+        if (!connected) {
+          console.log('🔌 Socket not connected, skipping listener setup');
+          return;
+        }
+
+        console.log('🔧 Setting up bot challenge listeners');
+
+        // CRITICAL: Clean up old listeners first
+        off('bot_challenge_created');
+        off('bot_challenge_error');
+        off('auto_join_duel');
 
         const handleBotChallengeCreated = (data: { duel: any }) => {
           console.log('🤖 Bot challenge created via socket:', data);
@@ -1947,21 +2569,43 @@ export function useSocketBotChallenge() {
         on('auto_join_duel', handleAutoJoinDuel);
 
         return () => {
+          console.log('🧹 Cleaning up bot challenge listeners');
           off('bot_challenge_created', handleBotChallengeCreated);
           off('bot_challenge_error', handleBotChallengeError);
           off('auto_join_duel', handleAutoJoinDuel);
         };
       } catch (error) {
         console.error('Failed to setup bot challenge listeners:', error);
+        setSocketConnected(false);
       }
     };
 
     const cleanup = setupBotChallengeListeners();
 
+    // Check connection state periodically
+    const connectionCheck = setInterval(async () => {
+      try {
+        const { isConnected } = await import('../api/socketService');
+        const connected = isConnected();
+        if (connected !== socketConnected) {
+          console.log(
+            `🔌 Socket connection changed: ${socketConnected} -> ${connected}`,
+          );
+          setSocketConnected(connected);
+        }
+      } catch (error) {
+        if (socketConnected) {
+          console.log('🔌 Socket connection lost');
+          setSocketConnected(false);
+        }
+      }
+    }, 2000); // Check every 2 seconds
+
     return () => {
       cleanup.then((cleanupFn) => cleanupFn && cleanupFn());
+      clearInterval(connectionCheck);
     };
-  }, []);
+  }, [socketConnected]); // Re-run when socket connection changes
 
   const reset = useCallback(() => {
     setChallengeState('idle');
@@ -1980,6 +2624,7 @@ export function useSocketBotChallenge() {
     isLoading: challengeState === 'challenging',
     hasError: challengeState === 'error',
     isSuccess: challengeState === 'success',
+    socketConnected, // Expose for debugging
   };
 }
 
