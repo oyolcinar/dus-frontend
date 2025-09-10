@@ -99,7 +99,7 @@ interface AppActions {
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signInWithFacebook: () => Promise<void>;
-  handleOAuthCallback: (code: string) => Promise<void>;
+  handleOAuthCallback: (params: Record<string, string>) => Promise<void>;
   refreshSession: () => Promise<boolean>;
   checkSession: () => Promise<boolean>;
   validateSession: () => Promise<{ isValid: boolean; message?: string }>;
@@ -626,10 +626,16 @@ export const useAppStore = create<AppStore>()(
             }
           },
 
-          handleOAuthCallback: async (code: string) => {
+          // In your appStore.ts, replace the handleOAuthCallback function with this:
+
+          handleOAuthCallback: async (params: Record<string, string>) => {
             try {
               set({ isLoading: true, authError: null });
-              const response = await authService.handleOAuthCallback(code);
+              console.log('Store handling OAuth callback with params:', params);
+
+              // Use the new processOAuthCallback function from authService
+              const response = await authService.processOAuthCallback(params);
+
               set({
                 user: response.user,
                 isAuthenticated: true,
@@ -639,6 +645,7 @@ export const useAppStore = create<AppStore>()(
                 authError: null,
               });
 
+              // Load initial data
               Promise.allSettled([
                 get().loadNotifications(),
                 get().loadAvailableCourses(),
@@ -646,13 +653,13 @@ export const useAppStore = create<AppStore>()(
                 console.warn('Failed to load initial data after OAuth:', error);
               });
 
-              console.log('✅ OAuth callback successful via authService');
+              console.log('✅ OAuth callback successful in store');
             } catch (error) {
               const errorMessage =
                 error instanceof Error
                   ? error.message
                   : 'OAuth callback failed';
-              console.error('❌ OAuth callback error:', errorMessage);
+              console.error('❌ OAuth callback error in store:', errorMessage);
               set({
                 authError: errorMessage,
                 isLoading: false,

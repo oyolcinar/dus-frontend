@@ -6,11 +6,13 @@ import { User, AuthResponse } from '../types/models';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 // Achievement integration
 import { triggerAchievementCheck } from './achievementService';
+import useAppStore from '@/stores/appStore';
 
-// This is a standard part of Expo's OAuth flow, keep it.
+// FIXED: Complete auth session setup
 WebBrowser.maybeCompleteAuthSession();
 
 // Add token refresh flag to prevent multiple simultaneous refresh attempts
@@ -29,7 +31,13 @@ interface AuthApiPayload {
   };
 }
 
-// Helper functions for build type and app scheme
+// FIXED: Simplified and consistent URL scheme handling
+const getAppScheme = (): string => {
+  // Always use the same scheme regardless of build type
+  return 'dus-app://oauth-callback';
+};
+
+// Keep build type detection for other uses if needed
 const getBuildType = (): 'expo-go' | 'eas-build' => {
   if (Constants.appOwnership === 'expo') {
     return 'expo-go';
@@ -41,19 +49,6 @@ const getBuildType = (): 'expo-go' | 'eas-build' => {
     return 'expo-go';
   }
   return 'eas-build';
-};
-
-const getAppScheme = (): string => {
-  const buildType = getBuildType();
-
-  if (buildType === 'expo-go') {
-    return 'https://auth.expo.io/@dusapptr/dus-app/--/oauth-callback';
-  } else {
-    // For EAS builds
-    return Platform.OS === 'ios'
-      ? 'com.dortac.dusfrontend://oauth-callback'
-      : 'dus-app://oauth-callback';
-  }
 };
 
 function normalizeUser(apiUser: any): User {
@@ -325,8 +320,11 @@ export async function getAuthStatus(): Promise<{
   }
 }
 
-// NEW: Handle OAuth callback via backend
+// DEPRECATED: This function is no longer used with the new deep link approach
 export async function handleOAuthCallback(code: string): Promise<AuthResponse> {
+  console.warn(
+    'handleOAuthCallback is deprecated, use processOAuthCallback instead',
+  );
   try {
     console.log('Handling OAuth callback via backend');
     const response = await apiRequest<AuthApiPayload>(
@@ -363,10 +361,59 @@ export async function handleOAuthCallback(code: string): Promise<AuthResponse> {
   }
 }
 
-// OAuth functions using your backend API
-async function startOAuth(
-  provider: 'google' | 'apple' | 'facebook',
-): Promise<void> {
+// NEW: Process OAuth callback from deep link parameters
+export async function processOAuthCallback(
+  params: Record<string, string>,
+): Promise<AuthResponse> {
+  try {
+    console.log('Processing OAuth callback with params:', params);
+
+    const { access_token, refresh_token, user_id, email, username, error } =
+      params;
+
+    if (error) {
+      throw new Error(`OAuth failed: ${error}`);
+    }
+
+    if (!access_token) {
+      throw new Error('OAuth process did not return an access token.');
+    }
+
+    console.log('✅ Access Token received via deep link. Storing session...');
+
+    // Store tokens
+    await AsyncStorage.setItem('userToken', access_token);
+    await AsyncStorage.setItem('authToken', access_token);
+    if (refresh_token) {
+      await AsyncStorage.setItem('refreshToken', refresh_token);
+    }
+
+    // Get user profile from backend
+    console.log('🚀 Fetching user profile with new token...');
+    const response = await apiRequest<{ user: User }>('/auth/me', 'GET');
+
+    if (!response.data?.user) {
+      throw new Error('Failed to fetch user profile after OAuth login.');
+    }
+
+    const user = normalizeUser(response.data.user);
+    await AsyncStorage.setItem('userData', JSON.stringify(user));
+
+    console.log('✅ OAuth callback processed successfully');
+
+    return {
+      user,
+      token: access_token,
+      refreshToken: refresh_token || null,
+    };
+  } catch (error) {
+    console.error('OAuth callback processing error:', error);
+    throw error;
+  }
+}
+
+// FIXED: Simplified OAuth flow for Google and Facebook
+async function startOAuth(provider: 'google' | 'facebook'): Promise<void> {
   try {
     console.log(`Starting ${provider} OAuth flow via backend`);
 
@@ -376,13 +423,15 @@ async function startOAuth(
     );
 
     if (!response.data?.url) {
-      throw new Error(`${provider} OAuth URL alınamadı sunucudan.`);
+      throw new Error(
+        `${provider} OAuth URL could not be retrieved from server.`,
+      );
     }
 
     console.log(`Opening ${provider} OAuth URL:`, response.data.url);
 
+    // FIXED: Use consistent redirect URL
     const redirectUrl = getAppScheme();
-
     console.log(`Expected redirect URL: ${redirectUrl}`);
 
     const result = await WebBrowser.openAuthSessionAsync(
@@ -401,7 +450,7 @@ async function startOAuth(
 
     if (result.type === 'success') {
       console.log('OAuth completed successfully, URL:', result.url);
-      // The deep link handler will process the callback
+      // The deep link handler will process the callback automatically
     } else if (result.type === 'cancel') {
       console.log('OAuth was cancelled by user');
       return;
@@ -414,7 +463,7 @@ async function startOAuth(
     if (error instanceof ApiError) {
       if (error.status === 500) {
         throw new Error(
-          `${provider} giriş servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.`,
+          `${provider} sign-in service is currently unavailable. Please try again later.`,
         );
       }
       throw error;
@@ -423,7 +472,7 @@ async function startOAuth(
       console.log('OAuth flow cancelled by user.');
       return;
     }
-    throw new Error(`${provider} giriş işlemi başlatılamadı.`);
+    throw new Error(`${provider} sign-in process could not be started.`);
   }
 }
 
@@ -431,12 +480,81 @@ export async function signInWithGoogle(): Promise<void> {
   return startOAuth('google');
 }
 
-export async function signInWithApple(): Promise<void> {
-  return startOAuth('apple');
-}
-
 export async function signInWithFacebook(): Promise<void> {
   return startOAuth('facebook');
+}
+
+// FIXED: Pure native Apple authentication (no backend OAuth)
+export async function signInWithApple(): Promise<void> {
+  const { setUser, setAuthError, setAuthLoading } = useAppStore.getState();
+
+  try {
+    console.log('🍏 Starting NATIVE Apple Sign-In flow...');
+    setAuthLoading(true);
+
+    // Check if Apple Sign In is available
+    const isAvailable = await AppleAuthentication.isAvailableAsync();
+    if (!isAvailable) {
+      throw new Error('Apple Sign In is not available on this device.');
+    }
+
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+
+    if (!credential.identityToken) {
+      throw new Error(
+        'Apple Sign-In failed: No identity token was received from Apple.',
+      );
+    }
+
+    console.log('🍏 Native Apple Sign-In successful. Calling backend...');
+
+    // Call your backend's dedicated Apple endpoint with the token
+    const response = await apiRequest<any>('/auth/apple', 'POST', {
+      id_token: credential.identityToken,
+    });
+
+    const apiData = response.data;
+    if (!apiData?.user || !apiData.session?.access_token) {
+      throw new Error(
+        'Invalid response from backend after Apple Sign-In. Check server logs.',
+      );
+    }
+
+    console.log('🍏 Backend validated token successfully. Storing session...');
+
+    const user = normalizeUser(apiData.user);
+
+    // Store the session
+    await AsyncStorage.setItem('userToken', apiData.session.access_token);
+    await AsyncStorage.setItem('authToken', apiData.session.access_token);
+    if (apiData.session.refresh_token) {
+      await AsyncStorage.setItem('refreshToken', apiData.session.refresh_token);
+    }
+    await AsyncStorage.setItem('userData', JSON.stringify(user));
+
+    // Update the Zustand store to trigger navigation
+    setUser(user);
+
+    console.log('✅ Apple login fully completed and state updated.');
+  } catch (error: any) {
+    if (
+      error.code === 'ERR_REQUEST_CANCELED' ||
+      error.code === 'ERR_CANCELED'
+    ) {
+      console.log('User cancelled the native Apple Sign-In prompt.');
+      return;
+    }
+    console.error('❌ Apple Sign-In error:', error);
+    setAuthError('Apple sign-in failed. Please try again.');
+    throw error;
+  } finally {
+    setAuthLoading(false);
+  }
 }
 
 // Password reset via backend API
@@ -452,7 +570,7 @@ export async function requestPasswordReset(
         throw new Error('Bu e-posta adresiyle kayıtlı kullanıcı bulunamadı.');
       } else if (error.status === 429) {
         throw new Error(
-          'Çok fazla şifre sıfırlama talebi gönderdינiz. Lütfen daha sonra tekrar deneyin.',
+          'Çok fazla şifre sıfırlama talebi gönderdנזь. Lütfen daha sonra tekrar deneyin.',
         );
       }
       throw error;
@@ -750,6 +868,8 @@ export async function debugAuthState(): Promise<void> {
       console.log('Token exists:', !!token);
       console.log('Token valid:', tokenValid);
       console.log('Is refreshing:', isRefreshing);
+      console.log('App scheme:', getAppScheme());
+      console.log('Build type:', getBuildType());
 
       if (user) {
         try {

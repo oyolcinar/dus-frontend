@@ -15,23 +15,19 @@ import {
 import { SplashScreen } from 'expo-router';
 import { useFonts } from 'expo-font';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { Stack, useSegments, usePathname, useRouter } from 'expo-router';
+import { Stack, useSegments, useRouter } from 'expo-router';
 import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
 } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
 import {
   useAuth,
   useTheme as useAppTheme,
   useNetwork,
 } from '../stores/appStore';
-
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as ErrorReporting from '../services/errorReporting';
 import { AssetProvider, preloadAssets } from '../services/assetManager';
@@ -51,8 +47,8 @@ export const unstable_settings = {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
       retry: 2,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
       refetchOnWindowFocus: false,
@@ -73,141 +69,115 @@ const fontConfig = {
 function AppInitializer() {
   const { initializeApp } = useAuth();
   const { setNetworkStatus } = useNetwork();
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false);
   const initializationAttempted = useRef(false);
 
   useEffect(() => {
-    if (initializationAttempted.current || isInitializing || isInitialized) {
+    if (initializationAttempted.current) {
       return;
     }
+    initializationAttempted.current = true;
 
     let networkUnsubscribe: (() => void) | null = null;
 
     const initialize = async () => {
       try {
-        initializationAttempted.current = true;
-        setIsInitializing(true);
-
         console.log('🚀 Starting single app initialization...');
-
-        try {
-          const netInfoUnsubscribe = NetInfo.addEventListener((state) => {
-            const isOnline = !!state.isConnected && !!state.isInternetReachable;
-            setNetworkStatus(isOnline);
-          });
-          networkUnsubscribe = netInfoUnsubscribe;
-        } catch (networkError) {
-          console.warn('⚠️ Network monitoring setup failed:', networkError);
-        }
+        networkUnsubscribe = NetInfo.addEventListener((state) => {
+          const isOnline = !!state.isConnected && !!state.isInternetReachable;
+          setNetworkStatus(isOnline);
+        });
         await initializeApp();
-
-        setIsInitialized(true);
         console.log('✅ App initialization complete');
       } catch (error) {
         console.error('❌ App initialization failed:', error);
-        setIsInitialized(true);
-
+        // ✅ TS FIX: ErrorReporting.logError does not return a promise, so handle errors in a try/catch
         try {
           ErrorReporting.logError(error as Error);
         } catch (reportingError) {
           console.warn('Error reporting failed:', reportingError);
         }
-      } finally {
-        setIsInitializing(false);
       }
     };
 
     initialize();
     return () => {
-      if (networkUnsubscribe) {
-        networkUnsubscribe();
-      }
+      networkUnsubscribe?.();
     };
-  }, []);
+  }, [initializeApp, setNetworkStatus]);
 
   return null;
 }
+
+// ✅ ====================================================================
+// ✅ THE MAIN FIX: ROBUST NAVIGATION GUARD (TS-SAFE)
+// ✅ ====================================================================
 function NavigationGuard() {
   const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const lastRedirect = useRef<string | null>(null);
-  const redirectCount = useRef(0);
-  const redirectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isNavigating = useRef(false);
 
   useEffect(() => {
-    if (redirectTimeout.current) {
-      clearTimeout(redirectTimeout.current);
-    }
+    // Wait until the initial authentication check is complete.
     if (isLoading) {
-      console.log('🔄 Navigation guard waiting - auth loading...');
+      console.log('🔄 NavigationGuard: Waiting for auth check to complete...');
       return;
     }
 
-    const currentPath = segments.join('/');
-    const inAuthGroup = segments[0] === '(auth)';
-
-    console.log('🔄 Navigation check:', {
-      currentPath,
-      inAuthGroup,
-      isAuthenticated,
-      redirectCount: redirectCount.current,
-    });
-
-    if (redirectCount.current > 3) {
-      console.warn('⚠️ Too many redirects, resetting counter');
-      redirectCount.current = 0;
-      return;
-    }
-
-    const targetPath = isAuthenticated ? '/(tabs)' : '/(auth)/login';
-    const shouldRedirect = isAuthenticated ? inAuthGroup : !inAuthGroup;
-
-    if (shouldRedirect && targetPath !== lastRedirect.current) {
-      redirectTimeout.current = setTimeout(() => {
-        try {
-          console.log(`🔀 Redirecting to ${targetPath}`);
-          lastRedirect.current = targetPath;
-          redirectCount.current++;
-
-          router.replace(targetPath);
-        } catch (error) {
-          console.error('❌ Navigation error:', error);
-        }
-      }, 100);
-    } else if (!shouldRedirect) {
-      redirectCount.current = 0;
-      lastRedirect.current = null;
-    }
-
-    return () => {
-      if (redirectTimeout.current) {
-        clearTimeout(redirectTimeout.current);
+    // After loading, the router might need a moment to be ready.
+    // A short delay helps prevent race conditions.
+    const navigationTimeout = setTimeout(() => {
+      if (isNavigating.current) {
+        return;
       }
-    };
+
+      const inAuthGroup = segments[0] === '(auth)';
+
+      // Condition 1: User is logged in but is in the auth section.
+      if (isAuthenticated && inAuthGroup) {
+        isNavigating.current = true;
+        console.log(
+          '🔀 NavigationGuard: User is authenticated, redirecting to App -> /(tabs)',
+        );
+        router.replace('/(tabs)');
+      }
+
+      // Condition 2: User is NOT logged in and is outside the auth section.
+      else if (!isAuthenticated && !inAuthGroup) {
+        isNavigating.current = true;
+        console.log(
+          '🔀 NavigationGuard: User is not authenticated, redirecting to Auth -> /(auth)/login',
+        );
+        router.replace('/(auth)/login');
+      }
+    }, 100); // A small 100ms delay can stabilize navigation.
+
+    // Cleanup timeout on re-render
+    return () => clearTimeout(navigationTimeout);
   }, [isAuthenticated, isLoading, segments, router]);
+
+  // Reset navigation lock when route changes, allowing for new navigation.
+  useEffect(() => {
+    isNavigating.current = false;
+  }, [segments]);
 
   return null;
 }
-
 function DeepLinkListener() {
   useEffect(() => {
     console.log('🔗 Setting up deep link listening...');
 
-    Linking.getInitialURL()
-      .then((url) => {
-        if (url) {
-          console.log('📱 Initial deep link detected:', url);
-          handleDeepLink(url).catch((error) => {
-            console.error('❌ Error handling initial deep link:', error);
-          });
-        }
-      })
-      .catch((error) => {
-        console.error('❌ Error getting initial URL:', error);
-      });
+    // Handle initial URL when app is opened from a deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        console.log('📱 Initial deep link detected:', url);
+        handleDeepLink(url).catch((error) => {
+          console.error('❌ Error handling initial deep link:', error);
+        });
+      }
+    });
 
+    // Handle deep links when app is already running
     const subscription = Linking.addEventListener('url', (event) => {
       console.log('📱 Runtime deep link detected:', event.url);
       handleDeepLink(event.url).catch((error) => {
@@ -215,25 +185,13 @@ function DeepLinkListener() {
       });
     });
 
-    console.log('✅ Deep link listener setup complete');
-
     return () => {
-      console.log('🔗 Cleaning up deep link listener...');
       subscription?.remove();
     };
   }, []);
 
   return null;
 }
-
-// function LoadingScreen({ message = 'Loading...' }: { message?: string }) {
-//   return (
-//     <View style={styles.loadingContainer}>
-//       <ActivityIndicator size='large' color='#4285F4' />
-//       <Text style={styles.loadingText}>{message}</Text>
-//     </View>
-//   );
-// }
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
@@ -242,32 +200,25 @@ export default function RootLayout() {
 
   useEffect(() => {
     let isMounted = true;
-
     async function prepare() {
       try {
         console.log('🔄 Preparing app services...');
-
+        // ✅ TS FIX: Calling functions that don't return promises in individual try/catch blocks
         try {
           await ErrorReporting.initialize();
-        } catch (errorReportingError) {
-          console.warn(
-            'Error reporting initialization failed:',
-            errorReportingError,
-          );
+        } catch (e) {
+          console.warn('Error reporting init failed:', e);
         }
         try {
           await preloadAssets();
-        } catch (assetError) {
-          console.warn('Asset preloading failed:', assetError);
+        } catch (e) {
+          console.warn('Asset preloading failed:', e);
         }
-
         setHasInitServices(true);
         console.log('✅ App services prepared');
       } catch (e) {
         console.warn('Error in app preparation:', e);
-
         setHasInitServices(true);
-
         try {
           ErrorReporting.logError(e as Error);
         } catch (reportingError) {
@@ -279,9 +230,7 @@ export default function RootLayout() {
         }
       }
     }
-
     prepare();
-
     return () => {
       isMounted = false;
     };
@@ -290,6 +239,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (error) {
       console.error('Font loading error:', error);
+      // ✅ TS FIX: Handle potential errors from logging as well
       try {
         ErrorReporting.logError(error);
       } catch (reportingError) {
@@ -298,44 +248,39 @@ export default function RootLayout() {
     }
   }, [error]);
 
-  useEffect(() => {
+  const onLayoutRootView = useCallback(async () => {
     if (loaded && appIsReady && hasInitServices) {
-      setTimeout(() => {
-        SplashScreen.hideAsync().catch((error) => {
-          console.warn('Failed to hide splash screen:', error);
-        });
-      }, 100);
+      await SplashScreen.hideAsync();
     }
   }, [loaded, appIsReady, hasInitServices]);
 
-  // if (!loaded || !appIsReady || !hasInitServices) {
-  //   return <LoadingScreen message='Preparing app...' />;
-  // }
+  if (!loaded || !appIsReady || !hasInitServices) {
+    return null; // Keep splash screen visible
+  }
 
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <AssetProvider>
-          <AppInitializer />
-          <NavigationGuard />
-          <RootLayoutNav />
-        </AssetProvider>
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    // Use a View with onLayout to guarantee hideAsync is called after layout
+    <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <AssetProvider>
+            <AppInitializer />
+            <NavigationGuard />
+            <RootLayoutNav />
+          </AssetProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </View>
   );
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const { isAuthenticated, isLoading } = useAuth();
-
   const { theme: storeTheme } = useAppTheme();
-
   const theme = storeTheme || (colorScheme === 'dark' ? 'dark' : 'light');
 
   const customNavigationTheme = useMemo(() => {
     const navigationTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
-
     return {
       ...navigationTheme,
       colors: {
@@ -353,32 +298,19 @@ function RootLayoutNav() {
     [theme],
   );
 
-  // if (isLoading) {
-  //   return <LoadingScreen message='Checking authentication...' />;
-  // }
-
   return (
     <ThemeProvider value={customNavigationTheme}>
       <StatusBar style={statusBarStyle} />
       <AppBackground>
         <DeepLinkListener />
-
-        <Stack screenOptions={stackScreenOptions}>
-          <Stack.Screen name='(auth)' options={authScreenOptions} />
-          <Stack.Screen name='(tabs)' options={tabsScreenOptions} />
+        <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+          <Stack.Screen name='(auth)' />
+          <Stack.Screen name='(tabs)' />
         </Stack>
       </AppBackground>
     </ThemeProvider>
   );
 }
-
-const stackScreenOptions = {
-  headerShown: false,
-  animation: 'fade' as const,
-};
-
-const authScreenOptions = { headerShown: false };
-const tabsScreenOptions = { headerShown: false };
 
 const styles = StyleSheet.create({
   loadingContainer: {

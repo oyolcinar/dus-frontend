@@ -23,7 +23,7 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "dus-app-oauth",
-            "CFBundleURLSchemes": ["dus-app", "com.dortac.dusfrontend"]
+            "CFBundleURLSchemes": ["dus-app"]
           }
         ]
       },
@@ -37,16 +37,13 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#a8d8e6"
       },
-      "package": "com.dusapptr.dusapp",
+      "package": "com.dortac.dusfrontend",
       "intentFilters": [
         {
           "action": "VIEW",
           "data": [
             {
               "scheme": "dus-app"
-            },
-            {
-              "scheme": "com.dusapptr.dusapp"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
