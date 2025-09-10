@@ -90,7 +90,6 @@ function AppInitializer() {
         console.log('✅ App initialization complete');
       } catch (error) {
         console.error('❌ App initialization failed:', error);
-        // ✅ TS FIX: ErrorReporting.logError does not return a promise, so handle errors in a try/catch
         try {
           ErrorReporting.logError(error as Error);
         } catch (reportingError) {
@@ -108,9 +107,7 @@ function AppInitializer() {
   return null;
 }
 
-// ✅ ====================================================================
-// ✅ THE MAIN FIX: ROBUST NAVIGATION GUARD (TS-SAFE)
-// ✅ ====================================================================
+// ROBUST NAVIGATION GUARD
 function NavigationGuard() {
   const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
@@ -163,15 +160,61 @@ function NavigationGuard() {
 
   return null;
 }
+
+// FIXED: Enhanced Deep Link Listener with iOS bug workaround
 function DeepLinkListener() {
+  const url = Linking.useURL();
+  const processedUrls = useRef(new Set<string>());
+
+  // FIX for Expo Router iOS deep linking bug - process URLs directly
   useEffect(() => {
-    console.log('🔗 Setting up deep link listening...');
+    if (!url) return;
+
+    // Prevent processing the same URL multiple times
+    if (processedUrls.current.has(url)) {
+      return;
+    }
+    processedUrls.current.add(url);
+
+    console.log('🔗 Deep link received via useURL:', url);
+
+    // Check if this is an OAuth callback by parsing the URL
+    const { hostname, path, queryParams } = Linking.parse(url);
+    console.log('📋 Parsed URL parts:', { hostname, path, queryParams });
+
+    // Handle OAuth callback URLs directly (bypass Expo Router bug)
+    if (
+      (path && path.includes('oauth-callback')) ||
+      (hostname && hostname.includes('oauth-callback')) ||
+      url.includes('oauth-callback')
+    ) {
+      console.log('🔄 Processing OAuth callback directly...');
+
+      // Convert queryParams to string record for consistency
+      const params: Record<string, string> = {};
+      Object.entries(queryParams || {}).forEach(([key, value]) => {
+        params[key] = String(value);
+      });
+
+      // Call the OAuth handler directly
+      handleDeepLink(url).catch((error) => {
+        console.error('❌ Error handling OAuth deep link:', error);
+      });
+    } else {
+      console.log('🔗 Regular deep link, letting Expo Router handle it');
+    }
+  }, [url]);
+
+  // Fallback: Traditional deep link handling for when app is already running
+  useEffect(() => {
+    console.log('🔗 Setting up traditional deep link listening...');
 
     // Handle initial URL when app is opened from a deep link
-    Linking.getInitialURL().then((url) => {
-      if (url) {
-        console.log('📱 Initial deep link detected:', url);
-        handleDeepLink(url).catch((error) => {
+    Linking.getInitialURL().then((initialUrl) => {
+      if (initialUrl && !processedUrls.current.has(initialUrl)) {
+        console.log('📱 Initial deep link detected:', initialUrl);
+        processedUrls.current.add(initialUrl);
+        handleDeepLink(initialUrl).catch((error) => {
           console.error('❌ Error handling initial deep link:', error);
         });
       }
@@ -179,15 +222,33 @@ function DeepLinkListener() {
 
     // Handle deep links when app is already running
     const subscription = Linking.addEventListener('url', (event) => {
-      console.log('📱 Runtime deep link detected:', event.url);
-      handleDeepLink(event.url).catch((error) => {
-        console.error('❌ Error handling runtime deep link:', error);
-      });
+      if (!processedUrls.current.has(event.url)) {
+        console.log('📱 Runtime deep link detected:', event.url);
+        processedUrls.current.add(event.url);
+        handleDeepLink(event.url).catch((error) => {
+          console.error('❌ Error handling runtime deep link:', error);
+        });
+      }
     });
 
     return () => {
       subscription?.remove();
     };
+  }, []);
+
+  // Clear processed URLs cache periodically to prevent memory leaks
+  useEffect(() => {
+    const clearCache = setInterval(
+      () => {
+        if (processedUrls.current.size > 50) {
+          console.log('🧹 Clearing deep link URL cache');
+          processedUrls.current.clear();
+        }
+      },
+      5 * 60 * 1000,
+    ); // Clear every 5 minutes
+
+    return () => clearInterval(clearCache);
   }, []);
 
   return null;
@@ -203,7 +264,6 @@ export default function RootLayout() {
     async function prepare() {
       try {
         console.log('🔄 Preparing app services...');
-        // ✅ TS FIX: Calling functions that don't return promises in individual try/catch blocks
         try {
           await ErrorReporting.initialize();
         } catch (e) {
@@ -239,7 +299,6 @@ export default function RootLayout() {
   useEffect(() => {
     if (error) {
       console.error('Font loading error:', error);
-      // ✅ TS FIX: Handle potential errors from logging as well
       try {
         ErrorReporting.logError(error);
       } catch (reportingError) {
@@ -259,7 +318,6 @@ export default function RootLayout() {
   }
 
   return (
-    // Use a View with onLayout to guarantee hideAsync is called after layout
     <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
