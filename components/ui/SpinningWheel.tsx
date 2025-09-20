@@ -53,7 +53,7 @@ export interface SpinningWheelProps {
   onWinnerModalClose?: () => void;
 }
 
-const logoWhite = require('../../assets/images/logoWhite.jpg');
+const icon = require('../../assets/images/icon.png');
 const logoVideo = require('../../assets/videos/heyecanli.mp4');
 
 const defaultItems = [
@@ -488,9 +488,9 @@ const SpinningWheel: React.FC<SpinningWheelProps> = ({
             spinButtonStyle,
           ]}
         >
-          {logoWhite ? (
+          {icon ? (
             // <Image
-            //   source={logoWhite}
+            //   source={icon}
             //   style={[styles.spinButtonImage, { borderRadius: size / 8 }]}
             // />
             <PlayfulCard

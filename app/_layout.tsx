@@ -38,6 +38,7 @@ import { handleDeepLink } from '../utils/oauthDeepLinkHandler';
 import {
   setupPushNotifications,
   setupNotificationListeners,
+  registerDeviceTokenWithValidation,
 } from '../src/api/notificationService';
 
 SplashScreen.preventAutoHideAsync();
@@ -335,8 +336,9 @@ export default function RootLayout() {
 
             // Setup push notifications
             const result = await setupPushNotifications();
-            if (result.success) {
-              console.log('Push notifications setup successful');
+            if (result.success && result.token) {
+              // Explicitly verify backend registration
+              await registerDeviceTokenWithValidation(result.token, true);
             }
 
             // Setup listeners

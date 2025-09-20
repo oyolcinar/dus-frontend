@@ -60,7 +60,6 @@ export default function ForgotPasswordScreen() {
   // 🚀 NEW: User data hook (for consistency with login screen)
   const userDataQuery = useUserData();
 
-  const logoWhite = require('../../assets/images/logoWhite.jpg');
   const logoVideo = require('../../assets/videos/heyecanli.mp4');
 
   const isDarkMode = useMemo(
