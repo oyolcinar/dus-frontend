@@ -377,7 +377,9 @@ export async function setupCourseNotificationHandling(): Promise<() => void> {
 }
 
 // Setup notification listeners
-export function setupNotificationListeners() {
+export function setupNotificationListeners(options?: {
+  onNotificationTap?: (notification: any) => void;
+}) {
   // Handle notification received while app is in foreground
   const foregroundSubscription = Notifications.addNotificationReceivedListener(
     (notification) => {
@@ -411,7 +413,50 @@ export function setupNotificationListeners() {
           '📚 Course notification tapped - navigation data:',
           courseData,
         );
-        // Add course-specific navigation logic here
+      }
+
+      // ✅ NEW: Transform notification response into format expected by navigation hook
+      const notification = {
+        notification_id: response.notification.request.identifier || 'local',
+        notification_type: data?.notification_type || 'system_announcement',
+        title: response.notification.request.content.title || 'Notification',
+        body: response.notification.request.content.body || '',
+        action_url: data?.action_url || null,
+        metadata: data?.metadata || data || {},
+        content: response.notification.request.content.body || '',
+        is_read: false,
+        created_at: new Date().toISOString(),
+        // Include any other fields that might be needed
+        icon_name: data?.icon_name || null,
+        status: 'delivered',
+        channels: ['in_app'],
+        scheduled_for: new Date().toISOString(),
+        expires_at: null,
+        sent_at: new Date().toISOString(),
+        read_at: null,
+      };
+
+      console.log('🚀 Transformed notification for navigation:', {
+        id: notification.notification_id,
+        type: notification.notification_type,
+        action_url: notification.action_url,
+        metadata: notification.metadata,
+      });
+
+      // ✅ NEW: Call the navigation handler if provided
+      if (options?.onNotificationTap) {
+        console.log('🚀 Calling navigation handler...');
+        try {
+          options.onNotificationTap(notification);
+          console.log('✅ Navigation handler called successfully');
+        } catch (error) {
+          console.error('❌ Error in navigation handler:', error);
+        }
+      } else {
+        console.warn('⚠️ No navigation handler provided for notification tap');
+        console.warn(
+          '💡 Notification will be logged but no navigation will occur',
+        );
       }
     });
 

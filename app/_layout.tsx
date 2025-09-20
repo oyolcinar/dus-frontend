@@ -40,6 +40,7 @@ import {
   setupNotificationListeners,
   registerDeviceTokenWithValidation,
 } from '../src/api/notificationService';
+import { useNotificationNavigation } from '@/src/hooks/useNotificationNavigation';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -324,6 +325,7 @@ export default function RootLayout() {
 
   function NotificationSetup() {
     const { isAuthenticated, hasInitialized } = useAuth();
+    const { navigateFromNotification } = useNotificationNavigation();
     const setupAttempted = useRef(false);
 
     useEffect(() => {
@@ -337,12 +339,13 @@ export default function RootLayout() {
             // Setup push notifications
             const result = await setupPushNotifications();
             if (result.success && result.token) {
-              // Explicitly verify backend registration
               await registerDeviceTokenWithValidation(result.token, true);
             }
 
-            // Setup listeners
-            const cleanup = setupNotificationListeners();
+            // Setup listeners WITH navigation handler
+            const cleanup = setupNotificationListeners({
+              onNotificationTap: navigateFromNotification, // PASS THE NAVIGATION HANDLER
+            });
 
             return cleanup;
           } catch (error) {
@@ -351,12 +354,11 @@ export default function RootLayout() {
         };
 
         const cleanupPromise = initNotifications();
-
         return () => {
           cleanupPromise.then((cleanup) => cleanup?.());
         };
       }
-    }, [hasInitialized, isAuthenticated]);
+    }, [hasInitialized, isAuthenticated, navigateFromNotification]); // ADD DEPENDENCY
 
     return null;
   }
