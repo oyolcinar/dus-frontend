@@ -12,6 +12,7 @@ export const useNotificationNavigation = () => {
     '/courses': '/(tabs)/courses',
     '/study': '/study',
     '/settings': '/settings',
+    '/notifications': '/(tabs)/notifications',
     // Add more mappings as needed
   };
 
@@ -24,139 +25,124 @@ export const useNotificationNavigation = () => {
     // Check if we have a mapping for this route
     const mappedRoute = ROUTE_MAPPING[route];
     if (mappedRoute) {
-      console.log(`🗺️ Mapped route: ${route} → ${mappedRoute}`);
       return mappedRoute;
     }
 
     // If no mapping found, return original route
-    console.log(`⚠️ No mapping found for route: ${route}`);
     return route;
   }, []);
 
   const navigateFromNotification = useCallback(
     (notification: Notification) => {
-      console.log('🚀 Navigation Debug - Full notification:', notification);
+      // Add delay to ensure app is fully loaded when opened from notification
+      const performNavigation = () => {
+        const { notification_type, action_url, metadata } = notification;
 
-      const { notification_type, action_url, metadata } = notification;
+        // If there's a specific action URL, parse it and navigate
+        if (action_url) {
+          const mappedUrl = mapRoute(action_url);
+          handleActionUrl(mappedUrl, metadata);
+          return;
+        }
 
-      console.log('🚀 Navigation Debug:', {
-        notification_type,
-        action_url,
-        metadata,
-      });
-
-      // If there's a specific action URL, parse it and navigate
-      if (action_url) {
-        console.log('🚀 Using action_url:', action_url);
-        const mappedUrl = mapRoute(action_url);
-        handleActionUrl(mappedUrl, metadata);
-        return;
-      }
-
-      console.log('🚀 Using default navigation for type:', notification_type);
-
-      // Default navigation based on notification type
-      switch (notification_type) {
-        case 'study_reminder':
-          router.push('/(tabs)/courses' as any);
-          break;
-
-        case 'achievement_unlock':
-          console.log('🚀 Navigating to achievements (default)');
-          router.push('/(tabs)/profile/achievements' as any);
-          break;
-
-        case 'duel_invitation':
-          if (metadata?.duel_id) {
-            router.push(`/duels/${metadata.duel_id}` as any);
-          } else {
-            router.push('/(tabs)/duels' as any);
-          }
-          break;
-
-        case 'duel_result':
-          if (metadata?.duel_id) {
-            router.push(`/(tabs)/duels/${metadata.duel_id}/result` as any);
-          } else {
-            router.push('/(tabs)/duels' as any);
-          }
-          break;
-
-        case 'friend_request':
-          router.push('/(tabs)/profile/friends' as any);
-          break;
-
-        case 'friend_activity':
-          if (metadata?.friend_id) {
-            router.push(`/(tabs)/profile/friends/${metadata.friend_id}` as any);
-          } else {
-            router.push('/(tabs)/profile/friends' as any);
-          }
-          break;
-
-        case 'content_update':
-          if (metadata?.content_id) {
-            router.push(`/content/${metadata.content_id}` as any);
-          } else {
+        // Default navigation based on notification type
+        switch (notification_type) {
+          case 'study_reminder':
             router.push('/(tabs)/courses' as any);
-          }
-          break;
+            break;
 
-        case 'streak_reminder':
-          router.push('/study' as any);
-          break;
+          case 'achievement_unlock':
+            router.push('/(tabs)/profile/achievements' as any);
+            break;
 
-        case 'plan_reminder':
-          if (metadata?.plan_id) {
-            router.push(`/study/plan/${metadata.plan_id}` as any);
-          } else {
-            router.push('/study/plan' as any);
-          }
-          break;
+          case 'duel_invitation':
+            if (metadata?.duel_id) {
+              router.push(`/duels/${metadata.duel_id}` as any);
+            } else {
+              router.push('/(tabs)/duels' as any);
+            }
+            break;
 
-        case 'coaching_note':
-          if (metadata?.note_id) {
-            router.push(`/coaching/${metadata.note_id}` as any);
-          } else {
-            router.push('/coaching' as any);
-          }
-          break;
+          case 'duel_result':
+            if (metadata?.duel_id) {
+              router.push(`/(tabs)/duels/${metadata.duel_id}/result` as any);
+            } else {
+              router.push('/(tabs)/duels' as any);
+            }
+            break;
 
-        case 'motivational_message':
-          router.push('/' as any);
-          break;
+          case 'friend_request':
+            router.push('/(tabs)/profile/friends' as any);
+            break;
 
-        case 'system_announcement':
-          router.push('/settings' as any);
-          break;
+          case 'friend_activity':
+            if (metadata?.friend_id) {
+              router.push(
+                `/(tabs)/profile/friends/${metadata.friend_id}` as any,
+              );
+            } else {
+              router.push('/(tabs)/profile/friends' as any);
+            }
+            break;
 
-        default:
-          router.push('/' as any);
-          break;
-      }
+          case 'content_update':
+            if (metadata?.content_id) {
+              router.push(`/content/${metadata.content_id}` as any);
+            } else {
+              router.push('/(tabs)/courses' as any);
+            }
+            break;
+
+          case 'streak_reminder':
+            router.push('/study' as any);
+            break;
+
+          case 'plan_reminder':
+            if (metadata?.plan_id) {
+              router.push(`/study/plan/${metadata.plan_id}` as any);
+            } else {
+              router.push('/study/plan' as any);
+            }
+            break;
+
+          case 'coaching_note':
+            if (metadata?.note_id) {
+              router.push(`/coaching/${metadata.note_id}` as any);
+            } else {
+              router.push('/coaching' as any);
+            }
+            break;
+
+          case 'motivational_message':
+            router.push('/' as any);
+            break;
+
+          case 'system_announcement':
+            router.push('/(tabs)/notifications' as any);
+            break;
+
+          default:
+            router.push('/' as any);
+            break;
+        }
+      };
+
+      // Small delay to ensure app is ready when opened from notification
+      setTimeout(performNavigation, 500);
     },
     [mapRoute],
   );
 
   const handleActionUrl = useCallback(
     (actionUrl: string, metadata?: Record<string, any>) => {
-      console.log('🚀 handleActionUrl called with:', { actionUrl, metadata });
-
       try {
         const cleanUrl = actionUrl.startsWith('/')
           ? actionUrl
           : `/${actionUrl}`;
 
-        console.log('🚀 Clean URL:', cleanUrl);
-        console.log('🚀 About to navigate with router.push...');
-
-        // Try the navigation
         router.push(cleanUrl as any);
-
-        console.log('🚀 Navigation completed successfully');
       } catch (error) {
-        console.error('🚨 Error parsing action URL:', error);
-        console.log('🚀 Falling back to home screen');
+        // Fallback to home on error
         router.push('/' as any);
       }
     },
@@ -206,7 +192,7 @@ export const useNotificationNavigation = () => {
           return '/';
 
         case 'system_announcement':
-          return '/settings';
+          return '/(tabs)/notifications';
 
         default:
           return '/';
@@ -228,7 +214,6 @@ export const useNotificationNavigation = () => {
           router.push(path as any);
         }
       } catch (error) {
-        console.error('Error navigating with params:', error);
         router.push('/' as any);
       }
     },
@@ -239,7 +224,6 @@ export const useNotificationNavigation = () => {
     try {
       router.push(route as any);
     } catch (error) {
-      console.warn(`Route ${route} not found, falling back to ${fallback}`);
       router.push(fallback as any);
     }
   }, []);
@@ -250,6 +234,6 @@ export const useNotificationNavigation = () => {
     getNotificationDeepLink,
     navigateWithParams,
     safeNavigate,
-    mapRoute, // Export for testing
+    mapRoute,
   };
 };
