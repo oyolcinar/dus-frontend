@@ -15,11 +15,19 @@
       "./assets/fonts/secondaryFontRegular.woff",
       "./assets/fonts/secondaryFontBold.woff"
     ],
+    "notification": {
+      "icon": "./assets/images/notification-icon.png",
+      "color": "#a8d8e6",
+      "iosDisplayInForeground": true,
+      "androidMode": "default",
+      "androidCollapsedTitle": "DUSPORT"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dortac.dusfrontend",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["background-fetch", "remote-notification"],
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "dus-app-oauth",
@@ -38,6 +46,7 @@
         "backgroundColor": "#a8d8e6"
       },
       "package": "com.dortac.dusfrontend",
+      "permissions": ["RECEIVE_BOOT_COMPLETED", "VIBRATE"],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -58,6 +67,14 @@
     "plugins": [
       "expo-router",
       "expo-apple-authentication",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#a8d8e6",
+          "defaultChannel": "default"
+        }
+      ],
       [
         "expo-splash-screen",
         {

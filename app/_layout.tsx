@@ -35,6 +35,10 @@ import AppBackground from '@/components/AppBackground';
 import NetInfo from '@react-native-community/netinfo';
 import * as Linking from 'expo-linking';
 import { handleDeepLink } from '../utils/oauthDeepLinkHandler';
+import {
+  setupPushNotifications,
+  setupNotificationListeners,
+} from '../src/api/notificationService';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -317,6 +321,44 @@ export default function RootLayout() {
     return null; // Keep splash screen visible
   }
 
+  function NotificationSetup() {
+    const { isAuthenticated, hasInitialized } = useAuth();
+    const setupAttempted = useRef(false);
+
+    useEffect(() => {
+      if (hasInitialized && isAuthenticated && !setupAttempted.current) {
+        setupAttempted.current = true;
+
+        const initNotifications = async () => {
+          try {
+            console.log('Setting up notifications for authenticated user...');
+
+            // Setup push notifications
+            const result = await setupPushNotifications();
+            if (result.success) {
+              console.log('Push notifications setup successful');
+            }
+
+            // Setup listeners
+            const cleanup = setupNotificationListeners();
+
+            return cleanup;
+          } catch (error) {
+            console.error('Notification setup failed:', error);
+          }
+        };
+
+        const cleanupPromise = initNotifications();
+
+        return () => {
+          cleanupPromise.then((cleanup) => cleanup?.());
+        };
+      }
+    }, [hasInitialized, isAuthenticated]);
+
+    return null;
+  }
+
   return (
     <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <SafeAreaProvider>
@@ -324,6 +366,7 @@ export default function RootLayout() {
           <AssetProvider>
             <AppInitializer />
             <NavigationGuard />
+            <NotificationSetup />
             <RootLayoutNav />
           </AssetProvider>
         </QueryClientProvider>
