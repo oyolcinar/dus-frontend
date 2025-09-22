@@ -86,6 +86,21 @@ export interface FinalResults {
   };
 }
 
+// 🚀 NEW: Quick Match Types
+export interface QuickMatchState {
+  status: 'idle' | 'searching' | 'found' | 'timeout' | 'error' | 'cancelled';
+  courseId: number | null;
+  message: string;
+  error: string | null;
+  matchedDuel: Duel | null;
+  opponent: {
+    username: string;
+    userId?: number;
+  } | null;
+  searchStartTime: number | null;
+  timeInQueue: number;
+}
+
 // 🚀 PERFORMANCE FIX 1: Single State Object with useReducer
 interface DuelRoomState {
   // Connection state
@@ -268,6 +283,364 @@ const getCachedAuthToken = async (): Promise<string | null> => {
     return null;
   }
 };
+
+// 🚀 NEW: QUICK MATCH HOOK
+export function useQuickMatch() {
+  const [quickMatchState, setQuickMatchState] = useState<QuickMatchState>({
+    status: 'idle',
+    courseId: null,
+    message: '',
+    error: null,
+    matchedDuel: null,
+    opponent: null,
+    searchStartTime: null,
+    timeInQueue: 0,
+  });
+
+  const [eventListenersSetup, setEventListenersSetup] = useState(false);
+  const timerRef = useRef<number | null>(null);
+  const cleanupFunctionsRef = useRef<Array<() => void>>([]);
+
+  // 🔄 Setup Quick Match Event Listeners
+  const setupQuickMatchListeners = useCallback(async () => {
+    if (eventListenersSetup) {
+      console.log('🔄 Quick match listeners already setup, cleaning up first');
+
+      // Cleanup existing listeners
+      cleanupFunctionsRef.current.forEach((cleanup) => {
+        try {
+          cleanup();
+        } catch (error) {
+          console.warn('Error cleaning up quick match listener:', error);
+        }
+      });
+      cleanupFunctionsRef.current = [];
+    }
+
+    try {
+      const {
+        on,
+        off,
+        onQuickMatchSearching,
+        onQuickMatchFound,
+        onQuickMatchTimeout,
+        onQuickMatchError,
+        onQuickMatchCancelled,
+      } = socketService;
+
+      // Clear any existing listeners first
+      off('quick_match_searching');
+      off('quick_match_found');
+      off('quick_match_timeout');
+      off('quick_match_error');
+      off('quick_match_cancelled');
+
+      console.log('🎯 Setting up quick match event listeners');
+
+      // Handle search started
+      const handleQuickMatchSearching = (data: { message: string }) => {
+        console.log('🔍 Quick match searching:', data.message);
+        setQuickMatchState((prev) => ({
+          ...prev,
+          status: 'searching',
+          message: data.message || 'Eşleşme aranıyor...',
+          error: null,
+          searchStartTime: Date.now(),
+        }));
+      };
+
+      // Handle match found
+      const handleQuickMatchFound = (data: {
+        duel: Duel;
+        opponent: { username: string; userId?: number };
+      }) => {
+        console.log('✅ Quick match found:', data);
+        setQuickMatchState((prev) => ({
+          ...prev,
+          status: 'found',
+          message: `Eşleşme bulundu! Rakip: ${data.opponent.username}`,
+          matchedDuel: data.duel,
+          opponent: data.opponent,
+          error: null,
+        }));
+
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      };
+
+      // Handle timeout (bot fallback)
+      const handleQuickMatchTimeout = (data: {
+        duel: Duel;
+        message: string;
+      }) => {
+        console.log('⏰ Quick match timeout, bot created:', data);
+        setQuickMatchState((prev) => ({
+          ...prev,
+          status: 'timeout',
+          message:
+            data.message || 'Eşleşme bulunamadı, bot ile düello başlatıldı',
+          matchedDuel: data.duel,
+          opponent: { username: 'Dr. Bot', userId: data.duel.opponent_id },
+          error: null,
+        }));
+
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      };
+
+      // Handle error
+      const handleQuickMatchError = (data: { message: string }) => {
+        console.log('❌ Quick match error:', data.message);
+        setQuickMatchState((prev) => ({
+          ...prev,
+          status: 'error',
+          message: '',
+          error: data.message || 'Eşleşme hatası oluştu',
+          matchedDuel: null,
+          opponent: null,
+        }));
+
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      };
+
+      // Handle cancelled
+      const handleQuickMatchCancelled = (data: { message: string }) => {
+        console.log('🚫 Quick match cancelled:', data.message);
+        setQuickMatchState((prev) => ({
+          ...prev,
+          status: 'cancelled',
+          message: data.message || 'Eşleşme iptal edildi',
+          error: null,
+          matchedDuel: null,
+          opponent: null,
+          searchStartTime: null,
+          timeInQueue: 0,
+        }));
+
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      };
+
+      // Register event listeners using the typed functions
+      onQuickMatchSearching(handleQuickMatchSearching);
+      onQuickMatchFound(handleQuickMatchFound);
+      onQuickMatchTimeout(handleQuickMatchTimeout);
+      onQuickMatchError(handleQuickMatchError);
+      onQuickMatchCancelled(handleQuickMatchCancelled);
+
+      // Store cleanup functions
+      cleanupFunctionsRef.current = [
+        () => off('quick_match_searching', handleQuickMatchSearching),
+        () => off('quick_match_found', handleQuickMatchFound),
+        () => off('quick_match_timeout', handleQuickMatchTimeout),
+        () => off('quick_match_error', handleQuickMatchError),
+        () => off('quick_match_cancelled', handleQuickMatchCancelled),
+      ];
+
+      setEventListenersSetup(true);
+      console.log('✅ Quick match listeners setup complete');
+    } catch (error) {
+      console.error('❌ Failed to setup quick match listeners:', error);
+      setQuickMatchState((prev) => ({
+        ...prev,
+        status: 'error',
+        error: 'Failed to setup quick match listeners',
+      }));
+    }
+  }, [eventListenersSetup]);
+
+  // 🎯 Join Quick Match Queue
+  const joinQuickMatch = useCallback(
+    async (courseId: number) => {
+      try {
+        console.log(`🚀 Joining quick match queue for course ${courseId}`);
+
+        if (!socketService.isConnected()) {
+          throw new Error('Socket bağlantısı yok. Lütfen tekrar deneyin.');
+        }
+
+        if (!eventListenersSetup) {
+          await setupQuickMatchListeners();
+        }
+
+        setQuickMatchState((prev) => ({
+          ...prev,
+          status: 'searching',
+          courseId,
+          message: 'Eşleşme kuyruğuna katılıyor...',
+          error: null,
+          matchedDuel: null,
+          opponent: null,
+          searchStartTime: Date.now(),
+          timeInQueue: 0,
+        }));
+
+        socketService.joinQuickMatch(courseId);
+
+        timerRef.current = setInterval(() => {
+          setQuickMatchState((prev) => {
+            if (prev.searchStartTime && prev.status === 'searching') {
+              const timeInQueue = Math.floor(
+                (Date.now() - prev.searchStartTime) / 1000,
+              );
+              return { ...prev, timeInQueue };
+            }
+            return prev;
+          });
+        }, 1000) as any;
+
+        console.log('✅ Quick match join request sent');
+      } catch (error) {
+        console.error('❌ Failed to join quick match:', error);
+        setQuickMatchState((prev) => ({
+          ...prev,
+          status: 'error',
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Eşleşme kuyruğuna katılım başarısız',
+        }));
+      }
+    },
+    [eventListenersSetup, setupQuickMatchListeners],
+  );
+
+  // 🚪 Leave Quick Match Queue
+  const leaveQuickMatch = useCallback(async () => {
+    try {
+      console.log('🚪 Leaving quick match queue');
+
+      if (!socketService.isConnected()) {
+        console.warn('Socket not connected, cannot send leave request');
+      } else {
+        socketService.leaveQuickMatch();
+      }
+
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+
+      setQuickMatchState({
+        status: 'idle',
+        courseId: null,
+        message: '',
+        error: null,
+        matchedDuel: null,
+        opponent: null,
+        searchStartTime: null,
+        timeInQueue: 0,
+      });
+
+      console.log('✅ Left quick match queue');
+    } catch (error) {
+      console.error('❌ Failed to leave quick match:', error);
+      setQuickMatchState((prev) => ({
+        ...prev,
+        status: 'error',
+        error:
+          error instanceof Error ? error.message : 'Kuyruktan çıkış başarısız',
+      }));
+    }
+  }, []);
+
+  // 🔄 Reset Quick Match State
+  const resetQuickMatch = useCallback(() => {
+    console.log('🔄 Resetting quick match state');
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    setQuickMatchState({
+      status: 'idle',
+      courseId: null,
+      message: '',
+      error: null,
+      matchedDuel: null,
+      opponent: null,
+      searchStartTime: null,
+      timeInQueue: 0,
+    });
+  }, []);
+
+  // 🧹 Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      console.log('🧹 Cleaning up quick match hook');
+
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+
+      cleanupFunctionsRef.current.forEach((cleanup) => {
+        try {
+          cleanup();
+        } catch (error) {
+          console.warn('Error cleaning up quick match listener:', error);
+        }
+      });
+      cleanupFunctionsRef.current = [];
+
+      if (quickMatchState.status === 'searching') {
+        try {
+          if (socketService.isConnected()) {
+            socketService.leaveQuickMatch();
+          }
+        } catch (error) {
+          console.warn('Error leaving quick match on cleanup:', error);
+        }
+      }
+    };
+  }, [quickMatchState.status]);
+
+  // 🎯 Auto-setup listeners when socket connects
+  useEffect(() => {
+    const checkSocketAndSetupListeners = async () => {
+      if (socketService.isConnected() && !eventListenersSetup) {
+        await setupQuickMatchListeners();
+      }
+    };
+
+    checkSocketAndSetupListeners();
+  }, [setupQuickMatchListeners, eventListenersSetup]);
+
+  return {
+    // State
+    quickMatchState,
+    isSearching: quickMatchState.status === 'searching',
+    isMatchFound: quickMatchState.status === 'found',
+    isTimeout: quickMatchState.status === 'timeout',
+    hasError: quickMatchState.status === 'error',
+    isCancelled: quickMatchState.status === 'cancelled',
+
+    // Actions
+    joinQuickMatch,
+    leaveQuickMatch,
+    resetQuickMatch,
+    setupQuickMatchListeners,
+
+    // Computed values
+    canJoinQueue: quickMatchState.status === 'idle',
+    canLeaveQueue: quickMatchState.status === 'searching',
+    timeInQueue: quickMatchState.timeInQueue,
+    matchedDuel: quickMatchState.matchedDuel,
+    opponent: quickMatchState.opponent,
+    error: quickMatchState.error,
+    message: quickMatchState.message,
+  };
+}
 
 // 🚀 MAIN ACTIVE DUELS HOOK
 export function useActiveDuels() {
@@ -1702,11 +2075,13 @@ export function useDuelsData() {
   const duelStatsQuery = useDuelStats();
   const opponentsQueries = useDuelOpponents();
   const leaderboardQuery = useDuelLeaderboard();
+  const quickMatch = useQuickMatch();
 
   // Extract opponents data
   const [recommendedQuery, friendsQuery, botsQuery] = opponentsQueries;
 
   return {
+    quickMatch,
     // Active duels
     activeDuels: activeDuelsQuery.data || [],
     activeDuelsLoading: activeDuelsQuery.isLoading,
@@ -1749,6 +2124,7 @@ export function useDuelsData() {
 // 🚀 HOOK FOR NEW DUEL SCREEN SPECIFICALLY
 export function useNewDuelData() {
   const opponentsQueries = useDuelOpponents();
+  const quickMatch = useQuickMatch();
   const [recommendedQuery, friendsQuery, botsQuery] = opponentsQueries;
 
   // Get available courses for duel creation
@@ -1768,6 +2144,7 @@ export function useNewDuelData() {
   });
 
   return {
+    quickMatch,
     // Opponents
     recommendedOpponents: recommendedQuery.data || [],
     friendOpponents: friendsQuery.data || [],

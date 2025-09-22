@@ -10,6 +10,16 @@ interface SocketEvents {
   disconnect: () => void;
   connect_error: (error: Error) => void;
 
+  // ✅ NEW: Quick Match events
+  quick_match_searching: (data: { message: string }) => void;
+  quick_match_found: (data: {
+    duel: any;
+    opponent: { username: string; userId?: number };
+  }) => void;
+  quick_match_timeout: (data: { duel: any; message: string }) => void;
+  quick_match_error: (data: { message: string }) => void;
+  quick_match_cancelled: (data: { message: string }) => void;
+
   // Room events
   room_joined: (data: { session: DuelSession }) => void;
   room_error: (data: { message: string }) => void;
@@ -438,6 +448,57 @@ export const isConnected = (): boolean => {
 export const getConnectionState = (): ConnectionState => {
   return { ...connectionState };
 };
+
+// ✅ NEW: Generic emit function for Quick Match and other events
+export const emit = (event: string, data?: any): void => {
+  if (!socketInstance || !socketInstance.connected) {
+    throw new Error('Socket not connected');
+  }
+  console.log(`🔧 Socket Action: Emitting ${event}:`, data);
+  socketInstance.emit(event, data);
+};
+
+// ✅ NEW: Quick Match Socket Functions
+export const joinQuickMatch = (courseId: number): void => {
+  if (!socketInstance || !socketInstance.connected) {
+    throw new Error('Socket not connected');
+  }
+  console.log('🚀 Socket Action: Joining quick match for course:', courseId);
+  socketInstance.emit('join_quick_match', { courseId });
+};
+
+export const leaveQuickMatch = (): void => {
+  if (!socketInstance || !socketInstance.connected) {
+    console.warn('Socket not connected, cannot leave quick match');
+    return;
+  }
+  console.log('🚪 Socket Action: Leaving quick match queue');
+  socketInstance.emit('leave_quick_match');
+};
+
+// ✅ NEW: Quick Match Event Listeners
+export const onQuickMatchSearching = (
+  callback: (data: { message: string }) => void,
+): void => on('quick_match_searching', callback);
+
+export const onQuickMatchFound = (
+  callback: (data: {
+    duel: any;
+    opponent: { username: string; userId?: number };
+  }) => void,
+): void => on('quick_match_found', callback);
+
+export const onQuickMatchTimeout = (
+  callback: (data: { duel: any; message: string }) => void,
+): void => on('quick_match_timeout', callback);
+
+export const onQuickMatchError = (
+  callback: (data: { message: string }) => void,
+): void => on('quick_match_error', callback);
+
+export const onQuickMatchCancelled = (
+  callback: (data: { message: string }) => void,
+): void => on('quick_match_cancelled', callback);
 
 // Enhanced event listener management
 const setupEventListeners = (): void => {

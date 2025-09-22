@@ -73,6 +73,36 @@ interface RecommendedOpponentsPayload {
   compatibility: number;
 }
 
+// ✅ NEW: Quick Match Related Payloads
+interface QuickMatchDuelPayload {
+  message: string;
+  duel: Duel;
+}
+
+// ✅ NEW: Create Quick Match Duel Function (for backend service)
+export const createQuickMatchDuel = async (
+  user1Id: number,
+  user2Id: number,
+  courseId: number,
+  questionCount: number = 5,
+): Promise<QuickMatchDuelPayload> => {
+  const response = await apiRequest<QuickMatchDuelPayload>(
+    '/duels/quick-match',
+    'POST',
+    {
+      user1Id,
+      user2Id,
+      courseId,
+      questionCount,
+    },
+  );
+
+  if (!response.data) {
+    throw new Error('Failed to create quick match duel: No data received');
+  }
+  return response.data;
+};
+
 type BranchType = 'mixed' | 'specific';
 type SelectionType = 'random' | 'friend';
 
